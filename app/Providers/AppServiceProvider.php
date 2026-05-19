@@ -4,9 +4,11 @@ namespace App\Providers;
 
 use App\Models\Opd;
 use App\Models\Role;
+use App\Models\Rpjmd;
 use App\Models\User;
 use App\Policies\OpdPolicy;
 use App\Policies\RolePolicy;
+use App\Policies\RpjmdPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::policy(Opd::class, OpdPolicy::class);
         Gate::policy(Role::class, RolePolicy::class);
+        Gate::policy(Rpjmd::class, RpjmdPolicy::class);
         Gate::policy(User::class, UserPolicy::class);
 
         Gate::before(function (User $user) {

@@ -113,7 +113,7 @@ class DatabaseSeeder extends Seeder
             'pimpinan' => [
                 'label' => 'Pimpinan',
                 'description' => 'Hanya melihat dashboard, laporan, progres, capaian, dan status evaluasi.',
-                'permissions' => ['dashboard.view', 'view_dashboard_pimpinan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_pimpinan', 'rpjmd.view', 'view_rpjmd'],
             ],
         ];
 
