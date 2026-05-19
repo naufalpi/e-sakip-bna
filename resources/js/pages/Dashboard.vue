@@ -12,6 +12,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 defineProps<{
     name?: string;
+    stats?: {
+        opd_count: number;
+        user_count: number | null;
+        role_count: number | null;
+        permission_count: number | null;
+    };
 }>();
 </script>
 
@@ -28,15 +34,15 @@ defineProps<{
             <div class="grid auto-rows-min gap-4 md:grid-cols-3">
                 <div class="rounded-lg border border-sidebar-border/70 bg-card p-4 dark:border-sidebar-border">
                     <p class="text-sm text-muted-foreground">OPD</p>
-                    <p class="mt-3 text-2xl font-semibold">0</p>
+                    <p class="mt-3 text-2xl font-semibold">{{ stats?.opd_count ?? 0 }}</p>
                 </div>
                 <div class="rounded-lg border border-sidebar-border/70 bg-card p-4 dark:border-sidebar-border">
-                    <p class="text-sm text-muted-foreground">Dokumen Kinerja</p>
-                    <p class="mt-3 text-2xl font-semibold">0</p>
+                    <p class="text-sm text-muted-foreground">User</p>
+                    <p class="mt-3 text-2xl font-semibold">{{ stats?.user_count ?? '-' }}</p>
                 </div>
                 <div class="rounded-lg border border-sidebar-border/70 bg-card p-4 dark:border-sidebar-border">
-                    <p class="text-sm text-muted-foreground">Pengajuan Workflow</p>
-                    <p class="mt-3 text-2xl font-semibold">0</p>
+                    <p class="text-sm text-muted-foreground">Role / Permission</p>
+                    <p class="mt-3 text-2xl font-semibold">{{ stats?.role_count ?? '-' }} / {{ stats?.permission_count ?? '-' }}</p>
                 </div>
             </div>
             <div class="min-h-96 flex-1 rounded-lg border border-dashed border-sidebar-border/70 bg-muted/20 p-6 dark:border-sidebar-border">
