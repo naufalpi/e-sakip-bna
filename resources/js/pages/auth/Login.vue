@@ -41,7 +41,7 @@ const submit = () => {
                     <Label for="email">Email atau username</Label>
                     <Input
                         id="email"
-                        type="email"
+                        type="text"
                         required
                         autofocus
                         tabindex="1"
