@@ -19,7 +19,29 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $permissions = collect([
+        $minimalPermissions = [
+            ['name' => 'manage_users', 'label' => 'Kelola User', 'module' => 'user'],
+            ['name' => 'manage_roles', 'label' => 'Kelola Role', 'module' => 'role_permission'],
+            ['name' => 'manage_opd', 'label' => 'Kelola OPD', 'module' => 'master_opd'],
+            ['name' => 'manage_master_umum', 'label' => 'Kelola Master Umum', 'module' => 'master_umum'],
+            ['name' => 'manage_rpjmd', 'label' => 'Kelola RPJMD', 'module' => 'rpjmd'],
+            ['name' => 'view_rpjmd', 'label' => 'Lihat RPJMD', 'module' => 'rpjmd'],
+            ['name' => 'manage_renstra_opd', 'label' => 'Kelola Renstra OPD', 'module' => 'renstra'],
+            ['name' => 'view_renstra_opd', 'label' => 'Lihat Renstra OPD', 'module' => 'renstra'],
+            ['name' => 'manage_perjanjian_kinerja', 'label' => 'Kelola Perjanjian Kinerja', 'module' => 'perjanjian_kinerja'],
+            ['name' => 'manage_rencana_aksi', 'label' => 'Kelola Rencana Aksi', 'module' => 'rencana_aksi'],
+            ['name' => 'input_realisasi', 'label' => 'Input Realisasi', 'module' => 'realisasi'],
+            ['name' => 'verify_realisasi', 'label' => 'Verifikasi Realisasi', 'module' => 'realisasi'],
+            ['name' => 'manage_evaluasi', 'label' => 'Kelola Evaluasi', 'module' => 'evaluasi_sakip'],
+            ['name' => 'view_dashboard_kabupaten', 'label' => 'Lihat Dashboard Kabupaten', 'module' => 'dashboard'],
+            ['name' => 'view_dashboard_opd', 'label' => 'Lihat Dashboard OPD', 'module' => 'dashboard'],
+            ['name' => 'view_dashboard_pimpinan', 'label' => 'Lihat Dashboard Pimpinan', 'module' => 'dashboard'],
+            ['name' => 'manage_dokumen', 'label' => 'Kelola Dokumen', 'module' => 'dokumen'],
+            ['name' => 'export_laporan', 'label' => 'Export Laporan', 'module' => 'laporan'],
+            ['name' => 'lock_period', 'label' => 'Kunci Periode', 'module' => 'periode'],
+        ];
+
+        $uiPermissions = [
             ['name' => 'dashboard.view', 'label' => 'Lihat Dashboard', 'module' => 'dashboard'],
             ['name' => 'opd.view', 'label' => 'Lihat OPD', 'module' => 'master_opd'],
             ['name' => 'opd.manage', 'label' => 'Kelola OPD', 'module' => 'master_opd'],
@@ -46,7 +68,9 @@ class DatabaseSeeder extends Seeder
             ['name' => 'dokumen.view', 'label' => 'Lihat Dokumen', 'module' => 'dokumen'],
             ['name' => 'dokumen.manage', 'label' => 'Kelola Dokumen', 'module' => 'dokumen'],
             ['name' => 'laporan.view', 'label' => 'Lihat Laporan', 'module' => 'laporan'],
-        ])->mapWithKeys(function (array $permission) {
+        ];
+
+        $permissions = collect([...$minimalPermissions, ...$uiPermissions])->mapWithKeys(function (array $permission) {
             $model = Permission::updateOrCreate(
                 ['name' => $permission['name']],
                 [...$permission, 'is_system' => true],
@@ -64,32 +88,32 @@ class DatabaseSeeder extends Seeder
             'admin_kabupaten_bagian_organisasi' => [
                 'label' => 'Admin Kabupaten Bagian Organisasi',
                 'description' => 'Monitoring, validasi umum, dan melihat progres OPD.',
-                'permissions' => ['dashboard.view', 'opd.view', 'users.view', 'roles.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'renstra.view', 'kinerja.view', 'evaluasi.view', 'dokumen.view', 'laporan.view'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'users.view', 'roles.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'evaluasi.view', 'dokumen.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_bapperida' => [
                 'label' => 'Admin Kabupaten Bapperida',
                 'description' => 'Input dan kelola data perencanaan kabupaten/RPJMD.',
-                'permissions' => ['dashboard.view', 'opd.view', 'roles.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'rpjmd.manage', 'renstra.view', 'laporan.view'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'roles.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'rpjmd.manage', 'view_rpjmd', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_inspektorat' => [
                 'label' => 'Admin Kabupaten Inspektorat',
                 'description' => 'Evaluasi kinerja, LKE, LHE, rekomendasi, dan verifikasi tindak lanjut.',
-                'permissions' => ['dashboard.view', 'opd.view', 'roles.view', 'periode.view', 'evaluasi.view', 'evaluasi.manage', 'dokumen.view', 'dokumen.manage', 'laporan.view'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'roles.view', 'periode.view', 'evaluasi.view', 'evaluasi.manage', 'manage_evaluasi', 'verify_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_dinkominfo' => [
                 'label' => 'Admin Kabupaten Dinkominfo',
                 'description' => 'Kelola master data umum, OPD, user, dan konfigurasi aplikasi.',
-                'permissions' => ['dashboard.view', 'opd.view', 'opd.manage', 'users.view', 'users.manage', 'roles.view', 'periode.view', 'periode.manage', 'satuan.view', 'satuan.manage', 'urusan.view', 'urusan.manage', 'settings.view', 'settings.manage', 'activity_logs.view'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'opd.manage', 'manage_opd', 'users.view', 'users.manage', 'manage_users', 'roles.view', 'manage_roles', 'periode.view', 'periode.manage', 'lock_period', 'satuan.view', 'satuan.manage', 'urusan.view', 'urusan.manage', 'manage_master_umum', 'settings.view', 'settings.manage', 'activity_logs.view'],
             ],
             'admin_opd' => [
                 'label' => 'Admin OPD',
                 'description' => 'Kelola data perencanaan dan kinerja OPD masing-masing.',
-                'permissions' => ['dashboard.view', 'opd.view', 'roles.view', 'periode.view', 'satuan.view', 'rpjmd.view', 'renstra.view', 'renstra.manage', 'kinerja.view', 'kinerja.manage', 'dokumen.view', 'dokumen.manage', 'evaluasi.view'],
+                'permissions' => ['dashboard.view', 'view_dashboard_opd', 'opd.view', 'roles.view', 'periode.view', 'satuan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'renstra.manage', 'view_renstra_opd', 'manage_renstra_opd', 'kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja', 'manage_rencana_aksi', 'input_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'evaluasi.view'],
             ],
             'pimpinan' => [
                 'label' => 'Pimpinan',
                 'description' => 'Hanya melihat dashboard, laporan, progres, capaian, dan status evaluasi.',
-                'permissions' => ['dashboard.view'],
+                'permissions' => ['dashboard.view', 'view_dashboard_pimpinan'],
             ],
         ];
 
@@ -109,9 +133,12 @@ class DatabaseSeeder extends Seeder
         }
 
         $superAdmin = User::updateOrCreate(
-            ['email' => env('SUPER_ADMIN_EMAIL', 'admin@example.com')],
+            ['username' => env('SUPER_ADMIN_USERNAME', 'superadmin')],
             [
                 'name' => env('SUPER_ADMIN_NAME', 'Super Admin'),
+                'email' => env('SUPER_ADMIN_EMAIL', 'admin@example.test'),
+                'phone' => env('SUPER_ADMIN_PHONE'),
+                'jabatan' => 'Administrator Sistem',
                 'password' => Hash::make(env('SUPER_ADMIN_PASSWORD', 'password')),
                 'status' => 'active',
             ],

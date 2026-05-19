@@ -31,9 +31,13 @@ export interface SharedData {
 
 export interface User {
     id: number;
+    username?: string | null;
     name: string;
     email: string;
+    phone?: string | null;
+    jabatan?: string | null;
     status: string;
+    last_login_at?: string | null;
     opd_id?: number | null;
     opd?: {
         id: number;

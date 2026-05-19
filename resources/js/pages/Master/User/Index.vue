@@ -7,9 +7,13 @@ import { reactive } from 'vue';
 
 type UserRow = {
     id: number;
+    username?: string | null;
     name: string;
     email: string;
+    phone?: string | null;
+    jabatan?: string | null;
     status: string;
+    last_login_at?: string | null;
     opd?: { nama: string; singkatan?: string | null } | null;
     roles: Array<{ id: number; name: string; label: string }>;
 };
@@ -99,7 +103,7 @@ const destroy = (user: UserRow) => {
                         v-model="filterForm.search"
                         type="search"
                         class="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                        placeholder="Cari nama atau email"
+                        placeholder="Cari nama, username, email, telepon, atau jabatan"
                     />
                 </div>
                 <select v-model="filterForm.status" class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700">
@@ -135,7 +139,8 @@ const destroy = (user: UserRow) => {
                             <tr v-for="user in users.data" :key="user.id" class="border-b last:border-0">
                                 <td class="px-4 py-3">
                                     <div class="font-medium">{{ user.name }}</div>
-                                    <div class="text-xs text-muted-foreground">{{ user.email }}</div>
+                                    <div class="text-xs text-muted-foreground">@{{ user.username || '-' }} · {{ user.email }}</div>
+                                    <div class="text-xs text-muted-foreground">{{ user.jabatan || '-' }} · {{ user.phone || '-' }}</div>
                                 </td>
                                 <td class="px-4 py-3 text-muted-foreground">
                                     <span v-if="user.opd">{{ user.opd.singkatan || user.opd.nama }}</span>

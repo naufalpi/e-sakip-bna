@@ -16,7 +16,7 @@ class MasterAccessTest extends TestCase
     {
         $this->seed();
 
-        $superAdmin = User::where('email', 'admin@example.com')->firstOrFail();
+        $superAdmin = User::where('email', 'admin@example.test')->firstOrFail();
 
         $this->actingAs($superAdmin)
             ->get(route('master.opd.index'))
@@ -41,6 +41,27 @@ class MasterAccessTest extends TestCase
         $this->actingAs($user)
             ->get(route('master.users.index'))
             ->assertForbidden();
+    }
+
+    public function test_seeded_super_admin_can_login_and_has_permissions(): void
+    {
+        $this->seed();
+
+        $response = $this->post(route('login'), [
+            'email' => 'admin@example.test',
+            'password' => 'password',
+        ]);
+
+        $response->assertRedirect(route('dashboard', absolute: false));
+
+        /** @var User $user */
+        $user = User::where('username', 'superadmin')->firstOrFail();
+
+        $this->assertTrue($user->isSuperAdmin());
+        $this->assertTrue($user->hasRole('super_admin'));
+        $this->assertTrue($user->hasPermission('manage_users'));
+        $this->assertTrue($user->hasPermission('manage_rpjmd'));
+        $this->assertNotNull($user->fresh()->last_login_at);
     }
 
     public function test_admin_opd_can_view_but_cannot_manage_opd_master(): void

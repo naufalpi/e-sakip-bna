@@ -38,16 +38,16 @@ const submit = () => {
         <form @submit.prevent="submit" class="flex flex-col gap-6">
             <div class="grid gap-6">
                 <div class="grid gap-2">
-                    <Label for="email">Alamat email</Label>
+                    <Label for="email">Email atau username</Label>
                     <Input
                         id="email"
                         type="email"
                         required
                         autofocus
                         tabindex="1"
-                        autocomplete="email"
+                        autocomplete="username"
                         v-model="form.email"
-                        placeholder="nama@banjarnegarakab.go.id"
+                        placeholder="superadmin atau nama@banjarnegarakab.go.id"
                     />
                     <InputError :message="form.errors.email" />
                 </div>

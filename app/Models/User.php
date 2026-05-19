@@ -28,10 +28,14 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'opd_id',
+        'username',
         'name',
         'email',
+        'phone',
+        'jabatan',
         'password',
         'status',
+        'last_login_at',
     ];
 
     /**
@@ -53,6 +57,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_login_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
@@ -69,7 +74,16 @@ class User extends Authenticatable
 
     public function hasRole(string $role): bool
     {
-        return $this->roles->contains('name', $role);
+        if ($this->relationLoaded('roles')) {
+            return $this->roles->contains('name', $role);
+        }
+
+        return $this->roles()->where('name', $role)->exists();
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->hasRole('super_admin');
     }
 
     /**
@@ -82,13 +96,19 @@ class User extends Authenticatable
 
     public function hasPermission(string $permission): bool
     {
-        if ($this->hasRole('super_admin')) {
+        if ($this->isSuperAdmin()) {
             return true;
         }
 
-        return $this->roles
-            ->flatMap(fn (Role $role) => $role->permissions)
-            ->contains('name', $permission);
+        if ($this->relationLoaded('roles')) {
+            return $this->roles
+                ->flatMap(fn (Role $role) => $role->permissions)
+                ->contains('name', $permission);
+        }
+
+        return $this->roles()
+            ->whereHas('permissions', fn ($query) => $query->where('name', $permission))
+            ->exists();
     }
 
     /**
@@ -96,7 +116,7 @@ class User extends Authenticatable
      */
     public function hasAnyPermission(array $permissions): bool
     {
-        if ($this->hasRole('super_admin')) {
+        if ($this->isSuperAdmin()) {
             return true;
         }
 

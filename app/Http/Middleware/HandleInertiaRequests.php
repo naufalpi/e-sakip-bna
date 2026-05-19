@@ -49,12 +49,16 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $user ? [
                     'id' => $user->id,
+                    'username' => $user->username,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'phone' => $user->phone,
+                    'jabatan' => $user->jabatan,
                     'email_verified_at' => $user->email_verified_at?->toISOString(),
                     'created_at' => $user->created_at?->toISOString(),
                     'updated_at' => $user->updated_at?->toISOString(),
                     'status' => $user->status,
+                    'last_login_at' => $user->last_login_at?->toISOString(),
                     'opd_id' => $user->opd_id,
                     'opd' => $user->opd ? [
                         'id' => $user->opd->id,

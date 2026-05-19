@@ -6,8 +6,11 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 
 type UserForm = {
     opd_id: number | string | null;
+    username: string;
     name: string;
     email: string;
+    phone: string;
+    jabatan: string;
     password: string;
     password_confirmation: string;
     status: string;
@@ -29,8 +32,11 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const form = useForm<UserForm>({
     opd_id: props.user?.opd_id ?? '',
+    username: props.user?.username ?? '',
     name: props.user?.name ?? '',
     email: props.user?.email ?? '',
+    phone: props.user?.phone ?? '',
+    jabatan: props.user?.jabatan ?? '',
     password: '',
     password_confirmation: '',
     status: props.user?.status ?? 'active',
@@ -75,6 +81,11 @@ const submit = () => {
                 <h2 class="text-sm font-semibold">Identitas Akun</h2>
                 <div class="mt-4 grid gap-4 md:grid-cols-2">
                     <div class="grid gap-2">
+                        <label class="text-sm font-medium" for="username">Username</label>
+                        <input id="username" v-model="form.username" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                        <InputError :message="form.errors.username" />
+                    </div>
+                    <div class="grid gap-2">
                         <label class="text-sm font-medium" for="name">Nama</label>
                         <input id="name" v-model="form.name" class="h-9 rounded-md border bg-background px-3 text-sm" />
                         <InputError :message="form.errors.name" />
@@ -83,6 +94,16 @@ const submit = () => {
                         <label class="text-sm font-medium" for="email">Email</label>
                         <input id="email" v-model="form.email" type="email" class="h-9 rounded-md border bg-background px-3 text-sm" />
                         <InputError :message="form.errors.email" />
+                    </div>
+                    <div class="grid gap-2">
+                        <label class="text-sm font-medium" for="phone">Telepon</label>
+                        <input id="phone" v-model="form.phone" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                        <InputError :message="form.errors.phone" />
+                    </div>
+                    <div class="grid gap-2 md:col-span-2">
+                        <label class="text-sm font-medium" for="jabatan">Jabatan</label>
+                        <input id="jabatan" v-model="form.jabatan" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                        <InputError :message="form.errors.jabatan" />
                     </div>
                     <div class="grid gap-2">
                         <label class="text-sm font-medium" for="password">Kata sandi</label>

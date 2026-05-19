@@ -28,7 +28,10 @@ class UserController extends Controller
             ->when($filters['search'] ?? null, function ($query, string $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('name', 'ilike', "%{$search}%")
-                        ->orWhere('email', 'ilike', "%{$search}%");
+                        ->orWhere('username', 'ilike', "%{$search}%")
+                        ->orWhere('email', 'ilike', "%{$search}%")
+                        ->orWhere('phone', 'ilike', "%{$search}%")
+                        ->orWhere('jabatan', 'ilike', "%{$search}%");
                 });
             })
             ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
@@ -176,8 +179,12 @@ class UserController extends Controller
                 'singkatan' => $user->opd->singkatan,
             ] : null,
             'name' => $user->name,
+            'username' => $user->username,
             'email' => $user->email,
+            'phone' => $user->phone,
+            'jabatan' => $user->jabatan,
             'status' => $user->status,
+            'last_login_at' => $user->last_login_at?->toISOString(),
             'roles' => $user->roles->map(fn (Role $role) => [
                 'id' => $role->id,
                 'name' => $role->name,
