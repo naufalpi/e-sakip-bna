@@ -4,6 +4,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Master\OpdController;
 use App\Http\Controllers\Master\RolePermissionController;
 use App\Http\Controllers\Master\UserController;
+use App\Http\Controllers\RenstraOpd\RenstraOpdController;
+use App\Http\Controllers\RenstraOpd\RenstraOpdNodeController;
 use App\Http\Controllers\Rpjmd\RpjmdController;
 use App\Http\Controllers\Rpjmd\RpjmdImportController;
 use App\Http\Controllers\Rpjmd\RpjmdNodeController;
@@ -24,6 +26,10 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::resource('rpjmd', RpjmdController::class);
     Route::post('rpjmd/{rpjmd}/nodes', [RpjmdNodeController::class, 'store'])->name('rpjmd.nodes.store');
     Route::delete('rpjmd/{rpjmd}/nodes/{type}/{id}', [RpjmdNodeController::class, 'destroy'])->name('rpjmd.nodes.destroy');
+
+    Route::resource('renstra-opd', RenstraOpdController::class);
+    Route::post('renstra-opd/{renstra_opd}/nodes', [RenstraOpdNodeController::class, 'store'])->name('renstra-opd.nodes.store');
+    Route::delete('renstra-opd/{renstra_opd}/nodes/{type}/{id}', [RenstraOpdNodeController::class, 'destroy'])->name('renstra-opd.nodes.destroy');
 
     Route::prefix('master')->name('master.')->group(function () {
         Route::resource('opd', OpdController::class)->except(['show']);

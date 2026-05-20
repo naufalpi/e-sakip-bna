@@ -3,10 +3,12 @@
 namespace App\Providers;
 
 use App\Models\Opd;
+use App\Models\RenstraOpd;
 use App\Models\Role;
 use App\Models\Rpjmd;
 use App\Models\User;
 use App\Policies\OpdPolicy;
+use App\Policies\RenstraOpdPolicy;
 use App\Policies\RolePolicy;
 use App\Policies\RpjmdPolicy;
 use App\Policies\UserPolicy;
@@ -29,6 +31,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(Opd::class, OpdPolicy::class);
+        Gate::policy(RenstraOpd::class, RenstraOpdPolicy::class);
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Rpjmd::class, RpjmdPolicy::class);
         Gate::policy(User::class, UserPolicy::class);

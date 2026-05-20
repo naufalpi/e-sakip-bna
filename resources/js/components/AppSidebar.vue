@@ -5,7 +5,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { Building2, GitBranch, LayoutDashboard, ShieldCheck, Users } from 'lucide-vue-next';
+import { Building2, GitBranch, Layers3, LayoutDashboard, ShieldCheck, Users } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -31,6 +31,13 @@ const mainNavItems = computed<NavItem[]>(() => [
               title: 'RPJMD Kabupaten',
               href: '/rpjmd',
               icon: GitBranch,
+          }]
+        : []),
+    ...(hasAnyPermission(['renstra.view', 'view_renstra_opd', 'renstra.manage', 'manage_renstra_opd'])
+        ? [{
+              title: 'Renstra OPD',
+              href: '/renstra-opd',
+              icon: Layers3,
           }]
         : []),
     ...(hasPermission('users.view')

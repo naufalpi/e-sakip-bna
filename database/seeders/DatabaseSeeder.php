@@ -98,7 +98,7 @@ class DatabaseSeeder extends Seeder
             'admin_kabupaten_inspektorat' => [
                 'label' => 'Admin Kabupaten Inspektorat',
                 'description' => 'Evaluasi kinerja, LKE, LHE, rekomendasi, dan verifikasi tindak lanjut.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'roles.view', 'periode.view', 'rpjmd.view', 'view_rpjmd', 'evaluasi.view', 'evaluasi.manage', 'manage_evaluasi', 'verify_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'roles.view', 'periode.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'evaluasi.view', 'evaluasi.manage', 'manage_evaluasi', 'verify_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_dinkominfo' => [
                 'label' => 'Admin Kabupaten Dinkominfo',
