@@ -16,6 +16,8 @@ use App\Http\Controllers\Kinerja\RealisasiProgramController;
 use App\Http\Controllers\Kinerja\RencanaAksiController;
 use App\Http\Controllers\Kinerja\RencanaAksiItemController;
 use App\Http\Controllers\Kinerja\WorkflowController;
+use App\Http\Controllers\Lkjip\LkjipBabController;
+use App\Http\Controllers\Lkjip\LkjipController;
 use App\Http\Controllers\Master\OpdController;
 use App\Http\Controllers\Master\RolePermissionController;
 use App\Http\Controllers\Master\UserController;
@@ -62,6 +64,10 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::resource('realisasi-kinerja', RealisasiKinerjaController::class);
     Route::post('realisasi-kinerja/{realisasi_kinerja}/programs', [RealisasiProgramController::class, 'store'])->name('realisasi-kinerja.programs.store');
     Route::delete('realisasi-kinerja/{realisasi_kinerja}/programs/{program}', [RealisasiProgramController::class, 'destroy'])->name('realisasi-kinerja.programs.destroy');
+
+    Route::resource('lkjip', LkjipController::class);
+    Route::post('lkjip/{lkjip}/bab', [LkjipBabController::class, 'store'])->name('lkjip.bab.store');
+    Route::delete('lkjip/{lkjip}/bab/{bab}', [LkjipBabController::class, 'destroy'])->name('lkjip.bab.destroy');
 
     Route::post('workflow/{module}/{id}/transition', [WorkflowController::class, 'transition'])->name('workflow.transition');
 

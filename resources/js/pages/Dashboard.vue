@@ -63,6 +63,7 @@ const props = defineProps<{
         perjanjian_kinerja_opd_count: number;
         rencana_aksi_opd_count: number;
         realisasi_opd_count: number;
+        lkjip_opd_count: number;
         evaluasi_opd_count: number;
         avg_capaian: number;
         avg_evaluasi: number;
@@ -103,6 +104,7 @@ const moduleLabels: Record<string, string> = {
     pk: 'PK',
     rencana_aksi: 'Rencana Aksi',
     realisasi: 'Realisasi',
+    lkjip: 'LKJIP',
     evaluasi: 'Evaluasi',
 };
 

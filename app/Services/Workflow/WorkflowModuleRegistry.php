@@ -3,6 +3,7 @@
 namespace App\Services\Workflow;
 
 use App\Models\EvaluasiSakip;
+use App\Models\Lkjip;
 use App\Models\PerjanjianKinerja;
 use App\Models\RealisasiKinerja;
 use App\Models\RencanaAksi;
@@ -26,7 +27,7 @@ class WorkflowModuleRegistry
             'realisasi_kinerja' => RealisasiKinerja::class,
             'evaluasi_sakip' => EvaluasiSakip::class,
             'tindak_lanjut_rekomendasi' => TindakLanjutRekomendasi::class,
-            'lkjip' => class_exists('App\\Models\\Lkjip') ? 'App\\Models\\Lkjip' : abort(404),
+            'lkjip' => Lkjip::class,
             default => abort(404),
         };
     }

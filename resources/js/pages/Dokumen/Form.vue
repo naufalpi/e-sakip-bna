@@ -55,6 +55,7 @@ const relationTypeOptions = [
     { value: 'perjanjian_kinerja', label: 'Perjanjian Kinerja' },
     { value: 'rencana_aksi', label: 'Rencana Aksi' },
     { value: 'realisasi_kinerja', label: 'Realisasi Kinerja' },
+    { value: 'lkjip', label: 'LKJIP' },
 ];
 
 const selectedRelationOptions = computed(() => (form.related_type ? props.relationOptions[form.related_type] || [] : []));

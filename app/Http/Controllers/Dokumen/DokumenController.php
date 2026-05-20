@@ -7,6 +7,7 @@ use App\Http\Requests\Dokumen\StoreDokumenRequest;
 use App\Http\Requests\Dokumen\UpdateDokumenRequest;
 use App\Models\Dokumen;
 use App\Models\DokumenRelation;
+use App\Models\Lkjip;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
 use App\Models\PerjanjianKinerja;
@@ -222,6 +223,7 @@ class DokumenController extends Controller
             'perjanjian_kinerja' => PerjanjianKinerja::class,
             'rencana_aksi' => RencanaAksi::class,
             'realisasi_kinerja' => RealisasiKinerja::class,
+            'lkjip' => Lkjip::class,
         ];
     }
 
@@ -346,6 +348,15 @@ class DokumenController extends Controller
                 ->map(fn (RealisasiKinerja $realisasi) => ['id' => $realisasi->id, 'label' => $this->relatedLabel($realisasi)])
                 ->values()
                 ->all(),
+            'lkjip' => Lkjip::query()
+                ->with('opd:id,nama,singkatan')
+                ->when($user->hasRole('admin_opd') && filled($user->opd_id), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
+                ->orderByDesc('tahun')
+                ->get(['id', 'opd_id', 'tahun', 'judul'])
+                ->filter(fn (Lkjip $lkjip) => $user->can('view', $lkjip))
+                ->map(fn (Lkjip $lkjip) => ['id' => $lkjip->id, 'label' => $this->relatedLabel($lkjip)])
+                ->values()
+                ->all(),
         ];
     }
 
@@ -395,6 +406,7 @@ class DokumenController extends Controller
             PerjanjianKinerja::class => ($model->opd?->singkatan ? "{$model->opd->singkatan} - " : '')."{$model->tahun} - {$model->judul}",
             RencanaAksi::class => ($model->opd?->singkatan ? "{$model->opd->singkatan} - " : '')."{$model->tahun} - {$model->judul}",
             RealisasiKinerja::class => ($model->opd?->singkatan ? "{$model->opd->singkatan} - " : '')."{$model->tahun} - {$model->periode_realisasi} ".($model->triwulan ?: $model->bulan ?: $model->semester ?: ''),
+            Lkjip::class => ($model->opd?->singkatan ? "{$model->opd->singkatan} - " : '')."{$model->tahun} - {$model->judul}",
             default => (string) $model->getKey(),
         };
     }
@@ -407,6 +419,7 @@ class DokumenController extends Controller
             PerjanjianKinerja::class => 'Perjanjian Kinerja',
             RencanaAksi::class => 'Rencana Aksi',
             RealisasiKinerja::class => 'Realisasi Kinerja',
+            Lkjip::class => 'LKJIP',
             default => class_basename($class),
         };
     }

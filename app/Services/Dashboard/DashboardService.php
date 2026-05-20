@@ -3,6 +3,7 @@
 namespace App\Services\Dashboard;
 
 use App\Models\EvaluasiSakip;
+use App\Models\Lkjip;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
 use App\Models\PerjanjianKinerja;
@@ -62,6 +63,7 @@ class DashboardService
         $pkOpdIds = $this->distinctOpdIds(PerjanjianKinerja::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun));
         $rencanaAksiOpdIds = $this->distinctOpdIds(RencanaAksi::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun));
         $realisasiOpdIds = $this->distinctOpdIds(RealisasiKinerja::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun));
+        $lkjipOpdIds = $this->distinctOpdIds(Lkjip::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun));
 
         $evaluasiByOpd = EvaluasiSakip::query()
             ->whereIn('opd_id', $opdIds)
@@ -79,6 +81,7 @@ class DashboardService
             $pkOpdIds,
             $rencanaAksiOpdIds,
             $realisasiOpdIds,
+            $lkjipOpdIds,
             $evaluasiByOpd,
             $rekomendasiTerbukaByOpd,
             $capaianByOpd,
@@ -117,6 +120,7 @@ class DashboardService
                 'perjanjian_kinerja_opd_count' => count($pkOpdIds),
                 'rencana_aksi_opd_count' => count($rencanaAksiOpdIds),
                 'realisasi_opd_count' => count($realisasiOpdIds),
+                'lkjip_opd_count' => count($lkjipOpdIds),
                 'evaluasi_opd_count' => count($evaluasiOpdIds),
                 'avg_capaian' => $this->selectedYearAchievement($achievementByYear, $tahun),
                 'avg_evaluasi' => $avgEvaluation !== null ? round((float) $avgEvaluation, 2) : 0,
@@ -131,6 +135,7 @@ class DashboardService
                 $this->completionRow('pk', 'Perjanjian Kinerja', count($pkOpdIds), $totalOpd),
                 $this->completionRow('rencana_aksi', 'Rencana Aksi', count($rencanaAksiOpdIds), $totalOpd),
                 $this->completionRow('realisasi', 'Realisasi Kinerja', count($realisasiOpdIds), $totalOpd),
+                $this->completionRow('lkjip', 'LKJIP', count($lkjipOpdIds), $totalOpd),
                 $this->completionRow('evaluasi', 'Evaluasi SAKIP', count($evaluasiOpdIds), $totalOpd),
             ],
             'progressOpd' => $progressOpd,
@@ -331,6 +336,7 @@ class DashboardService
      * @param  array<int, int>  $pkOpdIds
      * @param  array<int, int>  $rencanaAksiOpdIds
      * @param  array<int, int>  $realisasiOpdIds
+     * @param  array<int, int>  $lkjipOpdIds
      * @param  Collection<int, EvaluasiSakip>  $evaluasiByOpd
      * @param  array<int, int>  $rekomendasiTerbukaByOpd
      * @param  array<int, float>  $capaianByOpd
@@ -343,18 +349,20 @@ class DashboardService
         array $pkOpdIds,
         array $rencanaAksiOpdIds,
         array $realisasiOpdIds,
+        array $lkjipOpdIds,
         Collection $evaluasiByOpd,
         array $rekomendasiTerbukaByOpd,
         array $capaianByOpd,
     ): array {
         return $opds
-            ->map(function (Opd $opd) use ($rpjmdOpdIds, $renstraOpdIds, $pkOpdIds, $rencanaAksiOpdIds, $realisasiOpdIds, $evaluasiByOpd, $rekomendasiTerbukaByOpd, $capaianByOpd) {
+            ->map(function (Opd $opd) use ($rpjmdOpdIds, $renstraOpdIds, $pkOpdIds, $rencanaAksiOpdIds, $realisasiOpdIds, $lkjipOpdIds, $evaluasiByOpd, $rekomendasiTerbukaByOpd, $capaianByOpd) {
                 $modules = [
                     'rpjmd' => in_array($opd->id, $rpjmdOpdIds, true),
                     'renstra' => in_array($opd->id, $renstraOpdIds, true),
                     'pk' => in_array($opd->id, $pkOpdIds, true),
                     'rencana_aksi' => in_array($opd->id, $rencanaAksiOpdIds, true),
                     'realisasi' => in_array($opd->id, $realisasiOpdIds, true),
+                    'lkjip' => in_array($opd->id, $lkjipOpdIds, true),
                     'evaluasi' => $evaluasiByOpd->has($opd->id),
                 ];
                 $done = count(array_filter($modules));
@@ -450,6 +458,7 @@ class DashboardService
             'perjanjian_kinerja' => PerjanjianKinerja::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun)->pluck('id')->all(),
             'rencana_aksi' => RencanaAksi::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun)->pluck('id')->all(),
             'realisasi_kinerja' => RealisasiKinerja::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun)->pluck('id')->all(),
+            'lkjip' => Lkjip::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun)->pluck('id')->all(),
         ];
 
         return WorkflowSubmission::query()
@@ -590,6 +599,7 @@ class DashboardService
             'perjanjian_kinerja' => 'Perjanjian Kinerja',
             'rencana_aksi' => 'Rencana Aksi',
             'realisasi_kinerja' => 'Realisasi Kinerja',
+            'lkjip' => 'LKJIP',
             default => str($module)->replace('_', ' ')->title()->toString(),
         };
     }
@@ -630,6 +640,7 @@ class DashboardService
             ['permission' => 'renstra.view', 'fallback' => 'view_renstra_opd', 'label' => 'Renstra OPD', 'href' => '/renstra-opd'],
             ['permission' => 'kinerja.view', 'fallback' => 'manage_perjanjian_kinerja', 'label' => 'Perjanjian Kinerja', 'href' => '/perjanjian-kinerja'],
             ['permission' => 'kinerja.view', 'fallback' => 'input_realisasi', 'label' => 'Realisasi Kinerja', 'href' => '/realisasi-kinerja'],
+            ['permission' => 'lkjip.view', 'fallback' => 'laporan.view', 'label' => 'LKJIP', 'href' => '/lkjip'],
             ['permission' => 'evaluasi.view', 'fallback' => 'manage_evaluasi', 'label' => 'Evaluasi SAKIP', 'href' => '/evaluasi-sakip'],
         ];
 

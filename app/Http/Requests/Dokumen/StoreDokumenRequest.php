@@ -30,7 +30,7 @@ class StoreDokumenRequest extends FormRequest
             'deskripsi' => ['nullable', 'string'],
             'status' => ['required', Rule::in(['draft', 'submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'])],
             'file' => ['required', 'file', 'max:20480'],
-            'related_type' => ['nullable', Rule::in(['rpjmd', 'renstra_opd', 'perjanjian_kinerja', 'rencana_aksi', 'realisasi_kinerja'])],
+            'related_type' => ['nullable', Rule::in(['rpjmd', 'renstra_opd', 'perjanjian_kinerja', 'rencana_aksi', 'realisasi_kinerja', 'lkjip'])],
             'related_id' => ['nullable', 'required_with:related_type', 'integer'],
         ];
     }
