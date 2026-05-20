@@ -5,7 +5,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BarChart3, Building2, ClipboardCheck, FileCheck2, FileText, GitBranch, Layers3, LayoutDashboard, ListChecks, ShieldCheck, Users } from 'lucide-vue-next';
+import { BarChart3, Bell, Building2, ClipboardCheck, FileCheck2, FileText, GitBranch, Layers3, LayoutDashboard, ListChecks, ScrollText, ShieldCheck, Users } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -89,6 +89,18 @@ const mainNavItems = computed<NavItem[]>(() => [
               icon: ShieldCheck,
           }]
         : []),
+    ...(hasPermission('activity_logs.view')
+        ? [{
+              title: 'Audit Log',
+              href: '/audit-log',
+              icon: ScrollText,
+          }]
+        : []),
+    {
+        title: 'Notifikasi',
+        href: '/notifications',
+        icon: Bell,
+    },
 ]);
 
 const footerNavItems: NavItem[] = [];

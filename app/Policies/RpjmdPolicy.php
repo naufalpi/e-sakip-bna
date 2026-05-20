@@ -4,9 +4,12 @@ namespace App\Policies;
 
 use App\Models\Rpjmd;
 use App\Models\User;
+use App\Policies\Concerns\PreventsLockedChanges;
 
 class RpjmdPolicy
 {
+    use PreventsLockedChanges;
+
     public function viewAny(User $user): bool
     {
         return $user->hasAnyPermission(['rpjmd.view', 'view_rpjmd', 'rpjmd.manage', 'manage_rpjmd']);
@@ -38,12 +41,16 @@ class RpjmdPolicy
 
     public function update(User $user, Rpjmd $rpjmd): bool
     {
+        if (! $this->canChangeLocked($user, $rpjmd)) {
+            return false;
+        }
+
         return $user->hasAnyPermission(['rpjmd.manage', 'manage_rpjmd']);
     }
 
     public function delete(User $user, Rpjmd $rpjmd): bool
     {
-        return $user->hasAnyPermission(['rpjmd.manage', 'manage_rpjmd']);
+        return $this->update($user, $rpjmd);
     }
 
     private function canViewAllRpjmd(User $user): bool

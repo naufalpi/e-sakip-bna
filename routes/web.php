@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Dokumen\DokumenController;
 use App\Http\Controllers\Evaluasi\EvaluasiSakipController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Kinerja\WorkflowController;
 use App\Http\Controllers\Master\OpdController;
 use App\Http\Controllers\Master\RolePermissionController;
 use App\Http\Controllers\Master\UserController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdNodeController;
 use App\Http\Controllers\Rpjmd\RpjmdController;
@@ -33,6 +35,10 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('audit-log', AuditLogController::class)->name('audit-log.index');
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
 
     Route::get('rpjmd/import', [RpjmdImportController::class, 'create'])->name('rpjmd.import.create');
     Route::post('rpjmd/import', [RpjmdImportController::class, 'store'])->name('rpjmd.import.store');

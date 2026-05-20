@@ -4,9 +4,12 @@ namespace App\Policies;
 
 use App\Models\RenstraOpd;
 use App\Models\User;
+use App\Policies\Concerns\PreventsLockedChanges;
 
 class RenstraOpdPolicy
 {
+    use PreventsLockedChanges;
+
     public function viewAny(User $user): bool
     {
         return $user->hasAnyPermission(['renstra.view', 'view_renstra_opd', 'renstra.manage', 'manage_renstra_opd']);
@@ -30,6 +33,10 @@ class RenstraOpdPolicy
 
     public function update(User $user, RenstraOpd $renstraOpd): bool
     {
+        if (! $this->canChangeLocked($user, $renstraOpd)) {
+            return false;
+        }
+
         if (! $user->hasAnyPermission(['renstra.manage', 'manage_renstra_opd'])) {
             return false;
         }

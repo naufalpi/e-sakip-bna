@@ -19,6 +19,7 @@ class TindakLanjutRekomendasi extends Model
         'opd_id',
         'uraian_tindak_lanjut',
         'status_tindak_lanjut',
+        'status',
         'tanggal_tindak_lanjut',
         'catatan_opd',
         'created_by',

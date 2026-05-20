@@ -13,6 +13,7 @@ use App\Models\PeriodeTahun;
 use App\Models\RekomendasiEvaluasi;
 use App\Models\TindakLanjutRekomendasi;
 use App\Models\User;
+use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -94,7 +95,7 @@ class EvaluasiSakipController extends Controller
         return redirect()->route('evaluasi-sakip.show', $evaluasi)->with('success', 'Evaluasi SAKIP berhasil dibuat.');
     }
 
-    public function show(Request $request, EvaluasiSakip $evaluasiSakip): Response
+    public function show(Request $request, EvaluasiSakip $evaluasiSakip, WorkflowDataService $workflowDataService): Response
     {
         $this->authorize('view', $evaluasiSakip);
 
@@ -119,7 +120,9 @@ class EvaluasiSakipController extends Controller
                 'manage' => $request->user()->can('update', $evaluasiSakip),
                 'tindak_lanjut' => $request->user()->can('tindakLanjut', $evaluasiSakip),
                 'verify_tindak_lanjut' => $this->canVerifyTindakLanjut($request->user()),
+                'review' => $this->canVerifyTindakLanjut($request->user()),
             ],
+            'workflow' => $workflowDataService->forModel($evaluasiSakip, 'evaluasi_sakip'),
         ]);
     }
 

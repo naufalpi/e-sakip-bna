@@ -95,6 +95,10 @@ type Renstra = {
     periode_tahun?: { id: number; tahun: number; nama: string } | null;
     tujuan: Tujuan[];
 };
+type Workflow = {
+    status: string;
+    histories: Array<{ id: number; action: string; from_status?: string | null; to_status: string; notes?: string | null; created_at: string; actor?: { name: string } | null }>;
+} | null;
 
 const props = defineProps<{
     renstra: Renstra;
@@ -104,7 +108,9 @@ const props = defineProps<{
     satuanOptions: Option[];
     can: {
         manage: boolean;
+        review: boolean;
     };
+    workflow: Workflow;
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -247,6 +253,10 @@ const destroyNode = (type: NodeType, id: number, label: string) => {
     }
 };
 
+const transition = (action: string) => {
+    router.post(route('workflow.transition', { module: 'renstra_opd', id: props.renstra.id }), { action }, { preserveScroll: true });
+};
+
 const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
@@ -297,6 +307,11 @@ const targetDisplay = (target: Target) => target.target_text || target.target ||
                         <Pencil class="size-4" />
                         Edit
                     </Link>
+                    <button v-if="can.manage" type="button" class="rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800" @click="transition('submit')">Ajukan</button>
+                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('approve')">Setujui</button>
+                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm text-amber-700 hover:bg-amber-50" @click="transition('revision')">Revisi</button>
+                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm text-red-700 hover:bg-red-50" @click="transition('reject')">Tolak</button>
+                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('lock')">Kunci</button>
                 </div>
             </div>
 
@@ -317,6 +332,18 @@ const targetDisplay = (target: Target) => target.target_text || target.target ||
                     <div class="text-xs uppercase text-muted-foreground">Jumlah Tujuan</div>
                     <div class="mt-1 text-sm font-medium">{{ renstra.tujuan.length }}</div>
                 </div>
+            </section>
+
+            <section class="rounded-lg border bg-card p-4">
+                <h2 class="text-sm font-semibold">Riwayat Workflow</h2>
+                <div v-if="workflow?.histories?.length" class="mt-3 divide-y text-sm">
+                    <div v-for="history in workflow.histories" :key="history.id" class="py-3">
+                        <div class="font-medium">{{ statusLabel(history.from_status || 'draft') }} ke {{ statusLabel(history.to_status) }}</div>
+                        <div class="text-xs text-muted-foreground">{{ history.actor?.name || '-' }} - {{ history.created_at }}</div>
+                        <div v-if="history.notes" class="mt-1 text-xs text-muted-foreground">{{ history.notes }}</div>
+                    </div>
+                </div>
+                <div v-else class="mt-3 text-sm text-muted-foreground">Belum ada riwayat workflow.</div>
             </section>
 
             <div class="grid gap-4 xl:grid-cols-[1fr_380px]">

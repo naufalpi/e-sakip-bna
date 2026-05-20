@@ -26,6 +26,7 @@ use App\Models\SatuanIndikator;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
 use App\Models\User;
+use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -123,7 +124,7 @@ class RenstraOpdController extends Controller
         return redirect()->route('renstra-opd.show', $renstra)->with('success', 'Renstra OPD berhasil ditambahkan.');
     }
 
-    public function show(Request $request, RenstraOpd $renstraOpd): Response
+    public function show(Request $request, RenstraOpd $renstraOpd, WorkflowDataService $workflowDataService): Response
     {
         $this->authorize('view', $renstraOpd);
 
@@ -156,7 +157,9 @@ class RenstraOpdController extends Controller
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
             'can' => [
                 'manage' => $manage,
+                'review' => $this->canReviewWorkflow($request->user()),
             ],
+            'workflow' => $workflowDataService->forModel($renstraOpd, 'renstra_opd'),
         ]);
     }
 
@@ -204,6 +207,12 @@ class RenstraOpdController extends Controller
     {
         return $user->hasRole('admin_opd')
             && ! $user->hasAnyRole(['super_admin', 'admin_kabupaten_bagian_organisasi', 'admin_kabupaten_bapperida', 'admin_kabupaten_inspektorat']);
+    }
+
+    private function canReviewWorkflow(User $user): bool
+    {
+        return $user->hasAnyRole(['super_admin', 'admin_kabupaten_bagian_organisasi'])
+            || $user->hasPermission('lock_period');
     }
 
     /**

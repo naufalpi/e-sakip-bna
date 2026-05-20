@@ -4,9 +4,12 @@ namespace App\Policies;
 
 use App\Models\RencanaAksi;
 use App\Models\User;
+use App\Policies\Concerns\PreventsLockedChanges;
 
 class RencanaAksiPolicy
 {
+    use PreventsLockedChanges;
+
     public function viewAny(User $user): bool
     {
         return $user->hasAnyPermission(['kinerja.view', 'kinerja.manage', 'manage_rencana_aksi']);
@@ -25,6 +28,10 @@ class RencanaAksiPolicy
 
     public function update(User $user, RencanaAksi $rencanaAksi): bool
     {
+        if (! $this->canChangeLocked($user, $rencanaAksi)) {
+            return false;
+        }
+
         if (! $this->create($user)) {
             return false;
         }

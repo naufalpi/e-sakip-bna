@@ -21,6 +21,7 @@ use App\Models\StrategiDaerah;
 use App\Models\TujuanDaerah;
 use App\Models\UrusanPemerintahan;
 use App\Models\User;
+use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -93,7 +94,7 @@ class RpjmdController extends Controller
         return redirect()->route('rpjmd.show', $rpjmd)->with('success', 'RPJMD berhasil ditambahkan.');
     }
 
-    public function show(Request $request, Rpjmd $rpjmd): Response
+    public function show(Request $request, Rpjmd $rpjmd, WorkflowDataService $workflowDataService): Response
     {
         $this->authorize('view', $rpjmd);
 
@@ -121,7 +122,9 @@ class RpjmdController extends Controller
             'urusanOptions' => $manage ? $this->urusanOptions() : [],
             'can' => [
                 'manage' => $manage,
+                'review' => $this->canReviewWorkflow($request->user()),
             ],
+            'workflow' => $workflowDataService->forModel($rpjmd, 'rpjmd'),
         ]);
     }
 
@@ -257,6 +260,12 @@ class RpjmdController extends Controller
                 'admin_kabupaten_inspektorat',
                 'pimpinan',
             ]);
+    }
+
+    private function canReviewWorkflow(User $user): bool
+    {
+        return $user->hasAnyRole(['super_admin', 'admin_kabupaten_bapperida', 'admin_kabupaten_bagian_organisasi'])
+            || $user->hasPermission('lock_period');
     }
 
     private function limitToUserOpd(Builder $query, User $user): void

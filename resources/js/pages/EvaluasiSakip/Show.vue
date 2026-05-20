@@ -41,6 +41,10 @@ type Rekomendasi = {
     item?: { id: number; kriteria?: { kode: string; nama: string } | null } | null;
     tindak_lanjut: TindakLanjut[];
 };
+type Workflow = {
+    status: string;
+    histories: Array<{ id: number; action: string; from_status?: string | null; to_status: string; notes?: string | null; created_at: string; actor?: { name: string } | null }>;
+} | null;
 
 const props = defineProps<{
     evaluasi: {
@@ -68,7 +72,8 @@ const props = defineProps<{
     kriteriaOptions: Option[];
     itemOptions: Option[];
     statusOptions: Option[];
-    can: { manage: boolean; tindak_lanjut: boolean; verify_tindak_lanjut: boolean };
+    can: { manage: boolean; tindak_lanjut: boolean; verify_tindak_lanjut: boolean; review: boolean };
+    workflow: Workflow;
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -158,6 +163,10 @@ const verifyTindakLanjut = (tl: TindakLanjut, status: string) => {
     router.patch(route('tindak-lanjut-rekomendasi.verify', { tindak_lanjut: tl.id }), { status_tindak_lanjut: status }, { preserveScroll: true });
 };
 
+const transition = (action: string) => {
+    router.post(route('workflow.transition', { module: 'evaluasi_sakip', id: props.evaluasi.id }), { action }, { preserveScroll: true });
+};
+
 const statusLabel = (status: string) => props.statusOptions.find((option) => option.value === status)?.label ?? ({
     belum: 'Belum',
     proses: 'Proses',
@@ -200,6 +209,11 @@ const statusClass = (status: string) =>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <Link v-if="can.manage" :href="route('evaluasi-sakip.edit', evaluasi.id)" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Edit</Link>
+                    <button v-if="can.manage" type="button" class="rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800" @click="transition('submit')">Ajukan</button>
+                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('approve')">Setujui</button>
+                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm text-amber-700 hover:bg-amber-50" @click="transition('revision')">Revisi</button>
+                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm text-red-700 hover:bg-red-50" @click="transition('reject')">Tolak</button>
+                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('lock')">Kunci</button>
                     <Link :href="route('evaluasi-sakip.index')" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Kembali</Link>
                 </div>
             </div>
@@ -221,6 +235,18 @@ const statusClass = (status: string) =>
                     <div class="text-xs uppercase text-muted-foreground">Tanggal Evaluasi</div>
                     <div class="mt-1 font-medium">{{ evaluasi.tanggal_evaluasi || '-' }}</div>
                 </div>
+            </section>
+
+            <section class="rounded-lg border bg-card p-4">
+                <h2 class="text-sm font-semibold">Riwayat Workflow</h2>
+                <div v-if="workflow?.histories?.length" class="mt-3 divide-y text-sm">
+                    <div v-for="history in workflow.histories" :key="history.id" class="py-3">
+                        <div class="font-medium">{{ statusLabel(history.from_status || 'draft') }} ke {{ statusLabel(history.to_status) }}</div>
+                        <div class="text-xs text-muted-foreground">{{ history.actor?.name || '-' }} - {{ history.created_at }}</div>
+                        <div v-if="history.notes" class="mt-1 text-xs text-muted-foreground">{{ history.notes }}</div>
+                    </div>
+                </div>
+                <div v-else class="mt-3 text-sm text-muted-foreground">Belum ada riwayat workflow.</div>
             </section>
 
             <section v-if="can.manage" class="rounded-lg border bg-card p-4">
