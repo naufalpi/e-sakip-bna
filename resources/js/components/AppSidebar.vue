@@ -5,7 +5,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { Building2, GitBranch, Layers3, LayoutDashboard, ShieldCheck, Users } from 'lucide-vue-next';
+import { BarChart3, Building2, ClipboardCheck, GitBranch, Layers3, LayoutDashboard, ListChecks, ShieldCheck, Users } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -38,6 +38,27 @@ const mainNavItems = computed<NavItem[]>(() => [
               title: 'Renstra OPD',
               href: '/renstra-opd',
               icon: Layers3,
+          }]
+        : []),
+    ...(hasAnyPermission(['kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja'])
+        ? [{
+              title: 'Perjanjian Kinerja',
+              href: '/perjanjian-kinerja',
+              icon: ClipboardCheck,
+          }]
+        : []),
+    ...(hasAnyPermission(['kinerja.view', 'kinerja.manage', 'manage_rencana_aksi'])
+        ? [{
+              title: 'Rencana Aksi',
+              href: '/rencana-aksi',
+              icon: ListChecks,
+          }]
+        : []),
+    ...(hasAnyPermission(['kinerja.view', 'kinerja.manage', 'input_realisasi', 'verify_realisasi'])
+        ? [{
+              title: 'Realisasi Kinerja',
+              href: '/realisasi-kinerja',
+              icon: BarChart3,
           }]
         : []),
     ...(hasPermission('users.view')
