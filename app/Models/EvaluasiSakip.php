@@ -25,6 +25,7 @@ class EvaluasiSakip extends Model
         'status',
         'nilai_akhir',
         'predikat',
+        'predikat_evaluasi_id',
         'catatan_umum',
     ];
 
@@ -50,6 +51,11 @@ class EvaluasiSakip extends Model
     public function evaluator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'evaluator_id');
+    }
+
+    public function predikatEvaluasi(): BelongsTo
+    {
+        return $this->belongsTo(PredikatEvaluasi::class);
     }
 
     public function items(): HasMany

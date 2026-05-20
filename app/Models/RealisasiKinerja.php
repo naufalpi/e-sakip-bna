@@ -26,6 +26,13 @@ class RealisasiKinerja extends Model
         'bulan',
         'semester',
         'status',
+        'target_anggaran',
+        'realisasi_anggaran',
+        'serapan_anggaran_persen',
+        'capaian_persen',
+        'status_capaian',
+        'status_efisiensi',
+        'analisis_efisiensi',
         'catatan',
     ];
 
@@ -35,6 +42,10 @@ class RealisasiKinerja extends Model
             'tahun' => 'integer',
             'bulan' => 'integer',
             'semester' => 'integer',
+            'target_anggaran' => 'decimal:2',
+            'realisasi_anggaran' => 'decimal:2',
+            'serapan_anggaran_persen' => 'decimal:2',
+            'capaian_persen' => 'decimal:2',
         ];
     }
 

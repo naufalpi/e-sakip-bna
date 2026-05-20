@@ -19,6 +19,7 @@ class IndikatorSubKegiatan extends Model
         'satuan_indikator_id',
         'kode',
         'indikator',
+        'tipe_indikator',
         'formula',
         'sumber_data',
         'urutan',

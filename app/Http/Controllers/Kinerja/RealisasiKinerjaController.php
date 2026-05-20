@@ -12,6 +12,7 @@ use App\Models\RealisasiProgram;
 use App\Models\RencanaAksi;
 use App\Models\User;
 use App\Models\WorkflowSubmission;
+use App\Services\Kinerja\CapaianKinerjaService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -58,6 +59,12 @@ class RealisasiKinerjaController extends Controller
                 'bulan' => $realisasi->bulan,
                 'semester' => $realisasi->semester,
                 'status' => $realisasi->status,
+                'target_anggaran' => $realisasi->target_anggaran,
+                'realisasi_anggaran' => $realisasi->realisasi_anggaran,
+                'serapan_anggaran_persen' => $realisasi->serapan_anggaran_persen,
+                'capaian_persen' => $realisasi->capaian_persen,
+                'status_capaian' => $realisasi->status_capaian,
+                'status_efisiensi' => $realisasi->status_efisiensi,
                 'programs_count' => $realisasi->programs_count,
                 'opd' => $realisasi->opd,
                 'periode_tahun' => $realisasi->periodeTahun,
@@ -90,10 +97,11 @@ class RealisasiKinerjaController extends Controller
         ]);
     }
 
-    public function store(StoreRealisasiKinerjaRequest $request): RedirectResponse
+    public function store(StoreRealisasiKinerjaRequest $request, CapaianKinerjaService $capaianService): RedirectResponse
     {
         $data = $request->validated();
         $this->assertHeaderRelationsBelongToOpd($data, (int) $data['opd_id']);
+        $data = $this->withHeaderMetrics($data, $capaianService);
 
         $realisasi = RealisasiKinerja::create($data);
 
@@ -146,6 +154,13 @@ class RealisasiKinerjaController extends Controller
                 'bulan' => $realisasiKinerja->bulan,
                 'semester' => $realisasiKinerja->semester,
                 'status' => $realisasiKinerja->status,
+                'target_anggaran' => $realisasiKinerja->target_anggaran,
+                'realisasi_anggaran' => $realisasiKinerja->realisasi_anggaran,
+                'serapan_anggaran_persen' => $realisasiKinerja->serapan_anggaran_persen,
+                'capaian_persen' => $realisasiKinerja->capaian_persen,
+                'status_capaian' => $realisasiKinerja->status_capaian,
+                'status_efisiensi' => $realisasiKinerja->status_efisiensi,
+                'analisis_efisiensi' => $realisasiKinerja->analisis_efisiensi,
                 'catatan' => $realisasiKinerja->catatan,
             ],
             'opdOptions' => $this->opdOptions($request->user()),
@@ -155,10 +170,11 @@ class RealisasiKinerjaController extends Controller
         ]);
     }
 
-    public function update(UpdateRealisasiKinerjaRequest $request, RealisasiKinerja $realisasiKinerja): RedirectResponse
+    public function update(UpdateRealisasiKinerjaRequest $request, RealisasiKinerja $realisasiKinerja, CapaianKinerjaService $capaianService): RedirectResponse
     {
         $data = $request->validated();
         $this->assertHeaderRelationsBelongToOpd($data, (int) $data['opd_id']);
+        $data = $this->withHeaderMetrics($data, $capaianService);
 
         $realisasiKinerja->update($data);
 
@@ -184,6 +200,13 @@ class RealisasiKinerjaController extends Controller
             'bulan' => $realisasi->bulan,
             'semester' => $realisasi->semester,
             'status' => $realisasi->status,
+            'target_anggaran' => $realisasi->target_anggaran,
+            'realisasi_anggaran' => $realisasi->realisasi_anggaran,
+            'serapan_anggaran_persen' => $realisasi->serapan_anggaran_persen,
+            'capaian_persen' => $realisasi->capaian_persen,
+            'status_capaian' => $realisasi->status_capaian,
+            'status_efisiensi' => $realisasi->status_efisiensi,
+            'analisis_efisiensi' => $realisasi->analisis_efisiensi,
             'catatan' => $realisasi->catatan,
             'opd' => $realisasi->opd,
             'periode_tahun' => $realisasi->periodeTahun,
@@ -192,13 +215,18 @@ class RealisasiKinerjaController extends Controller
             'programs' => $realisasi->programs->map(fn (RealisasiProgram $program) => [
                 'id' => $program->id,
                 'indikator' => $program->indikator,
+                'tipe_indikator' => $program->tipe_indikator,
                 'target' => $program->target,
                 'target_text' => $program->target_text,
                 'realisasi' => $program->realisasi,
                 'realisasi_text' => $program->realisasi_text,
                 'capaian_persen' => $program->capaian_persen,
+                'status_capaian' => $program->status_capaian,
                 'anggaran' => $program->anggaran,
                 'realisasi_anggaran' => $program->realisasi_anggaran,
+                'serapan_anggaran_persen' => $program->serapan_anggaran_persen,
+                'status_efisiensi' => $program->status_efisiensi,
+                'analisis_efisiensi' => $program->analisis_efisiensi,
                 'kendala' => $program->kendala,
                 'tindak_lanjut' => $program->tindak_lanjut,
                 'urutan' => $program->urutan,
@@ -220,6 +248,39 @@ class RealisasiKinerjaController extends Controller
             ->first();
 
         return $workflow?->toArray();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function withHeaderMetrics(array $data, CapaianKinerjaService $capaianService): array
+    {
+        $result = $data;
+        $hasAnggaranInput = array_key_exists('target_anggaran', $data)
+            || array_key_exists('realisasi_anggaran', $data)
+            || array_key_exists('serapan_anggaran_persen', $data);
+        $hasCapaianInput = array_key_exists('capaian_persen', $data)
+            || array_key_exists('status_capaian', $data);
+
+        $serapanAnggaran = $hasAnggaranInput
+            ? ($capaianService->calculateSerapanAnggaran($data['target_anggaran'] ?? null, $data['realisasi_anggaran'] ?? null) ?? ($data['serapan_anggaran_persen'] ?? null))
+            : null;
+        $capaianPersen = $hasCapaianInput ? ($data['capaian_persen'] ?? null) : null;
+
+        if ($hasAnggaranInput) {
+            $result['serapan_anggaran_persen'] = $serapanAnggaran;
+        }
+
+        if ($hasCapaianInput) {
+            $result['status_capaian'] = $capaianService->determineStatusCapaian($capaianPersen) ?? ($data['status_capaian'] ?? null);
+        }
+
+        if ($hasAnggaranInput || $hasCapaianInput || array_key_exists('status_efisiensi', $data)) {
+            $result['status_efisiensi'] = $capaianService->determineEfisiensi($capaianPersen, $serapanAnggaran) ?? ($data['status_efisiensi'] ?? null);
+        }
+
+        return $result;
     }
 
     /**

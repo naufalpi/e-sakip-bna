@@ -4,6 +4,7 @@ namespace App\Services\Evaluasi;
 
 use App\Models\EvaluasiSakip;
 use App\Models\EvaluasiSakipItem;
+use App\Models\PredikatEvaluasi;
 
 class EvaluasiSakipScoreService
 {
@@ -22,21 +23,31 @@ class EvaluasiSakipScoreService
             ->where('evaluasi_sakip_id', $evaluasiSakip->id)
             ->sum('skor');
 
+        $predikat = $this->predikatModel($nilaiAkhir);
+
         $evaluasiSakip->forceFill([
             'nilai_akhir' => round($nilaiAkhir, 2),
-            'predikat' => $this->predikat($nilaiAkhir),
+            'predikat' => $predikat?->kode ?? $this->predikat($nilaiAkhir),
+            'predikat_evaluasi_id' => $predikat?->id,
         ])->save();
 
         if ($evaluasiSakip->lhe) {
             $evaluasiSakip->lhe->update([
                 'nilai_akhir' => round($nilaiAkhir, 2),
-                'predikat' => $this->predikat($nilaiAkhir),
+                'predikat' => $predikat?->kode ?? $this->predikat($nilaiAkhir),
+                'predikat_evaluasi_id' => $predikat?->id,
             ]);
         }
     }
 
     public function predikat(float $nilai): string
     {
+        $predikat = $this->predikatModel($nilai);
+
+        if ($predikat) {
+            return $predikat->kode;
+        }
+
         return match (true) {
             $nilai >= 90 => 'AA',
             $nilai >= 80 => 'A',
@@ -46,5 +57,15 @@ class EvaluasiSakipScoreService
             $nilai >= 30 => 'C',
             default => 'D',
         };
+    }
+
+    public function predikatModel(float $nilai): ?PredikatEvaluasi
+    {
+        return PredikatEvaluasi::query()
+            ->where('is_active', true)
+            ->where('nilai_min', '<=', $nilai)
+            ->where('nilai_max', '>=', $nilai)
+            ->orderByDesc('nilai_min')
+            ->first();
     }
 }

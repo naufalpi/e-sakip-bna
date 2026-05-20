@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\KomponenEvaluasi;
 use App\Models\PeriodeTahun;
 use App\Models\Permission;
+use App\Models\PredikatEvaluasi;
 use App\Models\Role;
 use App\Models\SatuanIndikator;
 use App\Models\SystemSetting;
@@ -197,6 +198,25 @@ class DatabaseSeeder extends Seeder
                 'is_public' => true,
             ],
         );
+
+        foreach ([
+            ['kode' => 'AA', 'nama' => 'Sangat Memuaskan', 'nilai_min' => 90.01, 'nilai_max' => 100, 'warna' => 'emerald'],
+            ['kode' => 'A', 'nama' => 'Memuaskan', 'nilai_min' => 80.01, 'nilai_max' => 90, 'warna' => 'green'],
+            ['kode' => 'BB', 'nama' => 'Sangat Baik', 'nilai_min' => 70.01, 'nilai_max' => 80, 'warna' => 'blue'],
+            ['kode' => 'B', 'nama' => 'Baik', 'nilai_min' => 60.01, 'nilai_max' => 70, 'warna' => 'cyan'],
+            ['kode' => 'CC', 'nama' => 'Cukup', 'nilai_min' => 50.01, 'nilai_max' => 60, 'warna' => 'amber'],
+            ['kode' => 'C', 'nama' => 'Kurang', 'nilai_min' => 30.01, 'nilai_max' => 50, 'warna' => 'orange'],
+            ['kode' => 'D', 'nama' => 'Sangat Kurang', 'nilai_min' => 0, 'nilai_max' => 30, 'warna' => 'red'],
+        ] as $predikat) {
+            PredikatEvaluasi::updateOrCreate(
+                ['kode' => $predikat['kode']],
+                [
+                    ...$predikat,
+                    'deskripsi' => "Predikat {$predikat['kode']} untuk nilai {$predikat['nilai_min']} sampai {$predikat['nilai_max']}.",
+                    'is_active' => true,
+                ],
+            );
+        }
 
         $komponenEvaluasi = [
             [

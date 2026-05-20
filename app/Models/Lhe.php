@@ -21,6 +21,7 @@ class Lhe extends Model
         'ringkasan',
         'nilai_akhir',
         'predikat',
+        'predikat_evaluasi_id',
         'status',
         'disusun_oleh',
     ];
@@ -36,6 +37,11 @@ class Lhe extends Model
     public function evaluasiSakip(): BelongsTo
     {
         return $this->belongsTo(EvaluasiSakip::class);
+    }
+
+    public function predikatEvaluasi(): BelongsTo
+    {
+        return $this->belongsTo(PredikatEvaluasi::class);
     }
 
     public function disusunOleh(): BelongsTo

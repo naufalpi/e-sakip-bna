@@ -15,7 +15,7 @@ class IndikatorTujuanDaerah extends Model
 
     protected $table = 'indikator_tujuan_daerah';
 
-    protected $fillable = ['tujuan_daerah_id', 'satuan_indikator_id', 'kode', 'indikator', 'formula', 'sumber_data', 'urutan'];
+    protected $fillable = ['tujuan_daerah_id', 'satuan_indikator_id', 'kode', 'indikator', 'tipe_indikator', 'formula', 'sumber_data', 'urutan'];
 
     public function tujuan(): BelongsTo
     {

@@ -31,6 +31,13 @@ class StoreRealisasiKinerjaRequest extends FormRequest
             'bulan' => ['nullable', 'integer', 'min:1', 'max:12'],
             'semester' => ['nullable', 'integer', 'min:1', 'max:2'],
             'status' => ['required', Rule::in(['draft', 'submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'])],
+            'target_anggaran' => ['nullable', 'numeric'],
+            'realisasi_anggaran' => ['nullable', 'numeric'],
+            'serapan_anggaran_persen' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
+            'capaian_persen' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
+            'status_capaian' => ['nullable', Rule::in(['merah', 'kuning', 'hijau'])],
+            'status_efisiensi' => ['nullable', Rule::in(['efisien', 'cukup_efisien', 'tidak_efisien'])],
+            'analisis_efisiensi' => ['nullable', 'string'],
             'catatan' => ['nullable', 'string'],
         ];
     }

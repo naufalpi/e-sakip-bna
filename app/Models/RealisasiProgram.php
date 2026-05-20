@@ -20,14 +20,19 @@ class RealisasiProgram extends Model
         'rencana_aksi_item_id',
         'opd_program_id',
         'indikator_opd_program_id',
+        'tipe_indikator',
         'indikator',
         'target',
         'target_text',
         'realisasi',
         'realisasi_text',
         'capaian_persen',
+        'status_capaian',
         'anggaran',
         'realisasi_anggaran',
+        'serapan_anggaran_persen',
+        'status_efisiensi',
+        'analisis_efisiensi',
         'kendala',
         'tindak_lanjut',
         'urutan',
@@ -41,6 +46,7 @@ class RealisasiProgram extends Model
             'capaian_persen' => 'decimal:2',
             'anggaran' => 'decimal:2',
             'realisasi_anggaran' => 'decimal:2',
+            'serapan_anggaran_persen' => 'decimal:2',
         ];
     }
 

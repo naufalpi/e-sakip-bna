@@ -15,7 +15,7 @@ class IndikatorProgramRpjmd extends Model
 
     protected $table = 'indikator_program_rpjmd';
 
-    protected $fillable = ['program_rpjmd_id', 'satuan_indikator_id', 'kode', 'indikator', 'formula', 'sumber_data', 'urutan'];
+    protected $fillable = ['program_rpjmd_id', 'satuan_indikator_id', 'kode', 'indikator', 'tipe_indikator', 'formula', 'sumber_data', 'urutan'];
 
     public function program(): BelongsTo
     {

@@ -44,6 +44,7 @@ class StoreRenstraOpdNodeRequest extends FormRequest
             'kode' => ['nullable', 'string', 'max:80'],
             'uraian' => ['nullable', 'string'],
             'indikator' => ['nullable', 'string'],
+            'tipe_indikator' => ['nullable', Rule::in(['positif', 'negatif'])],
             'formula' => ['nullable', 'string'],
             'sumber_data' => ['nullable', 'string', 'max:255'],
             'target' => ['nullable', 'numeric'],

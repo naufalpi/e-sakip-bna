@@ -10,30 +10,65 @@ use App\Models\PerjanjianKinerjaItem;
 use App\Models\RealisasiKinerja;
 use App\Models\RealisasiProgram;
 use App\Models\RencanaAksiItem;
+use App\Services\Kinerja\CapaianKinerjaService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\ValidationException;
 
 class RealisasiProgramController extends Controller
 {
-    public function store(StoreRealisasiProgramRequest $request, RealisasiKinerja $realisasiKinerja): RedirectResponse
+    public function store(StoreRealisasiProgramRequest $request, RealisasiKinerja $realisasiKinerja, CapaianKinerjaService $capaianService): RedirectResponse
     {
         $data = $request->validated();
         $this->assertRelationsBelongToOpd($data, (int) $realisasiKinerja->opd_id);
+        $data = $this->withCalculatedMetrics($data, $capaianService);
 
         $realisasiKinerja->programs()->create($data);
+        $capaianService->syncRealisasiKinerjaSummary($realisasiKinerja);
 
         return back()->with('success', 'Realisasi indikator berhasil ditambahkan.');
     }
 
-    public function destroy(RealisasiKinerja $realisasiKinerja, RealisasiProgram $program): RedirectResponse
+    public function destroy(RealisasiKinerja $realisasiKinerja, RealisasiProgram $program, CapaianKinerjaService $capaianService): RedirectResponse
     {
         $this->authorize('update', $realisasiKinerja);
         abort_unless((int) $program->realisasi_kinerja_id === (int) $realisasiKinerja->id, 404);
 
         $program->delete();
+        $capaianService->syncRealisasiKinerjaSummary($realisasiKinerja);
 
         return back()->with('success', 'Realisasi indikator berhasil dihapus.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function withCalculatedMetrics(array $data, CapaianKinerjaService $capaianService): array
+    {
+        $tipeIndikator = $data['tipe_indikator'] ?? $this->tipeIndikatorFromReference($data['indikator_opd_program_id'] ?? null);
+        $capaianPersen = $capaianService->calculateCapaian($data['target'] ?? null, $data['realisasi'] ?? null, $tipeIndikator)
+            ?? ($data['capaian_persen'] ?? null);
+        $serapanAnggaran = $capaianService->calculateSerapanAnggaran($data['anggaran'] ?? null, $data['realisasi_anggaran'] ?? null)
+            ?? ($data['serapan_anggaran_persen'] ?? null);
+
+        return [
+            ...$data,
+            'tipe_indikator' => $tipeIndikator,
+            'capaian_persen' => $capaianPersen,
+            'status_capaian' => $capaianService->determineStatusCapaian($capaianPersen) ?? ($data['status_capaian'] ?? null),
+            'serapan_anggaran_persen' => $serapanAnggaran,
+            'status_efisiensi' => $capaianService->determineEfisiensi($capaianPersen, $serapanAnggaran) ?? ($data['status_efisiensi'] ?? null),
+        ];
+    }
+
+    private function tipeIndikatorFromReference(mixed $indikatorOpdProgramId): string
+    {
+        if (blank($indikatorOpdProgramId)) {
+            return 'positif';
+        }
+
+        return (string) (IndikatorOpdProgram::query()->whereKey($indikatorOpdProgramId)->value('tipe_indikator') ?: 'positif');
     }
 
     /**
