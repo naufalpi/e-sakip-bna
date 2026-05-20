@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Rpjmd;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Rpjmd\StoreRpjmdRequest;
 use App\Http\Requests\Rpjmd\UpdateRpjmdRequest;
+use App\Models\ImportBatch;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
@@ -19,6 +20,8 @@ use App\Models\SatuanIndikator;
 use App\Models\StrategiDaerah;
 use App\Models\TujuanDaerah;
 use App\Models\UrusanPemerintahan;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -32,8 +35,11 @@ class RpjmdController extends Controller
 
         $filters = $request->only(['search', 'status']);
 
+        $user = $request->user();
+
         $rpjmds = Rpjmd::query()
             ->with('periodeTahun:id,tahun,nama,status')
+            ->when($this->shouldLimitToUserOpd($user), fn ($query) => $this->limitToUserOpd($query, $user))
             ->when($filters['search'] ?? null, function ($query, string $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('judul', 'ilike', "%{$search}%")
@@ -63,7 +69,9 @@ class RpjmdController extends Controller
             'filters' => $filters,
             'can' => [
                 'manage' => $request->user()->can('create', Rpjmd::class),
+                'import' => $request->user()->can('create', Rpjmd::class),
             ],
+            'recentImports' => $request->user()->can('create', Rpjmd::class) ? $this->recentImports() : [],
         ]);
     }
 
@@ -89,6 +97,9 @@ class RpjmdController extends Controller
     {
         $this->authorize('view', $rpjmd);
 
+        $manage = $request->user()->can('update', $rpjmd);
+        $visibleOpdId = $this->shouldLimitToUserOpd($request->user()) ? $request->user()->opd_id : null;
+
         $rpjmd->load([
             'periodeTahun:id,tahun,nama,status',
             'visi.misi.tujuan.indikator.satuanIndikator:id,nama,simbol',
@@ -102,14 +113,14 @@ class RpjmdController extends Controller
         ]);
 
         return Inertia::render('Rpjmd/Show', [
-            'rpjmd' => $this->serializeRpjmd($rpjmd),
-            'nodeOptions' => $this->nodeOptions($rpjmd),
-            'periodeOptions' => $this->periodeOptions(),
-            'satuanOptions' => $this->satuanOptions(),
-            'opdOptions' => $this->opdOptions(),
-            'urusanOptions' => $this->urusanOptions(),
+            'rpjmd' => $this->serializeRpjmd($rpjmd, $visibleOpdId),
+            'nodeOptions' => $manage ? $this->nodeOptions($rpjmd) : [],
+            'periodeOptions' => $manage ? $this->periodeOptions() : [],
+            'satuanOptions' => $manage ? $this->satuanOptions() : [],
+            'opdOptions' => $manage ? $this->opdOptions() : [],
+            'urusanOptions' => $manage ? $this->urusanOptions() : [],
             'can' => [
-                'manage' => $request->user()->can('update', $rpjmd),
+                'manage' => $manage,
             ],
         ]);
     }
@@ -148,17 +159,6 @@ class RpjmdController extends Controller
         $rpjmd->delete();
 
         return redirect()->route('rpjmd.index')->with('success', 'RPJMD berhasil dihapus.');
-    }
-
-    public function importPlaceholder(Request $request): RedirectResponse
-    {
-        $this->authorize('create', Rpjmd::class);
-
-        $request->validate([
-            'file' => ['nullable', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
-        ]);
-
-        return back()->with('success', 'Placeholder import Excel RPJMD sudah tersedia. Implementasi parsing detail akan dikerjakan pada tahap lanjutan.');
     }
 
     /**
@@ -247,10 +247,52 @@ class RpjmdController extends Controller
         return trim(($kode ? "{$kode} - " : '').str($label ?? '')->limit(90)->toString());
     }
 
+    private function shouldLimitToUserOpd(User $user): bool
+    {
+        return $user->hasRole('admin_opd')
+            && ! $user->hasAnyRole([
+                'super_admin',
+                'admin_kabupaten_bapperida',
+                'admin_kabupaten_bagian_organisasi',
+                'admin_kabupaten_inspektorat',
+                'pimpinan',
+            ]);
+    }
+
+    private function limitToUserOpd(Builder $query, User $user): void
+    {
+        $query->whereHas('visi.misi.tujuan.sasaran.strategi.programs.opdPenanggungJawab', function ($query) use ($user) {
+            $query->where('opds.id', $user->opd_id ?? 0);
+        });
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function recentImports(): array
+    {
+        return ImportBatch::query()
+            ->with('uploadedBy:id,name')
+            ->where('module', 'rpjmd')
+            ->latest()
+            ->limit(5)
+            ->get()
+            ->map(fn (ImportBatch $batch) => [
+                'id' => $batch->id,
+                'status' => $batch->status,
+                'original_filename' => $batch->original_filename,
+                'total_rows' => $batch->total_rows,
+                'preview_rows' => $batch->preview_rows,
+                'created_at' => $batch->created_at?->toISOString(),
+                'uploaded_by' => $batch->uploadedBy?->name,
+            ])
+            ->all();
+    }
+
     /**
      * @return array<string, mixed>
      */
-    private function serializeRpjmd(Rpjmd $rpjmd): array
+    private function serializeRpjmd(Rpjmd $rpjmd, ?int $visibleOpdId = null): array
     {
         return [
             'id' => $rpjmd->id,
@@ -279,39 +321,75 @@ class RpjmdController extends Controller
                         'kode' => $tujuan->kode,
                         'tujuan' => $tujuan->tujuan,
                         'indikator' => $tujuan->indikator->map(fn (IndikatorTujuanDaerah $indikator) => $this->serializeIndikator($indikator)),
-                        'sasaran' => $tujuan->sasaran->map(fn (SasaranDaerah $sasaran) => [
-                            'id' => $sasaran->id,
-                            'kode' => $sasaran->kode,
-                            'sasaran' => $sasaran->sasaran,
-                            'indikator' => $sasaran->indikator->map(fn (IndikatorSasaranDaerah $indikator) => $this->serializeIndikator($indikator)),
-                            'strategi' => $sasaran->strategi->map(fn (StrategiDaerah $strategi) => [
-                                'id' => $strategi->id,
-                                'kode' => $strategi->kode,
-                                'strategi' => $strategi->strategi,
-                                'arah_kebijakan' => $strategi->arah_kebijakan,
-                                'programs' => $strategi->programs->map(fn (ProgramRpjmd $program) => [
-                                    'id' => $program->id,
-                                    'kode' => $program->kode,
-                                    'nama' => $program->nama,
-                                    'pagu_indikatif' => $program->pagu_indikatif,
-                                    'status' => $program->status,
-                                    'urusan_pemerintahan' => $program->urusanPemerintahan ? [
-                                        'kode' => $program->urusanPemerintahan->kode,
-                                        'nama' => $program->urusanPemerintahan->nama,
-                                    ] : null,
-                                    'opd_penanggung_jawab' => $program->opdPenanggungJawab->map(fn (Opd $opd) => [
-                                        'id' => $opd->id,
-                                        'nama' => $opd->nama,
-                                        'singkatan' => $opd->singkatan,
-                                        'peran' => $opd->pivot->peran,
-                                        'is_utama' => (bool) $opd->pivot->is_utama,
-                                    ]),
-                                    'indikator' => $program->indikator->map(fn (IndikatorProgramRpjmd $indikator) => $this->serializeIndikator($indikator)),
-                                ]),
-                            ]),
-                        ]),
-                    ]),
+                        'sasaran' => $tujuan->sasaran->map(fn (SasaranDaerah $sasaran) => $this->serializeSasaran($sasaran, $visibleOpdId))->filter()->values(),
+                    ])->filter(fn (array $tujuan) => ! $visibleOpdId || $tujuan['sasaran']->isNotEmpty())->values(),
+                ])->filter(fn (array $misi) => ! $visibleOpdId || $misi['tujuan']->isNotEmpty())->values(),
+            ])->filter(fn (array $visi) => ! $visibleOpdId || $visi['misi']->isNotEmpty())->values(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function serializeSasaran(SasaranDaerah $sasaran, ?int $visibleOpdId = null): ?array
+    {
+        $strategi = $sasaran->strategi
+            ->map(fn (StrategiDaerah $strategi) => $this->serializeStrategi($strategi, $visibleOpdId))
+            ->filter()
+            ->values();
+
+        if ($visibleOpdId && $strategi->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'id' => $sasaran->id,
+            'kode' => $sasaran->kode,
+            'sasaran' => $sasaran->sasaran,
+            'indikator' => $sasaran->indikator->map(fn (IndikatorSasaranDaerah $indikator) => $this->serializeIndikator($indikator)),
+            'strategi' => $strategi,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function serializeStrategi(StrategiDaerah $strategi, ?int $visibleOpdId = null): ?array
+    {
+        $programs = $strategi->programs
+            ->when($visibleOpdId, fn ($programs) => $programs->filter(
+                fn (ProgramRpjmd $program) => $program->opdPenanggungJawab->contains('id', $visibleOpdId)
+            ))
+            ->values();
+
+        if ($visibleOpdId && $programs->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'id' => $strategi->id,
+            'kode' => $strategi->kode,
+            'strategi' => $strategi->strategi,
+            'arah_kebijakan' => $strategi->arah_kebijakan,
+            'programs' => $programs->map(fn (ProgramRpjmd $program) => [
+                'id' => $program->id,
+                'kode' => $program->kode,
+                'nama' => $program->nama,
+                'pagu_indikatif' => $program->pagu_indikatif,
+                'status' => $program->status,
+                'urusan_pemerintahan' => $program->urusanPemerintahan ? [
+                    'kode' => $program->urusanPemerintahan->kode,
+                    'nama' => $program->urusanPemerintahan->nama,
+                ] : null,
+                'opd_penanggung_jawab' => $program->opdPenanggungJawab->map(fn (Opd $opd) => [
+                    'pivot_id' => $opd->pivot->id,
+                    'id' => $opd->id,
+                    'nama' => $opd->nama,
+                    'singkatan' => $opd->singkatan,
+                    'peran' => $opd->pivot->peran,
+                    'is_utama' => (bool) $opd->pivot->is_utama,
                 ]),
+                'indikator' => $program->indikator->map(fn (IndikatorProgramRpjmd $indikator) => $this->serializeIndikator($indikator)),
             ]),
         ];
     }

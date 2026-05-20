@@ -57,7 +57,7 @@ class ProgramRpjmd extends Model
     public function opdPenanggungJawab(): BelongsToMany
     {
         return $this->belongsToMany(Opd::class, 'program_rpjmd_opd_penanggung_jawab')
-            ->withPivot(['peran', 'is_utama'])
+            ->withPivot(['id', 'peran', 'is_utama'])
             ->withTimestamps();
     }
 }
