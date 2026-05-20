@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Dokumen\DokumenController;
 use App\Http\Controllers\Kinerja\PerjanjianKinerjaController;
 use App\Http\Controllers\Kinerja\PerjanjianKinerjaItemController;
 use App\Http\Controllers\Kinerja\RealisasiKinerjaController;
@@ -51,6 +52,9 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::delete('realisasi-kinerja/{realisasi_kinerja}/programs/{program}', [RealisasiProgramController::class, 'destroy'])->name('realisasi-kinerja.programs.destroy');
 
     Route::post('workflow/{module}/{id}/transition', [WorkflowController::class, 'transition'])->name('workflow.transition');
+
+    Route::get('dokumen/{dokumen}/download', [DokumenController::class, 'download'])->name('dokumen.download');
+    Route::resource('dokumen', DokumenController::class)->parameters(['dokumen' => 'dokumen']);
 
     Route::prefix('master')->name('master.')->group(function () {
         Route::resource('opd', OpdController::class)->except(['show']);

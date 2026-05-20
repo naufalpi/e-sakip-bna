@@ -93,7 +93,7 @@ class DatabaseSeeder extends Seeder
             'admin_kabupaten_bapperida' => [
                 'label' => 'Admin Kabupaten Bapperida',
                 'description' => 'Input dan kelola data perencanaan kabupaten/RPJMD.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'roles.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'rpjmd.manage', 'view_rpjmd', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'roles.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'rpjmd.manage', 'view_rpjmd', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_inspektorat' => [
                 'label' => 'Admin Kabupaten Inspektorat',

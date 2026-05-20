@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Dokumen;
 use App\Models\Opd;
 use App\Models\PerjanjianKinerja;
 use App\Models\RealisasiKinerja;
@@ -10,6 +11,7 @@ use App\Models\RenstraOpd;
 use App\Models\Role;
 use App\Models\Rpjmd;
 use App\Models\User;
+use App\Policies\DokumenPolicy;
 use App\Policies\OpdPolicy;
 use App\Policies\PerjanjianKinerjaPolicy;
 use App\Policies\RealisasiKinerjaPolicy;
@@ -37,6 +39,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(Opd::class, OpdPolicy::class);
+        Gate::policy(Dokumen::class, DokumenPolicy::class);
         Gate::policy(PerjanjianKinerja::class, PerjanjianKinerjaPolicy::class);
         Gate::policy(RenstraOpd::class, RenstraOpdPolicy::class);
         Gate::policy(RencanaAksi::class, RencanaAksiPolicy::class);
