@@ -2,6 +2,12 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Dokumen\DokumenController;
+use App\Http\Controllers\Evaluasi\EvaluasiSakipController;
+use App\Http\Controllers\Evaluasi\EvaluasiSakipItemController;
+use App\Http\Controllers\Evaluasi\KriteriaEvaluasiController;
+use App\Http\Controllers\Evaluasi\LheController;
+use App\Http\Controllers\Evaluasi\RekomendasiEvaluasiController;
+use App\Http\Controllers\Evaluasi\TindakLanjutRekomendasiController;
 use App\Http\Controllers\Kinerja\PerjanjianKinerjaController;
 use App\Http\Controllers\Kinerja\PerjanjianKinerjaItemController;
 use App\Http\Controllers\Kinerja\RealisasiKinerjaController;
@@ -55,6 +61,16 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
 
     Route::get('dokumen/{dokumen}/download', [DokumenController::class, 'download'])->name('dokumen.download');
     Route::resource('dokumen', DokumenController::class)->parameters(['dokumen' => 'dokumen']);
+
+    Route::get('evaluasi-sakip/kriteria', KriteriaEvaluasiController::class)->name('evaluasi-sakip.kriteria');
+    Route::resource('evaluasi-sakip', EvaluasiSakipController::class)->parameters(['evaluasi-sakip' => 'evaluasi_sakip']);
+    Route::post('evaluasi-sakip/{evaluasi_sakip}/items', [EvaluasiSakipItemController::class, 'store'])->name('evaluasi-sakip.items.store');
+    Route::delete('evaluasi-sakip/{evaluasi_sakip}/items/{item}', [EvaluasiSakipItemController::class, 'destroy'])->name('evaluasi-sakip.items.destroy');
+    Route::post('evaluasi-sakip/{evaluasi_sakip}/lhe', [LheController::class, 'store'])->name('evaluasi-sakip.lhe.store');
+    Route::post('evaluasi-sakip/{evaluasi_sakip}/rekomendasi', [RekomendasiEvaluasiController::class, 'store'])->name('evaluasi-sakip.rekomendasi.store');
+    Route::delete('evaluasi-sakip/{evaluasi_sakip}/rekomendasi/{rekomendasi}', [RekomendasiEvaluasiController::class, 'destroy'])->name('evaluasi-sakip.rekomendasi.destroy');
+    Route::post('rekomendasi-evaluasi/{rekomendasi}/tindak-lanjut', [TindakLanjutRekomendasiController::class, 'store'])->name('rekomendasi-evaluasi.tindak-lanjut.store');
+    Route::patch('tindak-lanjut-rekomendasi/{tindak_lanjut}/verify', [TindakLanjutRekomendasiController::class, 'verify'])->name('tindak-lanjut-rekomendasi.verify');
 
     Route::prefix('master')->name('master.')->group(function () {
         Route::resource('opd', OpdController::class)->except(['show']);

@@ -1,0 +1,45 @@
+<?php
+
+namespace App\Http\Controllers\Evaluasi;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Evaluasi\StoreEvaluasiSakipItemRequest;
+use App\Models\EvaluasiSakip;
+use App\Models\EvaluasiSakipItem;
+use App\Models\KriteriaEvaluasi;
+use App\Services\Evaluasi\EvaluasiSakipScoreService;
+use Illuminate\Http\RedirectResponse;
+
+class EvaluasiSakipItemController extends Controller
+{
+    public function store(StoreEvaluasiSakipItemRequest $request, EvaluasiSakip $evaluasiSakip, EvaluasiSakipScoreService $scoreService): RedirectResponse
+    {
+        $data = $request->validated();
+        $kriteria = KriteriaEvaluasi::query()->findOrFail($data['kriteria_evaluasi_id']);
+        $skor = $scoreService->skorItem((float) $data['nilai'], (float) $kriteria->nilai_maksimal, (float) $kriteria->bobot);
+
+        $evaluasiSakip->items()->updateOrCreate([
+            'kriteria_evaluasi_id' => $kriteria->id,
+        ], [
+            'nilai' => $data['nilai'],
+            'skor' => $skor,
+            'catatan' => $data['catatan'] ?? null,
+            'rekomendasi_text' => $data['rekomendasi_text'] ?? null,
+        ]);
+
+        $scoreService->recalculate($evaluasiSakip->fresh('lhe'));
+
+        return back()->with('success', 'Nilai kriteria evaluasi berhasil disimpan.');
+    }
+
+    public function destroy(EvaluasiSakip $evaluasiSakip, EvaluasiSakipItem $item, EvaluasiSakipScoreService $scoreService): RedirectResponse
+    {
+        $this->authorize('update', $evaluasiSakip);
+        abort_unless((int) $item->evaluasi_sakip_id === (int) $evaluasiSakip->id, 404);
+
+        $item->delete();
+        $scoreService->recalculate($evaluasiSakip->fresh('lhe'));
+
+        return back()->with('success', 'Nilai kriteria evaluasi berhasil dihapus.');
+    }
+}

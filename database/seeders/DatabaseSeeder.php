@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\KomponenEvaluasi;
 use App\Models\PeriodeTahun;
 use App\Models\Permission;
 use App\Models\Role;
@@ -193,5 +194,140 @@ class DatabaseSeeder extends Seeder
                 'is_public' => true,
             ],
         );
+
+        $komponenEvaluasi = [
+            [
+                'kode' => 'A',
+                'nama' => 'Perencanaan Kinerja',
+                'bobot' => 30,
+                'urutan' => 1,
+                'sub' => [
+                    [
+                        'kode' => 'A1',
+                        'nama' => 'Kualitas Perencanaan Kinerja',
+                        'bobot' => 15,
+                        'kriteria' => [
+                            ['kode' => 'A1.1', 'nama' => 'Dokumen perencanaan kinerja telah tersedia dan selaras dengan RPJMD/Renstra.', 'bobot' => 7.5],
+                            ['kode' => 'A1.2', 'nama' => 'Indikator kinerja telah memenuhi karakteristik terukur, relevan, dan cukup.', 'bobot' => 7.5],
+                        ],
+                    ],
+                    [
+                        'kode' => 'A2',
+                        'nama' => 'Pemanfaatan Perencanaan Kinerja',
+                        'bobot' => 15,
+                        'kriteria' => [
+                            ['kode' => 'A2.1', 'nama' => 'Perencanaan kinerja digunakan sebagai acuan penyusunan perjanjian kinerja dan rencana aksi.', 'bobot' => 7.5],
+                            ['kode' => 'A2.2', 'nama' => 'Target kinerja ditetapkan secara realistis dan berorientasi hasil.', 'bobot' => 7.5],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'kode' => 'B',
+                'nama' => 'Pengukuran Kinerja',
+                'bobot' => 30,
+                'urutan' => 2,
+                'sub' => [
+                    [
+                        'kode' => 'B1',
+                        'nama' => 'Kualitas Pengukuran Kinerja',
+                        'bobot' => 15,
+                        'kriteria' => [
+                            ['kode' => 'B1.1', 'nama' => 'Pengukuran kinerja dilakukan berkala dengan data yang memadai.', 'bobot' => 7.5],
+                            ['kode' => 'B1.2', 'nama' => 'Realisasi kinerja didukung bukti yang valid dan dapat ditelusuri.', 'bobot' => 7.5],
+                        ],
+                    ],
+                    [
+                        'kode' => 'B2',
+                        'nama' => 'Pemanfaatan Hasil Pengukuran',
+                        'bobot' => 15,
+                        'kriteria' => [
+                            ['kode' => 'B2.1', 'nama' => 'Hasil pengukuran digunakan untuk pengendalian dan perbaikan kinerja.', 'bobot' => 7.5],
+                            ['kode' => 'B2.2', 'nama' => 'Capaian kinerja dianalisis sampai faktor penyebab dan tindak lanjut.', 'bobot' => 7.5],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'kode' => 'C',
+                'nama' => 'Pelaporan Kinerja',
+                'bobot' => 15,
+                'urutan' => 3,
+                'sub' => [
+                    [
+                        'kode' => 'C1',
+                        'nama' => 'Kualitas Laporan Kinerja',
+                        'bobot' => 15,
+                        'kriteria' => [
+                            ['kode' => 'C1.1', 'nama' => 'Laporan kinerja menyajikan capaian, analisis, dan efisiensi penggunaan sumber daya.', 'bobot' => 7.5],
+                            ['kode' => 'C1.2', 'nama' => 'Laporan kinerja disusun tepat waktu dan mudah dipahami pemangku kepentingan.', 'bobot' => 7.5],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'kode' => 'D',
+                'nama' => 'Evaluasi Akuntabilitas Internal',
+                'bobot' => 25,
+                'urutan' => 4,
+                'sub' => [
+                    [
+                        'kode' => 'D1',
+                        'nama' => 'Pelaksanaan Evaluasi Internal',
+                        'bobot' => 12.5,
+                        'kriteria' => [
+                            ['kode' => 'D1.1', 'nama' => 'Evaluasi internal dilaksanakan secara berkala dan terdokumentasi.', 'bobot' => 6.25],
+                            ['kode' => 'D1.2', 'nama' => 'Evaluasi internal menghasilkan rekomendasi yang spesifik dan dapat ditindaklanjuti.', 'bobot' => 6.25],
+                        ],
+                    ],
+                    [
+                        'kode' => 'D2',
+                        'nama' => 'Tindak Lanjut Evaluasi',
+                        'bobot' => 12.5,
+                        'kriteria' => [
+                            ['kode' => 'D2.1', 'nama' => 'Rekomendasi evaluasi ditindaklanjuti oleh OPD secara memadai.', 'bobot' => 6.25],
+                            ['kode' => 'D2.2', 'nama' => 'Tindak lanjut dievaluasi kembali untuk memastikan perbaikan berkelanjutan.', 'bobot' => 6.25],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        foreach ($komponenEvaluasi as $komponenData) {
+            $komponen = KomponenEvaluasi::updateOrCreate(
+                ['kode' => $komponenData['kode']],
+                [
+                    'nama' => $komponenData['nama'],
+                    'bobot' => $komponenData['bobot'],
+                    'urutan' => $komponenData['urutan'],
+                    'status' => 'active',
+                ],
+            );
+
+            foreach ($komponenData['sub'] as $subIndex => $subData) {
+                $sub = $komponen->subKomponen()->updateOrCreate(
+                    ['kode' => $subData['kode']],
+                    [
+                        'nama' => $subData['nama'],
+                        'bobot' => $subData['bobot'],
+                        'urutan' => $subIndex + 1,
+                        'status' => 'active',
+                    ],
+                );
+
+                foreach ($subData['kriteria'] as $index => $kriteriaData) {
+                    $sub->kriteria()->updateOrCreate(
+                        ['kode' => $kriteriaData['kode']],
+                        [
+                            'nama' => $kriteriaData['nama'],
+                            'bobot' => $kriteriaData['bobot'],
+                            'nilai_maksimal' => 100,
+                            'urutan' => $index + 1,
+                            'status' => 'active',
+                        ],
+                    );
+                }
+            }
+        }
     }
 }

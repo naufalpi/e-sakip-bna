@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Dokumen;
+use App\Models\EvaluasiSakip;
 use App\Models\Opd;
 use App\Models\PerjanjianKinerja;
 use App\Models\RealisasiKinerja;
@@ -12,6 +13,7 @@ use App\Models\Role;
 use App\Models\Rpjmd;
 use App\Models\User;
 use App\Policies\DokumenPolicy;
+use App\Policies\EvaluasiSakipPolicy;
 use App\Policies\OpdPolicy;
 use App\Policies\PerjanjianKinerjaPolicy;
 use App\Policies\RealisasiKinerjaPolicy;
@@ -40,6 +42,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::policy(Opd::class, OpdPolicy::class);
         Gate::policy(Dokumen::class, DokumenPolicy::class);
+        Gate::policy(EvaluasiSakip::class, EvaluasiSakipPolicy::class);
         Gate::policy(PerjanjianKinerja::class, PerjanjianKinerjaPolicy::class);
         Gate::policy(RenstraOpd::class, RenstraOpdPolicy::class);
         Gate::policy(RencanaAksi::class, RencanaAksiPolicy::class);
