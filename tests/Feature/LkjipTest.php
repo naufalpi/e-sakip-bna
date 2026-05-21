@@ -2,14 +2,22 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\GenerateLkjipDraftDocumentJob;
 use App\Models\Dokumen;
+use App\Models\EvaluasiSakip;
 use App\Models\Lkjip;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
+use App\Models\PerjanjianKinerja;
+use App\Models\RealisasiKinerja;
+use App\Models\RekomendasiEvaluasi;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Dokumen\DokumenStorageService;
+use App\Services\Lkjip\LkjipDraftContentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -181,6 +189,142 @@ class LkjipTest extends TestCase
 
         $dokumen = Dokumen::firstOrFail();
 
+        $this->assertDatabaseHas('dokumen_relations', [
+            'dokumen_id' => $dokumen->id,
+            'related_type' => Lkjip::class,
+            'related_id' => $lkjip->id,
+        ]);
+    }
+
+    public function test_lkjip_draft_generation_is_dispatched_to_queue(): void
+    {
+        Queue::fake();
+        $this->seed();
+
+        [$opd, , $periode, $adminOpd] = $this->basicActors();
+
+        $lkjip = Lkjip::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'LKJIP Queue',
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->post(route('lkjip.generate-draft', $lkjip))
+            ->assertRedirect();
+
+        Queue::assertPushed(GenerateLkjipDraftDocumentJob::class, fn (GenerateLkjipDraftDocumentJob $job) => $job->lkjipId === $lkjip->id
+            && $job->requestedById === $adminOpd->id);
+    }
+
+    public function test_lkjip_draft_job_updates_bab_and_stores_private_document(): void
+    {
+        config(['filesystems.documents_disk' => 'local']);
+        Storage::fake('local');
+        $this->seed();
+
+        [$opd, , $periode, $adminOpd] = $this->basicActors();
+
+        $perjanjianKinerja = PerjanjianKinerja::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'Perjanjian Kinerja Dinas Kesehatan',
+            'status' => 'approved',
+        ]);
+
+        $perjanjianKinerja->items()->create([
+            'sasaran' => 'Meningkatnya kualitas layanan kesehatan',
+            'indikator' => 'Persentase layanan kesehatan sesuai standar',
+            'target' => 95,
+            'target_text' => '95%',
+            'urutan' => 1,
+        ]);
+
+        $realisasi = RealisasiKinerja::create([
+            'opd_id' => $opd->id,
+            'perjanjian_kinerja_id' => $perjanjianKinerja->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'periode_realisasi' => 'triwulan',
+            'triwulan' => 'tw4',
+            'status' => 'approved',
+            'target_anggaran' => 100000000,
+            'realisasi_anggaran' => 75000000,
+            'serapan_anggaran_persen' => 75,
+            'capaian_persen' => 92,
+            'status_capaian' => 'hijau',
+            'status_efisiensi' => 'efisien',
+            'analisis_efisiensi' => 'Capaian lebih tinggi dibanding serapan anggaran.',
+        ]);
+
+        $realisasi->programs()->create([
+            'indikator' => 'Persentase layanan kesehatan sesuai standar',
+            'target' => 95,
+            'target_text' => '95%',
+            'realisasi' => 92,
+            'realisasi_text' => '92%',
+            'capaian_persen' => 96.84,
+            'status_capaian' => 'hijau',
+            'anggaran' => 100000000,
+            'realisasi_anggaran' => 75000000,
+            'serapan_anggaran_persen' => 75,
+            'status_efisiensi' => 'efisien',
+            'analisis_efisiensi' => 'Output tercapai dengan serapan terkendali.',
+            'kendala' => 'Distribusi layanan belum merata.',
+            'tindak_lanjut' => 'Penguatan layanan puskesmas.',
+            'urutan' => 1,
+        ]);
+
+        $evaluasi = EvaluasiSakip::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'status' => 'approved',
+            'nilai_akhir' => 82,
+            'predikat' => 'A',
+        ]);
+
+        RekomendasiEvaluasi::create([
+            'evaluasi_sakip_id' => $evaluasi->id,
+            'opd_id' => $opd->id,
+            'rekomendasi' => 'Perkuat kualitas indikator kinerja.',
+            'status_tindak_lanjut' => 'proses',
+        ]);
+
+        $lkjip = Lkjip::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'perjanjian_kinerja_id' => $perjanjianKinerja->id,
+            'realisasi_kinerja_id' => $realisasi->id,
+            'evaluasi_sakip_id' => $evaluasi->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'LKJIP Dinas Kesehatan',
+            'ringkasan_eksekutif' => 'Ringkasan awal LKJIP.',
+            'status' => 'draft',
+        ]);
+
+        (new GenerateLkjipDraftDocumentJob($lkjip->id, $adminOpd->id))->handle(
+            app(LkjipDraftContentService::class),
+            app(DokumenStorageService::class),
+        );
+
+        $dokumen = Dokumen::query()->where('jenis', 'lkjip')->firstOrFail();
+
+        Storage::disk($dokumen->storage_disk)->assertExists($dokumen->storage_path);
+
+        $content = Storage::disk($dokumen->storage_disk)->get($dokumen->storage_path);
+
+        $this->assertStringContainsString('BAB III - Akuntabilitas Kinerja', $content);
+        $this->assertStringContainsString('Status efisiensi: Efisien', $content);
+        $this->assertStringContainsString('Perkuat kualitas indikator kinerja.', $content);
+        $this->assertDatabaseHas('lkjip_bab', [
+            'lkjip_id' => $lkjip->id,
+            'kode' => 'BAB III',
+            'judul' => 'Akuntabilitas Kinerja',
+        ]);
         $this->assertDatabaseHas('dokumen_relations', [
             'dokumen_id' => $dokumen->id,
             'related_type' => Lkjip::class,

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Kinerja\Concerns\BuildsKinerjaOptions;
 use App\Http\Requests\Lkjip\StoreLkjipRequest;
 use App\Http\Requests\Lkjip\UpdateLkjipRequest;
+use App\Jobs\GenerateLkjipDraftDocumentJob;
+use App\Models\Dokumen;
 use App\Models\EvaluasiSakip;
 use App\Models\Lkjip;
 use App\Models\LkjipBab;
@@ -119,12 +121,22 @@ class LkjipController extends Controller
 
         return Inertia::render('Lkjip/Show', [
             'item' => $this->serializeLkjip($lkjip),
+            'generatedDocuments' => $this->generatedDocuments($request, $lkjip),
             'workflow' => $workflowDataService->forModel($lkjip, 'lkjip'),
             'can' => [
                 'manage' => $request->user()->can('update', $lkjip),
                 'review' => $this->canReviewWorkflow($request->user()),
             ],
         ]);
+    }
+
+    public function generateDraft(Request $request, Lkjip $lkjip): RedirectResponse
+    {
+        $this->authorize('update', $lkjip);
+
+        GenerateLkjipDraftDocumentJob::dispatch($lkjip->id, $request->user()->id);
+
+        return back()->with('success', 'Pembuatan draft LKJIP masuk antrean. Jalankan worker queue untuk memproses dokumen.');
     }
 
     public function edit(Request $request, Lkjip $lkjip): Response
@@ -201,6 +213,38 @@ class LkjipController extends Controller
                 'urutan' => $bab->urutan,
             ]),
         ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function generatedDocuments(Request $request, Lkjip $lkjip): array
+    {
+        return Dokumen::query()
+            ->with('uploadedBy:id,name')
+            ->where('jenis', 'lkjip')
+            ->whereHas('relations', fn (Builder $query) => $query
+                ->where('related_type', Lkjip::class)
+                ->where('related_id', $lkjip->id))
+            ->latest('id')
+            ->get()
+            ->map(function (Dokumen $dokumen) use ($request) {
+                $canDownload = $request->user()->can('download', $dokumen);
+
+                return [
+                    'id' => $dokumen->id,
+                    'judul' => $dokumen->judul,
+                    'status' => $dokumen->status,
+                    'original_filename' => $dokumen->original_filename,
+                    'mime_type' => $dokumen->mime_type,
+                    'file_size' => $dokumen->file_size,
+                    'created_at' => $dokumen->created_at?->toDateTimeString(),
+                    'uploaded_by' => $dokumen->uploadedBy,
+                    'can_download' => $canDownload,
+                    'download_url' => $canDownload ? route('dokumen.download', $dokumen) : null,
+                ];
+            })
+            ->all();
     }
 
     /**

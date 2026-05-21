@@ -16,6 +16,18 @@ type Workflow = {
     status: string;
     histories: Array<{ id: number; action: string; from_status?: string | null; to_status: string; notes?: string | null; created_at: string; actor?: { name: string } | null }>;
 } | null;
+type GeneratedDocument = {
+    id: number;
+    judul: string;
+    status: string;
+    original_filename: string;
+    mime_type?: string | null;
+    file_size: number;
+    created_at?: string | null;
+    uploaded_by?: { name: string } | null;
+    can_download: boolean;
+    download_url?: string | null;
+};
 
 const props = defineProps<{
     item: {
@@ -33,6 +45,7 @@ const props = defineProps<{
         evaluasi_sakip?: { tahun: number; nilai_akhir?: string | number | null; predikat?: string | null; status: string } | null;
         bab: Bab[];
     };
+    generatedDocuments: GeneratedDocument[];
     workflow: Workflow;
     can: { manage: boolean; review: boolean };
 }>();
@@ -76,6 +89,10 @@ const transition = (action: string) => {
     router.post(route('workflow.transition', { module: 'lkjip', id: props.item.id }), { action }, { preserveScroll: true });
 };
 
+const generateDraft = () => {
+    router.post(route('lkjip.generate-draft', props.item.id), {}, { preserveScroll: true });
+};
+
 const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
@@ -104,6 +121,14 @@ const relationPeriod = () => {
 
     return [realisasi.tahun, realisasi.periode_realisasi, realisasi.triwulan || realisasi.bulan || realisasi.semester].filter(Boolean).join(' - ');
 };
+
+const formatFileSize = (bytes: number) => {
+    if (!bytes) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 </script>
 
 <template>
@@ -122,6 +147,7 @@ const relationPeriod = () => {
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <button v-if="can.manage" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="generateDraft">Buat Draft Otomatis</button>
                     <Link v-if="can.manage" :href="route('lkjip.edit', item.id)" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Edit</Link>
                     <button v-if="can.manage" type="button" class="rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800" @click="transition('submit')">Ajukan</button>
                     <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('verify')">Verifikasi</button>
@@ -169,6 +195,33 @@ const relationPeriod = () => {
                         </div>
                     </dl>
                 </div>
+            </section>
+
+            <section class="overflow-hidden rounded-lg border bg-card">
+                <div class="flex flex-col gap-2 border-b px-4 py-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h2 class="text-sm font-semibold">Dokumen Draft Otomatis</h2>
+                        <p class="mt-1 text-xs text-muted-foreground">Draft dibuat lewat queue dan disimpan sebagai dokumen privat.</p>
+                    </div>
+                    <button v-if="can.manage" type="button" class="rounded-md bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800" @click="generateDraft">Generate Ulang</button>
+                </div>
+                <div v-if="generatedDocuments.length" class="divide-y">
+                    <article v-for="document in generatedDocuments" :key="document.id" class="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <div class="font-medium">{{ document.judul }}</div>
+                            <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                <span>{{ document.original_filename }}</span>
+                                <span>-</span>
+                                <span>{{ formatFileSize(document.file_size) }}</span>
+                                <span>-</span>
+                                <span>{{ document.created_at || '-' }}</span>
+                            </div>
+                        </div>
+                        <a v-if="document.can_download && document.download_url" :href="document.download_url" class="rounded-md border px-3 py-2 text-center text-sm hover:bg-muted">Unduh</a>
+                        <span v-else class="text-xs text-muted-foreground">Tidak ada akses unduh</span>
+                    </article>
+                </div>
+                <div v-else class="px-4 py-8 text-center text-sm text-muted-foreground">Belum ada draft otomatis. Klik generate untuk membuat dokumen melalui queue.</div>
             </section>
 
             <section v-if="can.manage" class="rounded-lg border bg-card p-4">

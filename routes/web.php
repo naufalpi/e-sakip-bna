@@ -75,6 +75,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::delete('realisasi-kinerja/{realisasi_kinerja}/programs/{program}', [RealisasiProgramController::class, 'destroy'])->name('realisasi-kinerja.programs.destroy');
 
     Route::resource('lkjip', LkjipController::class);
+    Route::post('lkjip/{lkjip}/generate-draft', [LkjipController::class, 'generateDraft'])->name('lkjip.generate-draft');
     Route::post('lkjip/{lkjip}/bab', [LkjipBabController::class, 'store'])->name('lkjip.bab.store');
     Route::delete('lkjip/{lkjip}/bab/{bab}', [LkjipBabController::class, 'destroy'])->name('lkjip.bab.destroy');
 
