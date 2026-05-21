@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ExternalLink, Inbox, RotateCcw, Search, SlidersHorizontal } from 'lucide-vue-next';
@@ -17,6 +18,7 @@ type WorkflowContext = {
 };
 type WorkflowRow = {
     id: number;
+    related_id: number;
     module: string;
     module_label: string;
     status: string;
@@ -27,6 +29,9 @@ type WorkflowRow = {
     submitted_by?: { id: number; name: string } | null;
     current_reviewer?: { id: number; name: string } | null;
     context: WorkflowContext;
+    can_manage: boolean;
+    can_review: boolean;
+    can_lock: boolean;
 };
 type Paginator<T> = {
     data: T[];
@@ -228,11 +233,21 @@ const formatDate = (value?: string | null) => {
                                 </td>
                                 <td class="px-4 py-3 text-muted-foreground">{{ formatDate(row.updated_at) }}</td>
                                 <td class="px-4 py-3 text-right">
-                                    <Link v-if="row.context.detail_url" :href="row.context.detail_url" class="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs hover:bg-muted">
-                                        <ExternalLink class="size-3.5" />
-                                        Buka Detail
-                                    </Link>
-                                    <span v-else class="text-xs text-muted-foreground">Tidak tersedia</span>
+                                    <div class="flex flex-wrap justify-end gap-2">
+                                        <WorkflowActionButtons
+                                            :module="row.module"
+                                            :model-id="row.related_id"
+                                            :status="row.status"
+                                            :can-manage="row.can_manage"
+                                            :can-review="row.can_review"
+                                            :can-lock="row.can_lock"
+                                        />
+                                        <Link v-if="row.context.detail_url" :href="row.context.detail_url" class="inline-flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs hover:bg-muted">
+                                            <ExternalLink class="size-3.5" />
+                                            Detail
+                                        </Link>
+                                        <span v-else class="text-xs text-muted-foreground">Tidak tersedia</span>
+                                    </div>
                                 </td>
                             </tr>
                             <tr v-if="items.data.length === 0">

@@ -51,6 +51,8 @@ class WorkflowInboxTest extends TestCase
                 ->where('items.data.0.module', 'perjanjian_kinerja')
                 ->where('items.data.0.context.title', 'PK Inbox Review')
                 ->where('items.data.0.context.opd.singkatan', 'Dinkes')
+                ->where('items.data.0.can_review', true)
+                ->where('items.data.0.can_lock', false)
                 ->where('summary.need_review', 1)
             );
     }

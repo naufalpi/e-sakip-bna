@@ -90,6 +90,8 @@ class WorkflowInboxService
         $status = $this->resolveOption((string) ($filters['status'] ?? ''), self::STATUSES);
         $search = trim((string) ($filters['search'] ?? ''));
 
+        $reviewModules = $this->reviewModules($user);
+
         $submissions = WorkflowSubmission::query()
             ->with([
                 'submittedBy:id,name',
@@ -102,7 +104,7 @@ class WorkflowInboxService
             ->latest('id')
             ->get();
 
-        $rows = $this->enrichSubmissions($submissions)
+        $rows = $this->enrichSubmissions($user, $submissions, $reviewModules)
             ->filter(fn (array $row) => $this->isVisibleForScope($user, $row, $scope))
             ->when($search !== '', fn (Collection $collection) => $this->filterSearch($collection, $search))
             ->values();
@@ -268,18 +270,21 @@ class WorkflowInboxService
 
     /**
      * @param  Collection<int, WorkflowSubmission>  $submissions
+     * @param  Collection<int, string>  $reviewModules
      * @return Collection<int, array<string, mixed>>
      */
-    private function enrichSubmissions(Collection $submissions): Collection
+    private function enrichSubmissions(User $user, Collection $submissions, Collection $reviewModules): Collection
     {
         $relatedModels = $this->loadRelatedModels($submissions);
 
-        return $submissions->map(function (WorkflowSubmission $submission) use ($relatedModels) {
+        return $submissions->map(function (WorkflowSubmission $submission) use ($user, $relatedModels, $reviewModules) {
             $model = $relatedModels->get($this->relatedKey($submission->module, (int) $submission->related_id));
             $context = $this->contextFor($model, $submission->module);
+            $canReview = $reviewModules->contains($submission->module) && in_array($submission->status, self::REVIEW_STATUSES, true);
 
             return [
                 'id' => $submission->id,
+                'related_id' => (int) $submission->related_id,
                 'module' => $submission->module,
                 'module_label' => $this->registry->label($submission->module),
                 'status' => $submission->status,
@@ -296,6 +301,9 @@ class WorkflowInboxService
                     'name' => $submission->currentReviewer->name,
                 ] : null,
                 'context' => $context,
+                'can_manage' => $model ? $user->can('update', $model) : false,
+                'can_review' => $canReview,
+                'can_lock' => ($user->isSuperAdmin() || $user->hasPermission('lock_period')) && $submission->status === 'approved',
                 '_submitted_by_id' => $submission->submitted_by,
                 '_current_reviewer_id' => $submission->current_reviewer_id,
                 '_opd_id' => $context['opd_id'],
