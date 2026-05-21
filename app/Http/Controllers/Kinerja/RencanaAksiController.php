@@ -11,6 +11,7 @@ use App\Models\RencanaAksi;
 use App\Models\RencanaAksiItem;
 use App\Models\User;
 use App\Models\WorkflowSubmission;
+use App\Services\Perencanaan\PerencanaanHierarchyValidationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -82,10 +83,11 @@ class RencanaAksiController extends Controller
         ]);
     }
 
-    public function store(StoreRencanaAksiRequest $request): RedirectResponse
+    public function store(StoreRencanaAksiRequest $request, PerencanaanHierarchyValidationService $hierarchyValidation): RedirectResponse
     {
         $data = $request->validated();
         $this->assertPerjanjianKinerjaBelongsToOpd($data['perjanjian_kinerja_id'] ?? null, (int) $data['opd_id']);
+        $hierarchyValidation->ensureRencanaAksiCanBeCreated($this->findPerjanjianKinerja($data['perjanjian_kinerja_id'] ?? null));
 
         $rencanaAksi = RencanaAksi::create($data);
 
@@ -140,10 +142,11 @@ class RencanaAksiController extends Controller
         ]);
     }
 
-    public function update(UpdateRencanaAksiRequest $request, RencanaAksi $rencanaAksi): RedirectResponse
+    public function update(UpdateRencanaAksiRequest $request, RencanaAksi $rencanaAksi, PerencanaanHierarchyValidationService $hierarchyValidation): RedirectResponse
     {
         $data = $request->validated();
         $this->assertPerjanjianKinerjaBelongsToOpd($data['perjanjian_kinerja_id'] ?? null, (int) $data['opd_id']);
+        $hierarchyValidation->ensureRencanaAksiCanBeCreated($this->findPerjanjianKinerja($data['perjanjian_kinerja_id'] ?? null));
 
         $rencanaAksi->update($data);
 
@@ -212,6 +215,15 @@ class RencanaAksiController extends Controller
         if (! PerjanjianKinerja::query()->whereKey($perjanjianKinerjaId)->where('opd_id', $opdId)->exists()) {
             throw ValidationException::withMessages(['perjanjian_kinerja_id' => 'Perjanjian Kinerja tidak sesuai OPD Rencana Aksi.']);
         }
+    }
+
+    private function findPerjanjianKinerja(mixed $perjanjianKinerjaId): ?PerjanjianKinerja
+    {
+        if (! $perjanjianKinerjaId) {
+            return null;
+        }
+
+        return PerjanjianKinerja::query()->find($perjanjianKinerjaId);
     }
 
     private function canReviewWorkflow(User $user): bool

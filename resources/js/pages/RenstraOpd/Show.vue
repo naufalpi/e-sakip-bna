@@ -29,6 +29,15 @@ type Target = {
     pagu?: string | number | null;
 };
 
+type TargetTriwulan = {
+    id: number;
+    periode_tahun: { id: number; tahun: number; nama: string };
+    triwulan: string;
+    target_angka?: string | number | null;
+    target_text?: string | null;
+    target_anggaran?: string | number | null;
+};
+
 type Indikator = {
     id: number;
     kode?: string | null;
@@ -36,6 +45,7 @@ type Indikator = {
     linked: boolean;
     satuan?: { nama: string; simbol?: string | null } | null;
     targets?: Target[];
+    target_triwulan?: TargetTriwulan[];
 };
 
 type SubKegiatan = {
@@ -104,6 +114,7 @@ const props = defineProps<{
     renstra: Renstra;
     nodeOptions: Record<string, Option[]>;
     rpjmdReferenceOptions: Record<string, Option[]>;
+    targetTriwulanOptions: Record<string, Option[]>;
     periodeOptions: Option[];
     satuanOptions: Option[];
     can: {
@@ -182,6 +193,16 @@ const form = useForm({
     urutan: 1,
 });
 
+const targetTriwulanForm = useForm({
+    related_table: 'indikator_tujuan_opd',
+    related_id: '' as number | string,
+    periode_tahun_id: '' as number | string,
+    triwulan: 'tw1',
+    target_text: '',
+    target_angka: '',
+    target_anggaran: '',
+});
+
 const selectedTypeLabel = computed(() => typeOptions.find((type) => type.value === form.type)?.label ?? 'Data Cascading');
 const parentKey = computed(() => parentKeyByType[form.type]);
 const parentOptions = computed(() => (parentKey.value ? props.nodeOptions[parentKey.value] ?? [] : []));
@@ -191,6 +212,13 @@ const isIndicatorType = computed(() => ['indikator_tujuan', 'indikator_sasaran',
 const isTargetType = computed(() => ['target_tujuan', 'target_sasaran', 'target_program'].includes(form.type));
 const isTextNodeType = computed(() => ['tujuan', 'sasaran', 'program', 'kegiatan', 'sub_kegiatan'].includes(form.type));
 const hasPaguIndikatif = computed(() => ['program', 'kegiatan', 'sub_kegiatan'].includes(form.type));
+const targetTriwulanTypeOptions = [
+    { value: 'indikator_tujuan_opd', label: 'Indikator Tujuan OPD' },
+    { value: 'indikator_sasaran_opd', label: 'Indikator Sasaran OPD' },
+    { value: 'indikator_opd_program', label: 'Indikator Program OPD' },
+    { value: 'indikator_sub_kegiatan', label: 'Indikator Sub Kegiatan' },
+];
+const selectedTargetTriwulanOptions = computed(() => props.targetTriwulanOptions[targetTriwulanForm.related_table] ?? []);
 
 watch(
     () => form.type,
@@ -215,6 +243,14 @@ watch(
         form.pagu_indikatif = '';
         form.urutan = 1;
         form.clearErrors();
+    },
+);
+
+watch(
+    () => targetTriwulanForm.related_table,
+    () => {
+        targetTriwulanForm.related_id = '';
+        targetTriwulanForm.clearErrors();
     },
 );
 
@@ -253,6 +289,24 @@ const destroyNode = (type: NodeType, id: number, label: string) => {
     }
 };
 
+const submitTargetTriwulan = () => {
+    targetTriwulanForm.post(route('target-triwulan-indikator.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            targetTriwulanForm.related_id = '';
+            targetTriwulanForm.target_text = '';
+            targetTriwulanForm.target_angka = '';
+            targetTriwulanForm.target_anggaran = '';
+        },
+    });
+};
+
+const destroyTargetTriwulan = (target: TargetTriwulan) => {
+    if (confirm('Hapus target triwulan indikator ini?')) {
+        router.delete(route('target-triwulan-indikator.destroy', target.id), { preserveScroll: true });
+    }
+};
+
 const transition = (action: string) => {
     router.post(route('workflow.transition', { module: 'renstra_opd', id: props.renstra.id }), { action }, { preserveScroll: true });
 };
@@ -281,7 +335,26 @@ const statusClass = (status: string) =>
 
 const linkClass = (linked: boolean) => (linked ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800');
 const linkLabel = (linked: boolean) => (linked ? 'Terhubung RPJMD' : 'Belum terhubung');
+const formatCurrency = (value?: string | number | null) => {
+    if (value === null || value === undefined || value === '') {
+        return '-';
+    }
+
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0,
+    }).format(Number(value));
+};
 const targetDisplay = (target: Target) => target.target_text || target.target || '-';
+const targetTriwulanDisplay = (target: TargetTriwulan) => target.target_text || target.target_angka || '-';
+const triwulanLabel = (triwulan: string) =>
+    ({
+        tw1: 'TW I',
+        tw2: 'TW II',
+        tw3: 'TW III',
+        tw4: 'TW IV',
+    })[triwulan] ?? triwulan;
 </script>
 
 <template>
@@ -395,6 +468,12 @@ const targetDisplay = (target: Target) => target.target_text || target.target ||
                                             {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
                                         </span>
                                     </div>
+                                    <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
+                                        <span v-for="target in indikator.target_triwulan" :key="target.id" class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800">
+                                            {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}: {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
+                                            <button v-if="can.manage" type="button" class="font-semibold text-blue-900 hover:text-red-700" @click="destroyTargetTriwulan(target)">x</button>
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div v-for="sasaran in tujuan.sasaran" :key="sasaran.id" class="rounded-md border bg-slate-50 p-3">
@@ -429,6 +508,12 @@ const targetDisplay = (target: Target) => target.target_text || target.target ||
                                             <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
                                                 <span v-for="target in indikator.targets" :key="target.id" class="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
                                                     {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
+                                                </span>
+                                            </div>
+                                            <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
+                                                <span v-for="target in indikator.target_triwulan" :key="target.id" class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800">
+                                                    {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}: {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
+                                                    <button v-if="can.manage" type="button" class="font-semibold text-blue-900 hover:text-red-700" @click="destroyTargetTriwulan(target)">x</button>
                                                 </span>
                                             </div>
                                         </div>
@@ -468,6 +553,12 @@ const targetDisplay = (target: Target) => target.target_text || target.target ||
                                                             {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }} - Pagu {{ target.pagu || '-' }}
                                                         </span>
                                                     </div>
+                                                    <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
+                                                        <span v-for="target in indikator.target_triwulan" :key="target.id" class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800">
+                                                            {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}: {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
+                                                            <button v-if="can.manage" type="button" class="font-semibold text-blue-900 hover:text-red-700" @click="destroyTargetTriwulan(target)">x</button>
+                                                        </span>
+                                                    </div>
                                                 </div>
 
                                                 <div v-for="kegiatan in program.kegiatan" :key="kegiatan.id" class="rounded-md border bg-slate-50 p-3">
@@ -492,7 +583,14 @@ const targetDisplay = (target: Target) => target.target_text || target.target ||
                                                         </div>
                                                         <div v-if="sub.indikator.length" class="mt-2 grid gap-2">
                                                             <div v-for="indikator in sub.indikator" :key="indikator.id" class="rounded-md bg-slate-50 px-3 py-2 text-sm">
-                                                                {{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}
+                                                                <div>{{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}</div>
+                                                                <div class="mt-1 text-xs text-muted-foreground">{{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}</div>
+                                                                <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
+                                                                    <span v-for="target in indikator.target_triwulan" :key="target.id" class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800">
+                                                                        {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}: {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
+                                                                        <button v-if="can.manage" type="button" class="font-semibold text-blue-900 hover:text-red-700" @click="destroyTargetTriwulan(target)">x</button>
+                                                                    </span>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -648,6 +746,72 @@ const targetDisplay = (target: Target) => target.target_text || target.target ||
 
                         <button type="submit" :disabled="form.processing" class="mt-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
                             Simpan Data Cascading
+                        </button>
+                    </form>
+
+                    <form class="mt-6 grid gap-3 border-t pt-4" @submit.prevent="submitTargetTriwulan">
+                        <div>
+                            <h3 class="text-sm font-semibold">Target Triwulan Indikator</h3>
+                            <p class="mt-1 text-xs text-muted-foreground">Isi target kinerja dan target anggaran per triwulan untuk Renstra OPD.</p>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <label class="text-sm font-medium" for="target_triwulan_table">Jenis Indikator</label>
+                            <select id="target_triwulan_table" v-model="targetTriwulanForm.related_table" class="h-9 rounded-md border bg-background px-3 text-sm">
+                                <option v-for="option in targetTriwulanTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
+                            <InputError :message="targetTriwulanForm.errors.related_table" />
+                        </div>
+
+                        <div class="grid gap-2">
+                            <label class="text-sm font-medium" for="target_triwulan_related_id">Indikator</label>
+                            <select id="target_triwulan_related_id" v-model="targetTriwulanForm.related_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                                <option value="">Pilih indikator</option>
+                                <option v-for="option in selectedTargetTriwulanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                            </select>
+                            <InputError :message="targetTriwulanForm.errors.related_id" />
+                        </div>
+
+                        <div class="grid gap-2">
+                            <label class="text-sm font-medium" for="target_triwulan_periode">Periode Tahun</label>
+                            <select id="target_triwulan_periode" v-model="targetTriwulanForm.periode_tahun_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                                <option value="">Pilih periode</option>
+                                <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                            </select>
+                            <InputError :message="targetTriwulanForm.errors.periode_tahun_id" />
+                        </div>
+
+                        <div class="grid gap-2">
+                            <label class="text-sm font-medium" for="target_triwulan">Triwulan</label>
+                            <select id="target_triwulan" v-model="targetTriwulanForm.triwulan" class="h-9 rounded-md border bg-background px-3 text-sm">
+                                <option value="tw1">TW I</option>
+                                <option value="tw2">TW II</option>
+                                <option value="tw3">TW III</option>
+                                <option value="tw4">TW IV</option>
+                            </select>
+                            <InputError :message="targetTriwulanForm.errors.triwulan" />
+                        </div>
+
+                        <div class="grid gap-2">
+                            <label class="text-sm font-medium" for="target_triwulan_angka">Target Angka</label>
+                            <input id="target_triwulan_angka" v-model="targetTriwulanForm.target_angka" type="number" step="0.0001" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                            <InputError :message="targetTriwulanForm.errors.target_angka" />
+                        </div>
+
+                        <div class="grid gap-2">
+                            <label class="text-sm font-medium" for="target_triwulan_text">Target Teks</label>
+                            <input id="target_triwulan_text" v-model="targetTriwulanForm.target_text" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                            <InputError :message="targetTriwulanForm.errors.target_text" />
+                        </div>
+
+                        <div class="grid gap-2">
+                            <label class="text-sm font-medium" for="target_triwulan_anggaran">Target Anggaran</label>
+                            <input id="target_triwulan_anggaran" v-model="targetTriwulanForm.target_anggaran" type="number" step="0.01" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                            <InputError :message="targetTriwulanForm.errors.target_anggaran" />
+                        </div>
+
+                        <button type="submit" :disabled="targetTriwulanForm.processing || selectedTargetTriwulanOptions.length === 0" class="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60">
+                            Simpan Target Triwulan
                         </button>
                     </form>
                 </aside>

@@ -30,6 +30,7 @@ use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -138,20 +139,25 @@ class RenstraOpdController extends Controller
             'tujuan.indikator.indikatorTujuanDaerah:id,kode,indikator',
             'tujuan.indikator.satuanIndikator:id,nama,simbol',
             'tujuan.indikator.targets.periodeTahun:id,tahun,nama',
+            'tujuan.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.sasaranDaerah:id,kode,sasaran',
             'tujuan.sasaran.indikator.indikatorSasaranDaerah:id,kode,indikator',
             'tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
             'tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
+            'tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.programs.programRpjmd:id,kode,nama',
             'tujuan.sasaran.programs.indikator.indikatorProgramRpjmd:id,kode,indikator',
             'tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
             'tujuan.sasaran.programs.indikator.targets.periodeTahun:id,tahun,nama',
+            'tujuan.sasaran.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.satuanIndikator:id,nama,simbol',
+            'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
         ]);
 
         return Inertia::render('RenstraOpd/Show', [
             'renstra' => $this->serializeRenstra($renstraOpd),
             'nodeOptions' => $manage ? $this->nodeOptions($renstraOpd) : [],
+            'targetTriwulanOptions' => $manage ? $this->targetTriwulanOptions($renstraOpd) : [],
             'rpjmdReferenceOptions' => $manage ? $this->rpjmdReferenceOptions($renstraOpd->rpjmd_id) : [],
             'periodeOptions' => $manage ? $this->periodeOptions() : [],
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
@@ -298,6 +304,43 @@ class RenstraOpdController extends Controller
     /**
      * @return array<string, array<int, array<string, mixed>>>
      */
+    private function targetTriwulanOptions(RenstraOpd $renstra): array
+    {
+        return [
+            'indikator_tujuan_opd' => IndikatorTujuanOpd::query()
+                ->whereHas('tujuan', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))
+                ->orderBy('urutan')
+                ->get(['id', 'kode', 'indikator'])
+                ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
+                ->values()
+                ->all(),
+            'indikator_sasaran_opd' => IndikatorSasaranOpd::query()
+                ->whereHas('sasaran.tujuan', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))
+                ->orderBy('urutan')
+                ->get(['id', 'kode', 'indikator'])
+                ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
+                ->values()
+                ->all(),
+            'indikator_opd_program' => IndikatorOpdProgram::query()
+                ->whereHas('program', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))
+                ->orderBy('urutan')
+                ->get(['id', 'kode', 'indikator'])
+                ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
+                ->values()
+                ->all(),
+            'indikator_sub_kegiatan' => IndikatorSubKegiatan::query()
+                ->whereHas('subKegiatan.kegiatan.program', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))
+                ->orderBy('urutan')
+                ->get(['id', 'kode', 'indikator'])
+                ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, array<int, array<string, mixed>>>
+     */
     private function rpjmdReferenceOptions(int $rpjmdId): array
     {
         return [
@@ -391,6 +434,7 @@ class RenstraOpdController extends Controller
                                     'id' => $indikator->id,
                                     'kode' => $indikator->kode,
                                     'indikator' => $indikator->indikator,
+                                    'target_triwulan' => $this->serializeTargetTriwulan($indikator),
                                     'satuan' => $indikator->satuanIndikator ? [
                                         'nama' => $indikator->satuanIndikator->nama,
                                         'simbol' => $indikator->satuanIndikator->simbol,
@@ -431,6 +475,26 @@ class RenstraOpdController extends Controller
                 'target_text' => $target->target_text,
                 'pagu' => $target->pagu ?? null,
             ]),
+            'target_triwulan' => $this->serializeTargetTriwulan($indikator),
         ];
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function serializeTargetTriwulan(IndikatorTujuanOpd|IndikatorSasaranOpd|IndikatorOpdProgram|IndikatorSubKegiatan $indikator)
+    {
+        return $indikator->targetTriwulan->map(fn ($target) => [
+            'id' => $target->id,
+            'periode_tahun' => [
+                'id' => $target->periodeTahun->id,
+                'tahun' => $target->periodeTahun->tahun,
+                'nama' => $target->periodeTahun->nama,
+            ],
+            'triwulan' => $target->triwulan,
+            'target_angka' => $target->target_angka,
+            'target_text' => $target->target_text,
+            'target_anggaran' => $target->target_anggaran,
+        ]);
     }
 }

@@ -13,6 +13,7 @@ use App\Models\RencanaAksi;
 use App\Models\User;
 use App\Models\WorkflowSubmission;
 use App\Services\Kinerja\CapaianKinerjaService;
+use App\Services\Perencanaan\PerencanaanHierarchyValidationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -97,10 +98,12 @@ class RealisasiKinerjaController extends Controller
         ]);
     }
 
-    public function store(StoreRealisasiKinerjaRequest $request, CapaianKinerjaService $capaianService): RedirectResponse
+    public function store(StoreRealisasiKinerjaRequest $request, CapaianKinerjaService $capaianService, PerencanaanHierarchyValidationService $hierarchyValidation): RedirectResponse
     {
         $data = $request->validated();
         $this->assertHeaderRelationsBelongToOpd($data, (int) $data['opd_id']);
+        [$perjanjianKinerja, $rencanaAksi] = $this->headerWorkflowModels($data);
+        $hierarchyValidation->ensureRealisasiCanBeCreated($perjanjianKinerja, $rencanaAksi);
         $data = $this->withHeaderMetrics($data, $capaianService);
 
         $realisasi = RealisasiKinerja::create($data);
@@ -170,10 +173,12 @@ class RealisasiKinerjaController extends Controller
         ]);
     }
 
-    public function update(UpdateRealisasiKinerjaRequest $request, RealisasiKinerja $realisasiKinerja, CapaianKinerjaService $capaianService): RedirectResponse
+    public function update(UpdateRealisasiKinerjaRequest $request, RealisasiKinerja $realisasiKinerja, CapaianKinerjaService $capaianService, PerencanaanHierarchyValidationService $hierarchyValidation): RedirectResponse
     {
         $data = $request->validated();
         $this->assertHeaderRelationsBelongToOpd($data, (int) $data['opd_id']);
+        [$perjanjianKinerja, $rencanaAksi] = $this->headerWorkflowModels($data);
+        $hierarchyValidation->ensureRealisasiCanBeCreated($perjanjianKinerja, $rencanaAksi);
         $data = $this->withHeaderMetrics($data, $capaianService);
 
         $realisasiKinerja->update($data);
@@ -297,6 +302,18 @@ class RealisasiKinerjaController extends Controller
             && ! RencanaAksi::query()->whereKey($data['rencana_aksi_id'])->where('opd_id', $opdId)->exists()) {
             throw ValidationException::withMessages(['rencana_aksi_id' => 'Rencana Aksi tidak sesuai OPD Realisasi.']);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{0: ?PerjanjianKinerja, 1: ?RencanaAksi}
+     */
+    private function headerWorkflowModels(array $data): array
+    {
+        return [
+            ($data['perjanjian_kinerja_id'] ?? null) ? PerjanjianKinerja::query()->find($data['perjanjian_kinerja_id']) : null,
+            ($data['rencana_aksi_id'] ?? null) ? RencanaAksi::query()->find($data['rencana_aksi_id']) : null,
+        ];
     }
 
     private function canReviewWorkflow(User $user): bool

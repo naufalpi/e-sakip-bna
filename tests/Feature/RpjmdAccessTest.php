@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\IndikatorProgramRpjmd;
 use App\Models\Opd;
+use App\Models\PeriodeTahun;
 use App\Models\ProgramRpjmd;
 use App\Models\ProgramRpjmdOpdPenanggungJawab;
 use App\Models\Role;
@@ -210,6 +212,57 @@ class RpjmdAccessTest extends TestCase
         ]);
 
         $this->assertCount(2, $program->fresh()->opdPenanggungJawab);
+    }
+
+    public function test_bapperida_can_save_target_triwulan_for_rpjmd_indicator(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '2.03', 'nama' => 'Dinas C', 'status' => 'active']);
+        $this->createRpjmdWithProgramForOpd($opd, 'RPJMD Target Triwulan');
+        $periode = PeriodeTahun::orderBy('tahun')->firstOrFail();
+        $program = ProgramRpjmd::firstOrFail();
+        $indikator = IndikatorProgramRpjmd::create([
+            'program_rpjmd_id' => $program->id,
+            'indikator' => 'Indikator Program Target Triwulan',
+            'urutan' => 1,
+        ]);
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $this->actingAs($user)
+            ->post(route('target-triwulan-indikator.store'), [
+                'related_table' => 'indikator_program_rpjmd',
+                'related_id' => $indikator->id,
+                'periode_tahun_id' => $periode->id,
+                'triwulan' => 'tw1',
+                'target_text' => '25 persen',
+                'target_angka' => 25,
+                'target_anggaran' => 1000000,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('target_triwulan_indikator', [
+            'related_table' => 'indikator_program_rpjmd',
+            'related_id' => $indikator->id,
+            'periode_tahun_id' => $periode->id,
+            'triwulan' => 'tw1',
+            'target_text' => '25 persen',
+        ]);
+
+        $adminOpd = User::factory()->create(['opd_id' => $opd->id]);
+        $adminOpd->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $this->actingAs($adminOpd)
+            ->post(route('target-triwulan-indikator.store'), [
+                'related_table' => 'indikator_program_rpjmd',
+                'related_id' => $indikator->id,
+                'periode_tahun_id' => $periode->id,
+                'triwulan' => 'tw2',
+                'target_text' => '50 persen',
+            ])
+            ->assertForbidden();
     }
 
     public function test_rpjmd_import_csv_saves_batch_rows_and_preview(): void

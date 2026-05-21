@@ -52,9 +52,9 @@ class PerencanaanHierarchyValidationService
             ]);
         }
 
-        if ($rencanaAksi && ! in_array($rencanaAksi->status, ['approved', 'locked'], true)) {
+        if ($rencanaAksi && (int) $rencanaAksi->perjanjian_kinerja_id !== (int) $perjanjianKinerja->id) {
             throw ValidationException::withMessages([
-                'rencana_aksi_id' => 'Realisasi tidak dapat dibuat sebelum Rencana Aksi disetujui.',
+                'rencana_aksi_id' => 'Rencana Aksi tidak sesuai dengan Perjanjian Kinerja Realisasi.',
             ]);
         }
     }

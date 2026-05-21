@@ -105,17 +105,21 @@ class RpjmdController extends Controller
             'periodeTahun:id,tahun,nama,status',
             'visi.misi.tujuan.indikator.satuanIndikator:id,nama,simbol',
             'visi.misi.tujuan.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.misi.tujuan.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'visi.misi.tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
             'visi.misi.tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.misi.tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'visi.misi.tujuan.sasaran.strategi.programs.urusanPemerintahan:id,kode,nama',
             'visi.misi.tujuan.sasaran.strategi.programs.indikator.satuanIndikator:id,nama,simbol',
             'visi.misi.tujuan.sasaran.strategi.programs.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.misi.tujuan.sasaran.strategi.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'visi.misi.tujuan.sasaran.strategi.programs.opdPenanggungJawab' => fn ($query) => $query->select('opds.id', 'opds.nama', 'opds.singkatan'),
         ]);
 
         return Inertia::render('Rpjmd/Show', [
             'rpjmd' => $this->serializeRpjmd($rpjmd, $visibleOpdId),
             'nodeOptions' => $manage ? $this->nodeOptions($rpjmd) : [],
+            'targetTriwulanOptions' => $manage ? $this->targetTriwulanOptions($rpjmd) : [],
             'periodeOptions' => $manage ? $this->periodeOptions() : [],
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
             'opdOptions' => $manage ? $this->opdOptions() : [],
@@ -242,6 +246,36 @@ class RpjmdController extends Controller
             'strategi' => StrategiDaerah::query()->whereHas('sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'strategi'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->strategi)])->values()->all(),
             'program' => ProgramRpjmd::query()->whereHas('strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'nama'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->nama)])->values()->all(),
             'indikator_program' => IndikatorProgramRpjmd::query()->whereHas('program.strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function targetTriwulanOptions(Rpjmd $rpjmd): array
+    {
+        return [
+            'indikator_tujuan_daerah' => IndikatorTujuanDaerah::query()
+                ->whereHas('tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))
+                ->orderBy('urutan')
+                ->get(['id', 'kode', 'indikator'])
+                ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
+                ->values()
+                ->all(),
+            'indikator_sasaran_daerah' => IndikatorSasaranDaerah::query()
+                ->whereHas('sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))
+                ->orderBy('urutan')
+                ->get(['id', 'kode', 'indikator'])
+                ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
+                ->values()
+                ->all(),
+            'indikator_program_rpjmd' => IndikatorProgramRpjmd::query()
+                ->whereHas('program.strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))
+                ->orderBy('urutan')
+                ->get(['id', 'kode', 'indikator'])
+                ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
+                ->values()
+                ->all(),
         ];
     }
 
@@ -428,6 +462,18 @@ class RpjmdController extends Controller
                 'target' => $target->target,
                 'target_text' => $target->target_text,
                 'pagu' => $target->pagu ?? null,
+            ]),
+            'target_triwulan' => $indikator->targetTriwulan->map(fn ($target) => [
+                'id' => $target->id,
+                'periode_tahun' => [
+                    'id' => $target->periodeTahun->id,
+                    'tahun' => $target->periodeTahun->tahun,
+                    'nama' => $target->periodeTahun->nama,
+                ],
+                'triwulan' => $target->triwulan,
+                'target_angka' => $target->target_angka,
+                'target_text' => $target->target_text,
+                'target_anggaran' => $target->target_anggaran,
             ]),
         ];
     }

@@ -22,6 +22,7 @@ use App\Http\Controllers\Master\OpdController;
 use App\Http\Controllers\Master\RolePermissionController;
 use App\Http\Controllers\Master\UserController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Perencanaan\TargetTriwulanIndikatorController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdNodeController;
 use App\Http\Controllers\Rpjmd\RpjmdController;
@@ -52,6 +53,8 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::resource('renstra-opd', RenstraOpdController::class);
     Route::post('renstra-opd/{renstra_opd}/nodes', [RenstraOpdNodeController::class, 'store'])->name('renstra-opd.nodes.store');
     Route::delete('renstra-opd/{renstra_opd}/nodes/{type}/{id}', [RenstraOpdNodeController::class, 'destroy'])->name('renstra-opd.nodes.destroy');
+    Route::post('target-triwulan-indikator', [TargetTriwulanIndikatorController::class, 'store'])->name('target-triwulan-indikator.store');
+    Route::delete('target-triwulan-indikator/{target}', [TargetTriwulanIndikatorController::class, 'destroy'])->name('target-triwulan-indikator.destroy');
 
     Route::resource('perjanjian-kinerja', PerjanjianKinerjaController::class);
     Route::post('perjanjian-kinerja/{perjanjian_kinerja}/items', [PerjanjianKinerjaItemController::class, 'store'])->name('perjanjian-kinerja.items.store');

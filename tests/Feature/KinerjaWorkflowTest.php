@@ -201,6 +201,21 @@ class KinerjaWorkflowTest extends TestCase
                 'triwulan' => 'tw1',
                 'status' => 'draft',
             ])
+            ->assertSessionHasErrors('perjanjian_kinerja_id');
+
+        $pk->forceFill(['status' => 'approved'])->save();
+
+        $this->actingAs($adminOpd)
+            ->post(route('realisasi-kinerja.store'), [
+                'opd_id' => $opd->id,
+                'perjanjian_kinerja_id' => $pk->id,
+                'rencana_aksi_id' => $rencanaAksi->id,
+                'periode_tahun_id' => $periode->id,
+                'tahun' => $periode->tahun,
+                'periode_realisasi' => 'triwulan',
+                'triwulan' => 'tw1',
+                'status' => 'draft',
+            ])
             ->assertRedirect();
 
         $realisasi = RealisasiKinerja::firstOrFail();
