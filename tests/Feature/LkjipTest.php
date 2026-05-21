@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ExportLkjipDocumentJob;
 use App\Jobs\GenerateLkjipDraftDocumentJob;
 use App\Models\Dokumen;
 use App\Models\EvaluasiSakip;
@@ -14,6 +15,7 @@ use App\Models\RekomendasiEvaluasi;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Dokumen\DokumenStorageService;
+use App\Services\Lkjip\LkjipDocumentRenderService;
 use App\Services\Lkjip\LkjipDraftContentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -219,6 +221,30 @@ class LkjipTest extends TestCase
             && $job->requestedById === $adminOpd->id);
     }
 
+    public function test_lkjip_export_generation_is_dispatched_to_queue(): void
+    {
+        Queue::fake();
+        $this->seed();
+
+        [$opd, , $periode, $adminOpd] = $this->basicActors();
+
+        $lkjip = Lkjip::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'LKJIP Export Queue',
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->post(route('lkjip.export', $lkjip), ['format' => 'pdf'])
+            ->assertRedirect();
+
+        Queue::assertPushed(ExportLkjipDocumentJob::class, fn (ExportLkjipDocumentJob $job) => $job->lkjipId === $lkjip->id
+            && $job->requestedById === $adminOpd->id
+            && $job->format === 'pdf');
+    }
+
     public function test_lkjip_draft_job_updates_bab_and_stores_private_document(): void
     {
         config(['filesystems.documents_disk' => 'local']);
@@ -327,6 +353,51 @@ class LkjipTest extends TestCase
         ]);
         $this->assertDatabaseHas('dokumen_relations', [
             'dokumen_id' => $dokumen->id,
+            'related_type' => Lkjip::class,
+            'related_id' => $lkjip->id,
+        ]);
+    }
+
+    public function test_lkjip_export_job_stores_pdf_and_word_documents(): void
+    {
+        config(['filesystems.documents_disk' => 'local']);
+        Storage::fake('local');
+        $this->seed();
+
+        [$opd, , $periode, $adminOpd] = $this->basicActors();
+
+        $lkjip = Lkjip::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'LKJIP Export Dokumen',
+            'ringkasan_eksekutif' => 'Ringkasan LKJIP untuk export.',
+            'status' => 'draft',
+        ]);
+
+        foreach (['pdf', 'word'] as $format) {
+            (new ExportLkjipDocumentJob($lkjip->id, $adminOpd->id, $format))->handle(
+                app(LkjipDraftContentService::class),
+                app(LkjipDocumentRenderService::class),
+                app(DokumenStorageService::class),
+            );
+        }
+
+        $pdf = Dokumen::query()->where('mime_type', 'application/pdf')->firstOrFail();
+        $word = Dokumen::query()->where('mime_type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')->firstOrFail();
+
+        Storage::disk($pdf->storage_disk)->assertExists($pdf->storage_path);
+        Storage::disk($word->storage_disk)->assertExists($word->storage_path);
+
+        $this->assertStringStartsWith('%PDF', Storage::disk($pdf->storage_disk)->get($pdf->storage_path));
+        $this->assertStringStartsWith("PK\x03\x04", Storage::disk($word->storage_disk)->get($word->storage_path));
+        $this->assertDatabaseHas('dokumen_relations', [
+            'dokumen_id' => $pdf->id,
+            'related_type' => Lkjip::class,
+            'related_id' => $lkjip->id,
+        ]);
+        $this->assertDatabaseHas('dokumen_relations', [
+            'dokumen_id' => $word->id,
             'related_type' => Lkjip::class,
             'related_id' => $lkjip->id,
         ]);

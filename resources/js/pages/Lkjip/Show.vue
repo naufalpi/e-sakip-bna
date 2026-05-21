@@ -47,7 +47,7 @@ const props = defineProps<{
     };
     generatedDocuments: GeneratedDocument[];
     workflow: Workflow;
-    can: { manage: boolean; review: boolean };
+    can: { manage: boolean; export: boolean; review: boolean };
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -91,6 +91,10 @@ const transition = (action: string) => {
 
 const generateDraft = () => {
     router.post(route('lkjip.generate-draft', props.item.id), {}, { preserveScroll: true });
+};
+
+const exportDocument = (format: 'pdf' | 'word') => {
+    router.post(route('lkjip.export', props.item.id), { format }, { preserveScroll: true });
 };
 
 const statusLabel = (status: string) =>
@@ -147,6 +151,8 @@ const formatFileSize = (bytes: number) => {
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <button v-if="can.export" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportDocument('pdf')">Export PDF</button>
+                    <button v-if="can.export" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportDocument('word')">Export Word</button>
                     <button v-if="can.manage" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="generateDraft">Buat Draft Otomatis</button>
                     <Link v-if="can.manage" :href="route('lkjip.edit', item.id)" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Edit</Link>
                     <button v-if="can.manage" type="button" class="rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800" @click="transition('submit')">Ajukan</button>
@@ -200,10 +206,14 @@ const formatFileSize = (bytes: number) => {
             <section class="overflow-hidden rounded-lg border bg-card">
                 <div class="flex flex-col gap-2 border-b px-4 py-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <h2 class="text-sm font-semibold">Dokumen Draft Otomatis</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">Draft dibuat lewat queue dan disimpan sebagai dokumen privat.</p>
+                        <h2 class="text-sm font-semibold">Dokumen LKJIP Otomatis</h2>
+                        <p class="mt-1 text-xs text-muted-foreground">Draft dan export dibuat lewat queue dan disimpan sebagai dokumen privat.</p>
                     </div>
-                    <button v-if="can.manage" type="button" class="rounded-md bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800" @click="generateDraft">Generate Ulang</button>
+                    <div class="flex flex-wrap gap-2">
+                        <button v-if="can.export" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportDocument('pdf')">PDF</button>
+                        <button v-if="can.export" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportDocument('word')">Word</button>
+                        <button v-if="can.manage" type="button" class="rounded-md bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800" @click="generateDraft">Generate Draft</button>
+                    </div>
                 </div>
                 <div v-if="generatedDocuments.length" class="divide-y">
                     <article v-for="document in generatedDocuments" :key="document.id" class="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
@@ -221,7 +231,7 @@ const formatFileSize = (bytes: number) => {
                         <span v-else class="text-xs text-muted-foreground">Tidak ada akses unduh</span>
                     </article>
                 </div>
-                <div v-else class="px-4 py-8 text-center text-sm text-muted-foreground">Belum ada draft otomatis. Klik generate untuk membuat dokumen melalui queue.</div>
+                <div v-else class="px-4 py-8 text-center text-sm text-muted-foreground">Belum ada dokumen otomatis. Klik generate atau export untuk membuat dokumen melalui queue.</div>
             </section>
 
             <section v-if="can.manage" class="rounded-lg border bg-card p-4">

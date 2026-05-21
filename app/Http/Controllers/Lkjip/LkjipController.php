@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Kinerja\Concerns\BuildsKinerjaOptions;
 use App\Http\Requests\Lkjip\StoreLkjipRequest;
 use App\Http\Requests\Lkjip\UpdateLkjipRequest;
+use App\Jobs\ExportLkjipDocumentJob;
 use App\Jobs\GenerateLkjipDraftDocumentJob;
 use App\Models\Dokumen;
 use App\Models\EvaluasiSakip;
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -125,6 +127,7 @@ class LkjipController extends Controller
             'workflow' => $workflowDataService->forModel($lkjip, 'lkjip'),
             'can' => [
                 'manage' => $request->user()->can('update', $lkjip),
+                'export' => $this->canExportLkjip($request->user(), $lkjip),
                 'review' => $this->canReviewWorkflow($request->user()),
             ],
         ]);
@@ -137,6 +140,22 @@ class LkjipController extends Controller
         GenerateLkjipDraftDocumentJob::dispatch($lkjip->id, $request->user()->id);
 
         return back()->with('success', 'Pembuatan draft LKJIP masuk antrean. Jalankan worker queue untuk memproses dokumen.');
+    }
+
+    public function export(Request $request, Lkjip $lkjip): RedirectResponse
+    {
+        $this->authorize('view', $lkjip);
+        abort_unless($this->canExportLkjip($request->user(), $lkjip), 403);
+
+        $data = $request->validate([
+            'format' => ['required', Rule::in(['pdf', 'word'])],
+        ]);
+
+        ExportLkjipDocumentJob::dispatch($lkjip->id, $request->user()->id, $data['format']);
+
+        $formatLabel = $data['format'] === 'pdf' ? 'PDF' : 'Word';
+
+        return back()->with('success', "Export LKJIP {$formatLabel} masuk antrean. Jalankan worker queue untuk memproses dokumen.");
     }
 
     public function edit(Request $request, Lkjip $lkjip): Response
@@ -332,5 +351,11 @@ class LkjipController extends Controller
     {
         return $user->hasAnyRole(['super_admin', 'admin_kabupaten_bagian_organisasi'])
             || $user->hasPermission('lock_period');
+    }
+
+    private function canExportLkjip(User $user, Lkjip $lkjip): bool
+    {
+        return $user->can('update', $lkjip)
+            || ($user->can('view', $lkjip) && $user->hasPermission('export_laporan'));
     }
 }
