@@ -21,6 +21,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 trait BuildsKinerjaOptions
 {
+    private const APPROVED_PLANNING_STATUSES = ['approved', 'locked'];
+
     private function shouldLimitToUserOpd(User $user): bool
     {
         return $user->hasRole('admin_opd')
@@ -73,6 +75,7 @@ trait BuildsKinerjaOptions
             ->with('opd:id,nama,singkatan')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($opdId, fn (Builder $query) => $query->where('opd_id', $opdId))
+            ->whereIn('status', self::APPROVED_PLANNING_STATUSES)
             ->orderByDesc('tahun_awal')
             ->get(['id', 'opd_id', 'judul', 'tahun_awal', 'tahun_akhir'])
             ->map(fn (RenstraOpd $renstra) => [
@@ -148,42 +151,54 @@ trait BuildsKinerjaOptions
     {
         return [
             'sasaran_opd' => SasaranOpd::query()
-                ->whereHas('tujuan.renstra', fn (Builder $query) => $query->where('opd_id', $opdId))
+                ->whereHas('tujuan.renstra', fn (Builder $query) => $query
+                    ->where('opd_id', $opdId)
+                    ->whereIn('status', self::APPROVED_PLANNING_STATUSES))
                 ->orderBy('urutan')
                 ->get(['id', 'kode', 'sasaran'])
                 ->map(fn (SasaranOpd $item) => ['id' => $item->id, 'label' => $this->optionLabel($item->kode, $item->sasaran)])
                 ->values()
                 ->all(),
             'indikator_sasaran_opd' => IndikatorSasaranOpd::query()
-                ->whereHas('sasaran.tujuan.renstra', fn (Builder $query) => $query->where('opd_id', $opdId))
+                ->whereHas('sasaran.tujuan.renstra', fn (Builder $query) => $query
+                    ->where('opd_id', $opdId)
+                    ->whereIn('status', self::APPROVED_PLANNING_STATUSES))
                 ->orderBy('urutan')
                 ->get(['id', 'kode', 'indikator'])
                 ->map(fn (IndikatorSasaranOpd $item) => ['id' => $item->id, 'label' => $this->optionLabel($item->kode, $item->indikator)])
                 ->values()
                 ->all(),
             'opd_program' => OpdProgram::query()
-                ->whereHas('renstra', fn (Builder $query) => $query->where('opd_id', $opdId))
+                ->whereHas('renstra', fn (Builder $query) => $query
+                    ->where('opd_id', $opdId)
+                    ->whereIn('status', self::APPROVED_PLANNING_STATUSES))
                 ->orderBy('urutan')
                 ->get(['id', 'kode', 'nama'])
                 ->map(fn (OpdProgram $item) => ['id' => $item->id, 'label' => $this->optionLabel($item->kode, $item->nama)])
                 ->values()
                 ->all(),
             'opd_kegiatan' => OpdKegiatan::query()
-                ->whereHas('program.renstra', fn (Builder $query) => $query->where('opd_id', $opdId))
+                ->whereHas('program.renstra', fn (Builder $query) => $query
+                    ->where('opd_id', $opdId)
+                    ->whereIn('status', self::APPROVED_PLANNING_STATUSES))
                 ->orderBy('urutan')
                 ->get(['id', 'kode', 'nama'])
                 ->map(fn (OpdKegiatan $item) => ['id' => $item->id, 'label' => $this->optionLabel($item->kode, $item->nama)])
                 ->values()
                 ->all(),
             'opd_sub_kegiatan' => OpdSubKegiatan::query()
-                ->whereHas('kegiatan.program.renstra', fn (Builder $query) => $query->where('opd_id', $opdId))
+                ->whereHas('kegiatan.program.renstra', fn (Builder $query) => $query
+                    ->where('opd_id', $opdId)
+                    ->whereIn('status', self::APPROVED_PLANNING_STATUSES))
                 ->orderBy('urutan')
                 ->get(['id', 'kode', 'nama'])
                 ->map(fn (OpdSubKegiatan $item) => ['id' => $item->id, 'label' => $this->optionLabel($item->kode, $item->nama)])
                 ->values()
                 ->all(),
             'indikator_opd_program' => IndikatorOpdProgram::query()
-                ->whereHas('program.renstra', fn (Builder $query) => $query->where('opd_id', $opdId))
+                ->whereHas('program.renstra', fn (Builder $query) => $query
+                    ->where('opd_id', $opdId)
+                    ->whereIn('status', self::APPROVED_PLANNING_STATUSES))
                 ->orderBy('urutan')
                 ->get(['id', 'kode', 'indikator'])
                 ->map(fn (IndikatorOpdProgram $item) => ['id' => $item->id, 'label' => $this->optionLabel($item->kode, $item->indikator)])

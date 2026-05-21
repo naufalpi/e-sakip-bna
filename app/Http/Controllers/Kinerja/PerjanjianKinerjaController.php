@@ -14,6 +14,7 @@ use App\Models\WorkflowSubmission;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -220,7 +221,15 @@ class PerjanjianKinerjaController extends Controller
             return;
         }
 
-        abort_unless(RenstraOpd::query()->whereKey($renstraId)->where('opd_id', $opdId)->exists(), 422, 'Renstra yang dipilih tidak sesuai OPD.');
+        if (! RenstraOpd::query()
+            ->whereKey($renstraId)
+            ->where('opd_id', $opdId)
+            ->whereIn('status', self::APPROVED_PLANNING_STATUSES)
+            ->exists()) {
+            throw ValidationException::withMessages([
+                'renstra_opd_id' => 'Renstra yang dipilih harus sesuai OPD dan sudah disetujui atau terkunci.',
+            ]);
+        }
     }
 
     private function canReviewWorkflow(User $user): bool

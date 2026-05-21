@@ -184,22 +184,34 @@ const statusClass = (status: string) =>
                     <button v-if="editingItemId" type="button" class="rounded-md border px-3 py-1.5 text-xs hover:bg-muted" @click="resetItemForm">Batal edit</button>
                 </div>
                 <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitItem">
-                    <select v-model="form.sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="">Referensi sasaran OPD</option>
-                        <option v-for="option in nodeOptions.sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
-                    </select>
-                    <select v-model="form.indikator_sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="">Referensi indikator sasaran</option>
-                        <option v-for="option in nodeOptions.indikator_sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
-                    </select>
-                    <select v-model="form.opd_program_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="">Referensi program OPD</option>
-                        <option v-for="option in nodeOptions.opd_program" :key="option.id" :value="option.id">{{ option.label }}</option>
-                    </select>
-                    <select v-model="form.satuan_indikator_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="">Satuan indikator</option>
-                        <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                    </select>
+                    <div class="grid gap-1">
+                        <select v-model="form.sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Referensi sasaran OPD</option>
+                            <option v-for="option in nodeOptions.sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.sasaran_opd_id" />
+                    </div>
+                    <div class="grid gap-1">
+                        <select v-model="form.indikator_sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Referensi indikator sasaran</option>
+                            <option v-for="option in nodeOptions.indikator_sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.indikator_sasaran_opd_id" />
+                    </div>
+                    <div class="grid gap-1">
+                        <select v-model="form.opd_program_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Referensi program OPD</option>
+                            <option v-for="option in nodeOptions.opd_program" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.opd_program_id" />
+                    </div>
+                    <div class="grid gap-1">
+                        <select v-model="form.satuan_indikator_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Satuan indikator</option>
+                            <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.satuan_indikator_id" />
+                    </div>
                     <input v-model="form.kode" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Kode" />
                     <input v-model="form.urutan" type="number" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Urutan" />
                     <div class="grid gap-1 md:col-span-2">

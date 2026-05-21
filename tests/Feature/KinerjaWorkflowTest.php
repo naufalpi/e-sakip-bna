@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\IndikatorSasaranOpd;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
 use App\Models\PerjanjianKinerja;
@@ -10,7 +11,12 @@ use App\Models\RealisasiKinerja;
 use App\Models\RealisasiProgram;
 use App\Models\RencanaAksi;
 use App\Models\RencanaAksiItem;
+use App\Models\RenstraOpd;
 use App\Models\Role;
+use App\Models\Rpjmd;
+use App\Models\SasaranOpd;
+use App\Models\TargetIndikatorSasaranOpd;
+use App\Models\TujuanOpd;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -138,14 +144,60 @@ class KinerjaWorkflowTest extends TestCase
         ]);
     }
 
-    public function test_rencana_aksi_and_realisasi_items_can_be_saved(): void
+    public function test_perjanjian_kinerja_requires_approved_renstra_when_linked(): void
     {
         $this->seed();
 
         [$opd, , $periode, $adminOpd] = $this->basicActors();
 
+        $rpjmd = Rpjmd::create([
+            'periode_tahun_id' => $periode->id,
+            'judul' => 'RPJMD Draft Renstra',
+            'tahun_awal' => $periode->tahun,
+            'tahun_akhir' => $periode->tahun + 4,
+            'status' => 'approved',
+        ]);
+
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $rpjmd->id,
+            'periode_tahun_id' => $periode->id,
+            'judul' => 'Renstra Belum Disetujui',
+            'tahun_awal' => $periode->tahun,
+            'tahun_akhir' => $periode->tahun + 4,
+            'status' => 'draft',
+        ]);
+
+        $payload = [
+            'opd_id' => $opd->id,
+            'renstra_opd_id' => $renstra->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'PK Dari Renstra',
+            'status' => 'draft',
+        ];
+
+        $this->actingAs($adminOpd)
+            ->post(route('perjanjian-kinerja.store'), $payload)
+            ->assertSessionHasErrors('renstra_opd_id');
+
+        $renstra->forceFill(['status' => 'approved'])->save();
+
+        $this->actingAs($adminOpd)
+            ->post(route('perjanjian-kinerja.store'), $payload)
+            ->assertRedirect();
+    }
+
+    public function test_rencana_aksi_and_realisasi_items_can_be_saved(): void
+    {
+        $this->seed();
+
+        [$opd, , $periode, $adminOpd] = $this->basicActors();
+        [$sasaranOpd, $indikatorSasaranOpd, $renstra] = $this->approvedRenstraTarget($opd, $periode);
+
         $pk = PerjanjianKinerja::create([
             'opd_id' => $opd->id,
+            'renstra_opd_id' => $renstra->id,
             'periode_tahun_id' => $periode->id,
             'tahun' => $periode->tahun,
             'judul' => 'PK Kinerja',
@@ -160,16 +212,30 @@ class KinerjaWorkflowTest extends TestCase
                 'target_text' => '90 persen',
                 'urutan' => 1,
             ])
+            ->assertSessionHasErrors('indikator_sasaran_opd_id');
+
+        $this->actingAs($adminOpd)
+            ->post(route('perjanjian-kinerja.items.store', $pk), [
+                'sasaran_opd_id' => $sasaranOpd->id,
+                'indikator_sasaran_opd_id' => $indikatorSasaranOpd->id,
+                'sasaran' => 'Meningkatnya kualitas layanan',
+                'indikator' => 'Indeks layanan',
+                'target' => 90,
+                'target_text' => '90 persen',
+                'urutan' => 1,
+            ])
             ->assertRedirect();
 
         $pkItem = PerjanjianKinerjaItem::firstOrFail();
 
         $this->actingAs($adminOpd)
             ->put(route('perjanjian-kinerja.items.update', [$pk, $pkItem]), [
+                'sasaran_opd_id' => $sasaranOpd->id,
+                'indikator_sasaran_opd_id' => $indikatorSasaranOpd->id,
                 'sasaran' => 'Meningkatnya kualitas layanan publik',
                 'indikator' => 'Indeks layanan publik',
-                'target' => 91,
-                'target_text' => '91 persen',
+                'target' => 90,
+                'target_text' => '90 persen',
                 'urutan' => 2,
             ])
             ->assertRedirect();
@@ -356,5 +422,57 @@ class KinerjaWorkflowTest extends TestCase
         $adminOpd->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
 
         return [$opd, $otherOpd, $periode, $adminOpd];
+    }
+
+    private function approvedRenstraTarget(Opd $opd, PeriodeTahun $periode): array
+    {
+        $rpjmd = Rpjmd::create([
+            'periode_tahun_id' => $periode->id,
+            'judul' => 'RPJMD Referensi PK',
+            'tahun_awal' => $periode->tahun,
+            'tahun_akhir' => $periode->tahun + 4,
+            'status' => 'approved',
+        ]);
+
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $rpjmd->id,
+            'periode_tahun_id' => $periode->id,
+            'judul' => 'Renstra Referensi PK',
+            'tahun_awal' => $periode->tahun,
+            'tahun_akhir' => $periode->tahun + 4,
+            'status' => 'approved',
+        ]);
+
+        $tujuan = TujuanOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'kode' => 'T1',
+            'tujuan' => 'Meningkatnya kualitas layanan',
+            'urutan' => 1,
+        ]);
+
+        $sasaran = SasaranOpd::create([
+            'tujuan_opd_id' => $tujuan->id,
+            'kode' => 'S1',
+            'sasaran' => 'Meningkatnya kualitas layanan publik',
+            'urutan' => 1,
+        ]);
+
+        $indikator = IndikatorSasaranOpd::create([
+            'sasaran_opd_id' => $sasaran->id,
+            'kode' => 'ISK1',
+            'indikator' => 'Indeks layanan publik',
+            'tipe_indikator' => 'positif',
+            'urutan' => 1,
+        ]);
+
+        TargetIndikatorSasaranOpd::create([
+            'indikator_sasaran_opd_id' => $indikator->id,
+            'periode_tahun_id' => $periode->id,
+            'target' => 90,
+            'target_text' => '90 persen',
+        ]);
+
+        return [$sasaran, $indikator, $renstra];
     }
 }

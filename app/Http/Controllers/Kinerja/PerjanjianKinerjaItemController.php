@@ -9,29 +9,39 @@ use App\Models\OpdProgram;
 use App\Models\PerjanjianKinerja;
 use App\Models\PerjanjianKinerjaItem;
 use App\Models\SasaranOpd;
+use App\Services\Perencanaan\PerencanaanHierarchyValidationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\ValidationException;
 
 class PerjanjianKinerjaItemController extends Controller
 {
-    public function store(StorePerjanjianKinerjaItemRequest $request, PerjanjianKinerja $perjanjianKinerja): RedirectResponse
-    {
+    public function store(
+        StorePerjanjianKinerjaItemRequest $request,
+        PerjanjianKinerja $perjanjianKinerja,
+        PerencanaanHierarchyValidationService $hierarchyValidation
+    ): RedirectResponse {
         $data = $request->validated();
         $this->assertRelationsBelongToOpd($data, (int) $perjanjianKinerja->opd_id);
+        $data = $hierarchyValidation->applyApprovedPerjanjianKinerjaTarget($perjanjianKinerja, $data);
 
         $perjanjianKinerja->items()->create($data);
 
         return back()->with('success', 'Item Perjanjian Kinerja berhasil ditambahkan.');
     }
 
-    public function update(StorePerjanjianKinerjaItemRequest $request, PerjanjianKinerja $perjanjianKinerja, PerjanjianKinerjaItem $item): RedirectResponse
-    {
+    public function update(
+        StorePerjanjianKinerjaItemRequest $request,
+        PerjanjianKinerja $perjanjianKinerja,
+        PerjanjianKinerjaItem $item,
+        PerencanaanHierarchyValidationService $hierarchyValidation
+    ): RedirectResponse {
         $this->authorize('update', $perjanjianKinerja);
         abort_unless((int) $item->perjanjian_kinerja_id === (int) $perjanjianKinerja->id, 404);
 
         $data = $request->validated();
         $this->assertRelationsBelongToOpd($data, (int) $perjanjianKinerja->opd_id);
+        $data = $hierarchyValidation->applyApprovedPerjanjianKinerjaTarget($perjanjianKinerja, $data);
 
         $item->update($data);
 
