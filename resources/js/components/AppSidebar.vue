@@ -5,7 +5,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BarChart3, Bell, BookOpenCheck, Building2, CalendarDays, ClipboardCheck, FileCheck2, FileText, GitBranch, Landmark, Layers3, LayoutDashboard, ListChecks, Network, Ruler, ScrollText, Settings, ShieldCheck, Users } from 'lucide-vue-next';
+import { BarChart3, Bell, BookOpenCheck, Building2, CalendarDays, ClipboardCheck, FileCheck2, FileText, GitBranch, Inbox, Landmark, Layers3, LayoutDashboard, ListChecks, Network, Ruler, ScrollText, Settings, ShieldCheck, Users } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -19,6 +19,13 @@ const mainNavItems = computed<NavItem[]>(() => [
         href: '/dashboard',
         icon: LayoutDashboard,
     },
+    ...(hasAnyPermission(['kinerja.manage', 'rpjmd.manage', 'renstra.manage', 'evaluasi.manage', 'lkjip.manage', 'verify_realisasi', 'manage_evaluasi', 'manage_rpjmd', 'manage_renstra_opd', 'view_dashboard_kabupaten', 'view_dashboard_opd'])
+        ? [{
+              title: 'Inbox Workflow',
+              href: '/workflow/inbox',
+              icon: Inbox,
+          }]
+        : []),
     ...(hasPermission('opd.view')
         ? [{
               title: 'Master OPD',

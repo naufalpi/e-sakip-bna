@@ -16,6 +16,7 @@ use App\Http\Controllers\Kinerja\RealisasiProgramController;
 use App\Http\Controllers\Kinerja\RencanaAksiController;
 use App\Http\Controllers\Kinerja\RencanaAksiItemController;
 use App\Http\Controllers\Kinerja\WorkflowController;
+use App\Http\Controllers\Kinerja\WorkflowInboxController;
 use App\Http\Controllers\Lkjip\LkjipBabController;
 use App\Http\Controllers\Lkjip\LkjipController;
 use App\Http\Controllers\Master\OpdController;
@@ -91,6 +92,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::put('lkjip/{lkjip}/bab/{bab}', [LkjipBabController::class, 'update'])->name('lkjip.bab.update');
     Route::delete('lkjip/{lkjip}/bab/{bab}', [LkjipBabController::class, 'destroy'])->name('lkjip.bab.destroy');
 
+    Route::get('workflow/inbox', WorkflowInboxController::class)->name('workflow.inbox');
     Route::post('workflow/{module}/{id}/transition', [WorkflowController::class, 'transition'])->name('workflow.transition');
 
     Route::get('dokumen/{dokumen}/download', [DokumenController::class, 'download'])->name('dokumen.download');
