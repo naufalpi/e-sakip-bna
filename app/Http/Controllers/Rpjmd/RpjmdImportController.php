@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Rpjmd\StoreRpjmdImportRequest;
 use App\Models\ImportBatch;
 use App\Models\Rpjmd;
+use App\Services\RpjmdImportApplyService;
 use App\Services\RpjmdImportPreviewService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,6 +37,24 @@ class RpjmdImportController extends Controller
         return redirect()
             ->route('rpjmd.import.show', $batch)
             ->with('success', 'File import berhasil dibaca sebagai preview. Data belum dimasukkan ke cascading RPJMD.');
+    }
+
+    public function apply(Request $request, ImportBatch $importBatch, RpjmdImportApplyService $service): RedirectResponse
+    {
+        $this->authorize('create', Rpjmd::class);
+        abort_unless($importBatch->module === 'rpjmd', 404);
+
+        $batch = $service->apply($importBatch, $request->user());
+
+        $message = match ($batch->status) {
+            'imported' => ['success', 'Import berhasil diterapkan ke cascading RPJMD.'],
+            'imported_with_errors' => ['warning', 'Import sebagian berhasil. Periksa baris yang gagal pada preview.'],
+            default => ['error', 'Import gagal diterapkan. Periksa pesan error pada preview.'],
+        };
+
+        return redirect()
+            ->route('rpjmd.import.show', $batch)
+            ->with($message[0], $message[1]);
     }
 
     public function show(Request $request, ImportBatch $importBatch): Response

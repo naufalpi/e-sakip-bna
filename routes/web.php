@@ -57,6 +57,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
 
     Route::get('rpjmd/import', [RpjmdImportController::class, 'create'])->name('rpjmd.import.create');
     Route::post('rpjmd/import', [RpjmdImportController::class, 'store'])->name('rpjmd.import.store');
+    Route::post('rpjmd/import/{importBatch}/apply', [RpjmdImportController::class, 'apply'])->name('rpjmd.import.apply');
     Route::get('rpjmd/import/{importBatch}', [RpjmdImportController::class, 'show'])->name('rpjmd.import.show');
     Route::resource('rpjmd', RpjmdController::class);
     Route::post('rpjmd/{rpjmd}/nodes', [RpjmdNodeController::class, 'store'])->name('rpjmd.nodes.store');

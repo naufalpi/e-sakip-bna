@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/vue3';
-import { FileSpreadsheet, Upload } from 'lucide-vue-next';
+import { CheckCircle2, FileSpreadsheet, Upload } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 type Batch = {
@@ -19,6 +19,13 @@ type Batch = {
         columns?: string[];
         note?: string;
         max_rows?: number;
+        applied?: {
+            imported_rows: number;
+            failed_rows: number;
+            skipped_rows: number;
+            applied_at?: string | null;
+            rpjmd_id?: number | null;
+        };
     } | null;
     error_message?: string | null;
     created_at?: string | null;
@@ -71,6 +78,8 @@ const columns = computed(() => {
 const statusClass = (status: string) =>
     ({
         previewed: 'bg-emerald-100 text-emerald-800',
+        imported: 'bg-emerald-100 text-emerald-800',
+        imported_with_errors: 'bg-amber-100 text-amber-800',
         processing: 'bg-blue-100 text-blue-800',
         failed: 'bg-red-100 text-red-800',
         uploaded: 'bg-slate-100 text-slate-700',
@@ -105,6 +114,16 @@ const formatBytes = (bytes: number) => {
                 </div>
                 <div class="flex gap-2">
                     <Link :href="route('rpjmd.index')" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Kembali</Link>
+                    <Link
+                        v-if="can.manage && batch.status === 'previewed'"
+                        :href="route('rpjmd.import.apply', batch.id)"
+                        method="post"
+                        as="button"
+                        class="inline-flex items-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+                    >
+                        <CheckCircle2 class="size-4" />
+                        Terapkan Import
+                    </Link>
                     <Link v-if="can.manage" :href="route('rpjmd.import.create')" class="inline-flex items-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800">
                         <Upload class="size-4" />
                         Import Baru
@@ -135,12 +154,34 @@ const formatBytes = (bytes: number) => {
                 {{ batch.error_message }}
             </section>
 
+            <section v-if="batch.metadata?.applied" class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-4">
+                <div>
+                    <div class="text-xs uppercase text-muted-foreground">Baris Masuk</div>
+                    <div class="mt-1 text-sm font-medium">{{ batch.metadata.applied.imported_rows }}</div>
+                </div>
+                <div>
+                    <div class="text-xs uppercase text-muted-foreground">Baris Gagal</div>
+                    <div class="mt-1 text-sm font-medium">{{ batch.metadata.applied.failed_rows }}</div>
+                </div>
+                <div>
+                    <div class="text-xs uppercase text-muted-foreground">Baris Dilewati</div>
+                    <div class="mt-1 text-sm font-medium">{{ batch.metadata.applied.skipped_rows }}</div>
+                </div>
+                <div>
+                    <div class="text-xs uppercase text-muted-foreground">RPJMD</div>
+                    <Link v-if="batch.metadata.applied.rpjmd_id" :href="route('rpjmd.show', batch.metadata.applied.rpjmd_id)" class="mt-1 inline-flex text-sm font-medium text-emerald-700 hover:underline">
+                        Buka Detail
+                    </Link>
+                    <div v-else class="mt-1 text-sm font-medium">-</div>
+                </div>
+            </section>
+
             <section class="rounded-lg border bg-card">
                 <div class="flex items-center gap-2 border-b p-4">
                     <FileSpreadsheet class="size-5 text-emerald-700" />
                     <div>
                         <h2 class="text-base font-semibold">Raw Rows Preview</h2>
-                        <p class="text-sm text-muted-foreground">Baris disimpan ke `import_batch_rows`. Belum ada insert ke tabel cascading RPJMD.</p>
+                        <p class="text-sm text-muted-foreground">Baris disimpan ke import_batch_rows. Status tiap baris diperbarui setelah import diterapkan.</p>
                     </div>
                 </div>
 
@@ -149,18 +190,25 @@ const formatBytes = (bytes: number) => {
                         <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
                             <tr>
                                 <th class="w-20 px-4 py-3">Baris</th>
+                                <th class="w-28 px-4 py-3">Status</th>
                                 <th v-for="column in columns" :key="column" class="px-4 py-3">{{ column }}</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="row in rows" :key="row.id" class="border-b last:border-0" :class="row.is_header ? 'bg-slate-50 font-medium' : ''">
                                 <td class="px-4 py-3 text-muted-foreground">{{ row.row_number }}</td>
+                                <td class="px-4 py-3">
+                                    <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status)">
+                                        {{ row.status }}
+                                    </span>
+                                    <div v-if="row.error_message" class="mt-1 text-xs text-red-700">{{ row.error_message }}</div>
+                                </td>
                                 <td v-for="(column, index) in columns" :key="`${row.id}-${column}`" class="max-w-xs px-4 py-3 align-top">
                                     <span class="line-clamp-3">{{ row.cells[index] || '-' }}</span>
                                 </td>
                             </tr>
                             <tr v-if="rows.length === 0">
-                                <td :colspan="columns.length + 1" class="px-4 py-10 text-center text-muted-foreground">Tidak ada baris yang bisa dipreview.</td>
+                                <td :colspan="columns.length + 2" class="px-4 py-10 text-center text-muted-foreground">Tidak ada baris yang bisa dipreview.</td>
                             </tr>
                         </tbody>
                     </table>

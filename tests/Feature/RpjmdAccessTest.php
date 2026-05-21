@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ImportBatch;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
@@ -364,6 +365,71 @@ class RpjmdAccessTest extends TestCase
         $this->assertDatabaseHas('import_batch_rows', [
             'row_number' => 2,
             'status' => 'preview',
+        ]);
+    }
+
+    public function test_rpjmd_import_preview_can_be_applied_to_cascading_tables(): void
+    {
+        $this->seed();
+        Storage::fake('local');
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+        $opd = Opd::create(['kode' => '1.99', 'nama' => 'Dinas Import RPJMD', 'status' => 'active']);
+
+        $csv = implode("\n", [
+            'level,rpjmd_judul,tahun_awal,tahun_akhir,kode,uraian,tahun_target,target,target_text,pagu,opd_kode',
+            'rpjmd,RPJMD Import Apply,2026,2030,,,,,,,',
+            'visi,,,,,Visi Import,,,,,',
+            'misi,,,,M1,Misi Import,,,,,',
+            'tujuan,,,,T1,Tujuan Import,,,,,',
+            'indikator_tujuan,,,,IT1,Indeks Tujuan Import,2026,80,80 poin,,',
+            'sasaran,,,,S1,Sasaran Import,,,,,',
+            'indikator_sasaran,,,,IS1,Indeks Sasaran Import,2026,75,75 poin,,',
+            'strategi,,,,ST1,Strategi Import,,,,,',
+            'program,,,,P1,Program Import,,,,1000000,',
+            'indikator_program,,,,IP1,Indikator Program Import,2026,70,70 persen,500000,',
+            "opd_penanggung_jawab,,,,,,,,,,{$opd->kode}",
+        ]);
+
+        $file = UploadedFile::fake()->createWithContent('rpjmd-apply.csv', $csv);
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.import.store'), ['file' => $file])
+            ->assertRedirect();
+
+        $batch = ImportBatch::query()->latest('id')->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.import.apply', $batch))
+            ->assertRedirect(route('rpjmd.import.show', $batch));
+
+        $batch->refresh();
+
+        $this->assertSame('imported', $batch->status);
+        $this->assertDatabaseHas('rpjmd', ['judul' => 'RPJMD Import Apply', 'tahun_awal' => 2026, 'tahun_akhir' => 2030]);
+        $this->assertDatabaseHas('rpjmd_visi', ['visi' => 'Visi Import']);
+        $this->assertDatabaseHas('rpjmd_misi', ['kode' => 'M1', 'misi' => 'Misi Import']);
+        $this->assertDatabaseHas('tujuan_daerah', ['kode' => 'T1', 'tujuan' => 'Tujuan Import']);
+        $this->assertDatabaseHas('indikator_tujuan_daerah', ['kode' => 'IT1', 'indikator' => 'Indeks Tujuan Import']);
+        $this->assertDatabaseHas('target_indikator_tujuan_daerah', ['target_text' => '80 poin']);
+        $this->assertDatabaseHas('sasaran_daerah', ['kode' => 'S1', 'sasaran' => 'Sasaran Import']);
+        $this->assertDatabaseHas('indikator_sasaran_daerah', ['kode' => 'IS1', 'indikator' => 'Indeks Sasaran Import']);
+        $this->assertDatabaseHas('target_indikator_sasaran_daerah', ['target_text' => '75 poin']);
+        $this->assertDatabaseHas('strategi_daerah', ['kode' => 'ST1', 'strategi' => 'Strategi Import']);
+        $this->assertDatabaseHas('program_rpjmd', ['kode' => 'P1', 'nama' => 'Program Import']);
+        $this->assertDatabaseHas('indikator_program_rpjmd', ['kode' => 'IP1', 'indikator' => 'Indikator Program Import']);
+        $this->assertDatabaseHas('target_indikator_program_rpjmd', ['target_text' => '70 persen']);
+
+        $program = ProgramRpjmd::query()->where('kode', 'P1')->firstOrFail();
+        $this->assertDatabaseHas('program_rpjmd_opd_penanggung_jawab', [
+            'program_rpjmd_id' => $program->id,
+            'opd_id' => $opd->id,
+        ]);
+        $this->assertDatabaseHas('import_batch_rows', [
+            'import_batch_id' => $batch->id,
+            'row_number' => 1,
+            'status' => 'skipped',
         ]);
     }
 
