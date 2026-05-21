@@ -5,7 +5,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BarChart3, Bell, BookOpenCheck, Building2, ClipboardCheck, FileCheck2, FileText, GitBranch, Layers3, LayoutDashboard, ListChecks, Network, ScrollText, ShieldCheck, Users } from 'lucide-vue-next';
+import { BarChart3, Bell, BookOpenCheck, Building2, CalendarDays, ClipboardCheck, FileCheck2, FileText, GitBranch, Landmark, Layers3, LayoutDashboard, ListChecks, Network, Ruler, ScrollText, Settings, ShieldCheck, Users } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -24,6 +24,34 @@ const mainNavItems = computed<NavItem[]>(() => [
               title: 'Master OPD',
               href: '/master/opd',
               icon: Building2,
+          }]
+        : []),
+    ...(hasPermission('opd.view')
+        ? [{
+              title: 'Unit OPD',
+              href: '/master/opd-units',
+              icon: Building2,
+          }]
+        : []),
+    ...(hasPermission('periode.view')
+        ? [{
+              title: 'Periode Tahun',
+              href: '/master/periode-tahun',
+              icon: CalendarDays,
+          }]
+        : []),
+    ...(hasPermission('satuan.view')
+        ? [{
+              title: 'Satuan Indikator',
+              href: '/master/satuan-indikator',
+              icon: Ruler,
+          }]
+        : []),
+    ...(hasPermission('urusan.view')
+        ? [{
+              title: 'Urusan Pemerintahan',
+              href: '/master/urusan-pemerintahan',
+              icon: Landmark,
           }]
         : []),
     ...(hasAnyPermission(['rpjmd.view', 'view_rpjmd', 'rpjmd.manage', 'manage_rpjmd'])
@@ -108,6 +136,13 @@ const mainNavItems = computed<NavItem[]>(() => [
               title: 'Audit Log',
               href: '/audit-log',
               icon: ScrollText,
+          }]
+        : []),
+    ...(hasPermission('settings.view')
+        ? [{
+              title: 'Pengaturan Sistem',
+              href: '/master/system-settings',
+              icon: Settings,
           }]
         : []),
     {
