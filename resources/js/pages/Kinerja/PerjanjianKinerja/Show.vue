@@ -3,10 +3,15 @@ import InputError from '@/components/InputError.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 type Option = { id: number; label: string };
 type ItemRow = {
     id: number;
+    sasaran_opd_id?: number | null;
+    indikator_sasaran_opd_id?: number | null;
+    opd_program_id?: number | null;
+    satuan_indikator_id?: number | null;
     kode?: string | null;
     sasaran: string;
     indikator: string;
@@ -63,11 +68,40 @@ const form = useForm({
     urutan: 1,
 });
 
-const storeItem = () => {
-    form.post(route('perjanjian-kinerja.items.store', { perjanjian_kinerja: props.item.id }), {
+const editingItemId = ref<number | null>(null);
+
+const resetItemForm = () => {
+    editingItemId.value = null;
+    form.reset();
+    form.clearErrors();
+};
+
+const editItem = (row: ItemRow) => {
+    editingItemId.value = row.id;
+    form.sasaran_opd_id = row.sasaran_opd_id ? String(row.sasaran_opd_id) : '';
+    form.indikator_sasaran_opd_id = row.indikator_sasaran_opd_id ? String(row.indikator_sasaran_opd_id) : '';
+    form.opd_program_id = row.opd_program_id ? String(row.opd_program_id) : '';
+    form.satuan_indikator_id = row.satuan_indikator_id ? String(row.satuan_indikator_id) : '';
+    form.kode = row.kode || '';
+    form.sasaran = row.sasaran;
+    form.indikator = row.indikator;
+    form.target = row.target === null || row.target === undefined ? '' : String(row.target);
+    form.target_text = row.target_text || '';
+    form.urutan = row.urutan || 1;
+};
+
+const submitItem = () => {
+    const options = {
         preserveScroll: true,
-        onSuccess: () => form.reset(),
-    });
+        onSuccess: () => resetItemForm(),
+    };
+
+    if (editingItemId.value) {
+        form.put(route('perjanjian-kinerja.items.update', { perjanjian_kinerja: props.item.id, item: editingItemId.value }), options);
+        return;
+    }
+
+    form.post(route('perjanjian-kinerja.items.store', { perjanjian_kinerja: props.item.id }), options);
 };
 
 const destroyItem = (row: ItemRow) => {
@@ -145,8 +179,11 @@ const statusClass = (status: string) =>
             </section>
 
             <section v-if="can.manage" class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">Tambah Item Sasaran dan Indikator</h2>
-                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="storeItem">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="text-sm font-semibold">{{ editingItemId ? 'Edit Item Sasaran dan Indikator' : 'Tambah Item Sasaran dan Indikator' }}</h2>
+                    <button v-if="editingItemId" type="button" class="rounded-md border px-3 py-1.5 text-xs hover:bg-muted" @click="resetItemForm">Batal edit</button>
+                </div>
+                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitItem">
                     <select v-model="form.sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
                         <option value="">Referensi sasaran OPD</option>
                         <option v-for="option in nodeOptions.sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
@@ -176,7 +213,9 @@ const statusClass = (status: string) =>
                     <input v-model="form.target" type="number" step="0.0001" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Target angka" />
                     <input v-model="form.target_text" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Target teks" />
                     <div class="md:col-span-2">
-                        <button type="submit" :disabled="form.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">Simpan Item</button>
+                        <button type="submit" :disabled="form.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
+                            {{ editingItemId ? 'Perbarui Item' : 'Simpan Item' }}
+                        </button>
                     </div>
                 </form>
             </section>
@@ -206,6 +245,7 @@ const statusClass = (status: string) =>
                                 <td class="px-4 py-3">{{ row.target_text || row.target || '-' }} {{ row.satuan?.simbol || '' }}</td>
                                 <td class="px-4 py-3 text-muted-foreground">{{ row.opd_program?.nama || '-' }}</td>
                                 <td class="px-4 py-3 text-right">
+                                    <button v-if="can.manage" type="button" class="mr-2 rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editItem(row)">Edit</button>
                                     <button v-if="can.manage" type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="destroyItem(row)">Hapus</button>
                                 </td>
                             </tr>

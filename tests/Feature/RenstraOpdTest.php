@@ -18,6 +18,7 @@ use App\Models\RpjmdVisi;
 use App\Models\SasaranDaerah;
 use App\Models\SatuanIndikator;
 use App\Models\StrategiDaerah;
+use App\Models\TargetIndikatorOpdProgram;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
 use App\Models\User;
@@ -191,6 +192,19 @@ class RenstraOpdTest extends TestCase
             ])
             ->assertRedirect();
 
+        $targetProgram = TargetIndikatorOpdProgram::where('indikator_opd_program_id', $indikatorProgram->id)->firstOrFail();
+
+        $this->actingAs($user)
+            ->put(route('renstra-opd.nodes.update', [$renstra, 'target_program', $targetProgram->id]), [
+                'type' => 'target_program',
+                'parent_id' => $indikatorProgram->id,
+                'periode_tahun_id' => $periode->id,
+                'target' => 80,
+                'target_text' => '80 persen',
+                'pagu' => 1250000,
+            ])
+            ->assertRedirect();
+
         $this->actingAs($user)
             ->post(route('target-triwulan-indikator.store'), [
                 'related_table' => 'indikator_opd_program',
@@ -216,7 +230,8 @@ class RenstraOpdTest extends TestCase
         $this->assertDatabaseHas('target_indikator_opd_program', [
             'indikator_opd_program_id' => $indikatorProgram->id,
             'periode_tahun_id' => $periode->id,
-            'target_text' => '75 persen',
+            'target_text' => '80 persen',
+            'pagu' => 1250000,
         ]);
 
         $this->assertDatabaseHas('target_triwulan_indikator', [

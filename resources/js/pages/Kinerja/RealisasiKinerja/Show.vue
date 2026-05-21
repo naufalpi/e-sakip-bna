@@ -3,11 +3,17 @@ import InputError from '@/components/InputError.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 type Option = { id: number; label: string };
 type ProgramRow = {
     id: number;
+    perjanjian_kinerja_item_id?: number | null;
+    rencana_aksi_item_id?: number | null;
+    opd_program_id?: number | null;
+    indikator_opd_program_id?: number | null;
     indikator: string;
+    tipe_indikator?: string | null;
     target?: string | number | null;
     target_text?: string | null;
     realisasi?: string | number | null;
@@ -15,8 +21,10 @@ type ProgramRow = {
     capaian_persen?: string | number | null;
     anggaran?: string | number | null;
     realisasi_anggaran?: string | number | null;
+    analisis_efisiensi?: string | null;
     kendala?: string | null;
     tindak_lanjut?: string | null;
+    urutan?: number | null;
     opd_program?: { nama: string } | null;
 };
 type Workflow = {
@@ -60,6 +68,7 @@ const form = useForm({
     rencana_aksi_item_id: '',
     opd_program_id: '',
     indikator_opd_program_id: '',
+    tipe_indikator: 'positif',
     indikator: '',
     target: '',
     target_text: '',
@@ -68,16 +77,53 @@ const form = useForm({
     capaian_persen: '',
     anggaran: '',
     realisasi_anggaran: '',
+    analisis_efisiensi: '',
     kendala: '',
     tindak_lanjut: '',
     urutan: 1,
 });
 
-const storeProgram = () => {
-    form.post(route('realisasi-kinerja.programs.store', { realisasi_kinerja: props.item.id }), {
+const editingProgramId = ref<number | null>(null);
+
+const resetProgramForm = () => {
+    editingProgramId.value = null;
+    form.reset();
+    form.clearErrors();
+};
+
+const editProgram = (row: ProgramRow) => {
+    editingProgramId.value = row.id;
+    form.perjanjian_kinerja_item_id = row.perjanjian_kinerja_item_id ? String(row.perjanjian_kinerja_item_id) : '';
+    form.rencana_aksi_item_id = row.rencana_aksi_item_id ? String(row.rencana_aksi_item_id) : '';
+    form.opd_program_id = row.opd_program_id ? String(row.opd_program_id) : '';
+    form.indikator_opd_program_id = row.indikator_opd_program_id ? String(row.indikator_opd_program_id) : '';
+    form.tipe_indikator = row.tipe_indikator || 'positif';
+    form.indikator = row.indikator;
+    form.target = row.target === null || row.target === undefined ? '' : String(row.target);
+    form.target_text = row.target_text || '';
+    form.realisasi = row.realisasi === null || row.realisasi === undefined ? '' : String(row.realisasi);
+    form.realisasi_text = row.realisasi_text || '';
+    form.capaian_persen = row.capaian_persen === null || row.capaian_persen === undefined ? '' : String(row.capaian_persen);
+    form.anggaran = row.anggaran === null || row.anggaran === undefined ? '' : String(row.anggaran);
+    form.realisasi_anggaran = row.realisasi_anggaran === null || row.realisasi_anggaran === undefined ? '' : String(row.realisasi_anggaran);
+    form.analisis_efisiensi = row.analisis_efisiensi || '';
+    form.kendala = row.kendala || '';
+    form.tindak_lanjut = row.tindak_lanjut || '';
+    form.urutan = row.urutan || 1;
+};
+
+const submitProgram = () => {
+    const options = {
         preserveScroll: true,
-        onSuccess: () => form.reset(),
-    });
+        onSuccess: () => resetProgramForm(),
+    };
+
+    if (editingProgramId.value) {
+        form.put(route('realisasi-kinerja.programs.update', { realisasi_kinerja: props.item.id, program: editingProgramId.value }), options);
+        return;
+    }
+
+    form.post(route('realisasi-kinerja.programs.store', { realisasi_kinerja: props.item.id }), options);
 };
 
 const destroyProgram = (row: ProgramRow) => {
@@ -155,8 +201,11 @@ const statusClass = (status: string) =>
             </section>
 
             <section v-if="can.manage" class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">Tambah Realisasi Indikator</h2>
-                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="storeProgram">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="text-sm font-semibold">{{ editingProgramId ? 'Edit Realisasi Indikator' : 'Tambah Realisasi Indikator' }}</h2>
+                    <button v-if="editingProgramId" type="button" class="rounded-md border px-3 py-1.5 text-xs hover:bg-muted" @click="resetProgramForm">Batal edit</button>
+                </div>
+                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitProgram">
                     <select v-model="form.perjanjian_kinerja_item_id" class="h-9 rounded-md border bg-background px-3 text-sm">
                         <option value="">Referensi item PK</option>
                         <option v-for="option in perjanjianKinerjaItemOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
@@ -173,6 +222,11 @@ const statusClass = (status: string) =>
                         <option value="">Indikator program OPD</option>
                         <option v-for="option in nodeOptions.indikator_opd_program" :key="option.id" :value="option.id">{{ option.label }}</option>
                     </select>
+                    <select v-model="form.tipe_indikator" class="h-9 rounded-md border bg-background px-3 text-sm">
+                        <option value="positif">Indikator positif</option>
+                        <option value="negatif">Indikator negatif</option>
+                    </select>
+                    <input v-model="form.urutan" type="number" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Urutan" />
                     <div class="grid gap-1 md:col-span-2">
                         <textarea v-model="form.indikator" rows="2" class="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Indikator realisasi" />
                         <InputError :message="form.errors.indikator" />
@@ -182,13 +236,15 @@ const statusClass = (status: string) =>
                     <input v-model="form.realisasi" type="number" step="0.0001" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Realisasi angka" />
                     <input v-model="form.realisasi_text" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Realisasi teks" />
                     <input v-model="form.capaian_persen" type="number" step="0.01" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Capaian persen" />
-                    <input v-model="form.urutan" type="number" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Urutan" />
                     <input v-model="form.anggaran" type="number" step="0.01" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Anggaran" />
                     <input v-model="form.realisasi_anggaran" type="number" step="0.01" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Realisasi anggaran" />
+                    <textarea v-model="form.analisis_efisiensi" rows="2" class="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Analisis efisiensi" />
                     <textarea v-model="form.kendala" rows="2" class="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Kendala" />
                     <textarea v-model="form.tindak_lanjut" rows="2" class="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Tindak lanjut" />
                     <div class="md:col-span-2">
-                        <button type="submit" :disabled="form.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">Simpan Realisasi</button>
+                        <button type="submit" :disabled="form.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
+                            {{ editingProgramId ? 'Perbarui Realisasi' : 'Simpan Realisasi' }}
+                        </button>
                     </div>
                 </form>
             </section>
@@ -220,6 +276,7 @@ const statusClass = (status: string) =>
                                 <td class="px-4 py-3">{{ row.capaian_persen || '-' }}%</td>
                                 <td class="px-4 py-3 text-muted-foreground">{{ row.kendala || '-' }}</td>
                                 <td class="px-4 py-3 text-right">
+                                    <button v-if="can.manage" type="button" class="mr-2 rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editProgram(row)">Edit</button>
                                     <button v-if="can.manage" type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="destroyProgram(row)">Hapus</button>
                                 </td>
                             </tr>

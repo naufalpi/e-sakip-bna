@@ -3,10 +3,15 @@ import InputError from '@/components/InputError.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 type Option = { id: number; label: string };
 type ItemRow = {
     id: number;
+    perjanjian_kinerja_item_id?: number | null;
+    opd_program_id?: number | null;
+    opd_kegiatan_id?: number | null;
+    opd_sub_kegiatan_id?: number | null;
     periode_realisasi: string;
     triwulan?: string | null;
     bulan?: number | null;
@@ -17,6 +22,7 @@ type ItemRow = {
     anggaran?: string | number | null;
     penanggung_jawab?: string | null;
     status?: string | null;
+    urutan?: number | null;
     opd_program?: { nama: string } | null;
 };
 type Workflow = {
@@ -69,11 +75,45 @@ const form = useForm({
     urutan: 1,
 });
 
-const storeItem = () => {
-    form.post(route('rencana-aksi.items.store', { rencana_aksi: props.item.id }), {
+const editingItemId = ref<number | null>(null);
+
+const resetItemForm = () => {
+    editingItemId.value = null;
+    form.reset();
+    form.clearErrors();
+};
+
+const editItem = (row: ItemRow) => {
+    editingItemId.value = row.id;
+    form.perjanjian_kinerja_item_id = row.perjanjian_kinerja_item_id ? String(row.perjanjian_kinerja_item_id) : '';
+    form.opd_program_id = row.opd_program_id ? String(row.opd_program_id) : '';
+    form.opd_kegiatan_id = row.opd_kegiatan_id ? String(row.opd_kegiatan_id) : '';
+    form.opd_sub_kegiatan_id = row.opd_sub_kegiatan_id ? String(row.opd_sub_kegiatan_id) : '';
+    form.periode_realisasi = row.periode_realisasi || 'triwulan';
+    form.triwulan = row.triwulan || '';
+    form.bulan = row.bulan ? String(row.bulan) : '';
+    form.aksi = row.aksi;
+    form.indikator = row.indikator || '';
+    form.target = row.target === null || row.target === undefined ? '' : String(row.target);
+    form.target_text = row.target_text || '';
+    form.anggaran = row.anggaran === null || row.anggaran === undefined ? '' : String(row.anggaran);
+    form.penanggung_jawab = row.penanggung_jawab || '';
+    form.status = row.status || 'draft';
+    form.urutan = row.urutan || 1;
+};
+
+const submitItem = () => {
+    const options = {
         preserveScroll: true,
-        onSuccess: () => form.reset(),
-    });
+        onSuccess: () => resetItemForm(),
+    };
+
+    if (editingItemId.value) {
+        form.put(route('rencana-aksi.items.update', { rencana_aksi: props.item.id, item: editingItemId.value }), options);
+        return;
+    }
+
+    form.post(route('rencana-aksi.items.store', { rencana_aksi: props.item.id }), options);
 };
 
 const destroyItem = (row: ItemRow) => {
@@ -151,8 +191,11 @@ const statusClass = (status: string) =>
             </section>
 
             <section v-if="can.manage" class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">Tambah Item Rencana Aksi</h2>
-                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="storeItem">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="text-sm font-semibold">{{ editingItemId ? 'Edit Item Rencana Aksi' : 'Tambah Item Rencana Aksi' }}</h2>
+                    <button v-if="editingItemId" type="button" class="rounded-md border px-3 py-1.5 text-xs hover:bg-muted" @click="resetItemForm">Batal edit</button>
+                </div>
+                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitItem">
                     <select v-model="form.perjanjian_kinerja_item_id" class="h-9 rounded-md border bg-background px-3 text-sm">
                         <option value="">Referensi item PK</option>
                         <option v-for="option in perjanjianKinerjaItemOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
@@ -194,7 +237,9 @@ const statusClass = (status: string) =>
                     <input v-model="form.target_text" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Target teks" />
                     <input v-model="form.anggaran" type="number" step="0.01" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Anggaran" />
                     <div class="md:col-span-2">
-                        <button type="submit" :disabled="form.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">Simpan Item</button>
+                        <button type="submit" :disabled="form.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
+                            {{ editingItemId ? 'Perbarui Item' : 'Simpan Item' }}
+                        </button>
                     </div>
                 </form>
             </section>
@@ -224,6 +269,7 @@ const statusClass = (status: string) =>
                                 <td class="px-4 py-3">{{ row.target_text || row.target || '-' }}</td>
                                 <td class="px-4 py-3 text-muted-foreground">{{ row.penanggung_jawab || '-' }}</td>
                                 <td class="px-4 py-3 text-right">
+                                    <button v-if="can.manage" type="button" class="mr-2 rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editItem(row)">Edit</button>
                                     <button v-if="can.manage" type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="destroyItem(row)">Hapus</button>
                                 </td>
                             </tr>

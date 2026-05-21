@@ -35,6 +35,21 @@ class RpjmdNodeController extends Controller
         return back()->with('success', 'Data cascading RPJMD berhasil disimpan.');
     }
 
+    public function update(StoreRpjmdNodeRequest $request, Rpjmd $rpjmd, string $type, int $id): RedirectResponse
+    {
+        $this->authorize('update', $rpjmd);
+
+        $data = $request->validated();
+
+        if (($data['type'] ?? null) !== $type) {
+            throw ValidationException::withMessages(['type' => 'Jenis data tidak sesuai dengan node yang diedit.']);
+        }
+
+        DB::transaction(fn () => $this->updateNode($rpjmd, $type, $id, $data));
+
+        return back()->with('success', 'Data cascading RPJMD berhasil diperbarui.');
+    }
+
     public function destroy(Rpjmd $rpjmd, string $type, int $id): RedirectResponse
     {
         $this->authorize('update', $rpjmd);
@@ -153,6 +168,134 @@ class RpjmdNodeController extends Controller
             ], [
                 'is_utama' => (bool) ($data['is_utama'] ?? true),
             ]),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function updateNode(Rpjmd $rpjmd, string $type, int $id, array $data): void
+    {
+        match ($type) {
+            'visi' => $this->visi($rpjmd, $id)->update([
+                'visi' => $this->requiredText($data, 'uraian', 'Visi wajib diisi.'),
+                'urutan' => $data['urutan'] ?? 1,
+            ]),
+            'misi' => tap($this->misi($rpjmd, $id), function (RpjmdMisi $misi) use ($rpjmd, $data) {
+                $misi->update([
+                    'rpjmd_visi_id' => filled($data['parent_id'] ?? null) ? $this->visi($rpjmd, $data['parent_id'])->id : $misi->rpjmd_visi_id,
+                    'kode' => $data['kode'] ?? null,
+                    'misi' => $this->requiredText($data, 'uraian', 'Misi wajib diisi.'),
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'tujuan' => tap($this->tujuan($rpjmd, $id), function (TujuanDaerah $tujuan) use ($rpjmd, $data) {
+                $tujuan->update([
+                    'rpjmd_misi_id' => filled($data['parent_id'] ?? null) ? $this->misi($rpjmd, $data['parent_id'])->id : $tujuan->rpjmd_misi_id,
+                    'kode' => $data['kode'] ?? null,
+                    'tujuan' => $this->requiredText($data, 'uraian', 'Tujuan daerah wajib diisi.'),
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'indikator_tujuan' => tap($this->indikatorTujuan($rpjmd, $id), function (IndikatorTujuanDaerah $indikator) use ($rpjmd, $data) {
+                $indikator->update([
+                    'tujuan_daerah_id' => filled($data['parent_id'] ?? null) ? $this->tujuan($rpjmd, $data['parent_id'])->id : $indikator->tujuan_daerah_id,
+                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+                    'kode' => $data['kode'] ?? null,
+                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator tujuan wajib diisi.'),
+                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
+                    'formula' => $data['formula'] ?? null,
+                    'sumber_data' => $data['sumber_data'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'target_tujuan' => tap($this->findNode($rpjmd, $type, $id), function (TargetIndikatorTujuanDaerah $target) use ($rpjmd, $data) {
+                $target->update([
+                    'indikator_tujuan_daerah_id' => filled($data['parent_id'] ?? null) ? $this->indikatorTujuan($rpjmd, $data['parent_id'])->id : $target->indikator_tujuan_daerah_id,
+                    'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
+                    'target' => $data['target'] ?? null,
+                    'target_text' => $data['target_text'] ?? null,
+                ]);
+            }),
+            'sasaran' => tap($this->sasaran($rpjmd, $id), function (SasaranDaerah $sasaran) use ($rpjmd, $data) {
+                $sasaran->update([
+                    'tujuan_daerah_id' => filled($data['parent_id'] ?? null) ? $this->tujuan($rpjmd, $data['parent_id'])->id : $sasaran->tujuan_daerah_id,
+                    'kode' => $data['kode'] ?? null,
+                    'sasaran' => $this->requiredText($data, 'uraian', 'Sasaran daerah wajib diisi.'),
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'indikator_sasaran' => tap($this->indikatorSasaran($rpjmd, $id), function (IndikatorSasaranDaerah $indikator) use ($rpjmd, $data) {
+                $indikator->update([
+                    'sasaran_daerah_id' => filled($data['parent_id'] ?? null) ? $this->sasaran($rpjmd, $data['parent_id'])->id : $indikator->sasaran_daerah_id,
+                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+                    'kode' => $data['kode'] ?? null,
+                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator sasaran wajib diisi.'),
+                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
+                    'formula' => $data['formula'] ?? null,
+                    'sumber_data' => $data['sumber_data'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'target_sasaran' => tap($this->findNode($rpjmd, $type, $id), function (TargetIndikatorSasaranDaerah $target) use ($rpjmd, $data) {
+                $target->update([
+                    'indikator_sasaran_daerah_id' => filled($data['parent_id'] ?? null) ? $this->indikatorSasaran($rpjmd, $data['parent_id'])->id : $target->indikator_sasaran_daerah_id,
+                    'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
+                    'target' => $data['target'] ?? null,
+                    'target_text' => $data['target_text'] ?? null,
+                ]);
+            }),
+            'strategi' => tap($this->strategi($rpjmd, $id), function (StrategiDaerah $strategi) use ($rpjmd, $data) {
+                $strategi->update([
+                    'sasaran_daerah_id' => filled($data['parent_id'] ?? null) ? $this->sasaran($rpjmd, $data['parent_id'])->id : $strategi->sasaran_daerah_id,
+                    'kode' => $data['kode'] ?? null,
+                    'strategi' => $this->requiredText($data, 'uraian', 'Strategi daerah wajib diisi.'),
+                    'arah_kebijakan' => $data['arah_kebijakan'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'program' => tap($this->program($rpjmd, $id), function (ProgramRpjmd $program) use ($rpjmd, $data) {
+                $strategi = filled($data['parent_id'] ?? null) ? $this->strategi($rpjmd, $data['parent_id']) : null;
+
+                $program->update([
+                    'strategi_daerah_id' => $strategi?->id ?? $program->strategi_daerah_id,
+                    'sasaran_daerah_id' => $strategi?->sasaran_daerah_id ?? $program->sasaran_daerah_id,
+                    'urusan_pemerintahan_id' => $data['urusan_pemerintahan_id'] ?? null,
+                    'kode' => $data['kode'] ?? null,
+                    'nama' => $this->requiredText($data, 'uraian', 'Nama program wajib diisi.'),
+                    'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'indikator_program' => tap($this->indikatorProgram($rpjmd, $id), function (IndikatorProgramRpjmd $indikator) use ($rpjmd, $data) {
+                $indikator->update([
+                    'program_rpjmd_id' => filled($data['parent_id'] ?? null) ? $this->program($rpjmd, $data['parent_id'])->id : $indikator->program_rpjmd_id,
+                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+                    'kode' => $data['kode'] ?? null,
+                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator program wajib diisi.'),
+                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
+                    'formula' => $data['formula'] ?? null,
+                    'sumber_data' => $data['sumber_data'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'target_program' => tap($this->findNode($rpjmd, $type, $id), function (TargetIndikatorProgramRpjmd $target) use ($rpjmd, $data) {
+                $target->update([
+                    'indikator_program_rpjmd_id' => filled($data['parent_id'] ?? null) ? $this->indikatorProgram($rpjmd, $data['parent_id'])->id : $target->indikator_program_rpjmd_id,
+                    'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
+                    'target' => $data['target'] ?? null,
+                    'target_text' => $data['target_text'] ?? null,
+                    'pagu' => $data['pagu'] ?? null,
+                ]);
+            }),
+            'program_opd' => tap($this->findNode($rpjmd, $type, $id), function (ProgramRpjmdOpdPenanggungJawab $pivot) use ($rpjmd, $data) {
+                $pivot->update([
+                    'program_rpjmd_id' => filled($data['parent_id'] ?? null) ? $this->program($rpjmd, $data['parent_id'])->id : $pivot->program_rpjmd_id,
+                    'opd_id' => filled($data['opd_id'] ?? null) ? (int) $data['opd_id'] : $pivot->opd_id,
+                    'peran' => $data['peran'] ?? $pivot->peran,
+                    'is_utama' => array_key_exists('is_utama', $data) ? (bool) $data['is_utama'] : (bool) $pivot->is_utama,
+                ]);
+            }),
         };
     }
 

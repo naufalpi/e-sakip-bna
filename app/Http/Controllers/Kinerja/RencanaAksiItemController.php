@@ -26,6 +26,19 @@ class RencanaAksiItemController extends Controller
         return back()->with('success', 'Item Rencana Aksi berhasil ditambahkan.');
     }
 
+    public function update(StoreRencanaAksiItemRequest $request, RencanaAksi $rencanaAksi, RencanaAksiItem $item): RedirectResponse
+    {
+        $this->authorize('update', $rencanaAksi);
+        abort_unless((int) $item->rencana_aksi_id === (int) $rencanaAksi->id, 404);
+
+        $data = $request->validated();
+        $this->assertRelationsBelongToOpd($data, (int) $rencanaAksi->opd_id);
+
+        $item->update($data);
+
+        return back()->with('success', 'Item Rencana Aksi berhasil diperbarui.');
+    }
+
     public function destroy(RencanaAksi $rencanaAksi, RencanaAksiItem $item): RedirectResponse
     {
         $this->authorize('update', $rencanaAksi);

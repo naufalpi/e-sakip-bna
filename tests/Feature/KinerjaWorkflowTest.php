@@ -7,7 +7,9 @@ use App\Models\PeriodeTahun;
 use App\Models\PerjanjianKinerja;
 use App\Models\PerjanjianKinerjaItem;
 use App\Models\RealisasiKinerja;
+use App\Models\RealisasiProgram;
 use App\Models\RencanaAksi;
+use App\Models\RencanaAksiItem;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -163,6 +165,18 @@ class KinerjaWorkflowTest extends TestCase
         $pkItem = PerjanjianKinerjaItem::firstOrFail();
 
         $this->actingAs($adminOpd)
+            ->put(route('perjanjian-kinerja.items.update', [$pk, $pkItem]), [
+                'sasaran' => 'Meningkatnya kualitas layanan publik',
+                'indikator' => 'Indeks layanan publik',
+                'target' => 91,
+                'target_text' => '91 persen',
+                'urutan' => 2,
+            ])
+            ->assertRedirect();
+
+        $pkItem->refresh();
+
+        $this->actingAs($adminOpd)
             ->post(route('rencana-aksi.store'), [
                 'opd_id' => $opd->id,
                 'perjanjian_kinerja_id' => $pk->id,
@@ -187,6 +201,23 @@ class KinerjaWorkflowTest extends TestCase
                 'anggaran' => 1000000,
                 'status' => 'draft',
                 'urutan' => 1,
+            ])
+            ->assertRedirect();
+
+        $rencanaAksiItem = RencanaAksiItem::where('rencana_aksi_id', $rencanaAksi->id)->firstOrFail();
+
+        $this->actingAs($adminOpd)
+            ->put(route('rencana-aksi.items.update', [$rencanaAksi, $rencanaAksiItem]), [
+                'perjanjian_kinerja_item_id' => $pkItem->id,
+                'periode_realisasi' => 'triwulan',
+                'triwulan' => 'tw2',
+                'aksi' => 'Pelaksanaan layanan triwulan kedua',
+                'indikator' => 'Layanan selesai tepat waktu',
+                'target' => 50,
+                'target_text' => '50 persen',
+                'anggaran' => 1500000,
+                'status' => 'draft',
+                'urutan' => 2,
             ])
             ->assertRedirect();
 
@@ -237,16 +268,43 @@ class KinerjaWorkflowTest extends TestCase
             ])
             ->assertRedirect();
 
+        $realisasiProgram = RealisasiProgram::where('realisasi_kinerja_id', $realisasi->id)->firstOrFail();
+
+        $this->actingAs($adminOpd)
+            ->put(route('realisasi-kinerja.programs.update', [$realisasi, $realisasiProgram]), [
+                'perjanjian_kinerja_item_id' => $pkItem->id,
+                'indikator' => 'Indeks layanan publik',
+                'target' => 90,
+                'target_text' => '90 persen',
+                'realisasi' => 80,
+                'realisasi_text' => '80 persen',
+                'anggaran' => 1000000,
+                'realisasi_anggaran' => 700000,
+                'kendala' => 'Kendala diperbarui',
+                'tindak_lanjut' => 'Tindak lanjut diperbarui',
+                'urutan' => 2,
+            ])
+            ->assertRedirect();
+
         $this->assertDatabaseHas('rencana_aksi_items', [
             'rencana_aksi_id' => $rencanaAksi->id,
             'perjanjian_kinerja_item_id' => $pkItem->id,
-            'triwulan' => 'tw1',
+            'triwulan' => 'tw2',
+            'aksi' => 'Pelaksanaan layanan triwulan kedua',
+        ]);
+
+        $this->assertDatabaseHas('perjanjian_kinerja_items', [
+            'id' => $pkItem->id,
+            'sasaran' => 'Meningkatnya kualitas layanan publik',
+            'indikator' => 'Indeks layanan publik',
         ]);
 
         $this->assertDatabaseHas('realisasi_program', [
             'realisasi_kinerja_id' => $realisasi->id,
             'perjanjian_kinerja_item_id' => $pkItem->id,
-            'capaian_persen' => 97.78,
+            'status_capaian' => 'kuning',
+            'status_efisiensi' => 'efisien',
+            'kendala' => 'Kendala diperbarui',
         ]);
     }
 

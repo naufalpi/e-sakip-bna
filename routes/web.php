@@ -59,24 +59,29 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('rpjmd/import/{importBatch}', [RpjmdImportController::class, 'show'])->name('rpjmd.import.show');
     Route::resource('rpjmd', RpjmdController::class);
     Route::post('rpjmd/{rpjmd}/nodes', [RpjmdNodeController::class, 'store'])->name('rpjmd.nodes.store');
+    Route::put('rpjmd/{rpjmd}/nodes/{type}/{id}', [RpjmdNodeController::class, 'update'])->name('rpjmd.nodes.update');
     Route::delete('rpjmd/{rpjmd}/nodes/{type}/{id}', [RpjmdNodeController::class, 'destroy'])->name('rpjmd.nodes.destroy');
 
     Route::resource('renstra-opd', RenstraOpdController::class);
     Route::post('renstra-opd/{renstra_opd}/nodes', [RenstraOpdNodeController::class, 'store'])->name('renstra-opd.nodes.store');
+    Route::put('renstra-opd/{renstra_opd}/nodes/{type}/{id}', [RenstraOpdNodeController::class, 'update'])->name('renstra-opd.nodes.update');
     Route::delete('renstra-opd/{renstra_opd}/nodes/{type}/{id}', [RenstraOpdNodeController::class, 'destroy'])->name('renstra-opd.nodes.destroy');
     Route::post('target-triwulan-indikator', [TargetTriwulanIndikatorController::class, 'store'])->name('target-triwulan-indikator.store');
     Route::delete('target-triwulan-indikator/{target}', [TargetTriwulanIndikatorController::class, 'destroy'])->name('target-triwulan-indikator.destroy');
 
     Route::resource('perjanjian-kinerja', PerjanjianKinerjaController::class);
     Route::post('perjanjian-kinerja/{perjanjian_kinerja}/items', [PerjanjianKinerjaItemController::class, 'store'])->name('perjanjian-kinerja.items.store');
+    Route::put('perjanjian-kinerja/{perjanjian_kinerja}/items/{item}', [PerjanjianKinerjaItemController::class, 'update'])->name('perjanjian-kinerja.items.update');
     Route::delete('perjanjian-kinerja/{perjanjian_kinerja}/items/{item}', [PerjanjianKinerjaItemController::class, 'destroy'])->name('perjanjian-kinerja.items.destroy');
 
     Route::resource('rencana-aksi', RencanaAksiController::class);
     Route::post('rencana-aksi/{rencana_aksi}/items', [RencanaAksiItemController::class, 'store'])->name('rencana-aksi.items.store');
+    Route::put('rencana-aksi/{rencana_aksi}/items/{item}', [RencanaAksiItemController::class, 'update'])->name('rencana-aksi.items.update');
     Route::delete('rencana-aksi/{rencana_aksi}/items/{item}', [RencanaAksiItemController::class, 'destroy'])->name('rencana-aksi.items.destroy');
 
     Route::resource('realisasi-kinerja', RealisasiKinerjaController::class);
     Route::post('realisasi-kinerja/{realisasi_kinerja}/programs', [RealisasiProgramController::class, 'store'])->name('realisasi-kinerja.programs.store');
+    Route::put('realisasi-kinerja/{realisasi_kinerja}/programs/{program}', [RealisasiProgramController::class, 'update'])->name('realisasi-kinerja.programs.update');
     Route::delete('realisasi-kinerja/{realisasi_kinerja}/programs/{program}', [RealisasiProgramController::class, 'destroy'])->name('realisasi-kinerja.programs.destroy');
 
     Route::resource('lkjip', LkjipController::class);

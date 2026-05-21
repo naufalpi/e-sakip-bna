@@ -183,6 +183,10 @@ class PerjanjianKinerjaController extends Controller
             'renstra_opd' => $pk->renstraOpd,
             'items' => $pk->items->map(fn (PerjanjianKinerjaItem $item) => [
                 'id' => $item->id,
+                'sasaran_opd_id' => $item->sasaran_opd_id,
+                'indikator_sasaran_opd_id' => $item->indikator_sasaran_opd_id,
+                'opd_program_id' => $item->opd_program_id,
+                'satuan_indikator_id' => $item->satuan_indikator_id,
                 'kode' => $item->kode,
                 'sasaran' => $item->sasaran,
                 'indikator' => $item->indikator,

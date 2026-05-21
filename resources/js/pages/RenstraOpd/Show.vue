@@ -4,7 +4,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { Layers3, Pencil, Plus, Trash2 } from 'lucide-vue-next';
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 type Option = { id: number; label: string };
 type NodeType =
@@ -42,6 +42,14 @@ type Indikator = {
     id: number;
     kode?: string | null;
     indikator: string;
+    indikator_tujuan_daerah_id?: number | null;
+    indikator_sasaran_daerah_id?: number | null;
+    indikator_program_rpjmd_id?: number | null;
+    satuan_indikator_id?: number | null;
+    tipe_indikator?: string | null;
+    formula?: string | null;
+    sumber_data?: string | null;
+    urutan?: number | null;
     linked: boolean;
     satuan?: { nama: string; simbol?: string | null } | null;
     targets?: Target[];
@@ -53,6 +61,7 @@ type SubKegiatan = {
     kode?: string | null;
     nama: string;
     pagu_indikatif?: string | number | null;
+    urutan?: number | null;
     indikator: Indikator[];
 };
 
@@ -61,6 +70,7 @@ type Kegiatan = {
     kode?: string | null;
     nama: string;
     pagu_indikatif?: string | number | null;
+    urutan?: number | null;
     sub_kegiatan: SubKegiatan[];
 };
 
@@ -69,6 +79,8 @@ type Program = {
     kode?: string | null;
     nama: string;
     pagu_indikatif?: string | number | null;
+    program_rpjmd_id?: number | null;
+    urutan?: number | null;
     linked: boolean;
     indikator: Indikator[];
     kegiatan: Kegiatan[];
@@ -78,6 +90,8 @@ type Sasaran = {
     id: number;
     kode?: string | null;
     sasaran: string;
+    sasaran_daerah_id?: number | null;
+    urutan?: number | null;
     linked: boolean;
     indikator: Indikator[];
     programs: Program[];
@@ -87,6 +101,8 @@ type Tujuan = {
     id: number;
     kode?: string | null;
     tujuan: string;
+    tujuan_daerah_id?: number | null;
+    urutan?: number | null;
     linked: boolean;
     indikator: Indikator[];
     sasaran: Sasaran[];
@@ -184,6 +200,7 @@ const form = useForm({
     kode: '',
     uraian: '',
     indikator: '',
+    tipe_indikator: 'positif',
     formula: '',
     sumber_data: '',
     target: '',
@@ -219,30 +236,81 @@ const targetTriwulanTypeOptions = [
     { value: 'indikator_sub_kegiatan', label: 'Indikator Sub Kegiatan' },
 ];
 const selectedTargetTriwulanOptions = computed(() => props.targetTriwulanOptions[targetTriwulanForm.related_table] ?? []);
+const editingNode = ref<{ type: NodeType; id: number } | null>(null);
+
+const clearNodeForm = () => {
+    form.parent_id = '';
+    form.periode_tahun_id = '';
+    form.satuan_indikator_id = '';
+    form.tujuan_daerah_id = '';
+    form.indikator_tujuan_daerah_id = '';
+    form.sasaran_daerah_id = '';
+    form.indikator_sasaran_daerah_id = '';
+    form.program_rpjmd_id = '';
+    form.indikator_program_rpjmd_id = '';
+    form.kode = '';
+    form.uraian = '';
+    form.indikator = '';
+    form.tipe_indikator = 'positif';
+    form.formula = '';
+    form.sumber_data = '';
+    form.target = '';
+    form.target_text = '';
+    form.pagu = '';
+    form.pagu_indikatif = '';
+    form.urutan = 1;
+    form.clearErrors();
+};
+
+const resetNodeForm = () => {
+    editingNode.value = null;
+    clearNodeForm();
+};
+
+const valueText = (value: unknown) => (value === null || value === undefined ? '' : String(value));
+
+const editNode = (type: NodeType, id: number, parentId: number | null, node: any) => {
+    editingNode.value = { type, id };
+    form.type = type;
+    clearNodeForm();
+    form.parent_id = parentId ?? '';
+    form.kode = valueText(node.kode);
+    form.urutan = Number(node.urutan ?? 1);
+
+    if (type === 'tujuan') {
+        form.uraian = valueText(node.tujuan);
+        form.tujuan_daerah_id = valueText(node.tujuan_daerah_id);
+    } else if (type === 'sasaran') {
+        form.uraian = valueText(node.sasaran);
+        form.sasaran_daerah_id = valueText(node.sasaran_daerah_id);
+    } else if (['program', 'kegiatan', 'sub_kegiatan'].includes(type)) {
+        form.uraian = valueText(node.nama);
+        form.pagu_indikatif = valueText(node.pagu_indikatif);
+        form.program_rpjmd_id = valueText(node.program_rpjmd_id);
+    } else if (isIndicatorType.value) {
+        form.indikator = valueText(node.indikator);
+        form.tipe_indikator = valueText(node.tipe_indikator || 'positif');
+        form.satuan_indikator_id = valueText(node.satuan_indikator_id);
+        form.formula = valueText(node.formula);
+        form.sumber_data = valueText(node.sumber_data);
+        form.indikator_tujuan_daerah_id = valueText(node.indikator_tujuan_daerah_id);
+        form.indikator_sasaran_daerah_id = valueText(node.indikator_sasaran_daerah_id);
+        form.indikator_program_rpjmd_id = valueText(node.indikator_program_rpjmd_id);
+    } else if (isTargetType.value) {
+        const target = node as unknown as Target;
+        form.periode_tahun_id = target.periode_tahun?.id ?? '';
+        form.target = valueText(target.target);
+        form.target_text = valueText(target.target_text);
+        form.pagu = valueText(target.pagu);
+    }
+};
 
 watch(
     () => form.type,
     () => {
-        form.parent_id = '';
-        form.periode_tahun_id = '';
-        form.satuan_indikator_id = '';
-        form.tujuan_daerah_id = '';
-        form.indikator_tujuan_daerah_id = '';
-        form.sasaran_daerah_id = '';
-        form.indikator_sasaran_daerah_id = '';
-        form.program_rpjmd_id = '';
-        form.indikator_program_rpjmd_id = '';
-        form.kode = '';
-        form.uraian = '';
-        form.indikator = '';
-        form.formula = '';
-        form.sumber_data = '';
-        form.target = '';
-        form.target_text = '';
-        form.pagu = '';
-        form.pagu_indikatif = '';
-        form.urutan = 1;
-        form.clearErrors();
+        if (!editingNode.value) {
+            clearNodeForm();
+        }
     },
 );
 
@@ -255,30 +323,19 @@ watch(
 );
 
 const submitNode = () => {
-    form.post(route('renstra-opd.nodes.store', props.renstra.id), {
+    const options = {
         preserveScroll: true,
         onSuccess: () => {
-            form.parent_id = '';
-            form.periode_tahun_id = '';
-            form.satuan_indikator_id = '';
-            form.tujuan_daerah_id = '';
-            form.indikator_tujuan_daerah_id = '';
-            form.sasaran_daerah_id = '';
-            form.indikator_sasaran_daerah_id = '';
-            form.program_rpjmd_id = '';
-            form.indikator_program_rpjmd_id = '';
-            form.kode = '';
-            form.uraian = '';
-            form.indikator = '';
-            form.formula = '';
-            form.sumber_data = '';
-            form.target = '';
-            form.target_text = '';
-            form.pagu = '';
-            form.pagu_indikatif = '';
-            form.urutan = 1;
+            resetNodeForm();
         },
-    });
+    };
+
+    if (editingNode.value) {
+        form.put(route('renstra-opd.nodes.update', [props.renstra.id, editingNode.value.type, editingNode.value.id]), options);
+        return;
+    }
+
+    form.post(route('renstra-opd.nodes.store', props.renstra.id), options);
 };
 
 const destroyNode = (type: NodeType, id: number, label: string) => {
@@ -443,9 +500,14 @@ const triwulanLabel = (triwulan: string) =>
                                     </div>
                                     <div class="mt-1 text-sm font-medium">{{ tujuan.kode ? `${tujuan.kode} - ` : '' }}{{ tujuan.tujuan }}</div>
                                 </div>
-                                <button v-if="can.manage" type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus tujuan" @click="destroyNode('tujuan', tujuan.id, 'tujuan')">
-                                    <Trash2 class="size-4" />
-                                </button>
+                                <div v-if="can.manage" class="flex items-center gap-1">
+                                    <button type="button" class="rounded-md p-1 hover:bg-muted" title="Edit tujuan" @click="editNode('tujuan', tujuan.id, null, tujuan)">
+                                        <Pencil class="size-4" />
+                                    </button>
+                                    <button type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus tujuan" @click="destroyNode('tujuan', tujuan.id, 'tujuan')">
+                                        <Trash2 class="size-4" />
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="space-y-3 p-3">
@@ -459,13 +521,19 @@ const triwulanLabel = (triwulan: string) =>
                                             <div class="mt-1 text-sm">{{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}</div>
                                             <div class="mt-1 text-xs text-muted-foreground">{{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}</div>
                                         </div>
-                                        <button v-if="can.manage" type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus indikator" @click="destroyNode('indikator_tujuan', indikator.id, 'indikator tujuan')">
-                                            <Trash2 class="size-4" />
-                                        </button>
+                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                            <button type="button" class="rounded-md p-1 hover:bg-muted" title="Edit indikator" @click="editNode('indikator_tujuan', indikator.id, tujuan.id, indikator)">
+                                                <Pencil class="size-4" />
+                                            </button>
+                                            <button type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus indikator" @click="destroyNode('indikator_tujuan', indikator.id, 'indikator tujuan')">
+                                                <Trash2 class="size-4" />
+                                            </button>
+                                        </div>
                                     </div>
                                     <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
-                                        <span v-for="target in indikator.targets" :key="target.id" class="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+                                        <span v-for="target in indikator.targets" :key="target.id" class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
                                             {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
+                                            <button v-if="can.manage" type="button" class="font-semibold text-emerald-900 hover:text-slate-900" @click="editNode('target_tujuan', target.id, indikator.id, target)">Edit</button>
                                         </span>
                                     </div>
                                     <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
@@ -485,9 +553,14 @@ const triwulanLabel = (triwulan: string) =>
                                             </div>
                                             <div class="mt-1 text-sm font-medium">{{ sasaran.kode ? `${sasaran.kode} - ` : '' }}{{ sasaran.sasaran }}</div>
                                         </div>
-                                        <button v-if="can.manage" type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus sasaran" @click="destroyNode('sasaran', sasaran.id, 'sasaran')">
-                                            <Trash2 class="size-4" />
-                                        </button>
+                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                            <button type="button" class="rounded-md p-1 hover:bg-muted" title="Edit sasaran" @click="editNode('sasaran', sasaran.id, tujuan.id, sasaran)">
+                                                <Pencil class="size-4" />
+                                            </button>
+                                            <button type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus sasaran" @click="destroyNode('sasaran', sasaran.id, 'sasaran')">
+                                                <Trash2 class="size-4" />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div class="mt-3 space-y-3">
@@ -501,13 +574,19 @@ const triwulanLabel = (triwulan: string) =>
                                                     <div class="mt-1 text-sm">{{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}</div>
                                                     <div class="mt-1 text-xs text-muted-foreground">{{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}</div>
                                                 </div>
-                                                <button v-if="can.manage" type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus indikator" @click="destroyNode('indikator_sasaran', indikator.id, 'indikator sasaran')">
-                                                    <Trash2 class="size-4" />
-                                                </button>
+                                                <div v-if="can.manage" class="flex items-center gap-1">
+                                                    <button type="button" class="rounded-md p-1 hover:bg-muted" title="Edit indikator" @click="editNode('indikator_sasaran', indikator.id, sasaran.id, indikator)">
+                                                        <Pencil class="size-4" />
+                                                    </button>
+                                                    <button type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus indikator" @click="destroyNode('indikator_sasaran', indikator.id, 'indikator sasaran')">
+                                                        <Trash2 class="size-4" />
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
-                                                <span v-for="target in indikator.targets" :key="target.id" class="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+                                                <span v-for="target in indikator.targets" :key="target.id" class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
                                                     {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
+                                                    <button v-if="can.manage" type="button" class="font-semibold text-emerald-900 hover:text-slate-900" @click="editNode('target_sasaran', target.id, indikator.id, target)">Edit</button>
                                                 </span>
                                             </div>
                                             <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
@@ -528,9 +607,14 @@ const triwulanLabel = (triwulan: string) =>
                                                     <div class="mt-1 text-sm font-medium">{{ program.kode ? `${program.kode} - ` : '' }}{{ program.nama }}</div>
                                                     <div class="mt-1 text-xs text-muted-foreground">Pagu indikatif: {{ program.pagu_indikatif || '-' }}</div>
                                                 </div>
-                                                <button v-if="can.manage" type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus program" @click="destroyNode('program', program.id, 'program')">
-                                                    <Trash2 class="size-4" />
-                                                </button>
+                                                <div v-if="can.manage" class="flex items-center gap-1">
+                                                    <button type="button" class="rounded-md p-1 hover:bg-muted" title="Edit program" @click="editNode('program', program.id, sasaran.id, program)">
+                                                        <Pencil class="size-4" />
+                                                    </button>
+                                                    <button type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus program" @click="destroyNode('program', program.id, 'program')">
+                                                        <Trash2 class="size-4" />
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div class="mt-3 grid gap-2">
@@ -544,13 +628,19 @@ const triwulanLabel = (triwulan: string) =>
                                                             <div class="mt-1 text-sm">{{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}</div>
                                                             <div class="mt-1 text-xs text-muted-foreground">{{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}</div>
                                                         </div>
-                                                        <button v-if="can.manage" type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus indikator" @click="destroyNode('indikator_program', indikator.id, 'indikator program')">
-                                                            <Trash2 class="size-4" />
-                                                        </button>
+                                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                                            <button type="button" class="rounded-md p-1 hover:bg-muted" title="Edit indikator" @click="editNode('indikator_program', indikator.id, program.id, indikator)">
+                                                                <Pencil class="size-4" />
+                                                            </button>
+                                                            <button type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus indikator" @click="destroyNode('indikator_program', indikator.id, 'indikator program')">
+                                                                <Trash2 class="size-4" />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
-                                                        <span v-for="target in indikator.targets" :key="target.id" class="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+                                                        <span v-for="target in indikator.targets" :key="target.id" class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
                                                             {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }} - Pagu {{ target.pagu || '-' }}
+                                                            <button v-if="can.manage" type="button" class="font-semibold text-emerald-900 hover:text-slate-900" @click="editNode('target_program', target.id, indikator.id, target)">Edit</button>
                                                         </span>
                                                     </div>
                                                     <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
@@ -567,9 +657,14 @@ const triwulanLabel = (triwulan: string) =>
                                                             <div class="text-xs font-semibold uppercase text-muted-foreground">Kegiatan OPD</div>
                                                             <div class="mt-1 text-sm font-medium">{{ kegiatan.kode ? `${kegiatan.kode} - ` : '' }}{{ kegiatan.nama }}</div>
                                                         </div>
-                                                        <button v-if="can.manage" type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus kegiatan" @click="destroyNode('kegiatan', kegiatan.id, 'kegiatan')">
-                                                            <Trash2 class="size-4" />
-                                                        </button>
+                                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                                            <button type="button" class="rounded-md p-1 hover:bg-muted" title="Edit kegiatan" @click="editNode('kegiatan', kegiatan.id, program.id, kegiatan)">
+                                                                <Pencil class="size-4" />
+                                                            </button>
+                                                            <button type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus kegiatan" @click="destroyNode('kegiatan', kegiatan.id, 'kegiatan')">
+                                                                <Trash2 class="size-4" />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     <div v-for="sub in kegiatan.sub_kegiatan" :key="sub.id" class="mt-3 rounded-md border bg-white p-3">
                                                         <div class="flex items-start justify-between gap-3">
@@ -577,14 +672,31 @@ const triwulanLabel = (triwulan: string) =>
                                                                 <div class="text-xs font-semibold uppercase text-muted-foreground">Sub Kegiatan</div>
                                                                 <div class="mt-1 text-sm font-medium">{{ sub.kode ? `${sub.kode} - ` : '' }}{{ sub.nama }}</div>
                                                             </div>
-                                                            <button v-if="can.manage" type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus sub kegiatan" @click="destroyNode('sub_kegiatan', sub.id, 'sub kegiatan')">
-                                                                <Trash2 class="size-4" />
-                                                            </button>
+                                                            <div v-if="can.manage" class="flex items-center gap-1">
+                                                                <button type="button" class="rounded-md p-1 hover:bg-muted" title="Edit sub kegiatan" @click="editNode('sub_kegiatan', sub.id, kegiatan.id, sub)">
+                                                                    <Pencil class="size-4" />
+                                                                </button>
+                                                                <button type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus sub kegiatan" @click="destroyNode('sub_kegiatan', sub.id, 'sub kegiatan')">
+                                                                    <Trash2 class="size-4" />
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                         <div v-if="sub.indikator.length" class="mt-2 grid gap-2">
                                                             <div v-for="indikator in sub.indikator" :key="indikator.id" class="rounded-md bg-slate-50 px-3 py-2 text-sm">
-                                                                <div>{{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}</div>
-                                                                <div class="mt-1 text-xs text-muted-foreground">{{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}</div>
+                                                                <div class="flex items-start justify-between gap-3">
+                                                                    <div>
+                                                                        <div>{{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}</div>
+                                                                        <div class="mt-1 text-xs text-muted-foreground">{{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}</div>
+                                                                    </div>
+                                                                    <div v-if="can.manage" class="flex items-center gap-1">
+                                                                        <button type="button" class="rounded-md p-1 hover:bg-muted" title="Edit indikator" @click="editNode('indikator_sub_kegiatan', indikator.id, sub.id, indikator)">
+                                                                            <Pencil class="size-4" />
+                                                                        </button>
+                                                                        <button type="button" class="rounded-md p-1 text-red-700 hover:bg-red-50" title="Hapus indikator" @click="destroyNode('indikator_sub_kegiatan', indikator.id, 'indikator sub kegiatan')">
+                                                                            <Trash2 class="size-4" />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
                                                                 <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
                                                                     <span v-for="target in indikator.target_triwulan" :key="target.id" class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800">
                                                                         {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}: {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
@@ -605,12 +717,15 @@ const triwulanLabel = (triwulan: string) =>
                 </section>
 
                 <aside v-if="can.manage" class="rounded-lg border bg-card p-4 xl:sticky xl:top-4 xl:self-start">
-                    <div class="mb-4 flex items-center gap-2">
-                        <Plus class="size-5 text-emerald-700" />
-                        <div>
-                            <h2 class="text-base font-semibold">Tambah Data Cascading</h2>
-                            <p class="text-sm text-muted-foreground">{{ selectedTypeLabel }}</p>
+                    <div class="mb-4 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-2">
+                            <Plus class="size-5 text-emerald-700" />
+                            <div>
+                                <h2 class="text-base font-semibold">{{ editingNode ? 'Edit Data Cascading' : 'Tambah Data Cascading' }}</h2>
+                                <p class="text-sm text-muted-foreground">{{ selectedTypeLabel }}</p>
+                            </div>
                         </div>
+                        <button v-if="editingNode" type="button" class="rounded-md border px-3 py-1.5 text-xs hover:bg-muted" @click="resetNodeForm">Batal</button>
                     </div>
 
                     <form class="grid gap-3" @submit.prevent="submitNode">
@@ -706,6 +821,15 @@ const triwulanLabel = (triwulan: string) =>
                         </div>
 
                         <div v-if="isIndicatorType" class="grid gap-2">
+                            <label class="text-sm font-medium" for="tipe_indikator">Tipe Indikator</label>
+                            <select id="tipe_indikator" v-model="form.tipe_indikator" class="h-9 rounded-md border bg-background px-3 text-sm">
+                                <option value="positif">Positif</option>
+                                <option value="negatif">Negatif</option>
+                            </select>
+                            <InputError :message="form.errors.tipe_indikator" />
+                        </div>
+
+                        <div v-if="isIndicatorType" class="grid gap-2">
                             <label class="text-sm font-medium" for="sumber_data">Sumber Data</label>
                             <input id="sumber_data" v-model="form.sumber_data" class="h-9 rounded-md border bg-background px-3 text-sm" />
                         </div>
@@ -745,7 +869,7 @@ const triwulanLabel = (triwulan: string) =>
                         </div>
 
                         <button type="submit" :disabled="form.processing" class="mt-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
-                            Simpan Data Cascading
+                            {{ editingNode ? 'Perbarui Data Cascading' : 'Simpan Data Cascading' }}
                         </button>
                     </form>
 

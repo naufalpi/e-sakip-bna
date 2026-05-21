@@ -175,6 +175,10 @@ class RencanaAksiController extends Controller
             'perjanjian_kinerja' => $rencanaAksi->perjanjianKinerja,
             'items' => $rencanaAksi->items->map(fn (RencanaAksiItem $item) => [
                 'id' => $item->id,
+                'perjanjian_kinerja_item_id' => $item->perjanjian_kinerja_item_id,
+                'opd_program_id' => $item->opd_program_id,
+                'opd_kegiatan_id' => $item->opd_kegiatan_id,
+                'opd_sub_kegiatan_id' => $item->opd_sub_kegiatan_id,
                 'periode_realisasi' => $item->periode_realisasi,
                 'triwulan' => $item->triwulan,
                 'bulan' => $item->bulan,

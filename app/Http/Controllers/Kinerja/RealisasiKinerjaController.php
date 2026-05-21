@@ -219,6 +219,10 @@ class RealisasiKinerjaController extends Controller
             'rencana_aksi' => $realisasi->rencanaAksi,
             'programs' => $realisasi->programs->map(fn (RealisasiProgram $program) => [
                 'id' => $program->id,
+                'perjanjian_kinerja_item_id' => $program->perjanjian_kinerja_item_id,
+                'rencana_aksi_item_id' => $program->rencana_aksi_item_id,
+                'opd_program_id' => $program->opd_program_id,
+                'indikator_opd_program_id' => $program->indikator_opd_program_id,
                 'indikator' => $program->indikator,
                 'tipe_indikator' => $program->tipe_indikator,
                 'target' => $program->target,

@@ -29,6 +29,21 @@ class RealisasiProgramController extends Controller
         return back()->with('success', 'Realisasi indikator berhasil ditambahkan.');
     }
 
+    public function update(StoreRealisasiProgramRequest $request, RealisasiKinerja $realisasiKinerja, RealisasiProgram $program, CapaianKinerjaService $capaianService): RedirectResponse
+    {
+        $this->authorize('update', $realisasiKinerja);
+        abort_unless((int) $program->realisasi_kinerja_id === (int) $realisasiKinerja->id, 404);
+
+        $data = $request->validated();
+        $this->assertRelationsBelongToOpd($data, (int) $realisasiKinerja->opd_id);
+        $data = $this->withCalculatedMetrics($data, $capaianService);
+
+        $program->update($data);
+        $capaianService->syncRealisasiKinerjaSummary($realisasiKinerja);
+
+        return back()->with('success', 'Realisasi indikator berhasil diperbarui.');
+    }
+
     public function destroy(RealisasiKinerja $realisasiKinerja, RealisasiProgram $program, CapaianKinerjaService $capaianService): RedirectResponse
     {
         $this->authorize('update', $realisasiKinerja);

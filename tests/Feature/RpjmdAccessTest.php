@@ -214,6 +214,53 @@ class RpjmdAccessTest extends TestCase
         $this->assertCount(2, $program->fresh()->opdPenanggungJawab);
     }
 
+    public function test_bapperida_can_update_rpjmd_cascading_nodes(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '2.04', 'nama' => 'Dinas Update', 'status' => 'active']);
+        $rpjmd = $this->createRpjmdWithProgramForOpd($opd, 'RPJMD Update Node');
+        $visi = RpjmdVisi::where('rpjmd_id', $rpjmd->id)->firstOrFail();
+        $misi = RpjmdMisi::where('rpjmd_id', $rpjmd->id)->firstOrFail();
+        $program = ProgramRpjmd::firstOrFail();
+        $pivot = ProgramRpjmdOpdPenanggungJawab::where('program_rpjmd_id', $program->id)->firstOrFail();
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $this->actingAs($user)
+            ->put(route('rpjmd.nodes.update', [$rpjmd, 'misi', $misi->id]), [
+                'type' => 'misi',
+                'parent_id' => $visi->id,
+                'kode' => 'M.UPD',
+                'uraian' => 'Misi RPJMD diperbarui',
+                'urutan' => 2,
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($user)
+            ->put(route('rpjmd.nodes.update', [$rpjmd, 'program_opd', $pivot->id]), [
+                'type' => 'program_opd',
+                'parent_id' => $program->id,
+                'opd_id' => $opd->id,
+                'peran' => 'koordinator',
+                'is_utama' => true,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('rpjmd_misi', [
+            'id' => $misi->id,
+            'kode' => 'M.UPD',
+            'misi' => 'Misi RPJMD diperbarui',
+            'urutan' => 2,
+        ]);
+
+        $this->assertDatabaseHas('program_rpjmd_opd_penanggung_jawab', [
+            'id' => $pivot->id,
+            'peran' => 'koordinator',
+        ]);
+    }
+
     public function test_bapperida_can_save_target_triwulan_for_rpjmd_indicator(): void
     {
         $this->seed();

@@ -34,6 +34,21 @@ class RenstraOpdNodeController extends Controller
         return back()->with('success', 'Data cascading Renstra OPD berhasil disimpan.');
     }
 
+    public function update(StoreRenstraOpdNodeRequest $request, RenstraOpd $renstraOpd, string $type, int $id): RedirectResponse
+    {
+        $this->authorize('update', $renstraOpd);
+
+        $data = $request->validated();
+
+        if (($data['type'] ?? null) !== $type) {
+            throw ValidationException::withMessages(['type' => 'Jenis data tidak sesuai dengan node yang diedit.']);
+        }
+
+        DB::transaction(fn () => $this->updateNode($renstraOpd, $type, $id, $data));
+
+        return back()->with('success', 'Data cascading Renstra OPD berhasil diperbarui.');
+    }
+
     public function destroy(RenstraOpd $renstraOpd, string $type, int $id): RedirectResponse
     {
         $this->authorize('update', $renstraOpd);
@@ -155,6 +170,134 @@ class RenstraOpdNodeController extends Controller
                 'sumber_data' => $data['sumber_data'] ?? null,
                 'urutan' => $data['urutan'] ?? 1,
             ]),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function updateNode(RenstraOpd $renstra, string $type, int $id, array $data): void
+    {
+        match ($type) {
+            'tujuan' => $this->tujuan($renstra, $id)->update([
+                'tujuan_daerah_id' => $data['tujuan_daerah_id'] ?? null,
+                'kode' => $data['kode'] ?? null,
+                'tujuan' => $this->requiredText($data, 'uraian', 'Tujuan OPD wajib diisi.'),
+                'urutan' => $data['urutan'] ?? 1,
+            ]),
+            'indikator_tujuan' => tap($this->indikatorTujuan($renstra, $id), function (IndikatorTujuanOpd $indikator) use ($renstra, $data) {
+                $indikator->update([
+                    'tujuan_opd_id' => filled($data['parent_id'] ?? null) ? $this->tujuan($renstra, $data['parent_id'])->id : $indikator->tujuan_opd_id,
+                    'indikator_tujuan_daerah_id' => $data['indikator_tujuan_daerah_id'] ?? null,
+                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+                    'kode' => $data['kode'] ?? null,
+                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator tujuan OPD wajib diisi.'),
+                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
+                    'formula' => $data['formula'] ?? null,
+                    'sumber_data' => $data['sumber_data'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'target_tujuan' => tap($this->findNode($renstra, $type, $id), function (TargetIndikatorTujuanOpd $target) use ($renstra, $data) {
+                $target->update([
+                    'indikator_tujuan_opd_id' => filled($data['parent_id'] ?? null) ? $this->indikatorTujuan($renstra, $data['parent_id'])->id : $target->indikator_tujuan_opd_id,
+                    'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
+                    'target' => $data['target'] ?? null,
+                    'target_text' => $data['target_text'] ?? null,
+                ]);
+            }),
+            'sasaran' => tap($this->sasaran($renstra, $id), function (SasaranOpd $sasaran) use ($renstra, $data) {
+                $sasaran->update([
+                    'tujuan_opd_id' => filled($data['parent_id'] ?? null) ? $this->tujuan($renstra, $data['parent_id'])->id : $sasaran->tujuan_opd_id,
+                    'sasaran_daerah_id' => $data['sasaran_daerah_id'] ?? null,
+                    'kode' => $data['kode'] ?? null,
+                    'sasaran' => $this->requiredText($data, 'uraian', 'Sasaran OPD wajib diisi.'),
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'indikator_sasaran' => tap($this->indikatorSasaran($renstra, $id), function (IndikatorSasaranOpd $indikator) use ($renstra, $data) {
+                $indikator->update([
+                    'sasaran_opd_id' => filled($data['parent_id'] ?? null) ? $this->sasaran($renstra, $data['parent_id'])->id : $indikator->sasaran_opd_id,
+                    'indikator_sasaran_daerah_id' => $data['indikator_sasaran_daerah_id'] ?? null,
+                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+                    'kode' => $data['kode'] ?? null,
+                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator sasaran OPD wajib diisi.'),
+                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
+                    'formula' => $data['formula'] ?? null,
+                    'sumber_data' => $data['sumber_data'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'target_sasaran' => tap($this->findNode($renstra, $type, $id), function (TargetIndikatorSasaranOpd $target) use ($renstra, $data) {
+                $target->update([
+                    'indikator_sasaran_opd_id' => filled($data['parent_id'] ?? null) ? $this->indikatorSasaran($renstra, $data['parent_id'])->id : $target->indikator_sasaran_opd_id,
+                    'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
+                    'target' => $data['target'] ?? null,
+                    'target_text' => $data['target_text'] ?? null,
+                ]);
+            }),
+            'program' => tap($this->program($renstra, $id), function (OpdProgram $program) use ($renstra, $data) {
+                $program->update([
+                    'sasaran_opd_id' => filled($data['parent_id'] ?? null) ? $this->sasaran($renstra, $data['parent_id'])->id : $program->sasaran_opd_id,
+                    'program_rpjmd_id' => $data['program_rpjmd_id'] ?? null,
+                    'kode' => $data['kode'] ?? null,
+                    'nama' => $this->requiredText($data, 'uraian', 'Nama program OPD wajib diisi.'),
+                    'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'indikator_program' => tap($this->indikatorProgram($renstra, $id), function (IndikatorOpdProgram $indikator) use ($renstra, $data) {
+                $indikator->update([
+                    'opd_program_id' => filled($data['parent_id'] ?? null) ? $this->program($renstra, $data['parent_id'])->id : $indikator->opd_program_id,
+                    'indikator_program_rpjmd_id' => $data['indikator_program_rpjmd_id'] ?? null,
+                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+                    'kode' => $data['kode'] ?? null,
+                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator program OPD wajib diisi.'),
+                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
+                    'formula' => $data['formula'] ?? null,
+                    'sumber_data' => $data['sumber_data'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'target_program' => tap($this->findNode($renstra, $type, $id), function (TargetIndikatorOpdProgram $target) use ($renstra, $data) {
+                $target->update([
+                    'indikator_opd_program_id' => filled($data['parent_id'] ?? null) ? $this->indikatorProgram($renstra, $data['parent_id'])->id : $target->indikator_opd_program_id,
+                    'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
+                    'target' => $data['target'] ?? null,
+                    'target_text' => $data['target_text'] ?? null,
+                    'pagu' => $data['pagu'] ?? null,
+                ]);
+            }),
+            'kegiatan' => tap($this->kegiatan($renstra, $id), function (OpdKegiatan $kegiatan) use ($renstra, $data) {
+                $kegiatan->update([
+                    'opd_program_id' => filled($data['parent_id'] ?? null) ? $this->program($renstra, $data['parent_id'])->id : $kegiatan->opd_program_id,
+                    'kode' => $data['kode'] ?? null,
+                    'nama' => $this->requiredText($data, 'uraian', 'Nama kegiatan OPD wajib diisi.'),
+                    'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'sub_kegiatan' => tap($this->subKegiatan($renstra, $id), function (OpdSubKegiatan $subKegiatan) use ($renstra, $data) {
+                $subKegiatan->update([
+                    'opd_kegiatan_id' => filled($data['parent_id'] ?? null) ? $this->kegiatan($renstra, $data['parent_id'])->id : $subKegiatan->opd_kegiatan_id,
+                    'kode' => $data['kode'] ?? null,
+                    'nama' => $this->requiredText($data, 'uraian', 'Nama sub kegiatan OPD wajib diisi.'),
+                    'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'indikator_sub_kegiatan' => tap($this->findNode($renstra, $type, $id), function (IndikatorSubKegiatan $indikator) use ($renstra, $data) {
+                $indikator->update([
+                    'opd_sub_kegiatan_id' => filled($data['parent_id'] ?? null) ? $this->subKegiatan($renstra, $data['parent_id'])->id : $indikator->opd_sub_kegiatan_id,
+                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+                    'kode' => $data['kode'] ?? null,
+                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator sub kegiatan wajib diisi.'),
+                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
+                    'formula' => $data['formula'] ?? null,
+                    'sumber_data' => $data['sumber_data'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
         };
     }
 

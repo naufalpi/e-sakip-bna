@@ -390,9 +390,11 @@ class RenstraOpdController extends Controller
             ] : null,
             'tujuan' => $renstra->tujuan->map(fn (TujuanOpd $tujuan) => [
                 'id' => $tujuan->id,
+                'tujuan_daerah_id' => $tujuan->tujuan_daerah_id,
                 'kode' => $tujuan->kode,
                 'tujuan' => $tujuan->tujuan,
                 'linked' => filled($tujuan->tujuan_daerah_id),
+                'urutan' => $tujuan->urutan,
                 'tujuan_daerah' => $tujuan->tujuanDaerah ? [
                     'kode' => $tujuan->tujuanDaerah->kode,
                     'tujuan' => $tujuan->tujuanDaerah->tujuan,
@@ -400,9 +402,11 @@ class RenstraOpdController extends Controller
                 'indikator' => $tujuan->indikator->map(fn (IndikatorTujuanOpd $indikator) => $this->serializeIndikator($indikator, 'indikatorTujuanDaerah')),
                 'sasaran' => $tujuan->sasaran->map(fn (SasaranOpd $sasaran) => [
                     'id' => $sasaran->id,
+                    'sasaran_daerah_id' => $sasaran->sasaran_daerah_id,
                     'kode' => $sasaran->kode,
                     'sasaran' => $sasaran->sasaran,
                     'linked' => filled($sasaran->sasaran_daerah_id),
+                    'urutan' => $sasaran->urutan,
                     'sasaran_daerah' => $sasaran->sasaranDaerah ? [
                         'kode' => $sasaran->sasaranDaerah->kode,
                         'sasaran' => $sasaran->sasaranDaerah->sasaran,
@@ -410,11 +414,13 @@ class RenstraOpdController extends Controller
                     'indikator' => $sasaran->indikator->map(fn (IndikatorSasaranOpd $indikator) => $this->serializeIndikator($indikator, 'indikatorSasaranDaerah')),
                     'programs' => $sasaran->programs->map(fn (OpdProgram $program) => [
                         'id' => $program->id,
+                        'program_rpjmd_id' => $program->program_rpjmd_id,
                         'kode' => $program->kode,
                         'nama' => $program->nama,
                         'pagu_indikatif' => $program->pagu_indikatif,
                         'status' => $program->status,
                         'linked' => filled($program->program_rpjmd_id),
+                        'urutan' => $program->urutan,
                         'program_rpjmd' => $program->programRpjmd ? [
                             'kode' => $program->programRpjmd->kode,
                             'nama' => $program->programRpjmd->nama,
@@ -425,15 +431,22 @@ class RenstraOpdController extends Controller
                             'kode' => $kegiatan->kode,
                             'nama' => $kegiatan->nama,
                             'pagu_indikatif' => $kegiatan->pagu_indikatif,
+                            'urutan' => $kegiatan->urutan,
                             'sub_kegiatan' => $kegiatan->subKegiatan->map(fn (OpdSubKegiatan $subKegiatan) => [
                                 'id' => $subKegiatan->id,
                                 'kode' => $subKegiatan->kode,
                                 'nama' => $subKegiatan->nama,
                                 'pagu_indikatif' => $subKegiatan->pagu_indikatif,
+                                'urutan' => $subKegiatan->urutan,
                                 'indikator' => $subKegiatan->indikator->map(fn (IndikatorSubKegiatan $indikator) => [
                                     'id' => $indikator->id,
+                                    'satuan_indikator_id' => $indikator->satuan_indikator_id,
                                     'kode' => $indikator->kode,
                                     'indikator' => $indikator->indikator,
+                                    'tipe_indikator' => $indikator->tipe_indikator,
+                                    'formula' => $indikator->formula,
+                                    'sumber_data' => $indikator->sumber_data,
+                                    'urutan' => $indikator->urutan,
                                     'target_triwulan' => $this->serializeTargetTriwulan($indikator),
                                     'satuan' => $indikator->satuanIndikator ? [
                                         'nama' => $indikator->satuanIndikator->nama,
@@ -457,9 +470,13 @@ class RenstraOpdController extends Controller
             'id' => $indikator->id,
             'kode' => $indikator->kode,
             'indikator' => $indikator->indikator,
+            $this->linkedColumn($linkedRelation) => $indikator->{$this->linkedColumn($linkedRelation)},
+            'satuan_indikator_id' => $indikator->satuan_indikator_id,
+            'tipe_indikator' => $indikator->tipe_indikator,
             'formula' => $indikator->formula,
             'sumber_data' => $indikator->sumber_data,
             'linked' => filled($indikator->{$linkedRelation}?->id),
+            'urutan' => $indikator->urutan,
             'satuan' => $indikator->satuanIndikator ? [
                 'nama' => $indikator->satuanIndikator->nama,
                 'simbol' => $indikator->satuanIndikator->simbol,
@@ -477,6 +494,15 @@ class RenstraOpdController extends Controller
             ]),
             'target_triwulan' => $this->serializeTargetTriwulan($indikator),
         ];
+    }
+
+    private function linkedColumn(string $linkedRelation): string
+    {
+        return match ($linkedRelation) {
+            'indikatorTujuanDaerah' => 'indikator_tujuan_daerah_id',
+            'indikatorSasaranDaerah' => 'indikator_sasaran_daerah_id',
+            'indikatorProgramRpjmd' => 'indikator_program_rpjmd_id',
+        };
     }
 
     /**

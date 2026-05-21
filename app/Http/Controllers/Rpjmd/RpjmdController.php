@@ -363,6 +363,7 @@ class RpjmdController extends Controller
                         'id' => $tujuan->id,
                         'kode' => $tujuan->kode,
                         'tujuan' => $tujuan->tujuan,
+                        'urutan' => $tujuan->urutan,
                         'indikator' => $tujuan->indikator->map(fn (IndikatorTujuanDaerah $indikator) => $this->serializeIndikator($indikator)),
                         'sasaran' => $tujuan->sasaran->map(fn (SasaranDaerah $sasaran) => $this->serializeSasaran($sasaran, $visibleOpdId))->filter()->values(),
                     ])->filter(fn (array $tujuan) => ! $visibleOpdId || $tujuan['sasaran']->isNotEmpty())->values(),
@@ -389,6 +390,7 @@ class RpjmdController extends Controller
             'id' => $sasaran->id,
             'kode' => $sasaran->kode,
             'sasaran' => $sasaran->sasaran,
+            'urutan' => $sasaran->urutan,
             'indikator' => $sasaran->indikator->map(fn (IndikatorSasaranDaerah $indikator) => $this->serializeIndikator($indikator)),
             'strategi' => $strategi,
         ];
@@ -414,12 +416,15 @@ class RpjmdController extends Controller
             'kode' => $strategi->kode,
             'strategi' => $strategi->strategi,
             'arah_kebijakan' => $strategi->arah_kebijakan,
+            'urutan' => $strategi->urutan,
             'programs' => $programs->map(fn (ProgramRpjmd $program) => [
                 'id' => $program->id,
+                'urusan_pemerintahan_id' => $program->urusan_pemerintahan_id,
                 'kode' => $program->kode,
                 'nama' => $program->nama,
                 'pagu_indikatif' => $program->pagu_indikatif,
                 'status' => $program->status,
+                'urutan' => $program->urutan,
                 'urusan_pemerintahan' => $program->urusanPemerintahan ? [
                     'kode' => $program->urusanPemerintahan->kode,
                     'nama' => $program->urusanPemerintahan->nama,
@@ -446,8 +451,11 @@ class RpjmdController extends Controller
             'id' => $indikator->id,
             'kode' => $indikator->kode,
             'indikator' => $indikator->indikator,
+            'tipe_indikator' => $indikator->tipe_indikator,
+            'satuan_indikator_id' => $indikator->satuan_indikator_id,
             'formula' => $indikator->formula,
             'sumber_data' => $indikator->sumber_data,
+            'urutan' => $indikator->urutan,
             'satuan' => $indikator->satuanIndikator ? [
                 'nama' => $indikator->satuanIndikator->nama,
                 'simbol' => $indikator->satuanIndikator->simbol,

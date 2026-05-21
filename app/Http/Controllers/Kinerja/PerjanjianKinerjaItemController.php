@@ -25,6 +25,19 @@ class PerjanjianKinerjaItemController extends Controller
         return back()->with('success', 'Item Perjanjian Kinerja berhasil ditambahkan.');
     }
 
+    public function update(StorePerjanjianKinerjaItemRequest $request, PerjanjianKinerja $perjanjianKinerja, PerjanjianKinerjaItem $item): RedirectResponse
+    {
+        $this->authorize('update', $perjanjianKinerja);
+        abort_unless((int) $item->perjanjian_kinerja_id === (int) $perjanjianKinerja->id, 404);
+
+        $data = $request->validated();
+        $this->assertRelationsBelongToOpd($data, (int) $perjanjianKinerja->opd_id);
+
+        $item->update($data);
+
+        return back()->with('success', 'Item Perjanjian Kinerja berhasil diperbarui.');
+    }
+
     public function destroy(PerjanjianKinerja $perjanjianKinerja, PerjanjianKinerjaItem $item): RedirectResponse
     {
         $this->authorize('update', $perjanjianKinerja);
