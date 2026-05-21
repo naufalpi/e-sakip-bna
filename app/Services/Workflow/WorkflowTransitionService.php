@@ -8,6 +8,7 @@ use App\Models\WorkflowSubmission;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class WorkflowTransitionService
 {
@@ -24,6 +25,8 @@ class WorkflowTransitionService
 
         $newStatus = $this->statusForAction($action);
         $oldStatus = (string) ($model->getAttribute('status') ?? 'draft');
+        $this->ensureValidTransition($action, $oldStatus);
+
         $relatedTable = $model->getTable();
         $relatedId = (int) $model->getKey();
 
@@ -117,6 +120,24 @@ class WorkflowTransitionService
     private function isLocked(Model $model): bool
     {
         return (string) ($model->getAttribute('status') ?? '') === 'locked';
+    }
+
+    private function ensureValidTransition(string $action, string $currentStatus): void
+    {
+        $allowedStatuses = match ($action) {
+            'submit' => ['draft', 'revision', 'rejected'],
+            'verify' => ['submitted'],
+            'approve' => ['submitted', 'verified'],
+            'reject', 'revision' => ['submitted', 'verified'],
+            'lock' => ['approved'],
+            default => [],
+        };
+
+        if (! in_array($currentStatus, $allowedStatuses, true)) {
+            throw ValidationException::withMessages([
+                'action' => "Aksi workflow tidak valid untuk status {$currentStatus}.",
+            ]);
+        }
     }
 
     private function statusForAction(string $action): string

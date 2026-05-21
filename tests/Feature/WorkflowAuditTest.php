@@ -81,22 +81,6 @@ class WorkflowAuditTest extends TestCase
         ]);
         $this->assertTrue(Notification::query()->where('user_id', $adminOpd->id)->exists());
 
-        foreach (['revision' => 'revision', 'reject' => 'rejected'] as $action => $status) {
-            $this->actingAs($reviewer)
-                ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), [
-                    'action' => $action,
-                ])
-                ->assertRedirect();
-
-            $this->assertSame($status, $pk->fresh()->status);
-            $this->assertDatabaseHas('workflow_histories', [
-                'related_table' => 'perjanjian_kinerja',
-                'related_id' => $pk->id,
-                'action' => $action,
-                'to_status' => $status,
-            ]);
-        }
-
         $this->actingAs($superAdmin)
             ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), [
                 'action' => 'lock',
@@ -104,6 +88,37 @@ class WorkflowAuditTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame('locked', $pk->fresh()->status);
+
+        foreach (['revision' => 'revision', 'reject' => 'rejected'] as $action => $status) {
+            $reviewPk = PerjanjianKinerja::create([
+                'opd_id' => $opd->id,
+                'periode_tahun_id' => $periode->id,
+                'tahun' => $periode->tahun,
+                'judul' => "PK Workflow {$action}",
+                'status' => 'submitted',
+            ]);
+
+            $this->actingAs($reviewer)
+                ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $reviewPk->id]), [
+                    'action' => $action,
+                ])
+                ->assertRedirect();
+
+            $this->assertSame($status, $reviewPk->fresh()->status);
+            $this->assertDatabaseHas('workflow_histories', [
+                'related_table' => 'perjanjian_kinerja',
+                'related_id' => $reviewPk->id,
+                'action' => $action,
+                'from_status' => 'submitted',
+                'to_status' => $status,
+            ]);
+        }
+
+        $this->actingAs($reviewer)
+            ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), [
+                'action' => 'revision',
+            ])
+            ->assertForbidden();
 
         $this->actingAs($adminOpd)
             ->patch(route('perjanjian-kinerja.update', $pk), [
@@ -186,6 +201,33 @@ class WorkflowAuditTest extends TestCase
                 ->component('Rpjmd/Show')
                 ->where('workflow.histories.0.action', 'submit')
             );
+    }
+
+    public function test_workflow_rejects_invalid_status_transition(): void
+    {
+        $this->seed();
+
+        [$opd, $periode, , $reviewer] = $this->actors();
+        $pk = PerjanjianKinerja::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'PK Invalid Transition',
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($reviewer)
+            ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), [
+                'action' => 'approve',
+            ])
+            ->assertSessionHasErrors('action');
+
+        $this->assertSame('draft', $pk->fresh()->status);
+        $this->assertDatabaseMissing('workflow_histories', [
+            'related_table' => 'perjanjian_kinerja',
+            'related_id' => $pk->id,
+            'action' => 'approve',
+        ]);
     }
 
     public function test_activity_log_records_create_update_delete_automatically(): void

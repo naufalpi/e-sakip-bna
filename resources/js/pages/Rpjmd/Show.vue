@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
+import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -135,6 +136,7 @@ const props = defineProps<{
     can: {
         manage: boolean;
         review: boolean;
+        lock: boolean;
     };
     workflow: Workflow;
 }>();
@@ -371,10 +373,6 @@ const destroyTargetTriwulan = (target: TargetTriwulan) => {
     }
 };
 
-const transition = (action: string) => {
-    router.post(route('workflow.transition', { module: 'rpjmd', id: props.rpjmd.id }), { action }, { preserveScroll: true });
-};
-
 const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
@@ -447,11 +445,15 @@ const triwulanLabel = (triwulan: string) =>
                         <Pencil class="size-4" />
                         Edit
                     </Link>
-                    <button v-if="can.manage" type="button" class="rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800" @click="transition('submit')">Ajukan</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('approve')">Setujui</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm text-amber-700 hover:bg-amber-50" @click="transition('revision')">Revisi</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm text-red-700 hover:bg-red-50" @click="transition('reject')">Tolak</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('lock')">Kunci</button>
+                    <WorkflowActionButtons
+                        module="rpjmd"
+                        :model-id="rpjmd.id"
+                        :status="rpjmd.status"
+                        :can-manage="can.manage"
+                        :can-review="can.review"
+                        :can-lock="can.lock"
+                        :show-verify="false"
+                    />
                 </div>
             </div>
 

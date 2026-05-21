@@ -164,6 +164,7 @@ class RenstraOpdController extends Controller
             'can' => [
                 'manage' => $manage,
                 'review' => $this->canReviewWorkflow($request->user()),
+                'lock' => $this->canLockWorkflow($request->user()),
             ],
             'workflow' => $workflowDataService->forModel($renstraOpd, 'renstra_opd'),
         ]);
@@ -219,6 +220,11 @@ class RenstraOpdController extends Controller
     {
         return $user->hasAnyRole(['super_admin', 'admin_kabupaten_bagian_organisasi'])
             || $user->hasPermission('lock_period');
+    }
+
+    private function canLockWorkflow(User $user): bool
+    {
+        return $user->isSuperAdmin() || $user->hasPermission('lock_period');
     }
 
     /**

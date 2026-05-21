@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
+import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -54,7 +55,7 @@ const props = defineProps<{
     perjanjianKinerjaItemOptions: Option[];
     rencanaAksiItemOptions: Option[];
     workflow: Workflow;
-    can: { manage: boolean; review: boolean };
+    can: { manage: boolean; review: boolean; lock: boolean };
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -132,10 +133,6 @@ const destroyProgram = (row: ProgramRow) => {
     }
 };
 
-const transition = (action: string) => {
-    router.post(route('workflow.transition', { module: 'realisasi_kinerja', id: props.item.id }), { action }, { preserveScroll: true });
-};
-
 const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
@@ -176,12 +173,14 @@ const statusClass = (status: string) =>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <Link v-if="can.manage" :href="route('realisasi-kinerja.edit', item.id)" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Edit</Link>
-                    <button v-if="can.manage" type="button" class="rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800" @click="transition('submit')">Ajukan</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('verify')">Verifikasi</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('approve')">Setujui</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm text-amber-700 hover:bg-amber-50" @click="transition('revision')">Revisi</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm text-red-700 hover:bg-red-50" @click="transition('reject')">Tolak</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('lock')">Kunci</button>
+                    <WorkflowActionButtons
+                        module="realisasi_kinerja"
+                        :model-id="item.id"
+                        :status="item.status"
+                        :can-manage="can.manage"
+                        :can-review="can.review"
+                        :can-lock="can.lock"
+                    />
                 </div>
             </div>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
+import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -47,7 +48,7 @@ const props = defineProps<{
     };
     generatedDocuments: GeneratedDocument[];
     workflow: Workflow;
-    can: { manage: boolean; export: boolean; review: boolean };
+    can: { manage: boolean; export: boolean; review: boolean; lock: boolean };
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -83,10 +84,6 @@ const destroyBab = (bab: Bab) => {
     if (confirm(`Hapus ${bab.kode} - ${bab.judul}?`)) {
         router.delete(route('lkjip.bab.destroy', { lkjip: props.item.id, bab: bab.id }), { preserveScroll: true });
     }
-};
-
-const transition = (action: string) => {
-    router.post(route('workflow.transition', { module: 'lkjip', id: props.item.id }), { action }, { preserveScroll: true });
 };
 
 const generateDraft = () => {
@@ -155,12 +152,14 @@ const formatFileSize = (bytes: number) => {
                     <button v-if="can.export" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportDocument('word')">Export Word</button>
                     <button v-if="can.manage" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="generateDraft">Buat Draft Otomatis</button>
                     <Link v-if="can.manage" :href="route('lkjip.edit', item.id)" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Edit</Link>
-                    <button v-if="can.manage" type="button" class="rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800" @click="transition('submit')">Ajukan</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('verify')">Verifikasi</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('approve')">Setujui</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm text-amber-700 hover:bg-amber-50" @click="transition('revision')">Revisi</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm text-red-700 hover:bg-red-50" @click="transition('reject')">Tolak</button>
-                    <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('lock')">Kunci</button>
+                    <WorkflowActionButtons
+                        module="lkjip"
+                        :model-id="item.id"
+                        :status="item.status"
+                        :can-manage="can.manage"
+                        :can-review="can.review"
+                        :can-lock="can.lock"
+                    />
                 </div>
             </div>
 

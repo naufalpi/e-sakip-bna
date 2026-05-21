@@ -126,6 +126,7 @@ class EvaluasiSakipController extends Controller
                 'tindak_lanjut' => $request->user()->can('tindakLanjut', $evaluasiSakip),
                 'verify_tindak_lanjut' => $this->canVerifyTindakLanjut($request->user()),
                 'review' => $this->canVerifyTindakLanjut($request->user()),
+                'lock' => $this->canLockWorkflow($request->user()),
             ],
             'workflow' => $workflowDataService->forModel($evaluasiSakip, 'evaluasi_sakip'),
         ]);
@@ -386,6 +387,11 @@ class EvaluasiSakipController extends Controller
     {
         return $user->hasAnyRole(['super_admin', 'admin_kabupaten_inspektorat'])
             && $user->hasAnyPermission(['evaluasi.manage', 'manage_evaluasi']);
+    }
+
+    private function canLockWorkflow(User $user): bool
+    {
+        return $user->isSuperAdmin() || $user->hasPermission('lock_period');
     }
 
     private function canExportLhe(User $user, EvaluasiSakip $evaluasi): bool

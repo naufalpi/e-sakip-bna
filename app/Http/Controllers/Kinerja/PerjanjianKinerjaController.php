@@ -123,6 +123,7 @@ class PerjanjianKinerjaController extends Controller
             'can' => [
                 'manage' => $request->user()->can('update', $perjanjianKinerja),
                 'review' => $this->canReviewWorkflow($request->user()),
+                'lock' => $this->canLockWorkflow($request->user()),
             ],
         ]);
     }
@@ -227,5 +228,10 @@ class PerjanjianKinerjaController extends Controller
         return $user->hasAnyRole(['super_admin', 'admin_kabupaten_bagian_organisasi', 'admin_kabupaten_inspektorat'])
             || $user->hasPermission('verify_realisasi')
             || $user->hasPermission('lock_period');
+    }
+
+    private function canLockWorkflow(User $user): bool
+    {
+        return $user->isSuperAdmin() || $user->hasPermission('lock_period');
     }
 }
