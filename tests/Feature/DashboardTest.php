@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\EvaluasiSakip;
+use App\Models\Notification;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
 use App\Models\PerjanjianKinerja;
@@ -37,6 +38,38 @@ class DashboardTest extends TestCase
 
         $response = $this->get('/dashboard');
         $response->assertStatus(200);
+    }
+
+    public function test_shared_data_contains_unread_notification_count(): void
+    {
+        $user = User::factory()->create();
+
+        Notification::create([
+            'user_id' => $user->id,
+            'type' => 'test',
+            'title' => 'Notifikasi belum dibaca',
+            'message' => 'Satu',
+        ]);
+        Notification::create([
+            'user_id' => $user->id,
+            'type' => 'test',
+            'title' => 'Notifikasi belum dibaca kedua',
+            'message' => 'Dua',
+        ]);
+        Notification::create([
+            'user_id' => $user->id,
+            'type' => 'test',
+            'title' => 'Notifikasi sudah dibaca',
+            'message' => 'Tiga',
+            'read_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('notifications.unread_count', 2)
+            );
     }
 
     public function test_kabupaten_dashboard_shows_monitoring_summary(): void

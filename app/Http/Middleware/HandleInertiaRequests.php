@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Notification;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -76,6 +77,14 @@ class HandleInertiaRequests extends Middleware
                         ->unique()
                         ->values(),
                 ] : null,
+            ],
+            'notifications' => [
+                'unread_count' => $user
+                    ? Notification::query()
+                        ->where('user_id', $user->id)
+                        ->whereNull('read_at')
+                        ->count()
+                    : 0,
             ],
         ]);
     }

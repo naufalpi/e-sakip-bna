@@ -13,6 +13,8 @@ const page = usePage<SharedData>();
 const hasPermission = (permission: string) => page.props.auth.user?.permissions?.includes(permission) ?? false;
 const hasAnyPermission = (permissions: string[]) => permissions.some((permission) => hasPermission(permission));
 const visibleItems = (items: Array<NavItem | false>) => items.filter(Boolean) as NavItem[];
+const notificationUnreadCount = computed(() => page.props.notifications?.unread_count ?? 0);
+const notificationBadge = computed(() => (notificationUnreadCount.value > 99 ? '99+' : notificationUnreadCount.value || undefined));
 
 const navigationGroups = computed<NavGroup[]>(() =>
     [
@@ -33,6 +35,7 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     title: 'Notifikasi',
                     href: '/notifications',
                     icon: Bell,
+                    badge: notificationBadge.value,
                 },
             ]),
         },

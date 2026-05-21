@@ -14,6 +14,7 @@ export interface NavItem {
     href: string;
     icon?: LucideIcon;
     isActive?: boolean;
+    badge?: string | number;
 }
 
 export interface NavGroup {
@@ -25,6 +26,9 @@ export interface SharedData {
     name: string;
     quote: { message: string; author: string };
     auth: Auth;
+    notifications: {
+        unread_count: number;
+    };
     ziggy: {
         location: string;
         url: string;
