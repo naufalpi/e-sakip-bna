@@ -16,13 +16,14 @@ class LheDocumentContentService
      *     subtitle: string,
      *     filename: string,
      *     sections: array<int, array{heading: string, content: string}>,
+     *     tables: array<int, array{title: string, headers: array<int, string>, rows: array<int, array<int, string>>}>,
      *     metadata: array<string, mixed>
      * }
      */
     public function build(EvaluasiSakip $evaluasi): array
     {
         $evaluasi->loadMissing([
-            'opd:id,kode,nama,singkatan',
+            'opd:id,kode,nama,singkatan,nama_kepala,nip_kepala',
             'periodeTahun:id,tahun,nama',
             'evaluator:id,name',
             'items.kriteria.subKomponen.komponen',
@@ -37,14 +38,34 @@ class LheDocumentContentService
             'subtitle' => $this->opdName($evaluasi).' Tahun '.$evaluasi->tahun,
             'filename' => $this->filename($evaluasi),
             'sections' => [
-                ['heading' => 'Identitas Evaluasi', 'content' => $this->identitas($evaluasi)],
-                ['heading' => 'Ringkasan Hasil Evaluasi', 'content' => $this->ringkasan($evaluasi)],
-                ['heading' => 'Rincian Nilai per Komponen', 'content' => $this->rincianNilai($evaluasi->items)],
-                ['heading' => 'Rekomendasi Perbaikan', 'content' => $this->rekomendasi($evaluasi->rekomendasi)],
-                ['heading' => 'Status Tindak Lanjut', 'content' => $this->tindakLanjut($evaluasi->rekomendasi)],
+                ['heading' => 'BAB I - Pendahuluan', 'content' => $this->identitas($evaluasi)],
+                ['heading' => 'BAB II - Ringkasan Hasil Evaluasi', 'content' => $this->ringkasan($evaluasi)],
+                ['heading' => 'BAB III - Rincian Nilai per Komponen', 'content' => $this->rincianNilai($evaluasi->items)],
+                ['heading' => 'BAB IV - Rekomendasi dan Tindak Lanjut', 'content' => $this->rekomendasi($evaluasi->rekomendasi)."\n\n".$this->tindakLanjut($evaluasi->rekomendasi)],
             ],
+            'tables' => $this->tables($evaluasi),
             'metadata' => [
                 'source' => 'lhe_auto_export',
+                'document_title' => 'Laporan Hasil Evaluasi SAKIP',
+                'document_subtitle' => $this->opdName($evaluasi).' Tahun '.$evaluasi->tahun,
+                'agency_name' => 'PEMERINTAH KABUPATEN BANJARNEGARA',
+                'office_name' => 'INSPEKTORAT DAERAH KABUPATEN BANJARNEGARA',
+                'address_line' => 'Kabupaten Banjarnegara, Jawa Tengah',
+                'tahun' => $evaluasi->tahun,
+                'identity' => [
+                    ['label' => 'Nomor LHE', 'value' => $evaluasi->lhe?->nomor_lhe ?: '-'],
+                    ['label' => 'Tanggal LHE', 'value' => $evaluasi->lhe?->tanggal_lhe?->toDateString() ?: '-'],
+                    ['label' => 'OPD', 'value' => $this->opdName($evaluasi)],
+                    ['label' => 'Periode', 'value' => $evaluasi->periodeTahun?->nama ?: (string) $evaluasi->tahun],
+                    ['label' => 'Predikat', 'value' => $evaluasi->predikat ?: '-'],
+                    ['label' => 'Nilai Akhir', 'value' => $this->number($evaluasi->nilai_akhir)],
+                ],
+                'signature' => [
+                    'place_date' => 'Banjarnegara, '.now()->translatedFormat('d F Y'),
+                    'title' => 'Inspektur Kabupaten Banjarnegara',
+                    'name' => $evaluasi->lhe?->disusunOleh?->name ?: ($evaluasi->evaluator?->name ?: '(nama pejabat)'),
+                    'nip' => '-',
+                ],
                 'evaluasi_sakip_id' => $evaluasi->id,
                 'lhe_id' => $evaluasi->lhe?->id,
                 'opd_id' => $evaluasi->opd_id,
@@ -147,6 +168,72 @@ class LheDocumentContentService
         }
 
         return $lines ? implode("\n", $lines) : 'Belum ada tindak lanjut rekomendasi.';
+    }
+
+    /**
+     * @return array<int, array{title: string, headers: array<int, string>, rows: array<int, array<int, string>>}>
+     */
+    private function tables(EvaluasiSakip $evaluasi): array
+    {
+        return [
+            [
+                'title' => 'Lampiran 1. Rincian Nilai Evaluasi SAKIP',
+                'headers' => ['No', 'Komponen', 'Sub Komponen', 'Kriteria', 'Nilai', 'Skor'],
+                'rows' => $this->nilaiRows($evaluasi->items),
+            ],
+            [
+                'title' => 'Lampiran 2. Rekomendasi Hasil Evaluasi',
+                'headers' => ['No', 'Nomor', 'Rekomendasi', 'Prioritas', 'Status Tindak Lanjut'],
+                'rows' => $this->rekomendasiRows($evaluasi->rekomendasi),
+            ],
+        ];
+    }
+
+    /**
+     * @param  Collection<int, EvaluasiSakipItem>  $items
+     * @return array<int, array<int, string>>
+     */
+    private function nilaiRows(Collection $items): array
+    {
+        if ($items->isEmpty()) {
+            return [['-', 'Belum ada nilai evaluasi.', '-', '-', '-', '-']];
+        }
+
+        return $items->values()
+            ->map(function (EvaluasiSakipItem $item, int $index) {
+                $kriteria = $item->kriteria;
+
+                return [
+                    (string) ($index + 1),
+                    $kriteria?->subKomponen?->komponen?->nama ?: '-',
+                    $kriteria?->subKomponen?->nama ?: '-',
+                    ($kriteria?->kode ? $kriteria->kode.' - ' : '').($kriteria?->nama ?: '-'),
+                    $this->number($item->nilai),
+                    $this->number($item->skor),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @param  Collection<int, RekomendasiEvaluasi>  $rekomendasi
+     * @return array<int, array<int, string>>
+     */
+    private function rekomendasiRows(Collection $rekomendasi): array
+    {
+        if ($rekomendasi->isEmpty()) {
+            return [['-', '-', 'Belum ada rekomendasi evaluasi.', '-', '-']];
+        }
+
+        return $rekomendasi->values()
+            ->map(fn (RekomendasiEvaluasi $item, int $index) => [
+                (string) ($index + 1),
+                $item->nomor ?: '-',
+                $item->rekomendasi,
+                Str::headline($item->prioritas),
+                $this->statusLabel($item->status_tindak_lanjut),
+            ])
+            ->all();
     }
 
     private function opdName(EvaluasiSakip $evaluasi): string

@@ -14,7 +14,8 @@ class LkjipDraftContentService
      *     filename: string,
      *     content: string,
      *     bab: array<int, array{kode: string, judul: string, jenis: string, konten: string, urutan: int}>,
-     *     metadata: array<string, mixed>
+     *     metadata: array<string, mixed>,
+     *     tables: array<int, array{title: string, headers: array<int, string>, rows: array<int, array<int, string>>}>
      * }
      */
     public function build(Lkjip $lkjip): array
@@ -22,7 +23,7 @@ class LkjipDraftContentService
         $lkjip->loadMissing([
             'opd:id,kode,nama,singkatan,nama_kepala,nip_kepala',
             'periodeTahun:id,tahun,nama,tanggal_mulai,tanggal_selesai',
-            'perjanjianKinerja.items.satuanIndikator:id,nama,singkatan',
+            'perjanjianKinerja.items.satuanIndikator:id,nama,simbol',
             'realisasiKinerja.programs',
             'evaluasiSakip.rekomendasi.tindakLanjut',
             'bab',
@@ -66,8 +67,12 @@ class LkjipDraftContentService
             ],
         ];
 
+        $metadata = $this->metadata($lkjip);
+        $tables = $this->tables($lkjip);
+
         $header = [
-            '# Draft LKJIP '.$lkjip->tahun,
+            '# PEMERINTAH KABUPATEN BANJARNEGARA',
+            '# LAPORAN KINERJA INSTANSI PEMERINTAH (LKJIP) '.$lkjip->tahun,
             '',
             'Judul: '.$lkjip->judul,
             'OPD: '.$this->opdName($lkjip),
@@ -86,16 +91,8 @@ class LkjipDraftContentService
             'filename' => $this->filename($lkjip),
             'content' => $content,
             'bab' => $bab,
-            'metadata' => [
-                'source' => 'lkjip_auto_draft',
-                'lkjip_id' => $lkjip->id,
-                'opd_id' => $lkjip->opd_id,
-                'periode_tahun_id' => $lkjip->periode_tahun_id,
-                'perjanjian_kinerja_id' => $lkjip->perjanjian_kinerja_id,
-                'realisasi_kinerja_id' => $lkjip->realisasi_kinerja_id,
-                'evaluasi_sakip_id' => $lkjip->evaluasi_sakip_id,
-                'generated_at' => now()->toDateTimeString(),
-            ],
+            'metadata' => $metadata,
+            'tables' => $tables,
         ];
     }
 
@@ -125,7 +122,7 @@ class LkjipDraftContentService
         foreach ($pk->items as $index => $item) {
             $target = filled($item->target_text)
                 ? $item->target_text
-                : $this->number($item->target).($item->satuanIndikator?->singkatan ? ' '.$item->satuanIndikator->singkatan : '');
+                : $this->number($item->target).($item->satuanIndikator?->simbol ? ' '.$item->satuanIndikator->simbol : '');
 
             $lines[] = ($index + 1).'. Sasaran: '.$item->sasaran;
             $lines[] = '   Indikator: '.$item->indikator;
@@ -186,11 +183,10 @@ class LkjipDraftContentService
     private function lampiran(Lkjip $lkjip): string
     {
         $lines = [
-            'Lampiran yang perlu disiapkan:',
-            '1. Matriks Perjanjian Kinerja.',
-            '2. Tabel realisasi kinerja dan anggaran.',
-            '3. Bukti dukung capaian indikator.',
-            '4. Rekomendasi evaluasi dan status tindak lanjut.',
+            'Lampiran disusun dalam format tabel resmi dan menjadi bagian tidak terpisahkan dari dokumen LKJIP.',
+            '1. Lampiran Matriks Perjanjian Kinerja.',
+            '2. Lampiran Tabel Realisasi Kinerja dan Anggaran.',
+            '3. Lampiran Rekomendasi Evaluasi dan Status Tindak Lanjut.',
             '',
             'Rekomendasi evaluasi:',
         ];
@@ -206,6 +202,132 @@ class LkjipDraftContentService
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metadata(Lkjip $lkjip): array
+    {
+        return [
+            'source' => 'lkjip_auto_draft',
+            'document_title' => 'Laporan Kinerja Instansi Pemerintah (LKJIP)',
+            'document_subtitle' => $this->opdName($lkjip).' Tahun '.$lkjip->tahun,
+            'agency_name' => 'PEMERINTAH KABUPATEN BANJARNEGARA',
+            'office_name' => strtoupper($this->opdName($lkjip)),
+            'address_line' => 'Kabupaten Banjarnegara, Jawa Tengah',
+            'tahun' => $lkjip->tahun,
+            'identity' => [
+                ['label' => 'Nama Dokumen', 'value' => $lkjip->judul],
+                ['label' => 'Nomor Dokumen', 'value' => $lkjip->nomor_dokumen ?: '-'],
+                ['label' => 'OPD', 'value' => $this->opdName($lkjip)],
+                ['label' => 'Periode', 'value' => $lkjip->periodeTahun?->nama ?: (string) $lkjip->tahun],
+                ['label' => 'Status', 'value' => $this->statusLabel($lkjip->status)],
+            ],
+            'signature' => [
+                'place_date' => 'Banjarnegara, '.now()->translatedFormat('d F Y'),
+                'title' => $lkjip->opd?->nama ? 'Kepala '.$lkjip->opd->nama : 'Kepala OPD',
+                'name' => $lkjip->opd?->nama_kepala ?: '(nama pejabat)',
+                'nip' => $lkjip->opd?->nip_kepala ?: '-',
+            ],
+            'lkjip_id' => $lkjip->id,
+            'opd_id' => $lkjip->opd_id,
+            'periode_tahun_id' => $lkjip->periode_tahun_id,
+            'perjanjian_kinerja_id' => $lkjip->perjanjian_kinerja_id,
+            'realisasi_kinerja_id' => $lkjip->realisasi_kinerja_id,
+            'evaluasi_sakip_id' => $lkjip->evaluasi_sakip_id,
+            'generated_at' => now()->toDateTimeString(),
+        ];
+    }
+
+    /**
+     * @return array<int, array{title: string, headers: array<int, string>, rows: array<int, array<int, string>>}>
+     */
+    private function tables(Lkjip $lkjip): array
+    {
+        return [
+            [
+                'title' => 'Lampiran 1. Matriks Perjanjian Kinerja',
+                'headers' => ['No', 'Sasaran', 'Indikator', 'Target'],
+                'rows' => $this->pkRows($lkjip),
+            ],
+            [
+                'title' => 'Lampiran 2. Realisasi Kinerja dan Anggaran',
+                'headers' => ['No', 'Indikator', 'Target', 'Realisasi', 'Capaian', 'Anggaran', 'Serapan', 'Efisiensi'],
+                'rows' => $this->realisasiRows($lkjip),
+            ],
+            [
+                'title' => 'Lampiran 3. Rekomendasi Evaluasi',
+                'headers' => ['No', 'Rekomendasi', 'Status Tindak Lanjut'],
+                'rows' => $this->rekomendasiRows($lkjip),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<int, array<int, string>>
+     */
+    private function pkRows(Lkjip $lkjip): array
+    {
+        $items = $lkjip->perjanjianKinerja?->items ?: collect();
+
+        if ($items->isEmpty()) {
+            return [['-', 'Belum ada data Perjanjian Kinerja.', '-', '-']];
+        }
+
+        return $items->values()
+            ->map(fn ($item, int $index) => [
+                (string) ($index + 1),
+                (string) $item->sasaran,
+                (string) $item->indikator,
+                filled($item->target_text) ? (string) $item->target_text : $this->number($item->target),
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<int, string>>
+     */
+    private function realisasiRows(Lkjip $lkjip): array
+    {
+        $programs = $lkjip->realisasiKinerja?->programs ?: collect();
+
+        if ($programs->isEmpty()) {
+            return [['-', 'Belum ada realisasi kinerja.', '-', '-', '-', '-', '-', '-']];
+        }
+
+        return $programs->values()
+            ->map(fn (RealisasiProgram $program, int $index) => [
+                (string) ($index + 1),
+                (string) $program->indikator,
+                filled($program->target_text) ? (string) $program->target_text : $this->number($program->target),
+                filled($program->realisasi_text) ? (string) $program->realisasi_text : $this->number($program->realisasi),
+                $this->percent($program->capaian_persen).' / '.($program->status_capaian ?: '-'),
+                $this->money($program->anggaran),
+                $this->percent($program->serapan_anggaran_persen),
+                $program->status_efisiensi ? Str::headline($program->status_efisiensi) : '-',
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<int, string>>
+     */
+    private function rekomendasiRows(Lkjip $lkjip): array
+    {
+        $items = $lkjip->evaluasiSakip?->rekomendasi ?: collect();
+
+        if ($items->isEmpty()) {
+            return [['-', 'Belum ada rekomendasi evaluasi.', '-']];
+        }
+
+        return $items->values()
+            ->map(fn ($item, int $index) => [
+                (string) ($index + 1),
+                (string) $item->rekomendasi,
+                $this->statusLabel($item->status_tindak_lanjut),
+            ])
+            ->all();
     }
 
     private function programLine(RealisasiProgram $program, int $number): string

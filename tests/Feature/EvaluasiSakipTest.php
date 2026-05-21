@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
+use ZipArchive;
 
 class EvaluasiSakipTest extends TestCase
 {
@@ -359,6 +360,9 @@ class EvaluasiSakipTest extends TestCase
 
         $this->assertStringStartsWith('%PDF', Storage::disk($pdf->storage_disk)->get($pdf->storage_path));
         $this->assertStringStartsWith("PK\x03\x04", Storage::disk($word->storage_disk)->get($word->storage_path));
+        $this->assertSame('Laporan Hasil Evaluasi SAKIP', $word->metadata['document_title']);
+        $this->assertStringContainsString('INSPEKTORAT DAERAH KABUPATEN BANJARNEGARA', $this->docxDocumentXml($word));
+        $this->assertStringContainsString('Lampiran 1. Rincian Nilai Evaluasi SAKIP', $this->docxDocumentXml($word));
         $this->assertDatabaseHas('dokumen_relations', [
             'dokumen_id' => $pdf->id,
             'related_type' => EvaluasiSakip::class,
@@ -384,5 +388,15 @@ class EvaluasiSakipTest extends TestCase
         $adminOpd->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
 
         return [$opd, $otherOpd, $periode, $inspektorat, $adminOpd];
+    }
+
+    private function docxDocumentXml(Dokumen $dokumen): string
+    {
+        $zip = new ZipArchive;
+        $zip->open(Storage::disk($dokumen->storage_disk)->path($dokumen->storage_path));
+        $xml = $zip->getFromName('word/document.xml') ?: '';
+        $zip->close();
+
+        return $xml;
     }
 }

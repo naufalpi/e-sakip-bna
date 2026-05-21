@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
+use ZipArchive;
 
 class LkjipTest extends TestCase
 {
@@ -409,6 +410,9 @@ class LkjipTest extends TestCase
 
         $this->assertStringStartsWith('%PDF', Storage::disk($pdf->storage_disk)->get($pdf->storage_path));
         $this->assertStringStartsWith("PK\x03\x04", Storage::disk($word->storage_disk)->get($word->storage_path));
+        $this->assertSame('Laporan Kinerja Instansi Pemerintah (LKJIP)', $word->metadata['document_title']);
+        $this->assertStringContainsString('PEMERINTAH KABUPATEN BANJARNEGARA', $this->docxDocumentXml($word));
+        $this->assertStringContainsString('Lampiran 1. Matriks Perjanjian Kinerja', $this->docxDocumentXml($word));
         $this->assertDatabaseHas('dokumen_relations', [
             'dokumen_id' => $pdf->id,
             'related_type' => Lkjip::class,
@@ -431,5 +435,15 @@ class LkjipTest extends TestCase
         $adminOpd->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
 
         return [$opd, $otherOpd, $periode, $adminOpd];
+    }
+
+    private function docxDocumentXml(Dokumen $dokumen): string
+    {
+        $zip = new ZipArchive;
+        $zip->open(Storage::disk($dokumen->storage_disk)->path($dokumen->storage_path));
+        $xml = $zip->getFromName('word/document.xml') ?: '';
+        $zip->close();
+
+        return $xml;
     }
 }
