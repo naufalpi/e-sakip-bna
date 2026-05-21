@@ -5,7 +5,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BarChart3, Bell, BookOpenCheck, Building2, ClipboardCheck, FileCheck2, FileText, GitBranch, Layers3, LayoutDashboard, ListChecks, ScrollText, ShieldCheck, Users } from 'lucide-vue-next';
+import { BarChart3, Bell, BookOpenCheck, Building2, ClipboardCheck, FileCheck2, FileText, GitBranch, Layers3, LayoutDashboard, ListChecks, Network, ScrollText, ShieldCheck, Users } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -38,6 +38,13 @@ const mainNavItems = computed<NavItem[]>(() => [
               title: 'Renstra OPD',
               href: '/renstra-opd',
               icon: Layers3,
+          }]
+        : []),
+    ...(hasAnyPermission(['rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd'])
+        ? [{
+              title: 'Pohon Kinerja',
+              href: '/pohon-kinerja',
+              icon: Network,
           }]
         : []),
     ...(hasAnyPermission(['kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja'])

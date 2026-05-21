@@ -22,6 +22,7 @@ use App\Http\Controllers\Master\OpdController;
 use App\Http\Controllers\Master\RolePermissionController;
 use App\Http\Controllers\Master\UserController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Perencanaan\PohonKinerjaController;
 use App\Http\Controllers\Perencanaan\TargetTriwulanIndikatorController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdNodeController;
@@ -42,6 +43,11 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+
+    Route::get('pohon-kinerja', [PohonKinerjaController::class, 'index'])->name('pohon-kinerja.index');
+    Route::get('pohon-kinerja/kabupaten/{rpjmd}', [PohonKinerjaController::class, 'kabupaten'])->name('pohon-kinerja.kabupaten');
+    Route::get('pohon-kinerja/opd/{renstra_opd}', [PohonKinerjaController::class, 'opd'])->name('pohon-kinerja.opd');
+    Route::get('pohon-kinerja/cascading-opd/{renstra_opd}', [PohonKinerjaController::class, 'cascadingOpd'])->name('pohon-kinerja.cascading-opd');
 
     Route::get('rpjmd/import', [RpjmdImportController::class, 'create'])->name('rpjmd.import.create');
     Route::post('rpjmd/import', [RpjmdImportController::class, 'store'])->name('rpjmd.import.store');
