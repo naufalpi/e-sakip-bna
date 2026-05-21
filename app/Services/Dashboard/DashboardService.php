@@ -34,7 +34,7 @@ class DashboardService
         $scope = $this->dashboardScope($user);
 
         $cacheKey = sprintf(
-            'dashboard:v1:user:%d:scope:%s:tahun:%d:opd:%s',
+            'dashboard:v2:user:%d:scope:%s:tahun:%d:opd:%s',
             $user->id,
             $scope,
             $tahun,
@@ -92,11 +92,18 @@ class DashboardService
         $recommendationStatus = $this->recommendationStatus($opdIds, $tahun);
         $evaluationRanking = $this->evaluationRanking($opdIds, $tahun);
         $openRecommendations = $this->openRecommendations($opdIds, $tahun);
+        $overdueRecommendations = $this->overdueRecommendations($opdIds, $tahun);
+        $overdueRecommendationCount = $this->overdueRecommendationCount($opdIds, $tahun);
         $latestWorkflow = $this->latestWorkflow($opdIds, $tahun);
+        $achievementStatusDistribution = $this->achievementStatusDistribution($opdIds, $tahun);
+        $efficiencyStatusDistribution = $this->efficiencyStatusDistribution($opdIds, $tahun);
+        $quarterlyAchievement = $this->quarterlyAchievement($opdIds, $tahun);
+        $opdsWithoutRealization = $this->opdsWithoutRealization($visibleOpds, $realisasiOpdIds);
 
         $totalOpd = count($opdIds);
         $openRecommendationTotal = array_sum($rekomendasiTerbukaByOpd);
         $avgEvaluation = $evaluasiByOpd->avg(fn (EvaluasiSakip $evaluasi) => (float) $evaluasi->nilai_akhir);
+        $achievementCounts = collect($achievementStatusDistribution)->pluck('count', 'status');
 
         return [
             'dashboard' => [
@@ -125,6 +132,11 @@ class DashboardService
                 'avg_capaian' => $this->selectedYearAchievement($achievementByYear, $tahun),
                 'avg_evaluasi' => $avgEvaluation !== null ? round((float) $avgEvaluation, 2) : 0,
                 'rekomendasi_terbuka_count' => $openRecommendationTotal,
+                'rekomendasi_overdue_count' => $overdueRecommendationCount,
+                'opd_belum_realisasi_count' => count($opdsWithoutRealization),
+                'indikator_merah_count' => (int) ($achievementCounts['merah'] ?? 0),
+                'indikator_kuning_count' => (int) ($achievementCounts['kuning'] ?? 0),
+                'indikator_hijau_count' => (int) ($achievementCounts['hijau'] ?? 0),
                 'workflow_pending_count' => collect($workflowStatus)
                     ->whereIn('status', ['submitted', 'revision'])
                     ->sum('count'),
@@ -144,7 +156,12 @@ class DashboardService
             'recommendationStatus' => $recommendationStatus,
             'evaluationRanking' => $evaluationRanking,
             'openRecommendations' => $openRecommendations,
+            'overdueRecommendations' => $overdueRecommendations,
             'latestWorkflow' => $latestWorkflow,
+            'achievementStatusDistribution' => $achievementStatusDistribution,
+            'efficiencyStatusDistribution' => $efficiencyStatusDistribution,
+            'quarterlyAchievement' => $quarterlyAchievement,
+            'opdsWithoutRealization' => $opdsWithoutRealization,
             'quickLinks' => $this->quickLinks($scope, $user),
         ];
     }
@@ -432,6 +449,128 @@ class DashboardService
 
     /**
      * @param  array<int, int>  $opdIds
+     * @return array<int, array{status: string, label: string, count: int, percent: int}>
+     */
+    private function achievementStatusDistribution(array $opdIds, int $tahun): array
+    {
+        $rows = DB::table('realisasi_program')
+            ->join('realisasi_kinerja', 'realisasi_kinerja.id', '=', 'realisasi_program.realisasi_kinerja_id')
+            ->whereNull('realisasi_program.deleted_at')
+            ->whereNull('realisasi_kinerja.deleted_at')
+            ->whereIn('realisasi_kinerja.opd_id', $opdIds)
+            ->where('realisasi_kinerja.tahun', $tahun)
+            ->whereIn('realisasi_program.status_capaian', ['merah', 'kuning', 'hijau'])
+            ->select('realisasi_program.status_capaian as status', DB::raw('count(*) as total'))
+            ->groupBy('realisasi_program.status_capaian')
+            ->pluck('total', 'status')
+            ->mapWithKeys(fn ($total, $status) => [(string) $status => (int) $total])
+            ->all();
+
+        return $this->distributionRows([
+            'merah' => 'Merah',
+            'kuning' => 'Kuning',
+            'hijau' => 'Hijau',
+        ], $rows);
+    }
+
+    /**
+     * @param  array<int, int>  $opdIds
+     * @return array<int, array{status: string, label: string, count: int, percent: int}>
+     */
+    private function efficiencyStatusDistribution(array $opdIds, int $tahun): array
+    {
+        $rows = DB::table('realisasi_program')
+            ->join('realisasi_kinerja', 'realisasi_kinerja.id', '=', 'realisasi_program.realisasi_kinerja_id')
+            ->whereNull('realisasi_program.deleted_at')
+            ->whereNull('realisasi_kinerja.deleted_at')
+            ->whereIn('realisasi_kinerja.opd_id', $opdIds)
+            ->where('realisasi_kinerja.tahun', $tahun)
+            ->whereIn('realisasi_program.status_efisiensi', ['efisien', 'cukup_efisien', 'tidak_efisien'])
+            ->select('realisasi_program.status_efisiensi as status', DB::raw('count(*) as total'))
+            ->groupBy('realisasi_program.status_efisiensi')
+            ->pluck('total', 'status')
+            ->mapWithKeys(fn ($total, $status) => [(string) $status => (int) $total])
+            ->all();
+
+        return $this->distributionRows([
+            'efisien' => 'Efisien',
+            'cukup_efisien' => 'Cukup Efisien',
+            'tidak_efisien' => 'Tidak Efisien',
+        ], $rows);
+    }
+
+    /**
+     * @param  array<string, string>  $labels
+     * @param  array<string, int>  $counts
+     * @return array<int, array{status: string, label: string, count: int, percent: int}>
+     */
+    private function distributionRows(array $labels, array $counts): array
+    {
+        $total = array_sum($counts);
+
+        return collect($labels)
+            ->map(fn (string $label, string $status) => [
+                'status' => $status,
+                'label' => $label,
+                'count' => $counts[$status] ?? 0,
+                'percent' => $total > 0 ? (int) round(($counts[$status] ?? 0) / $total * 100) : 0,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $opdIds
+     * @return array<int, array{triwulan: string, label: string, rata_capaian: float, indikator_count: int, opd_count: int, completion_percent: int}>
+     */
+    private function quarterlyAchievement(array $opdIds, int $tahun): array
+    {
+        $rows = DB::table('realisasi_program')
+            ->join('realisasi_kinerja', 'realisasi_kinerja.id', '=', 'realisasi_program.realisasi_kinerja_id')
+            ->whereNull('realisasi_program.deleted_at')
+            ->whereNull('realisasi_kinerja.deleted_at')
+            ->whereIn('realisasi_kinerja.opd_id', $opdIds)
+            ->where('realisasi_kinerja.tahun', $tahun)
+            ->where('realisasi_kinerja.periode_realisasi', 'triwulan')
+            ->whereIn('realisasi_kinerja.triwulan', ['tw1', 'tw2', 'tw3', 'tw4'])
+            ->whereNotNull('realisasi_program.capaian_persen')
+            ->select(
+                'realisasi_kinerja.triwulan',
+                DB::raw('avg(realisasi_program.capaian_persen) as rata_capaian'),
+                DB::raw('count(realisasi_program.id) as indikator_count'),
+                DB::raw('count(distinct realisasi_kinerja.opd_id) as opd_count'),
+            )
+            ->groupBy('realisasi_kinerja.triwulan')
+            ->get()
+            ->keyBy('triwulan');
+
+        $totalOpd = count($opdIds);
+
+        return collect([
+            'tw1' => 'Triwulan I',
+            'tw2' => 'Triwulan II',
+            'tw3' => 'Triwulan III',
+            'tw4' => 'Triwulan IV',
+        ])
+            ->map(function (string $label, string $triwulan) use ($rows, $totalOpd) {
+                $row = $rows->get($triwulan);
+                $opdCount = $row ? (int) $row->opd_count : 0;
+
+                return [
+                    'triwulan' => $triwulan,
+                    'label' => $label,
+                    'rata_capaian' => $row ? round((float) $row->rata_capaian, 2) : 0,
+                    'indikator_count' => $row ? (int) $row->indikator_count : 0,
+                    'opd_count' => $opdCount,
+                    'completion_percent' => $totalOpd > 0 ? (int) round($opdCount / $totalOpd * 100) : 0,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $opdIds
      * @return array<int, array{status: string, label: string, count: int}>
      */
     private function workflowStatus(array $opdIds, int $tahun): array
@@ -552,6 +691,69 @@ class DashboardService
                 'status_tindak_lanjut' => $rekomendasi->status_tindak_lanjut,
                 'target_tanggal' => $rekomendasi->target_tanggal?->toDateString(),
             ])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $opdIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function overdueRecommendations(array $opdIds, int $tahun): array
+    {
+        return RekomendasiEvaluasi::query()
+            ->with(['opd:id,nama,singkatan', 'evaluasiSakip:id,tahun'])
+            ->whereIn('opd_id', $opdIds)
+            ->whereIn('status_tindak_lanjut', ['belum', 'proses', 'perlu_perbaikan'])
+            ->whereNotNull('target_tanggal')
+            ->whereDate('target_tanggal', '<', now()->toDateString())
+            ->whereHas('evaluasiSakip', fn (Builder $query) => $query->where('tahun', $tahun))
+            ->orderBy('target_tanggal')
+            ->limit(8)
+            ->get()
+            ->map(fn (RekomendasiEvaluasi $rekomendasi) => [
+                'id' => $rekomendasi->id,
+                'opd' => $rekomendasi->opd?->singkatan ?: $rekomendasi->opd?->nama,
+                'nomor' => $rekomendasi->nomor,
+                'rekomendasi' => str($rekomendasi->rekomendasi)->limit(120)->toString(),
+                'prioritas' => $rekomendasi->prioritas,
+                'status_tindak_lanjut' => $rekomendasi->status_tindak_lanjut,
+                'target_tanggal' => $rekomendasi->target_tanggal?->toDateString(),
+                'overdue_days' => $rekomendasi->target_tanggal ? max(0, (int) $rekomendasi->target_tanggal->diffInDays(now())) : 0,
+            ])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $opdIds
+     */
+    private function overdueRecommendationCount(array $opdIds, int $tahun): int
+    {
+        return RekomendasiEvaluasi::query()
+            ->whereIn('opd_id', $opdIds)
+            ->whereIn('status_tindak_lanjut', ['belum', 'proses', 'perlu_perbaikan'])
+            ->whereNotNull('target_tanggal')
+            ->whereDate('target_tanggal', '<', now()->toDateString())
+            ->whereHas('evaluasiSakip', fn (Builder $query) => $query->where('tahun', $tahun))
+            ->count();
+    }
+
+    /**
+     * @param  Collection<int, Opd>  $visibleOpds
+     * @param  array<int, int>  $realisasiOpdIds
+     * @return array<int, array{id: int, kode: string|null, nama: string, singkatan: string|null}>
+     */
+    private function opdsWithoutRealization(Collection $visibleOpds, array $realisasiOpdIds): array
+    {
+        return $visibleOpds
+            ->reject(fn (Opd $opd) => in_array($opd->id, $realisasiOpdIds, true))
+            ->take(10)
+            ->map(fn (Opd $opd) => [
+                'id' => $opd->id,
+                'kode' => $opd->kode,
+                'nama' => $opd->nama,
+                'singkatan' => $opd->singkatan,
+            ])
+            ->values()
             ->all();
     }
 

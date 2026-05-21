@@ -2,14 +2,16 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowRight, BarChart3, Building2, ClipboardCheck, FileCheck2, GitBranch, ListChecks, SlidersHorizontal, TrendingUp } from 'lucide-vue-next';
+import { AlertTriangle, ArrowRight, BarChart3, Building2, ClipboardCheck, FileCheck2, GitBranch, ListChecks, SlidersHorizontal, TrendingUp } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
 
 type Option = { id?: number; tahun?: number; label: string };
 type Completion = { key: string; label: string; count: number; total: number; percent: number };
 type WorkflowStatus = { status: string; label: string; count: number };
 type RecommendationStatus = { status: string; label: string; count: number };
+type Distribution = { status: string; label: string; count: number; percent: number };
 type AchievementYear = { tahun: number; rata_capaian: number; indikator_count: number; selected: boolean };
+type QuarterlyAchievement = { triwulan: string; label: string; rata_capaian: number; indikator_count: number; opd_count: number; completion_percent: number };
 type ProgressOpd = {
     opd_id: number;
     kode?: string | null;
@@ -33,6 +35,8 @@ type OpenRecommendation = {
     status_tindak_lanjut: string;
     target_tanggal?: string | null;
 };
+type OverdueRecommendation = OpenRecommendation & { overdue_days: number };
+type OpdWithoutRealization = { id: number; kode?: string | null; nama: string; singkatan?: string | null };
 type LatestWorkflow = {
     id: number;
     module: string;
@@ -68,6 +72,11 @@ const props = defineProps<{
         avg_capaian: number;
         avg_evaluasi: number;
         rekomendasi_terbuka_count: number;
+        rekomendasi_overdue_count: number;
+        opd_belum_realisasi_count: number;
+        indikator_merah_count: number;
+        indikator_kuning_count: number;
+        indikator_hijau_count: number;
         workflow_pending_count: number;
     };
     moduleCompletion: Completion[];
@@ -77,7 +86,12 @@ const props = defineProps<{
     recommendationStatus: RecommendationStatus[];
     evaluationRanking: EvaluationRank[];
     openRecommendations: OpenRecommendation[];
+    overdueRecommendations: OverdueRecommendation[];
     latestWorkflow: LatestWorkflow[];
+    achievementStatusDistribution: Distribution[];
+    efficiencyStatusDistribution: Distribution[];
+    quarterlyAchievement: QuarterlyAchievement[];
+    opdsWithoutRealization: OpdWithoutRealization[];
     quickLinks: Array<{ label: string; href: string }>;
 }>();
 
@@ -115,6 +129,8 @@ const metricCards = computed(() => [
     { label: 'Nilai Evaluasi', value: formatScore(props.stats.avg_evaluasi), helper: `${props.stats.evaluasi_opd_count} OPD sudah dievaluasi`, icon: FileCheck2 },
     { label: 'Workflow Perlu Diproses', value: props.stats.workflow_pending_count, helper: 'status diajukan/revisi', icon: ClipboardCheck },
     { label: 'Rekomendasi Terbuka', value: props.stats.rekomendasi_terbuka_count, helper: 'belum/proses/perlu perbaikan', icon: ListChecks },
+    { label: 'OPD Belum Realisasi', value: props.stats.opd_belum_realisasi_count, helper: 'perlu input capaian tahun berjalan', icon: AlertTriangle },
+    { label: 'Lewat Target TL', value: props.stats.rekomendasi_overdue_count, helper: 'rekomendasi belum selesai melewati target', icon: AlertTriangle },
 ]);
 
 function formatPercent(value?: number | string | null) {
@@ -146,6 +162,12 @@ function statusClass(status?: string | null) {
             selesai: 'bg-emerald-100 text-emerald-800',
             ditolak: 'bg-red-100 text-red-800',
             perlu_perbaikan: 'bg-amber-100 text-amber-800',
+            merah: 'bg-red-100 text-red-800',
+            kuning: 'bg-amber-100 text-amber-800',
+            hijau: 'bg-emerald-100 text-emerald-800',
+            efisien: 'bg-emerald-100 text-emerald-800',
+            cukup_efisien: 'bg-blue-100 text-blue-800',
+            tidak_efisien: 'bg-red-100 text-red-800',
             tinggi: 'bg-red-100 text-red-800',
             sedang: 'bg-amber-100 text-amber-800',
             rendah: 'bg-slate-100 text-slate-700',
@@ -192,7 +214,7 @@ function booleanClass(value: boolean) {
                 </Link>
             </div>
 
-            <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div v-for="card in metricCards" :key="card.label" class="rounded-lg border bg-card p-4">
                     <div class="flex items-start justify-between gap-3">
                         <div>
@@ -202,6 +224,71 @@ function booleanClass(value: boolean) {
                         <component :is="card.icon" class="size-5 text-emerald-700" />
                     </div>
                     <p class="mt-2 text-xs text-muted-foreground">{{ card.helper }}</p>
+                </div>
+            </section>
+
+            <section class="grid gap-4 xl:grid-cols-3">
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <h2 class="text-sm font-semibold">Distribusi Status Capaian</h2>
+                        <p class="mt-1 text-xs text-muted-foreground">Jumlah indikator berdasarkan warna capaian tahun terpilih.</p>
+                    </div>
+                    <div class="space-y-3 p-4">
+                        <div v-for="row in achievementStatusDistribution" :key="row.status" class="space-y-1.5">
+                            <div class="flex items-center justify-between gap-3 text-sm">
+                                <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status)">{{ row.label }}</span>
+                                <span class="font-semibold">{{ row.count }}</span>
+                            </div>
+                            <div class="h-2 overflow-hidden rounded-full bg-muted">
+                                <div class="h-full rounded-full" :class="row.status === 'merah' ? 'bg-red-600' : row.status === 'kuning' ? 'bg-amber-500' : 'bg-emerald-700'" :style="{ width: `${row.percent}%` }" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <h2 class="text-sm font-semibold">Tren Capaian Triwulan</h2>
+                        <p class="mt-1 text-xs text-muted-foreground">Rata-rata capaian indikator dan cakupan OPD per triwulan.</p>
+                    </div>
+                    <div class="space-y-3 p-4">
+                        <div v-for="row in quarterlyAchievement" :key="row.triwulan" class="grid grid-cols-[92px_1fr_84px] items-center gap-3 text-sm">
+                            <div>
+                                <div class="font-medium">{{ row.label }}</div>
+                                <div class="text-xs text-muted-foreground">{{ row.opd_count }} OPD</div>
+                            </div>
+                            <div class="space-y-1">
+                                <div class="h-2 overflow-hidden rounded-full bg-muted">
+                                    <div class="h-full rounded-full bg-emerald-700" :style="{ width: barWidth(row.rata_capaian) }" />
+                                </div>
+                                <div class="h-1 overflow-hidden rounded-full bg-muted">
+                                    <div class="h-full rounded-full bg-slate-400" :style="{ width: `${row.completion_percent}%` }" />
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="font-semibold">{{ formatPercent(row.rata_capaian) }}</div>
+                                <div class="text-xs text-muted-foreground">{{ row.indikator_count }} indikator</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <h2 class="text-sm font-semibold">Efisiensi Kinerja</h2>
+                        <p class="mt-1 text-xs text-muted-foreground">Perbandingan capaian kinerja dengan serapan anggaran.</p>
+                    </div>
+                    <div class="space-y-3 p-4">
+                        <div v-for="row in efficiencyStatusDistribution" :key="row.status" class="space-y-1.5">
+                            <div class="flex items-center justify-between gap-3 text-sm">
+                                <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status)">{{ row.label }}</span>
+                                <span class="font-semibold">{{ row.count }}</span>
+                            </div>
+                            <div class="h-2 overflow-hidden rounded-full bg-muted">
+                                <div class="h-full rounded-full bg-emerald-700" :class="{ 'bg-blue-600': row.status === 'cukup_efisien', 'bg-red-600': row.status === 'tidak_efisien' }" :style="{ width: `${row.percent}%` }" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -338,6 +425,49 @@ function booleanClass(value: boolean) {
                             <span class="font-semibold">{{ row.count }}</span>
                         </div>
                         <div v-if="recommendationStatus.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">Belum ada rekomendasi evaluasi.</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="grid gap-4 xl:grid-cols-2">
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <h2 class="text-sm font-semibold">OPD Belum Input Realisasi</h2>
+                        <p class="mt-1 text-xs text-muted-foreground">Daftar OPD aktif yang belum memiliki realisasi pada tahun terpilih.</p>
+                    </div>
+                    <div class="divide-y">
+                        <div v-for="row in opdsWithoutRealization" :key="row.id" class="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                            <div>
+                                <div class="font-medium">{{ row.singkatan || row.nama }}</div>
+                                <div class="text-xs text-muted-foreground">{{ row.kode || '-' }}</div>
+                            </div>
+                            <span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">Belum input</span>
+                        </div>
+                        <div v-if="opdsWithoutRealization.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">Semua OPD pada cakupan ini sudah memiliki realisasi.</div>
+                    </div>
+                </div>
+
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <h2 class="text-sm font-semibold">Rekomendasi Lewat Target</h2>
+                        <p class="mt-1 text-xs text-muted-foreground">Rekomendasi terbuka dengan target tindak lanjut yang sudah terlewati.</p>
+                    </div>
+                    <div class="divide-y">
+                        <div v-for="row in overdueRecommendations" :key="row.id" class="px-4 py-3 text-sm">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <div class="font-medium">{{ row.opd || '-' }}</div>
+                                    <p class="mt-1 text-muted-foreground">{{ row.rekomendasi }}</p>
+                                </div>
+                                <span class="shrink-0 rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.prioritas)">{{ row.prioritas }}</span>
+                            </div>
+                            <div class="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                <span>{{ row.nomor || 'Tanpa nomor' }}</span>
+                                <span>Target {{ row.target_tanggal || '-' }}</span>
+                                <span class="rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-800">{{ row.overdue_days }} hari lewat</span>
+                            </div>
+                        </div>
+                        <div v-if="overdueRecommendations.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">Tidak ada rekomendasi lewat target.</div>
                     </div>
                 </div>
             </section>

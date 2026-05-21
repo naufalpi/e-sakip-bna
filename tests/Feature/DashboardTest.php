@@ -62,8 +62,16 @@ class DashboardTest extends TestCase
                 ->where('stats.realisasi_opd_count', 1)
                 ->where('stats.evaluasi_opd_count', 1)
                 ->where('stats.rekomendasi_terbuka_count', 1)
+                ->where('stats.rekomendasi_overdue_count', 1)
+                ->where('stats.opd_belum_realisasi_count', 1)
+                ->where('stats.indikator_kuning_count', 1)
                 ->has('progressOpd', 2)
                 ->has('achievementByYear', 1)
+                ->has('achievementStatusDistribution', 3)
+                ->has('efficiencyStatusDistribution', 3)
+                ->has('quarterlyAchievement', 4)
+                ->has('opdsWithoutRealization', 1)
+                ->has('overdueRecommendations', 1)
                 ->has('workflowStatus', 1)
                 ->has('evaluationRanking', 1)
                 ->has('openRecommendations', 1)
@@ -208,6 +216,11 @@ class DashboardTest extends TestCase
             'target' => 100,
             'realisasi' => 80,
             'capaian_persen' => 80,
+            'status_capaian' => 'kuning',
+            'anggaran' => 100000000,
+            'realisasi_anggaran' => 70000000,
+            'serapan_anggaran_persen' => 70,
+            'status_efisiensi' => 'efisien',
             'urutan' => 1,
         ]);
 
@@ -226,6 +239,7 @@ class DashboardTest extends TestCase
             'rekomendasi' => 'Lengkapi bukti dukung capaian indikator.',
             'prioritas' => 'tinggi',
             'status_tindak_lanjut' => 'belum',
+            'target_tanggal' => now()->subDay()->toDateString(),
         ]);
 
         $adminOpd = User::factory()->create(['opd_id' => $opd->id]);
