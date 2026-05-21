@@ -7,6 +7,7 @@ use App\Http\Requests\Lkjip\StoreLkjipBabRequest;
 use App\Models\Lkjip;
 use App\Models\LkjipBab;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Validation\ValidationException;
 
 class LkjipBabController extends Controller
 {
@@ -22,6 +23,28 @@ class LkjipBabController extends Controller
         );
 
         return back()->with('success', 'BAB LKJIP berhasil disimpan.');
+    }
+
+    public function update(StoreLkjipBabRequest $request, Lkjip $lkjip, LkjipBab $bab): RedirectResponse
+    {
+        $this->authorize('update', $lkjip);
+        abort_unless((int) $bab->lkjip_id === (int) $lkjip->id, 404);
+
+        $data = $request->validated();
+
+        $duplicate = LkjipBab::query()
+            ->where('lkjip_id', $lkjip->id)
+            ->where('kode', $data['kode'])
+            ->whereKeyNot($bab->id)
+            ->exists();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages(['kode' => 'Kode BAB sudah dipakai pada LKJIP ini.']);
+        }
+
+        $bab->update($data);
+
+        return back()->with('success', 'BAB LKJIP berhasil diperbarui.');
     }
 
     public function destroy(Lkjip $lkjip, LkjipBab $bab): RedirectResponse

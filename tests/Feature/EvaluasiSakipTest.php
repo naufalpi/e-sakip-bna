@@ -60,6 +60,21 @@ class EvaluasiSakipTest extends TestCase
         $this->assertGreaterThan(0, (float) $evaluasi->fresh()->nilai_akhir);
 
         $this->actingAs($inspektorat)
+            ->put(route('evaluasi-sakip.items.update', [$evaluasi, $item]), [
+                'kriteria_evaluasi_id' => $kriteria->id,
+                'nilai' => 85,
+                'catatan' => 'Cukup memadai dan sudah diperbarui.',
+                'rekomendasi_text' => 'Perkuat kualitas bukti dukung.',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('evaluasi_sakip_items', [
+            'id' => $item->id,
+            'nilai' => 85,
+            'catatan' => 'Cukup memadai dan sudah diperbarui.',
+        ]);
+
+        $this->actingAs($inspektorat)
             ->post(route('evaluasi-sakip.lhe.store', $evaluasi), [
                 'nomor_lhe' => 'LHE/001/2026',
                 'tanggal_lhe' => "{$periode->tahun}-06-01",
@@ -85,6 +100,22 @@ class EvaluasiSakipTest extends TestCase
             ->assertRedirect();
 
         $rekomendasi = RekomendasiEvaluasi::firstOrFail();
+
+        $this->actingAs($inspektorat)
+            ->put(route('evaluasi-sakip.rekomendasi.update', [$evaluasi, $rekomendasi]), [
+                'evaluasi_sakip_item_id' => $item->id,
+                'nomor' => 'R-001-REV',
+                'rekomendasi' => 'Lengkapi dan validasi ulang bukti dukung realisasi kinerja.',
+                'prioritas' => 'tinggi',
+                'target_tanggal' => "{$periode->tahun}-07-15",
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('rekomendasi_evaluasi', [
+            'id' => $rekomendasi->id,
+            'nomor' => 'R-001-REV',
+            'rekomendasi' => 'Lengkapi dan validasi ulang bukti dukung realisasi kinerja.',
+        ]);
 
         $this->actingAs($adminOpd)
             ->post(route('rekomendasi-evaluasi.tindak-lanjut.store', $rekomendasi), [

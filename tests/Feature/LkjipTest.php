@@ -55,6 +55,24 @@ class LkjipTest extends TestCase
             'judul' => 'Akuntabilitas Kinerja',
         ]);
 
+        $bab = $lkjip->bab()->where('kode', 'BAB III')->firstOrFail();
+
+        $this->actingAs($adminOpd)
+            ->put(route('lkjip.bab.update', [$lkjip, $bab]), [
+                'kode' => 'BAB III',
+                'judul' => 'Akuntabilitas Kinerja OPD',
+                'jenis' => 'akuntabilitas',
+                'konten' => 'Narasi akuntabilitas kinerja OPD.',
+                'urutan' => 3,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('lkjip_bab', [
+            'id' => $bab->id,
+            'judul' => 'Akuntabilitas Kinerja OPD',
+            'konten' => 'Narasi akuntabilitas kinerja OPD.',
+        ]);
+
         $this->actingAs($adminOpd)
             ->post(route('lkjip.store'), [
                 'opd_id' => $otherOpd->id,

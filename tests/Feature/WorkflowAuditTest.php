@@ -101,6 +101,7 @@ class WorkflowAuditTest extends TestCase
             $this->actingAs($reviewer)
                 ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $reviewPk->id]), [
                     'action' => $action,
+                    'note' => "Catatan {$action}.",
                 ])
                 ->assertRedirect();
 
@@ -117,6 +118,7 @@ class WorkflowAuditTest extends TestCase
         $this->actingAs($reviewer)
             ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), [
                 'action' => 'revision',
+                'note' => 'Tidak boleh revisi data terkunci.',
             ])
             ->assertForbidden();
 
@@ -227,6 +229,33 @@ class WorkflowAuditTest extends TestCase
             'related_table' => 'perjanjian_kinerja',
             'related_id' => $pk->id,
             'action' => 'approve',
+        ]);
+    }
+
+    public function test_workflow_requires_note_for_revision_and_rejection(): void
+    {
+        $this->seed();
+
+        [$opd, $periode, , $reviewer] = $this->actors();
+        $pk = PerjanjianKinerja::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'PK Butuh Catatan',
+            'status' => 'submitted',
+        ]);
+
+        $this->actingAs($reviewer)
+            ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), [
+                'action' => 'revision',
+            ])
+            ->assertSessionHasErrors('note');
+
+        $this->assertSame('submitted', $pk->fresh()->status);
+        $this->assertDatabaseMissing('workflow_histories', [
+            'related_table' => 'perjanjian_kinerja',
+            'related_id' => $pk->id,
+            'action' => 'revision',
         ]);
     }
 

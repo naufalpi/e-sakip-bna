@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
+import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -287,16 +288,7 @@ const statusClass = (status: string) =>
                 </div>
             </section>
 
-            <section class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">Riwayat Workflow</h2>
-                <div v-if="workflow?.histories?.length" class="mt-3 divide-y text-sm">
-                    <div v-for="history in workflow.histories" :key="history.id" class="py-3">
-                        <div class="font-medium">{{ statusLabel(history.from_status || 'draft') }} ke {{ statusLabel(history.to_status) }}</div>
-                        <div class="text-xs text-muted-foreground">{{ history.actor?.name || '-' }} - {{ history.created_at }}</div>
-                    </div>
-                </div>
-                <div v-else class="mt-3 text-sm text-muted-foreground">Belum ada riwayat workflow.</div>
-            </section>
+            <WorkflowHistoryTimeline :workflow="workflow" />
         </div>
     </AppLayout>
 </template>

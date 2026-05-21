@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
+import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 type Option = { id?: number; value?: string; label: string; bobot?: string | number; nilai_maksimal?: string | number };
 type EvaluasiItem = {
@@ -127,10 +129,36 @@ const tindakLanjutForm = useForm({
     catatan_opd: '',
 });
 
+const editingItemId = ref<number | null>(null);
+const editingRekomendasiId = ref<number | null>(null);
+
+const resetItemForm = () => {
+    editingItemId.value = null;
+    itemForm.reset();
+    itemForm.clearErrors();
+};
+
+const editItem = (item: EvaluasiItem) => {
+    editingItemId.value = item.id;
+    itemForm.kriteria_evaluasi_id = item.kriteria?.id ? String(item.kriteria.id) : '';
+    itemForm.nilai = String(item.nilai ?? '');
+    itemForm.catatan = item.catatan ?? '';
+    itemForm.rekomendasi_text = item.rekomendasi_text ?? '';
+};
+
 const storeItem = () => {
+    if (editingItemId.value) {
+        itemForm.put(route('evaluasi-sakip.items.update', { evaluasi_sakip: props.evaluasi.id, item: editingItemId.value }), {
+            preserveScroll: true,
+            onSuccess: () => resetItemForm(),
+        });
+
+        return;
+    }
+
     itemForm.post(route('evaluasi-sakip.items.store', { evaluasi_sakip: props.evaluasi.id }), {
         preserveScroll: true,
-        onSuccess: () => itemForm.reset(),
+        onSuccess: () => resetItemForm(),
     });
 };
 
@@ -148,10 +176,35 @@ const exportLhe = (format: 'pdf' | 'word') => {
     router.post(route('evaluasi-sakip.lhe.export', { evaluasi_sakip: props.evaluasi.id }), { format }, { preserveScroll: true });
 };
 
+const resetRekomendasiForm = () => {
+    editingRekomendasiId.value = null;
+    rekomendasiForm.reset();
+    rekomendasiForm.clearErrors();
+};
+
+const editRekomendasi = (rekomendasi: Rekomendasi) => {
+    editingRekomendasiId.value = rekomendasi.id;
+    rekomendasiForm.evaluasi_sakip_item_id = rekomendasi.item?.id ? String(rekomendasi.item.id) : '';
+    rekomendasiForm.nomor = rekomendasi.nomor ?? '';
+    rekomendasiForm.rekomendasi = rekomendasi.rekomendasi;
+    rekomendasiForm.prioritas = rekomendasi.prioritas;
+    rekomendasiForm.status_tindak_lanjut = rekomendasi.status_tindak_lanjut;
+    rekomendasiForm.target_tanggal = rekomendasi.target_tanggal ?? '';
+};
+
 const storeRekomendasi = () => {
+    if (editingRekomendasiId.value) {
+        rekomendasiForm.put(route('evaluasi-sakip.rekomendasi.update', { evaluasi_sakip: props.evaluasi.id, rekomendasi: editingRekomendasiId.value }), {
+            preserveScroll: true,
+            onSuccess: () => resetRekomendasiForm(),
+        });
+
+        return;
+    }
+
     rekomendasiForm.post(route('evaluasi-sakip.rekomendasi.store', { evaluasi_sakip: props.evaluasi.id }), {
         preserveScroll: true,
-        onSuccess: () => rekomendasiForm.reset(),
+        onSuccess: () => resetRekomendasiForm(),
     });
 };
 
@@ -265,20 +318,13 @@ const formatFileSize = (bytes: number) => {
                 </div>
             </section>
 
-            <section class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">Riwayat Workflow</h2>
-                <div v-if="workflow?.histories?.length" class="mt-3 divide-y text-sm">
-                    <div v-for="history in workflow.histories" :key="history.id" class="py-3">
-                        <div class="font-medium">{{ statusLabel(history.from_status || 'draft') }} ke {{ statusLabel(history.to_status) }}</div>
-                        <div class="text-xs text-muted-foreground">{{ history.actor?.name || '-' }} - {{ history.created_at }}</div>
-                        <div v-if="history.notes" class="mt-1 text-xs text-muted-foreground">{{ history.notes }}</div>
-                    </div>
-                </div>
-                <div v-else class="mt-3 text-sm text-muted-foreground">Belum ada riwayat workflow.</div>
-            </section>
+            <WorkflowHistoryTimeline :workflow="workflow" />
 
             <section v-if="can.manage" class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">Input Nilai Kriteria</h2>
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <h2 class="text-sm font-semibold">{{ editingItemId ? 'Edit Nilai Kriteria' : 'Input Nilai Kriteria' }}</h2>
+                    <button v-if="editingItemId" type="button" class="w-fit rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="resetItemForm">Batal Edit</button>
+                </div>
                 <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="storeItem">
                     <div class="grid gap-1 md:col-span-2">
                         <select v-model="itemForm.kriteria_evaluasi_id" class="h-9 rounded-md border bg-background px-3 text-sm">
@@ -294,7 +340,9 @@ const formatFileSize = (bytes: number) => {
                     <input v-model="itemForm.rekomendasi_text" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Catatan rekomendasi ringkas" />
                     <textarea v-model="itemForm.catatan" rows="3" class="rounded-md border bg-background px-3 py-2 text-sm md:col-span-2" placeholder="Catatan evaluator" />
                     <div class="md:col-span-2">
-                        <button type="submit" :disabled="itemForm.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">Simpan Nilai</button>
+                        <button type="submit" :disabled="itemForm.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
+                            {{ editingItemId ? 'Update Nilai' : 'Simpan Nilai' }}
+                        </button>
                     </div>
                 </form>
             </section>
@@ -324,7 +372,10 @@ const formatFileSize = (bytes: number) => {
                                 <td class="px-4 py-3">{{ item.skor }}</td>
                                 <td class="px-4 py-3 text-muted-foreground">{{ item.catatan || '-' }}</td>
                                 <td class="px-4 py-3 text-right">
-                                    <button v-if="can.manage" type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="destroyItem(item)">Hapus</button>
+                                    <div v-if="can.manage" class="flex justify-end gap-2">
+                                        <button type="button" class="rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editItem(item)">Edit</button>
+                                        <button type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="destroyItem(item)">Hapus</button>
+                                    </div>
                                 </td>
                             </tr>
                             <tr v-if="evaluasi.items.length === 0">
@@ -378,7 +429,10 @@ const formatFileSize = (bytes: number) => {
                 </div>
 
                 <div v-if="can.manage" class="rounded-lg border bg-card p-4">
-                    <h2 class="text-sm font-semibold">Tambah Rekomendasi</h2>
+                    <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <h2 class="text-sm font-semibold">{{ editingRekomendasiId ? 'Edit Rekomendasi' : 'Tambah Rekomendasi' }}</h2>
+                        <button v-if="editingRekomendasiId" type="button" class="w-fit rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="resetRekomendasiForm">Batal Edit</button>
+                    </div>
                     <form class="mt-4 grid gap-3" @submit.prevent="storeRekomendasi">
                         <select v-model="rekomendasiForm.evaluasi_sakip_item_id" class="h-9 rounded-md border bg-background px-3 text-sm">
                             <option value="">Tidak terkait kriteria tertentu</option>
@@ -397,7 +451,9 @@ const formatFileSize = (bytes: number) => {
                             <textarea v-model="rekomendasiForm.rekomendasi" rows="4" class="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Uraian rekomendasi" />
                             <InputError :message="rekomendasiForm.errors.rekomendasi" />
                         </div>
-                        <button type="submit" :disabled="rekomendasiForm.processing" class="w-fit rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">Simpan Rekomendasi</button>
+                        <button type="submit" :disabled="rekomendasiForm.processing" class="w-fit rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
+                            {{ editingRekomendasiId ? 'Update Rekomendasi' : 'Simpan Rekomendasi' }}
+                        </button>
                     </form>
                 </div>
             </section>
@@ -440,7 +496,10 @@ const formatFileSize = (bytes: number) => {
                                     <span class="rounded-full px-2 py-1 font-medium" :class="statusClass(rekomendasi.status_tindak_lanjut)">{{ statusLabel(rekomendasi.status_tindak_lanjut) }}</span>
                                 </div>
                             </div>
-                            <button v-if="can.manage" type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="destroyRekomendasi(rekomendasi)">Hapus</button>
+                            <div v-if="can.manage" class="flex gap-2">
+                                <button type="button" class="rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editRekomendasi(rekomendasi)">Edit</button>
+                                <button type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="destroyRekomendasi(rekomendasi)">Hapus</button>
+                            </div>
                         </div>
                         <div v-if="rekomendasi.tindak_lanjut.length" class="mt-3 divide-y rounded-md border bg-card text-sm">
                             <div v-for="tl in rekomendasi.tindak_lanjut" :key="tl.id" class="p-3">

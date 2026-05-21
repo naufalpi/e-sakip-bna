@@ -88,6 +88,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('lkjip/{lkjip}/generate-draft', [LkjipController::class, 'generateDraft'])->name('lkjip.generate-draft');
     Route::post('lkjip/{lkjip}/export', [LkjipController::class, 'export'])->name('lkjip.export');
     Route::post('lkjip/{lkjip}/bab', [LkjipBabController::class, 'store'])->name('lkjip.bab.store');
+    Route::put('lkjip/{lkjip}/bab/{bab}', [LkjipBabController::class, 'update'])->name('lkjip.bab.update');
     Route::delete('lkjip/{lkjip}/bab/{bab}', [LkjipBabController::class, 'destroy'])->name('lkjip.bab.destroy');
 
     Route::post('workflow/{module}/{id}/transition', [WorkflowController::class, 'transition'])->name('workflow.transition');
@@ -98,10 +99,12 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('evaluasi-sakip/kriteria', KriteriaEvaluasiController::class)->name('evaluasi-sakip.kriteria');
     Route::resource('evaluasi-sakip', EvaluasiSakipController::class)->parameters(['evaluasi-sakip' => 'evaluasi_sakip']);
     Route::post('evaluasi-sakip/{evaluasi_sakip}/items', [EvaluasiSakipItemController::class, 'store'])->name('evaluasi-sakip.items.store');
+    Route::put('evaluasi-sakip/{evaluasi_sakip}/items/{item}', [EvaluasiSakipItemController::class, 'update'])->name('evaluasi-sakip.items.update');
     Route::delete('evaluasi-sakip/{evaluasi_sakip}/items/{item}', [EvaluasiSakipItemController::class, 'destroy'])->name('evaluasi-sakip.items.destroy');
     Route::post('evaluasi-sakip/{evaluasi_sakip}/lhe', [LheController::class, 'store'])->name('evaluasi-sakip.lhe.store');
     Route::post('evaluasi-sakip/{evaluasi_sakip}/lhe/export', [EvaluasiSakipController::class, 'exportLhe'])->name('evaluasi-sakip.lhe.export');
     Route::post('evaluasi-sakip/{evaluasi_sakip}/rekomendasi', [RekomendasiEvaluasiController::class, 'store'])->name('evaluasi-sakip.rekomendasi.store');
+    Route::put('evaluasi-sakip/{evaluasi_sakip}/rekomendasi/{rekomendasi}', [RekomendasiEvaluasiController::class, 'update'])->name('evaluasi-sakip.rekomendasi.update');
     Route::delete('evaluasi-sakip/{evaluasi_sakip}/rekomendasi/{rekomendasi}', [RekomendasiEvaluasiController::class, 'destroy'])->name('evaluasi-sakip.rekomendasi.destroy');
     Route::post('rekomendasi-evaluasi/{rekomendasi}/tindak-lanjut', [TindakLanjutRekomendasiController::class, 'store'])->name('rekomendasi-evaluasi.tindak-lanjut.store');
     Route::patch('tindak-lanjut-rekomendasi/{tindak_lanjut}/verify', [TindakLanjutRekomendasiController::class, 'verify'])->name('tindak-lanjut-rekomendasi.verify');

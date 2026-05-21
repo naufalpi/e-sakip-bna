@@ -27,6 +27,19 @@ class RekomendasiEvaluasiController extends Controller
         return back()->with('success', 'Rekomendasi evaluasi berhasil ditambahkan.');
     }
 
+    public function update(StoreRekomendasiEvaluasiRequest $request, EvaluasiSakip $evaluasiSakip, RekomendasiEvaluasi $rekomendasi): RedirectResponse
+    {
+        $this->authorize('update', $evaluasiSakip);
+        abort_unless((int) $rekomendasi->evaluasi_sakip_id === (int) $evaluasiSakip->id, 404);
+
+        $data = $request->validated();
+        $this->assertItemBelongsToEvaluasi($data['evaluasi_sakip_item_id'] ?? null, $evaluasiSakip);
+
+        $rekomendasi->update($data);
+
+        return back()->with('success', 'Rekomendasi evaluasi berhasil diperbarui.');
+    }
+
     public function destroy(EvaluasiSakip $evaluasiSakip, RekomendasiEvaluasi $rekomendasi): RedirectResponse
     {
         $this->authorize('update', $evaluasiSakip);

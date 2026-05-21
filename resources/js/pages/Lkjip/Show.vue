@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
+import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 type Bab = {
     id: number;
@@ -65,7 +67,16 @@ const form = useForm({
     urutan: props.item.bab.length + 1,
 });
 
+const editingBabId = ref<number | null>(null);
+
+const resetBabForm = () => {
+    editingBabId.value = null;
+    form.reset();
+    form.clearErrors();
+};
+
 const editBab = (bab: Bab) => {
+    editingBabId.value = bab.id;
     form.kode = bab.kode;
     form.judul = bab.judul;
     form.jenis = bab.jenis;
@@ -74,9 +85,18 @@ const editBab = (bab: Bab) => {
 };
 
 const storeBab = () => {
+    if (editingBabId.value) {
+        form.put(route('lkjip.bab.update', { lkjip: props.item.id, bab: editingBabId.value }), {
+            preserveScroll: true,
+            onSuccess: () => resetBabForm(),
+        });
+
+        return;
+    }
+
     form.post(route('lkjip.bab.store', props.item.id), {
         preserveScroll: true,
-        onSuccess: () => form.reset(),
+        onSuccess: () => resetBabForm(),
     });
 };
 
@@ -234,7 +254,10 @@ const formatFileSize = (bytes: number) => {
             </section>
 
             <section v-if="can.manage" class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">Susun BAB LKJIP</h2>
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <h2 class="text-sm font-semibold">{{ editingBabId ? 'Edit BAB LKJIP' : 'Susun BAB LKJIP' }}</h2>
+                    <button v-if="editingBabId" type="button" class="w-fit rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="resetBabForm">Batal Edit</button>
+                </div>
                 <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="storeBab">
                     <div class="grid gap-1">
                         <input v-model="form.kode" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Kode, contoh BAB I" />
@@ -258,7 +281,9 @@ const formatFileSize = (bytes: number) => {
                         <InputError :message="form.errors.konten" />
                     </div>
                     <div class="md:col-span-2">
-                        <button type="submit" :disabled="form.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">Simpan BAB</button>
+                        <button type="submit" :disabled="form.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
+                            {{ editingBabId ? 'Update BAB' : 'Simpan BAB' }}
+                        </button>
                     </div>
                 </form>
             </section>
@@ -285,17 +310,7 @@ const formatFileSize = (bytes: number) => {
                 </div>
             </section>
 
-            <section class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">Riwayat Workflow</h2>
-                <div v-if="workflow?.histories?.length" class="mt-3 divide-y text-sm">
-                    <div v-for="history in workflow.histories" :key="history.id" class="py-3">
-                        <div class="font-medium">{{ statusLabel(history.from_status || 'draft') }} ke {{ statusLabel(history.to_status) }}</div>
-                        <div class="text-xs text-muted-foreground">{{ history.actor?.name || '-' }} - {{ history.created_at }}</div>
-                        <div v-if="history.notes" class="mt-1 text-xs text-muted-foreground">{{ history.notes }}</div>
-                    </div>
-                </div>
-                <div v-else class="mt-3 text-sm text-muted-foreground">Belum ada riwayat workflow.</div>
-            </section>
+            <WorkflowHistoryTimeline :workflow="workflow" />
         </div>
     </AppLayout>
 </template>
