@@ -128,6 +128,28 @@ class EvaluasiSakipTest extends TestCase
 
         $tindakLanjut = TindakLanjutRekomendasi::firstOrFail();
 
+        $this->actingAs($adminOpd)
+            ->put(route('tindak-lanjut-rekomendasi.update', $tindakLanjut), [
+                'uraian_tindak_lanjut' => 'OPD melengkapi dan memvalidasi dokumen bukti dukung.',
+                'status_tindak_lanjut' => 'proses',
+                'tanggal_tindak_lanjut' => "{$periode->tahun}-06-20",
+                'catatan_opd' => 'Dokumen diperbarui sesuai rekomendasi.',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('tindak_lanjut_rekomendasi', [
+            'id' => $tindakLanjut->id,
+            'uraian_tindak_lanjut' => 'OPD melengkapi dan memvalidasi dokumen bukti dukung.',
+            'status_tindak_lanjut' => 'proses',
+            'catatan_opd' => 'Dokumen diperbarui sesuai rekomendasi.',
+        ]);
+
+        $this->actingAs($inspektorat)
+            ->patch(route('tindak-lanjut-rekomendasi.verify', $tindakLanjut), [
+                'status_tindak_lanjut' => 'perlu_perbaikan',
+            ])
+            ->assertSessionHasErrors('catatan_verifikator');
+
         $this->actingAs($inspektorat)
             ->patch(route('tindak-lanjut-rekomendasi.verify', $tindakLanjut), [
                 'status_tindak_lanjut' => 'selesai',
@@ -145,6 +167,15 @@ class EvaluasiSakipTest extends TestCase
             'status_tindak_lanjut' => 'selesai',
             'diverifikasi_oleh' => $inspektorat->id,
         ]);
+
+        $this->actingAs($adminOpd)
+            ->put(route('tindak-lanjut-rekomendasi.update', $tindakLanjut), [
+                'uraian_tindak_lanjut' => 'Perubahan setelah verifikasi final.',
+                'status_tindak_lanjut' => 'proses',
+                'tanggal_tindak_lanjut' => "{$periode->tahun}-06-25",
+                'catatan_opd' => 'Tidak boleh mengubah setelah selesai diverifikasi.',
+            ])
+            ->assertForbidden();
     }
 
     public function test_admin_opd_can_view_own_evaluation_and_fill_followup_only(): void

@@ -17,7 +17,7 @@ class VerifyTindakLanjutRekomendasiRequest extends FormRequest
     {
         return [
             'status_tindak_lanjut' => ['required', Rule::in(['proses', 'selesai', 'ditolak', 'perlu_perbaikan'])],
-            'catatan_verifikator' => ['nullable', 'string'],
+            'catatan_verifikator' => ['required_if:status_tindak_lanjut,ditolak,perlu_perbaikan', 'nullable', 'string'],
         ];
     }
 }

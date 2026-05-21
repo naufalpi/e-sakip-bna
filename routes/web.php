@@ -107,6 +107,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::put('evaluasi-sakip/{evaluasi_sakip}/rekomendasi/{rekomendasi}', [RekomendasiEvaluasiController::class, 'update'])->name('evaluasi-sakip.rekomendasi.update');
     Route::delete('evaluasi-sakip/{evaluasi_sakip}/rekomendasi/{rekomendasi}', [RekomendasiEvaluasiController::class, 'destroy'])->name('evaluasi-sakip.rekomendasi.destroy');
     Route::post('rekomendasi-evaluasi/{rekomendasi}/tindak-lanjut', [TindakLanjutRekomendasiController::class, 'store'])->name('rekomendasi-evaluasi.tindak-lanjut.store');
+    Route::put('tindak-lanjut-rekomendasi/{tindak_lanjut}', [TindakLanjutRekomendasiController::class, 'update'])->name('tindak-lanjut-rekomendasi.update');
     Route::patch('tindak-lanjut-rekomendasi/{tindak_lanjut}/verify', [TindakLanjutRekomendasiController::class, 'verify'])->name('tindak-lanjut-rekomendasi.verify');
 
     Route::prefix('master')->name('master.')->group(function () {

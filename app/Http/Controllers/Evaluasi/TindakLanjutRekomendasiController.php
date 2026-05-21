@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Evaluasi;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Evaluasi\StoreTindakLanjutRekomendasiRequest;
+use App\Http\Requests\Evaluasi\UpdateTindakLanjutRekomendasiRequest;
 use App\Http\Requests\Evaluasi\VerifyTindakLanjutRekomendasiRequest;
 use App\Models\RekomendasiEvaluasi;
 use App\Models\TindakLanjutRekomendasi;
@@ -29,6 +30,26 @@ class TindakLanjutRekomendasiController extends Controller
         });
 
         return back()->with('success', 'Tindak lanjut rekomendasi berhasil dikirim.');
+    }
+
+    public function update(UpdateTindakLanjutRekomendasiRequest $request, TindakLanjutRekomendasi $tindakLanjut): RedirectResponse
+    {
+        $data = $request->validated();
+
+        DB::transaction(function () use ($tindakLanjut, $data) {
+            $tindakLanjut->update([
+                ...$data,
+                'diverifikasi_oleh' => null,
+                'diverifikasi_at' => null,
+                'catatan_verifikator' => null,
+            ]);
+
+            $tindakLanjut->rekomendasi()->update([
+                'status_tindak_lanjut' => $data['status_tindak_lanjut'],
+            ]);
+        });
+
+        return back()->with('success', 'Tindak lanjut rekomendasi berhasil diperbarui.');
     }
 
     public function verify(VerifyTindakLanjutRekomendasiRequest $request, TindakLanjutRekomendasi $tindakLanjut): RedirectResponse

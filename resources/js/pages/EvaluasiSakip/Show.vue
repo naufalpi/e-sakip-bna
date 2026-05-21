@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -33,6 +35,13 @@ type TindakLanjut = {
     created_by?: { name: string } | null;
     diverifikasi_oleh?: { name: string } | null;
     diverifikasi_at?: string | null;
+};
+type TindakLanjutFormData = {
+    rekomendasi_id: string;
+    uraian_tindak_lanjut: string;
+    status_tindak_lanjut: string;
+    tanggal_tindak_lanjut: string;
+    catatan_opd: string;
 };
 type Rekomendasi = {
     id: number;
@@ -129,8 +138,16 @@ const tindakLanjutForm = useForm({
     catatan_opd: '',
 });
 
+const verifyTindakLanjutForm = useForm({
+    status_tindak_lanjut: 'selesai',
+    catatan_verifikator: '',
+});
+
 const editingItemId = ref<number | null>(null);
 const editingRekomendasiId = ref<number | null>(null);
+const editingTindakLanjutId = ref<number | null>(null);
+const selectedTindakLanjut = ref<TindakLanjut | null>(null);
+const isVerifyDialogOpen = ref(false);
 
 const resetItemForm = () => {
     editingItemId.value = null;
@@ -214,24 +231,70 @@ const destroyRekomendasi = (rekomendasi: Rekomendasi) => {
     }
 };
 
+const resetTindakLanjutForm = () => {
+    editingTindakLanjutId.value = null;
+    tindakLanjutForm.reset();
+    tindakLanjutForm.clearErrors();
+};
+
+const editTindakLanjut = (rekomendasi: Rekomendasi, tindakLanjut: TindakLanjut) => {
+    editingTindakLanjutId.value = tindakLanjut.id;
+    tindakLanjutForm.rekomendasi_id = String(rekomendasi.id);
+    tindakLanjutForm.uraian_tindak_lanjut = tindakLanjut.uraian_tindak_lanjut;
+    tindakLanjutForm.status_tindak_lanjut = tindakLanjut.status_tindak_lanjut;
+    tindakLanjutForm.tanggal_tindak_lanjut = tindakLanjut.tanggal_tindak_lanjut ?? '';
+    tindakLanjutForm.catatan_opd = tindakLanjut.catatan_opd ?? '';
+};
+
 const storeTindakLanjut = () => {
     if (!tindakLanjutForm.rekomendasi_id) return;
 
-    tindakLanjutForm
-        .transform((data) => ({
-            uraian_tindak_lanjut: data.uraian_tindak_lanjut,
-            status_tindak_lanjut: data.status_tindak_lanjut,
-            tanggal_tindak_lanjut: data.tanggal_tindak_lanjut,
-            catatan_opd: data.catatan_opd,
-        }))
-        .post(route('rekomendasi-evaluasi.tindak-lanjut.store', { rekomendasi: tindakLanjutForm.rekomendasi_id }), {
+    const payload = (data: TindakLanjutFormData) => ({
+        uraian_tindak_lanjut: data.uraian_tindak_lanjut,
+        status_tindak_lanjut: data.status_tindak_lanjut,
+        tanggal_tindak_lanjut: data.tanggal_tindak_lanjut,
+        catatan_opd: data.catatan_opd,
+    });
+
+    if (editingTindakLanjutId.value) {
+        tindakLanjutForm.transform(payload).put(route('tindak-lanjut-rekomendasi.update', { tindak_lanjut: editingTindakLanjutId.value }), {
             preserveScroll: true,
-            onSuccess: () => tindakLanjutForm.reset(),
+            onSuccess: () => resetTindakLanjutForm(),
         });
+
+        return;
+    }
+
+    tindakLanjutForm.transform(payload).post(route('rekomendasi-evaluasi.tindak-lanjut.store', { rekomendasi: tindakLanjutForm.rekomendasi_id }), {
+        preserveScroll: true,
+        onSuccess: () => resetTindakLanjutForm(),
+    });
 };
 
-const verifyTindakLanjut = (tl: TindakLanjut, status: string) => {
-    router.patch(route('tindak-lanjut-rekomendasi.verify', { tindak_lanjut: tl.id }), { status_tindak_lanjut: status }, { preserveScroll: true });
+const openVerifyTindakLanjut = (tindakLanjut: TindakLanjut, status: string) => {
+    selectedTindakLanjut.value = tindakLanjut;
+    verifyTindakLanjutForm.reset();
+    verifyTindakLanjutForm.clearErrors();
+    verifyTindakLanjutForm.status_tindak_lanjut = status;
+    verifyTindakLanjutForm.catatan_verifikator = '';
+    isVerifyDialogOpen.value = true;
+};
+
+const submitVerifyTindakLanjut = () => {
+    if (!selectedTindakLanjut.value) return;
+
+    verifyTindakLanjutForm.patch(route('tindak-lanjut-rekomendasi.verify', { tindak_lanjut: selectedTindakLanjut.value.id }), {
+        preserveScroll: true,
+        onSuccess: () => {
+            isVerifyDialogOpen.value = false;
+            selectedTindakLanjut.value = null;
+            verifyTindakLanjutForm.reset();
+        },
+    });
+};
+
+const canEditTindakLanjut = (tindakLanjut: TindakLanjut) => {
+    return props.can.tindak_lanjut && !(tindakLanjut.status_tindak_lanjut === 'selesai' && tindakLanjut.diverifikasi_oleh);
 };
 
 const statusLabel = (status: string) => props.statusOptions.find((option) => option.value === status)?.label ?? ({
@@ -459,10 +522,13 @@ const formatFileSize = (bytes: number) => {
             </section>
 
             <section v-if="can.tindak_lanjut" class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">Tindak Lanjut Rekomendasi</h2>
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <h2 class="text-sm font-semibold">{{ editingTindakLanjutId ? 'Edit Tindak Lanjut Rekomendasi' : 'Tindak Lanjut Rekomendasi' }}</h2>
+                    <button v-if="editingTindakLanjutId" type="button" class="w-fit rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="resetTindakLanjutForm">Batal Edit</button>
+                </div>
                 <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="storeTindakLanjut">
                     <div class="grid gap-1 md:col-span-2">
-                        <select v-model="tindakLanjutForm.rekomendasi_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                        <select v-model="tindakLanjutForm.rekomendasi_id" :disabled="Boolean(editingTindakLanjutId)" class="h-9 rounded-md border bg-background px-3 text-sm disabled:opacity-70">
                             <option value="">Pilih rekomendasi</option>
                             <option v-for="rekomendasi in evaluasi.rekomendasi" :key="rekomendasi.id" :value="rekomendasi.id">
                                 {{ rekomendasi.nomor || `Rekomendasi #${rekomendasi.id}` }} - {{ rekomendasi.rekomendasi }}
@@ -479,7 +545,9 @@ const formatFileSize = (bytes: number) => {
                         <InputError :message="tindakLanjutForm.errors.uraian_tindak_lanjut" />
                     </div>
                     <textarea v-model="tindakLanjutForm.catatan_opd" rows="3" class="rounded-md border bg-background px-3 py-2 text-sm md:col-span-2" placeholder="Catatan OPD" />
-                    <button type="submit" :disabled="tindakLanjutForm.processing" class="w-fit rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">Kirim Tindak Lanjut</button>
+                    <button type="submit" :disabled="tindakLanjutForm.processing" class="w-fit rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
+                        {{ editingTindakLanjutId ? 'Update Tindak Lanjut' : 'Kirim Tindak Lanjut' }}
+                    </button>
                 </form>
             </section>
 
@@ -507,12 +575,18 @@ const formatFileSize = (bytes: number) => {
                                     <div>
                                         <div class="font-medium">{{ tl.uraian_tindak_lanjut }}</div>
                                         <div class="mt-1 text-xs text-muted-foreground">{{ tl.created_by?.name || '-' }} - {{ tl.tanggal_tindak_lanjut || '-' }}</div>
+                                        <div v-if="tl.catatan_opd" class="mt-2 text-xs text-muted-foreground">Catatan OPD: {{ tl.catatan_opd }}</div>
                                         <div v-if="tl.catatan_verifikator" class="mt-2 text-xs text-muted-foreground">Catatan verifikator: {{ tl.catatan_verifikator }}</div>
+                                        <div v-if="tl.diverifikasi_oleh" class="mt-2 text-xs text-muted-foreground">
+                                            Diverifikasi oleh {{ tl.diverifikasi_oleh.name }} pada {{ tl.diverifikasi_at || '-' }}
+                                        </div>
                                     </div>
                                     <div class="flex flex-wrap gap-2">
                                         <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(tl.status_tindak_lanjut)">{{ statusLabel(tl.status_tindak_lanjut) }}</span>
-                                        <button v-if="can.verify_tindak_lanjut" type="button" class="rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="verifyTindakLanjut(tl, 'selesai')">Verifikasi</button>
-                                        <button v-if="can.verify_tindak_lanjut" type="button" class="rounded-md border px-2 py-1 text-xs text-amber-700 hover:bg-amber-50" @click="verifyTindakLanjut(tl, 'perlu_perbaikan')">Perbaikan</button>
+                                        <button v-if="canEditTindakLanjut(tl)" type="button" class="rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editTindakLanjut(rekomendasi, tl)">Edit</button>
+                                        <button v-if="can.verify_tindak_lanjut" type="button" class="rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="openVerifyTindakLanjut(tl, 'selesai')">Verifikasi</button>
+                                        <button v-if="can.verify_tindak_lanjut" type="button" class="rounded-md border px-2 py-1 text-xs text-amber-700 hover:bg-amber-50" @click="openVerifyTindakLanjut(tl, 'perlu_perbaikan')">Perbaikan</button>
+                                        <button v-if="can.verify_tindak_lanjut" type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="openVerifyTindakLanjut(tl, 'ditolak')">Tolak</button>
                                     </div>
                                 </div>
                             </div>
@@ -521,6 +595,41 @@ const formatFileSize = (bytes: number) => {
                 </div>
                 <div v-else class="mt-3 text-sm text-muted-foreground">Belum ada rekomendasi evaluasi.</div>
             </section>
+
+            <Dialog v-model:open="isVerifyDialogOpen">
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Verifikasi Tindak Lanjut</DialogTitle>
+                        <DialogDescription>
+                            Status akan diubah menjadi {{ statusLabel(verifyTindakLanjutForm.status_tindak_lanjut) }} dan catatan verifikator disimpan pada riwayat tindak lanjut.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form class="space-y-3" @submit.prevent="submitVerifyTindakLanjut">
+                        <div class="space-y-1.5">
+                            <label class="text-sm font-medium" for="catatan-verifikator">
+                                Catatan verifikator
+                                <span v-if="['ditolak', 'perlu_perbaikan'].includes(verifyTindakLanjutForm.status_tindak_lanjut)" class="text-red-700">*</span>
+                            </label>
+                            <textarea
+                                id="catatan-verifikator"
+                                v-model="verifyTindakLanjutForm.catatan_verifikator"
+                                rows="4"
+                                class="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                placeholder="Tuliskan catatan hasil verifikasi tindak lanjut."
+                            />
+                            <InputError :message="verifyTindakLanjutForm.errors.catatan_verifikator" />
+                        </div>
+
+                        <DialogFooter class="gap-2">
+                            <Button type="button" variant="outline" :disabled="verifyTindakLanjutForm.processing" @click="isVerifyDialogOpen = false">Batal</Button>
+                            <Button type="submit" :disabled="verifyTindakLanjutForm.processing" class="bg-emerald-700 text-white hover:bg-emerald-800">
+                                {{ verifyTindakLanjutForm.processing ? 'Memproses...' : 'Simpan Verifikasi' }}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </div>
     </AppLayout>
 </template>
