@@ -92,6 +92,8 @@ trait BuildsKinerjaOptions
             ->with('opd:id,nama,singkatan')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($opdId, fn (Builder $query) => $query->where('opd_id', $opdId))
+            ->whereIn('status', ['approved', 'locked'])
+            ->whereHas('items')
             ->orderByDesc('tahun')
             ->get(['id', 'opd_id', 'tahun', 'judul', 'status'])
             ->map(fn (PerjanjianKinerja $pk) => [
@@ -111,6 +113,8 @@ trait BuildsKinerjaOptions
             ->with('opd:id,nama,singkatan')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($opdId, fn (Builder $query) => $query->where('opd_id', $opdId))
+            ->whereIn('status', ['approved', 'locked'])
+            ->whereHas('items')
             ->orderByDesc('tahun')
             ->get(['id', 'opd_id', 'tahun', 'judul', 'status'])
             ->map(fn (RencanaAksi $rencanaAksi) => [

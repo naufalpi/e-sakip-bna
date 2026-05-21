@@ -312,6 +312,29 @@ class RpjmdAccessTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_approved_rpjmd_cannot_be_changed_by_bapperida_without_revision(): void
+    {
+        $this->seed();
+
+        $rpjmd = Rpjmd::create([
+            'judul' => 'RPJMD Final',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'approved',
+        ]);
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.store', $rpjmd), [
+                'type' => 'visi',
+                'uraian' => 'Perubahan tanpa revisi',
+                'urutan' => 1,
+            ])
+            ->assertForbidden();
+    }
+
     public function test_rpjmd_import_csv_saves_batch_rows_and_preview(): void
     {
         $this->seed();
@@ -350,7 +373,7 @@ class RpjmdAccessTest extends TestCase
             'judul' => $judul,
             'tahun_awal' => 2026,
             'tahun_akhir' => 2031,
-            'status' => 'approved',
+            'status' => 'active',
         ]);
 
         $visi = RpjmdVisi::create([

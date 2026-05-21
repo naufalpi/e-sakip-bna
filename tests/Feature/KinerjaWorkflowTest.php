@@ -182,6 +182,29 @@ class KinerjaWorkflowTest extends TestCase
                 'perjanjian_kinerja_id' => $pk->id,
                 'periode_tahun_id' => $periode->id,
                 'tahun' => $periode->tahun,
+                'judul' => 'Rencana Aksi Kinerja Belum Valid',
+                'status' => 'draft',
+            ])
+            ->assertSessionHasErrors('perjanjian_kinerja_id');
+
+        $pk->forceFill(['status' => 'approved'])->save();
+
+        $this->actingAs($adminOpd)
+            ->put(route('perjanjian-kinerja.items.update', [$pk, $pkItem]), [
+                'sasaran' => 'Target approved tidak boleh diubah langsung',
+                'indikator' => 'Indeks layanan publik',
+                'target' => 92,
+                'target_text' => '92 persen',
+                'urutan' => 3,
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($adminOpd)
+            ->post(route('rencana-aksi.store'), [
+                'opd_id' => $opd->id,
+                'perjanjian_kinerja_id' => $pk->id,
+                'periode_tahun_id' => $periode->id,
+                'tahun' => $periode->tahun,
                 'judul' => 'Rencana Aksi Kinerja',
                 'status' => 'draft',
             ])
@@ -232,9 +255,24 @@ class KinerjaWorkflowTest extends TestCase
                 'triwulan' => 'tw1',
                 'status' => 'draft',
             ])
-            ->assertSessionHasErrors('perjanjian_kinerja_id');
+            ->assertSessionHasErrors('rencana_aksi_id');
 
-        $pk->forceFill(['status' => 'approved'])->save();
+        $rencanaAksi->forceFill(['status' => 'approved'])->save();
+
+        $this->actingAs($adminOpd)
+            ->put(route('rencana-aksi.items.update', [$rencanaAksi, $rencanaAksiItem]), [
+                'perjanjian_kinerja_item_id' => $pkItem->id,
+                'periode_realisasi' => 'triwulan',
+                'triwulan' => 'tw3',
+                'aksi' => 'Target RA approved tidak boleh diubah langsung',
+                'indikator' => 'Layanan selesai tepat waktu',
+                'target' => 75,
+                'target_text' => '75 persen',
+                'anggaran' => 2000000,
+                'status' => 'draft',
+                'urutan' => 3,
+            ])
+            ->assertForbidden();
 
         $this->actingAs($adminOpd)
             ->post(route('realisasi-kinerja.store'), [
