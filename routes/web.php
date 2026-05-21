@@ -122,6 +122,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
         Route::resource('system-settings', SystemSettingController::class)->parameters(['system-settings' => 'systemSetting'])->except(['show']);
         Route::resource('users', UserController::class)->except(['show']);
         Route::get('role-permission', RolePermissionController::class)->name('role-permission.index');
+        Route::patch('role-permission/{role}', [RolePermissionController::class, 'update'])->name('role-permission.update');
     });
 });
 

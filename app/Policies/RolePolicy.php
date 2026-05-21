@@ -9,11 +9,16 @@ class RolePolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasPermission('roles.view');
+        return $user->hasAnyPermission(['roles.view', 'manage_roles']);
     }
 
     public function view(User $user, Role $role): bool
     {
-        return $user->hasPermission('roles.view');
+        return $user->hasAnyPermission(['roles.view', 'manage_roles']);
+    }
+
+    public function update(User $user, Role $role): bool
+    {
+        return $user->hasPermission('manage_roles');
     }
 }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Opd;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -83,6 +84,48 @@ class MasterAccessTest extends TestCase
 
         $this->actingAs($user)
             ->get(route('master.opd.create'))
+            ->assertForbidden();
+    }
+
+    public function test_role_permissions_can_be_updated_by_authorized_admin_and_logged(): void
+    {
+        $this->seed();
+
+        $admin = User::factory()->create();
+        $admin->roles()->sync([Role::where('name', 'admin_kabupaten_dinkominfo')->value('id')]);
+
+        $role = Role::where('name', 'admin_opd')->firstOrFail();
+        $permissionIds = Permission::query()
+            ->whereIn('name', ['dashboard.view', 'view_dashboard_opd'])
+            ->pluck('id')
+            ->all();
+
+        $this->actingAs($admin)
+            ->patch(route('master.role-permission.update', $role), [
+                'permission_ids' => $permissionIds,
+            ])
+            ->assertRedirect();
+
+        $this->assertEqualsCanonicalizing($permissionIds, $role->fresh()->permissions()->pluck('permissions.id')->all());
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'permissions_synced',
+            'model_type' => Role::class,
+            'model_id' => $role->id,
+        ]);
+    }
+
+    public function test_role_permissions_cannot_be_updated_by_read_only_role(): void
+    {
+        $this->seed();
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'pimpinan')->value('id')]);
+        $role = Role::where('name', 'admin_opd')->firstOrFail();
+
+        $this->actingAs($user)
+            ->patch(route('master.role-permission.update', $role), [
+                'permission_ids' => [],
+            ])
             ->assertForbidden();
     }
 }
