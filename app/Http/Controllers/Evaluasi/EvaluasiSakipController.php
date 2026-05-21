@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Evaluasi;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Evaluasi\StoreEvaluasiSakipRequest;
 use App\Http\Requests\Evaluasi\UpdateEvaluasiSakipRequest;
+use App\Jobs\ExportLheDocumentJob;
+use App\Models\Dokumen;
 use App\Models\EvaluasiSakip;
 use App\Models\EvaluasiSakipItem;
 use App\Models\KriteriaEvaluasi;
@@ -17,6 +19,7 @@ use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -113,11 +116,13 @@ class EvaluasiSakipController extends Controller
 
         return Inertia::render('EvaluasiSakip/Show', [
             'evaluasi' => $this->serializeEvaluasi($evaluasiSakip),
+            'lheDocuments' => $this->lheDocuments($request, $evaluasiSakip),
             'kriteriaOptions' => $request->user()->can('update', $evaluasiSakip) ? $this->kriteriaOptions() : [],
             'itemOptions' => $request->user()->can('update', $evaluasiSakip) ? $this->itemOptions($evaluasiSakip) : [],
             'statusOptions' => $this->statusOptions(),
             'can' => [
                 'manage' => $request->user()->can('update', $evaluasiSakip),
+                'export_lhe' => $this->canExportLhe($request->user(), $evaluasiSakip),
                 'tindak_lanjut' => $request->user()->can('tindakLanjut', $evaluasiSakip),
                 'verify_tindak_lanjut' => $this->canVerifyTindakLanjut($request->user()),
                 'review' => $this->canVerifyTindakLanjut($request->user()),
@@ -152,6 +157,22 @@ class EvaluasiSakipController extends Controller
         $evaluasiSakip->update($request->validated());
 
         return redirect()->route('evaluasi-sakip.show', $evaluasiSakip)->with('success', 'Evaluasi SAKIP berhasil diperbarui.');
+    }
+
+    public function exportLhe(Request $request, EvaluasiSakip $evaluasiSakip): RedirectResponse
+    {
+        $this->authorize('view', $evaluasiSakip);
+        abort_unless($this->canExportLhe($request->user(), $evaluasiSakip), 403);
+
+        $data = $request->validate([
+            'format' => ['required', Rule::in(['pdf', 'word'])],
+        ]);
+
+        ExportLheDocumentJob::dispatch($evaluasiSakip->id, $request->user()->id, $data['format']);
+
+        $formatLabel = $data['format'] === 'pdf' ? 'PDF' : 'Word';
+
+        return back()->with('success', "Export LHE {$formatLabel} masuk antrean. Jalankan worker queue untuk memproses dokumen.");
     }
 
     public function destroy(EvaluasiSakip $evaluasiSakip): RedirectResponse
@@ -329,9 +350,47 @@ class EvaluasiSakipController extends Controller
         ];
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function lheDocuments(Request $request, EvaluasiSakip $evaluasi): array
+    {
+        return Dokumen::query()
+            ->with('uploadedBy:id,name')
+            ->where('jenis', 'lhe')
+            ->whereHas('relations', fn (Builder $query) => $query
+                ->where('related_type', EvaluasiSakip::class)
+                ->where('related_id', $evaluasi->id))
+            ->latest('id')
+            ->get()
+            ->map(function (Dokumen $dokumen) use ($request) {
+                $canDownload = $request->user()->can('download', $dokumen);
+
+                return [
+                    'id' => $dokumen->id,
+                    'judul' => $dokumen->judul,
+                    'status' => $dokumen->status,
+                    'original_filename' => $dokumen->original_filename,
+                    'mime_type' => $dokumen->mime_type,
+                    'file_size' => $dokumen->file_size,
+                    'created_at' => $dokumen->created_at?->toDateTimeString(),
+                    'uploaded_by' => $dokumen->uploadedBy,
+                    'can_download' => $canDownload,
+                    'download_url' => $canDownload ? route('dokumen.download', $dokumen) : null,
+                ];
+            })
+            ->all();
+    }
+
     private function canVerifyTindakLanjut(User $user): bool
     {
         return $user->hasAnyRole(['super_admin', 'admin_kabupaten_inspektorat'])
             && $user->hasAnyPermission(['evaluasi.manage', 'manage_evaluasi']);
+    }
+
+    private function canExportLhe(User $user, EvaluasiSakip $evaluasi): bool
+    {
+        return $user->can('view', $evaluasi)
+            && $user->hasAnyPermission(['evaluasi.manage', 'manage_evaluasi', 'export_laporan']);
     }
 }

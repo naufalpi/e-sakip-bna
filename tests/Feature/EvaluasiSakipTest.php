@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ExportLheDocumentJob;
+use App\Models\Dokumen;
 use App\Models\EvaluasiSakip;
 use App\Models\EvaluasiSakipItem;
 use App\Models\KriteriaEvaluasi;
@@ -11,7 +13,12 @@ use App\Models\RekomendasiEvaluasi;
 use App\Models\Role;
 use App\Models\TindakLanjutRekomendasi;
 use App\Models\User;
+use App\Services\Dokumen\DokumenStorageService;
+use App\Services\Evaluasi\LheDocumentContentService;
+use App\Services\Reports\ReportDocumentRenderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -187,6 +194,119 @@ class EvaluasiSakipTest extends TestCase
         $this->actingAs($monitor)
             ->get(route('evaluasi-sakip.create'))
             ->assertForbidden();
+    }
+
+    public function test_lhe_export_is_dispatched_to_queue_for_inspektorat(): void
+    {
+        Queue::fake();
+        $this->seed();
+
+        [$opd, , $periode, $inspektorat] = $this->basicActors();
+
+        $evaluasi = EvaluasiSakip::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'evaluator_id' => $inspektorat->id,
+            'status' => 'approved',
+            'nilai_akhir' => 82,
+            'predikat' => 'A',
+        ]);
+
+        $evaluasi->lhe()->create([
+            'nomor_lhe' => 'LHE/001/2026',
+            'tanggal_lhe' => "{$periode->tahun}-06-01",
+            'ringkasan' => 'Ringkasan hasil evaluasi.',
+            'nilai_akhir' => 82,
+            'predikat' => 'A',
+            'status' => 'approved',
+            'disusun_oleh' => $inspektorat->id,
+        ]);
+
+        $this->actingAs($inspektorat)
+            ->post(route('evaluasi-sakip.lhe.export', $evaluasi), ['format' => 'pdf'])
+            ->assertRedirect();
+
+        Queue::assertPushed(ExportLheDocumentJob::class, fn (ExportLheDocumentJob $job) => $job->evaluasiSakipId === $evaluasi->id
+            && $job->requestedById === $inspektorat->id
+            && $job->format === 'pdf');
+    }
+
+    public function test_lhe_export_job_stores_pdf_and_word_documents(): void
+    {
+        config(['filesystems.documents_disk' => 'local']);
+        Storage::fake('local');
+        $this->seed();
+
+        [$opd, , $periode, $inspektorat] = $this->basicActors();
+        $kriteria = KriteriaEvaluasi::firstOrFail();
+
+        $evaluasi = EvaluasiSakip::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'evaluator_id' => $inspektorat->id,
+            'status' => 'approved',
+            'nilai_akhir' => 82,
+            'predikat' => 'A',
+            'catatan_umum' => 'Evaluasi menunjukkan perbaikan pengukuran kinerja.',
+        ]);
+
+        $item = EvaluasiSakipItem::create([
+            'evaluasi_sakip_id' => $evaluasi->id,
+            'kriteria_evaluasi_id' => $kriteria->id,
+            'nilai' => 80,
+            'skor' => 24,
+            'catatan' => 'Cukup memadai.',
+            'rekomendasi_text' => 'Perkuat bukti dukung.',
+        ]);
+
+        $evaluasi->lhe()->create([
+            'nomor_lhe' => 'LHE/001/2026',
+            'tanggal_lhe' => "{$periode->tahun}-06-01",
+            'ringkasan' => 'Ringkasan hasil evaluasi.',
+            'nilai_akhir' => 82,
+            'predikat' => 'A',
+            'status' => 'approved',
+            'disusun_oleh' => $inspektorat->id,
+        ]);
+
+        RekomendasiEvaluasi::create([
+            'evaluasi_sakip_id' => $evaluasi->id,
+            'evaluasi_sakip_item_id' => $item->id,
+            'opd_id' => $opd->id,
+            'nomor' => 'R-001',
+            'rekomendasi' => 'Lengkapi bukti dukung realisasi kinerja.',
+            'prioritas' => 'tinggi',
+            'status_tindak_lanjut' => 'belum',
+        ]);
+
+        foreach (['pdf', 'word'] as $format) {
+            (new ExportLheDocumentJob($evaluasi->id, $inspektorat->id, $format))->handle(
+                app(LheDocumentContentService::class),
+                app(ReportDocumentRenderService::class),
+                app(DokumenStorageService::class),
+            );
+        }
+
+        $pdf = Dokumen::query()->where('jenis', 'lhe')->where('mime_type', 'application/pdf')->firstOrFail();
+        $word = Dokumen::query()->where('jenis', 'lhe')->where('mime_type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')->firstOrFail();
+
+        Storage::disk($pdf->storage_disk)->assertExists($pdf->storage_path);
+        Storage::disk($word->storage_disk)->assertExists($word->storage_path);
+
+        $this->assertStringStartsWith('%PDF', Storage::disk($pdf->storage_disk)->get($pdf->storage_path));
+        $this->assertStringStartsWith("PK\x03\x04", Storage::disk($word->storage_disk)->get($word->storage_path));
+        $this->assertDatabaseHas('dokumen_relations', [
+            'dokumen_id' => $pdf->id,
+            'related_type' => EvaluasiSakip::class,
+            'related_id' => $evaluasi->id,
+        ]);
+        $this->assertDatabaseHas('dokumen_relations', [
+            'dokumen_id' => $word->id,
+            'related_type' => EvaluasiSakip::class,
+            'related_id' => $evaluasi->id,
+        ]);
     }
 
     private function basicActors(): array

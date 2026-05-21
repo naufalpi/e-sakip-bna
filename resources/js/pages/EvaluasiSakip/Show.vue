@@ -45,6 +45,18 @@ type Workflow = {
     status: string;
     histories: Array<{ id: number; action: string; from_status?: string | null; to_status: string; notes?: string | null; created_at: string; actor?: { name: string } | null }>;
 } | null;
+type LheDocument = {
+    id: number;
+    judul: string;
+    status: string;
+    original_filename: string;
+    mime_type?: string | null;
+    file_size: number;
+    created_at?: string | null;
+    uploaded_by?: { name: string } | null;
+    can_download: boolean;
+    download_url?: string | null;
+};
 
 const props = defineProps<{
     evaluasi: {
@@ -69,10 +81,11 @@ const props = defineProps<{
         } | null;
         rekomendasi: Rekomendasi[];
     };
+    lheDocuments: LheDocument[];
     kriteriaOptions: Option[];
     itemOptions: Option[];
     statusOptions: Option[];
-    can: { manage: boolean; tindak_lanjut: boolean; verify_tindak_lanjut: boolean; review: boolean };
+    can: { manage: boolean; export_lhe: boolean; tindak_lanjut: boolean; verify_tindak_lanjut: boolean; review: boolean };
     workflow: Workflow;
 }>();
 
@@ -128,6 +141,10 @@ const destroyItem = (item: EvaluasiItem) => {
 
 const storeLhe = () => {
     lheForm.post(route('evaluasi-sakip.lhe.store', { evaluasi_sakip: props.evaluasi.id }), { preserveScroll: true });
+};
+
+const exportLhe = (format: 'pdf' | 'word') => {
+    router.post(route('evaluasi-sakip.lhe.export', { evaluasi_sakip: props.evaluasi.id }), { format }, { preserveScroll: true });
 };
 
 const storeRekomendasi = () => {
@@ -190,6 +207,14 @@ const statusClass = (status: string) =>
         ditolak: 'bg-red-100 text-red-800',
         perlu_perbaikan: 'bg-amber-100 text-amber-800',
     })[status] ?? 'bg-slate-100 text-slate-700';
+
+const formatFileSize = (bytes: number) => {
+    if (!bytes) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 </script>
 
 <template>
@@ -208,6 +233,8 @@ const statusClass = (status: string) =>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <button v-if="can.export_lhe" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('pdf')">Export LHE PDF</button>
+                    <button v-if="can.export_lhe" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('word')">Export LHE Word</button>
                     <Link v-if="can.manage" :href="route('evaluasi-sakip.edit', evaluasi.id)" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Edit</Link>
                     <button v-if="can.manage" type="button" class="rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800" @click="transition('submit')">Ajukan</button>
                     <button v-if="can.review" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="transition('approve')">Setujui</button>
@@ -320,6 +347,33 @@ const statusClass = (status: string) =>
                         <button type="submit" :disabled="lheForm.processing" class="w-fit rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">Simpan LHE</button>
                     </form>
                     <div v-else class="mt-3 text-sm text-muted-foreground">{{ evaluasi.lhe?.ringkasan || 'LHE belum tersedia.' }}</div>
+
+                    <div class="mt-5 border-t pt-4">
+                        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <h3 class="text-sm font-semibold">Dokumen LHE Otomatis</h3>
+                            <div v-if="can.export_lhe" class="flex flex-wrap gap-2">
+                                <button type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('pdf')">PDF</button>
+                                <button type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('word')">Word</button>
+                            </div>
+                        </div>
+                        <div v-if="lheDocuments.length" class="mt-3 divide-y rounded-md border text-sm">
+                            <article v-for="document in lheDocuments" :key="document.id" class="flex flex-col gap-3 p-3 md:flex-row md:items-center md:justify-between">
+                                <div>
+                                    <div class="font-medium">{{ document.judul }}</div>
+                                    <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                        <span>{{ document.original_filename }}</span>
+                                        <span>-</span>
+                                        <span>{{ formatFileSize(document.file_size) }}</span>
+                                        <span>-</span>
+                                        <span>{{ document.created_at || '-' }}</span>
+                                    </div>
+                                </div>
+                                <a v-if="document.can_download && document.download_url" :href="document.download_url" class="rounded-md border px-3 py-2 text-center text-sm hover:bg-muted">Unduh</a>
+                                <span v-else class="text-xs text-muted-foreground">Tidak ada akses unduh</span>
+                            </article>
+                        </div>
+                        <div v-else class="mt-3 rounded-md border px-3 py-6 text-center text-sm text-muted-foreground">Belum ada dokumen LHE otomatis.</div>
+                    </div>
                 </div>
 
                 <div v-if="can.manage" class="rounded-lg border bg-card p-4">
