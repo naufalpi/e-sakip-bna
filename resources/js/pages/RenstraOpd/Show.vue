@@ -213,14 +213,20 @@ const form = useForm({
     urutan: 1,
 });
 
+const targetTriwulanRows = [
+    { triwulan: 'tw1', label: 'TW I' },
+    { triwulan: 'tw2', label: 'TW II' },
+    { triwulan: 'tw3', label: 'TW III' },
+    { triwulan: 'tw4', label: 'TW IV' },
+];
+
+const emptyTargetTriwulanRows = () => targetTriwulanRows.map((row) => ({ triwulan: row.triwulan, target_text: '', target_angka: '', target_anggaran: '' }));
+
 const targetTriwulanForm = useForm({
     related_table: 'indikator_tujuan_opd',
     related_id: '' as number | string,
     periode_tahun_id: '' as number | string,
-    triwulan: 'tw1',
-    target_text: '',
-    target_angka: '',
-    target_anggaran: '',
+    targets: emptyTargetTriwulanRows(),
 });
 
 const selectedTypeLabel = computed(() => typeOptions.find((type) => type.value === form.type)?.label ?? 'Data Cascading');
@@ -350,13 +356,11 @@ const destroyNode = (type: NodeType, id: number, label: string) => {
 };
 
 const submitTargetTriwulan = () => {
-    targetTriwulanForm.post(route('target-triwulan-indikator.store'), {
+    targetTriwulanForm.post(route('target-triwulan-indikator.bulk-store'), {
         preserveScroll: true,
         onSuccess: () => {
             targetTriwulanForm.related_id = '';
-            targetTriwulanForm.target_text = '';
-            targetTriwulanForm.target_angka = '';
-            targetTriwulanForm.target_anggaran = '';
+            targetTriwulanForm.targets = emptyTargetTriwulanRows();
         },
     });
 };
@@ -404,6 +408,7 @@ const formatCurrency = (value?: string | number | null) => {
 };
 const targetDisplay = (target: Target) => target.target_text || target.target || '-';
 const targetTriwulanDisplay = (target: TargetTriwulan) => target.target_text || target.target_angka || '-';
+const targetTriwulanError = (index: number, field: 'triwulan' | 'target_text' | 'target_angka' | 'target_anggaran') => targetTriwulanForm.errors[`targets.${index}.${field}`];
 const triwulanLabel = (triwulan: string) =>
     ({
         tw1: 'TW I',
@@ -898,37 +903,38 @@ const triwulanLabel = (triwulan: string) =>
                             <InputError :message="targetTriwulanForm.errors.periode_tahun_id" />
                         </div>
 
-                        <div class="grid gap-2">
-                            <label class="text-sm font-medium" for="target_triwulan">Triwulan</label>
-                            <select id="target_triwulan" v-model="targetTriwulanForm.triwulan" class="h-9 rounded-md border bg-background px-3 text-sm">
-                                <option value="tw1">TW I</option>
-                                <option value="tw2">TW II</option>
-                                <option value="tw3">TW III</option>
-                                <option value="tw4">TW IV</option>
-                            </select>
-                            <InputError :message="targetTriwulanForm.errors.triwulan" />
-                        </div>
-
-                        <div class="grid gap-2">
-                            <label class="text-sm font-medium" for="target_triwulan_angka">Target Angka</label>
-                            <input id="target_triwulan_angka" v-model="targetTriwulanForm.target_angka" type="number" step="0.0001" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                            <InputError :message="targetTriwulanForm.errors.target_angka" />
-                        </div>
-
-                        <div class="grid gap-2">
-                            <label class="text-sm font-medium" for="target_triwulan_text">Target Teks</label>
-                            <input id="target_triwulan_text" v-model="targetTriwulanForm.target_text" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                            <InputError :message="targetTriwulanForm.errors.target_text" />
-                        </div>
-
-                        <div class="grid gap-2">
-                            <label class="text-sm font-medium" for="target_triwulan_anggaran">Target Anggaran</label>
-                            <input id="target_triwulan_anggaran" v-model="targetTriwulanForm.target_anggaran" type="number" step="0.01" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                            <InputError :message="targetTriwulanForm.errors.target_anggaran" />
+                        <div class="overflow-x-auto rounded-md border">
+                            <table class="min-w-[680px] text-sm">
+                                <thead class="bg-muted/60 text-left text-xs uppercase text-muted-foreground">
+                                    <tr>
+                                        <th class="px-3 py-2">Triwulan</th>
+                                        <th class="px-3 py-2">Target Angka</th>
+                                        <th class="px-3 py-2">Target Teks</th>
+                                        <th class="px-3 py-2">Target Anggaran</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(row, index) in targetTriwulanForm.targets" :key="row.triwulan" class="border-t">
+                                        <td class="px-3 py-2 font-medium">{{ targetTriwulanRows[index].label }}</td>
+                                        <td class="px-3 py-2">
+                                            <input v-model="row.target_angka" type="number" step="0.0001" class="h-9 w-full rounded-md border bg-background px-3 text-sm" />
+                                            <InputError :message="targetTriwulanError(index, 'target_angka')" />
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <input v-model="row.target_text" class="h-9 w-full rounded-md border bg-background px-3 text-sm" placeholder="Opsional" />
+                                            <InputError :message="targetTriwulanError(index, 'target_text')" />
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <input v-model="row.target_anggaran" type="number" step="0.01" class="h-9 w-full rounded-md border bg-background px-3 text-sm" />
+                                            <InputError :message="targetTriwulanError(index, 'target_anggaran')" />
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
 
                         <button type="submit" :disabled="targetTriwulanForm.processing || selectedTargetTriwulanOptions.length === 0" class="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60">
-                            Simpan Target Triwulan
+                            Simpan Target TW I-IV
                         </button>
                     </form>
                 </aside>

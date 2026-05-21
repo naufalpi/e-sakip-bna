@@ -69,6 +69,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::put('renstra-opd/{renstra_opd}/nodes/{type}/{id}', [RenstraOpdNodeController::class, 'update'])->name('renstra-opd.nodes.update');
     Route::delete('renstra-opd/{renstra_opd}/nodes/{type}/{id}', [RenstraOpdNodeController::class, 'destroy'])->name('renstra-opd.nodes.destroy');
     Route::post('target-triwulan-indikator', [TargetTriwulanIndikatorController::class, 'store'])->name('target-triwulan-indikator.store');
+    Route::post('target-triwulan-indikator/bulk', [TargetTriwulanIndikatorController::class, 'bulkStore'])->name('target-triwulan-indikator.bulk-store');
     Route::delete('target-triwulan-indikator/{target}', [TargetTriwulanIndikatorController::class, 'destroy'])->name('target-triwulan-indikator.destroy');
 
     Route::resource('perjanjian-kinerja', PerjanjianKinerjaController::class);

@@ -206,14 +206,16 @@ class RenstraOpdTest extends TestCase
             ->assertRedirect();
 
         $this->actingAs($user)
-            ->post(route('target-triwulan-indikator.store'), [
+            ->post(route('target-triwulan-indikator.bulk-store'), [
                 'related_table' => 'indikator_opd_program',
                 'related_id' => $indikatorProgram->id,
                 'periode_tahun_id' => $periode->id,
-                'triwulan' => 'tw1',
-                'target_text' => '25 persen',
-                'target_angka' => 25,
-                'target_anggaran' => 250000,
+                'targets' => [
+                    ['triwulan' => 'tw1', 'target_text' => '25 persen', 'target_angka' => 25, 'target_anggaran' => 250000],
+                    ['triwulan' => 'tw2', 'target_text' => '50 persen', 'target_angka' => 50, 'target_anggaran' => 500000],
+                    ['triwulan' => 'tw3', 'target_text' => '75 persen', 'target_angka' => 75, 'target_anggaran' => 750000],
+                    ['triwulan' => 'tw4', 'target_text' => '100 persen', 'target_angka' => 100, 'target_anggaran' => 1000000],
+                ],
             ])
             ->assertRedirect();
 
@@ -240,6 +242,15 @@ class RenstraOpdTest extends TestCase
             'periode_tahun_id' => $periode->id,
             'triwulan' => 'tw1',
             'target_text' => '25 persen',
+        ]);
+
+        $this->assertDatabaseHas('target_triwulan_indikator', [
+            'related_table' => 'indikator_opd_program',
+            'related_id' => $indikatorProgram->id,
+            'periode_tahun_id' => $periode->id,
+            'triwulan' => 'tw4',
+            'target_text' => '100 persen',
+            'target_anggaran' => 1000000,
         ]);
     }
 

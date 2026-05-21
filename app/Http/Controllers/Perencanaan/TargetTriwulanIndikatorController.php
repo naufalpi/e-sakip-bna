@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Perencanaan;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Perencanaan\BulkStoreTargetTriwulanIndikatorRequest;
 use App\Http\Requests\Perencanaan\StoreTargetTriwulanIndikatorRequest;
 use App\Models\IndikatorOpdProgram;
 use App\Models\IndikatorProgramRpjmd;
@@ -15,6 +16,7 @@ use App\Models\TargetTriwulanIndikator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TargetTriwulanIndikatorController extends Controller
 {
@@ -36,6 +38,38 @@ class TargetTriwulanIndikatorController extends Controller
         ]);
 
         return back()->with('success', 'Target triwulan indikator berhasil disimpan.');
+    }
+
+    public function bulkStore(BulkStoreTargetTriwulanIndikatorRequest $request): RedirectResponse
+    {
+        $data = $request->validated();
+        $related = $this->relatedModel($data['related_table'], (int) $data['related_id']);
+        $this->authorize('update', $this->ownerModel($related, $data['related_table']));
+
+        $saved = 0;
+
+        DB::transaction(function () use ($data, $related, &$saved) {
+            foreach ($data['targets'] as $target) {
+                if (! $this->hasTargetValue($target)) {
+                    continue;
+                }
+
+                TargetTriwulanIndikator::updateOrCreate([
+                    'related_table' => $data['related_table'],
+                    'related_id' => $related->getKey(),
+                    'periode_tahun_id' => $data['periode_tahun_id'],
+                    'triwulan' => $target['triwulan'],
+                ], [
+                    'target_text' => $target['target_text'] ?? null,
+                    'target_angka' => $target['target_angka'] ?? null,
+                    'target_anggaran' => $target['target_anggaran'] ?? null,
+                ]);
+
+                $saved++;
+            }
+        });
+
+        return back()->with('success', "{$saved} target triwulan indikator berhasil disimpan.");
     }
 
     public function destroy(Request $request, TargetTriwulanIndikator $target): RedirectResponse
@@ -77,5 +111,15 @@ class TargetTriwulanIndikatorController extends Controller
             'indikator_sub_kegiatan' => $related->subKegiatan->kegiatan->program->renstra,
             default => abort(404),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $target
+     */
+    private function hasTargetValue(array $target): bool
+    {
+        return filled($target['target_text'] ?? null)
+            || filled($target['target_angka'] ?? null)
+            || filled($target['target_anggaran'] ?? null);
     }
 }

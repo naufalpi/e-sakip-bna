@@ -299,6 +299,29 @@ class RpjmdAccessTest extends TestCase
             'target_text' => '25 persen',
         ]);
 
+        $this->actingAs($user)
+            ->post(route('target-triwulan-indikator.bulk-store'), [
+                'related_table' => 'indikator_program_rpjmd',
+                'related_id' => $indikator->id,
+                'periode_tahun_id' => $periode->id,
+                'targets' => [
+                    ['triwulan' => 'tw1', 'target_text' => '25 persen', 'target_angka' => 25, 'target_anggaran' => 1000000],
+                    ['triwulan' => 'tw2', 'target_text' => '50 persen', 'target_angka' => 50, 'target_anggaran' => 2000000],
+                    ['triwulan' => 'tw3', 'target_text' => '75 persen', 'target_angka' => 75, 'target_anggaran' => 3000000],
+                    ['triwulan' => 'tw4', 'target_text' => '100 persen', 'target_angka' => 100, 'target_anggaran' => 4000000],
+                ],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('target_triwulan_indikator', [
+            'related_table' => 'indikator_program_rpjmd',
+            'related_id' => $indikator->id,
+            'periode_tahun_id' => $periode->id,
+            'triwulan' => 'tw4',
+            'target_text' => '100 persen',
+            'target_anggaran' => 4000000,
+        ]);
+
         $adminOpd = User::factory()->create(['opd_id' => $opd->id]);
         $adminOpd->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
 
@@ -309,6 +332,17 @@ class RpjmdAccessTest extends TestCase
                 'periode_tahun_id' => $periode->id,
                 'triwulan' => 'tw2',
                 'target_text' => '50 persen',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($adminOpd)
+            ->post(route('target-triwulan-indikator.bulk-store'), [
+                'related_table' => 'indikator_program_rpjmd',
+                'related_id' => $indikator->id,
+                'periode_tahun_id' => $periode->id,
+                'targets' => [
+                    ['triwulan' => 'tw1', 'target_text' => 'Tidak boleh'],
+                ],
             ])
             ->assertForbidden();
     }
