@@ -21,6 +21,10 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardService
 {
+    private const CACHE_TTL_SECONDS = 300;
+
+    private const CACHE_VERSION = 'v3';
+
     /**
      * @param  array<string, mixed>  $filters
      * @return array<string, mixed>
@@ -34,22 +38,23 @@ class DashboardService
         $scope = $this->dashboardScope($user);
 
         $cacheKey = sprintf(
-            'dashboard:v2:user:%d:scope:%s:tahun:%d:opd:%s',
+            'dashboard:%s:user:%d:scope:%s:tahun:%d:opd:%s',
+            self::CACHE_VERSION,
             $user->id,
             $scope,
             $tahun,
             $opdId ?: 'all',
         );
 
-        return Cache::remember($cacheKey, now()->addSeconds(60), function () use ($user, $tahun, $opdId, $scope) {
-            return $this->buildDashboard($user, $tahun, $opdId, $scope);
+        return Cache::remember($cacheKey, now()->addSeconds(self::CACHE_TTL_SECONDS), function () use ($user, $tahun, $opdId, $scope, $cacheKey) {
+            return $this->buildDashboard($user, $tahun, $opdId, $scope, $cacheKey);
         });
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function buildDashboard(User $user, int $tahun, ?int $opdId, string $scope): array
+    private function buildDashboard(User $user, int $tahun, ?int $opdId, string $scope, string $cacheKey): array
     {
         $opdOptions = $this->opdOptions($user);
         $visibleOpds = $this->visibleOpds($user, $opdId);
@@ -99,6 +104,8 @@ class DashboardService
         $efficiencyStatusDistribution = $this->efficiencyStatusDistribution($opdIds, $tahun);
         $quarterlyAchievement = $this->quarterlyAchievement($opdIds, $tahun);
         $opdsWithoutRealization = $this->opdsWithoutRealization($visibleOpds, $realisasiOpdIds);
+        $opdPerformanceRanking = $this->opdPerformanceRanking($progressOpd);
+        $achievementIndicatorDrilldown = $this->achievementIndicatorDrilldown($opdIds, $tahun);
 
         $totalOpd = count($opdIds);
         $openRecommendationTotal = array_sum($rekomendasiTerbukaByOpd);
@@ -116,6 +123,12 @@ class DashboardService
             'filters' => [
                 'tahun' => $tahun,
                 'opd_id' => $opdId,
+            ],
+            'cache' => [
+                'key' => $cacheKey,
+                'store' => (string) config('cache.default'),
+                'ttl_seconds' => self::CACHE_TTL_SECONDS,
+                'generated_at' => now()->toISOString(),
             ],
             'opdOptions' => $opdOptions,
             'periodeOptions' => $this->periodeOptions(),
@@ -151,6 +164,7 @@ class DashboardService
                 $this->completionRow('evaluasi', 'Evaluasi SAKIP', count($evaluasiOpdIds), $totalOpd),
             ],
             'progressOpd' => $progressOpd,
+            'opdPerformanceRanking' => $opdPerformanceRanking,
             'achievementByYear' => $achievementByYear,
             'workflowStatus' => $workflowStatus,
             'recommendationStatus' => $recommendationStatus,
@@ -161,6 +175,7 @@ class DashboardService
             'achievementStatusDistribution' => $achievementStatusDistribution,
             'efficiencyStatusDistribution' => $efficiencyStatusDistribution,
             'quarterlyAchievement' => $quarterlyAchievement,
+            'achievementIndicatorDrilldown' => $achievementIndicatorDrilldown,
             'opdsWithoutRealization' => $opdsWithoutRealization,
             'quickLinks' => $this->quickLinks($scope, $user),
         ];
@@ -429,6 +444,110 @@ class DashboardService
                 'rata_capaian' => round((float) $row->rata_capaian, 2),
                 'indikator_count' => (int) $row->indikator_count,
                 'selected' => (int) $row->tahun === $selectedYear,
+            ])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $progressOpd
+     * @return array<int, array<string, mixed>>
+     */
+    private function opdPerformanceRanking(array $progressOpd): array
+    {
+        return collect($progressOpd)
+            ->map(function (array $row) {
+                $progress = (float) ($row['progress_percent'] ?? 0);
+                $capaian = $row['capaian_persen'] !== null ? min(max((float) $row['capaian_persen'], 0), 100) : 0;
+                $evaluasi = $row['nilai_evaluasi'] !== null ? min(max((float) $row['nilai_evaluasi'], 0), 100) : 0;
+                $rekomendasiScore = max(0, 100 - min((int) ($row['rekomendasi_terbuka_count'] ?? 0) * 20, 100));
+
+                $row['monitoring_score'] = round(
+                    ($progress * 0.35) + ($capaian * 0.30) + ($evaluasi * 0.30) + ($rekomendasiScore * 0.05),
+                    2,
+                );
+
+                return $row;
+            })
+            ->sortBy([
+                ['monitoring_score', 'desc'],
+                ['capaian_persen', 'desc'],
+                ['progress_percent', 'desc'],
+                ['nama', 'asc'],
+            ])
+            ->take(10)
+            ->values()
+            ->map(function (array $row, int $index) {
+                return [
+                    'rank' => $index + 1,
+                    'opd_id' => $row['opd_id'],
+                    'kode' => $row['kode'],
+                    'nama' => $row['nama'],
+                    'singkatan' => $row['singkatan'],
+                    'progress_percent' => $row['progress_percent'],
+                    'capaian_persen' => $row['capaian_persen'],
+                    'nilai_evaluasi' => $row['nilai_evaluasi'],
+                    'predikat' => $row['predikat'],
+                    'rekomendasi_terbuka_count' => $row['rekomendasi_terbuka_count'],
+                    'monitoring_score' => $row['monitoring_score'],
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $opdIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function achievementIndicatorDrilldown(array $opdIds, int $tahun): array
+    {
+        return DB::table('realisasi_program')
+            ->join('realisasi_kinerja', 'realisasi_kinerja.id', '=', 'realisasi_program.realisasi_kinerja_id')
+            ->leftJoin('opds', 'opds.id', '=', 'realisasi_kinerja.opd_id')
+            ->whereNull('realisasi_program.deleted_at')
+            ->whereNull('realisasi_kinerja.deleted_at')
+            ->whereIn('realisasi_kinerja.opd_id', $opdIds)
+            ->where('realisasi_kinerja.tahun', $tahun)
+            ->whereIn('realisasi_program.status_capaian', ['merah', 'kuning', 'hijau'])
+            ->select([
+                'realisasi_program.id',
+                'realisasi_program.indikator',
+                'realisasi_program.target',
+                'realisasi_program.target_text',
+                'realisasi_program.realisasi',
+                'realisasi_program.realisasi_text',
+                'realisasi_program.capaian_persen',
+                'realisasi_program.status_capaian',
+                'realisasi_program.serapan_anggaran_persen',
+                'realisasi_program.status_efisiensi',
+                'realisasi_kinerja.id as realisasi_kinerja_id',
+                'realisasi_kinerja.opd_id',
+                'realisasi_kinerja.periode_realisasi',
+                'realisasi_kinerja.triwulan',
+                'opds.nama as opd_nama',
+                'opds.singkatan as opd_singkatan',
+            ])
+            ->orderByRaw("case realisasi_program.status_capaian when 'merah' then 1 when 'kuning' then 2 else 3 end")
+            ->orderBy('realisasi_program.capaian_persen')
+            ->orderBy('opds.nama')
+            ->limit(15)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'realisasi_kinerja_id' => (int) $row->realisasi_kinerja_id,
+                'opd_id' => (int) $row->opd_id,
+                'opd' => $row->opd_singkatan ?: $row->opd_nama,
+                'indikator' => (string) $row->indikator,
+                'target' => $row->target !== null ? (float) $row->target : null,
+                'target_text' => $row->target_text,
+                'realisasi' => $row->realisasi !== null ? (float) $row->realisasi : null,
+                'realisasi_text' => $row->realisasi_text,
+                'capaian_persen' => $row->capaian_persen !== null ? round((float) $row->capaian_persen, 2) : null,
+                'status_capaian' => $row->status_capaian,
+                'serapan_anggaran_persen' => $row->serapan_anggaran_persen !== null ? round((float) $row->serapan_anggaran_persen, 2) : null,
+                'status_efisiensi' => $row->status_efisiensi,
+                'periode_realisasi' => $row->periode_realisasi,
+                'triwulan' => $row->triwulan,
+                'triwulan_label' => $this->triwulanLabel($row->triwulan),
             ])
             ->all();
     }
@@ -829,6 +948,17 @@ class DashboardService
             'ditolak' => 'Ditolak',
             'perlu_perbaikan' => 'Perlu Perbaikan',
             default => str($status)->replace('_', ' ')->title()->toString(),
+        };
+    }
+
+    private function triwulanLabel(?string $triwulan): ?string
+    {
+        return match ($triwulan) {
+            'tw1' => 'Triwulan I',
+            'tw2' => 'Triwulan II',
+            'tw3' => 'Triwulan III',
+            'tw4' => 'Triwulan IV',
+            default => $triwulan ? str($triwulan)->replace('_', ' ')->title()->toString() : null,
         };
     }
 

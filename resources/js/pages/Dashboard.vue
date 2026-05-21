@@ -2,16 +2,35 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { AlertTriangle, ArrowRight, BarChart3, Building2, ClipboardCheck, FileCheck2, GitBranch, ListChecks, SlidersHorizontal, TrendingUp } from 'lucide-vue-next';
+import { AlertTriangle, ArrowRight, BarChart3, Building2, ClipboardCheck, FileCheck2, Gauge, GitBranch, ListChecks, SlidersHorizontal, TrendingUp, Trophy } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
 
 type Option = { id?: number; tahun?: number; label: string };
+type CacheMeta = { key: string; store: string; ttl_seconds: number; generated_at: string };
 type Completion = { key: string; label: string; count: number; total: number; percent: number };
 type WorkflowStatus = { status: string; label: string; count: number };
 type RecommendationStatus = { status: string; label: string; count: number };
 type Distribution = { status: string; label: string; count: number; percent: number };
 type AchievementYear = { tahun: number; rata_capaian: number; indikator_count: number; selected: boolean };
 type QuarterlyAchievement = { triwulan: string; label: string; rata_capaian: number; indikator_count: number; opd_count: number; completion_percent: number };
+type AchievementIndicator = {
+    id: number;
+    realisasi_kinerja_id: number;
+    opd_id: number;
+    opd?: string | null;
+    indikator: string;
+    target?: number | null;
+    target_text?: string | null;
+    realisasi?: number | null;
+    realisasi_text?: string | null;
+    capaian_persen?: number | null;
+    status_capaian?: string | null;
+    serapan_anggaran_persen?: number | null;
+    status_efisiensi?: string | null;
+    periode_realisasi?: string | null;
+    triwulan?: string | null;
+    triwulan_label?: string | null;
+};
 type ProgressOpd = {
     opd_id: number;
     kode?: string | null;
@@ -24,6 +43,10 @@ type ProgressOpd = {
     status_evaluasi?: string | null;
     capaian_persen?: number | null;
     rekomendasi_terbuka_count: number;
+};
+type OpdPerformanceRank = Pick<ProgressOpd, 'opd_id' | 'kode' | 'nama' | 'singkatan' | 'progress_percent' | 'capaian_persen' | 'nilai_evaluasi' | 'predikat' | 'rekomendasi_terbuka_count'> & {
+    rank: number;
+    monitoring_score: number;
 };
 type EvaluationRank = { id: number; opd?: string | null; nilai_akhir: string | number; predikat?: string | null; status: string };
 type OpenRecommendation = {
@@ -57,6 +80,7 @@ const props = defineProps<{
         can_filter_opd: boolean;
     };
     filters: { tahun: number; opd_id?: number | null };
+    cache: CacheMeta;
     opdOptions: Option[];
     periodeOptions: Option[];
     stats: {
@@ -81,6 +105,7 @@ const props = defineProps<{
     };
     moduleCompletion: Completion[];
     progressOpd: ProgressOpd[];
+    opdPerformanceRanking: OpdPerformanceRank[];
     achievementByYear: AchievementYear[];
     workflowStatus: WorkflowStatus[];
     recommendationStatus: RecommendationStatus[];
@@ -91,6 +116,7 @@ const props = defineProps<{
     achievementStatusDistribution: Distribution[];
     efficiencyStatusDistribution: Distribution[];
     quarterlyAchievement: QuarterlyAchievement[];
+    achievementIndicatorDrilldown: AchievementIndicator[];
     opdsWithoutRealization: OpdWithoutRealization[];
     quickLinks: Array<{ label: string; href: string }>;
 }>();
@@ -143,8 +169,44 @@ function formatScore(value?: number | string | null) {
     return number.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 }
 
+function formatDateTime(value?: string | null) {
+    if (!value) {
+        return '-';
+    }
+
+    return new Date(value).toLocaleString('id-ID', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    });
+}
+
+function formatMetricValue(value?: number | string | null, text?: string | null) {
+    if (text) {
+        return text;
+    }
+
+    if (value === null || value === undefined || value === '') {
+        return '-';
+    }
+
+    return Number(value).toLocaleString('id-ID', { maximumFractionDigits: 4 });
+}
+
 function barWidth(value?: number | string | null) {
     return `${Math.min(Math.max(Number(value ?? 0), 0), 100)}%`;
+}
+
+function statusLabel(status?: string | null) {
+    return (
+        {
+            merah: 'Merah',
+            kuning: 'Kuning',
+            hijau: 'Hijau',
+            efisien: 'Efisien',
+            cukup_efisien: 'Cukup efisien',
+            tidak_efisien: 'Tidak efisien',
+        }[status ?? ''] ?? (status ? status.replaceAll('_', ' ') : '-')
+    );
 }
 
 function statusClass(status?: string | null) {
@@ -189,6 +251,7 @@ function booleanClass(value: boolean) {
                 <div>
                     <h1 class="text-2xl font-semibold tracking-normal text-foreground">{{ dashboard.title }}</h1>
                     <p class="mt-1 max-w-3xl text-sm text-muted-foreground">{{ dashboard.description }}</p>
+                    <p class="mt-2 text-xs text-muted-foreground">Data diperbarui {{ formatDateTime(cache.generated_at) }} melalui cache {{ cache.store }} selama {{ cache.ttl_seconds }} detik.</p>
                 </div>
 
                 <form class="flex flex-col gap-2 md:flex-row md:items-center" @submit.prevent="applyFilters">
@@ -303,6 +366,91 @@ function booleanClass(value: boolean) {
                     </div>
                     <div class="mt-3 h-2 overflow-hidden rounded-full bg-muted">
                         <div class="h-full rounded-full bg-emerald-700" :style="{ width: `${item.percent}%` }" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="grid gap-4 xl:grid-cols-2">
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <div class="flex items-center gap-2">
+                            <Trophy class="size-4 text-emerald-700" />
+                            <h2 class="text-sm font-semibold">Ranking Monitoring OPD</h2>
+                        </div>
+                        <p class="mt-1 text-xs text-muted-foreground">Skor gabungan progress input, capaian, nilai evaluasi, dan rekomendasi terbuka.</p>
+                    </div>
+                    <div class="divide-y">
+                        <div v-for="row in opdPerformanceRanking" :key="row.opd_id" class="grid grid-cols-[44px_1fr_92px] items-center gap-3 px-4 py-3 text-sm">
+                            <div class="flex size-8 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-800">
+                                {{ row.rank }}
+                            </div>
+                            <div class="min-w-0">
+                                <div class="truncate font-medium">{{ row.singkatan || row.nama }}</div>
+                                <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                    <span>Progress {{ row.progress_percent }}%</span>
+                                    <span>Capaian {{ row.capaian_persen === null || row.capaian_persen === undefined ? '-' : formatPercent(row.capaian_persen) }}</span>
+                                    <span>Evaluasi {{ row.nilai_evaluasi ?? '-' }}</span>
+                                    <span>{{ row.rekomendasi_terbuka_count }} rekomendasi</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-base font-semibold">{{ formatScore(row.monitoring_score) }}</div>
+                                <div class="text-xs text-muted-foreground">skor</div>
+                            </div>
+                        </div>
+                        <div v-if="opdPerformanceRanking.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">Belum ada data OPD untuk diranking.</div>
+                    </div>
+                </div>
+
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <div class="flex items-center gap-2">
+                            <Gauge class="size-4 text-emerald-700" />
+                            <h2 class="text-sm font-semibold">Drilldown Capaian Indikator</h2>
+                        </div>
+                        <p class="mt-1 text-xs text-muted-foreground">Prioritas indikator dimulai dari status merah, lalu kuning, lalu hijau.</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
+                                <tr>
+                                    <th class="px-4 py-3">Indikator</th>
+                                    <th class="px-4 py-3">Target / Realisasi</th>
+                                    <th class="px-4 py-3">Capaian</th>
+                                    <th class="px-4 py-3">Efisiensi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="row in achievementIndicatorDrilldown" :key="row.id" class="border-b last:border-0">
+                                    <td class="px-4 py-3">
+                                        <div class="font-medium">{{ row.indikator }}</div>
+                                        <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                            <span>{{ row.opd || '-' }}</span>
+                                            <span>{{ row.triwulan_label || row.periode_realisasi || '-' }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3 text-xs">
+                                        <div>Target {{ formatMetricValue(row.target, row.target_text) }}</div>
+                                        <div class="mt-1 text-muted-foreground">Realisasi {{ formatMetricValue(row.realisasi, row.realisasi_text) }}</div>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="font-semibold">{{ row.capaian_persen === null || row.capaian_persen === undefined ? '-' : formatPercent(row.capaian_persen) }}</div>
+                                        <span class="mt-1 inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status_capaian)">
+                                            {{ statusLabel(row.status_capaian) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="text-xs text-muted-foreground">Serapan {{ row.serapan_anggaran_persen === null || row.serapan_anggaran_persen === undefined ? '-' : formatPercent(row.serapan_anggaran_persen) }}</div>
+                                        <span class="mt-1 inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status_efisiensi)">
+                                            {{ statusLabel(row.status_efisiensi) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr v-if="achievementIndicatorDrilldown.length === 0">
+                                    <td colspan="4" class="px-4 py-8 text-center text-muted-foreground">Belum ada data capaian indikator.</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
