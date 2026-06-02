@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ImportBatch;
 use App\Models\User;
+use App\Services\Imports\ImportColumnValidationService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -14,6 +15,8 @@ use ZipArchive;
 class RpjmdImportPreviewService
 {
     private const MAX_ROWS = 1000;
+
+    public function __construct(private readonly ImportColumnValidationService $columnValidator) {}
 
     public function storePreview(UploadedFile $file, User $user): ImportBatch
     {
@@ -45,8 +48,9 @@ class RpjmdImportPreviewService
             $rows = $this->readRows($file);
             $rows = $this->withoutEmptyRows($rows);
             $columns = $this->detectColumns($rows);
+            $columnValidation = $this->columnValidator->validate('rpjmd', $columns);
 
-            DB::transaction(function () use ($batch, $rows, $columns) {
+            DB::transaction(function () use ($batch, $rows, $columns, $columnValidation) {
                 foreach ($rows as $index => $row) {
                     $batch->rows()->create([
                         'row_number' => $index + 1,
@@ -68,6 +72,7 @@ class RpjmdImportPreviewService
                     'metadata' => [
                         ...($batch->metadata ?? []),
                         'columns' => $columns,
+                        'column_validation' => $columnValidation,
                     ],
                 ]);
             });

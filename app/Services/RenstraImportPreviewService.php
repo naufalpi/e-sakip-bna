@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ImportBatch;
 use App\Models\User;
+use App\Services\Imports\ImportColumnValidationService;
 use App\Services\Imports\SpreadsheetImportReader;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,10 @@ class RenstraImportPreviewService
 {
     private const MAX_ROWS = 1000;
 
-    public function __construct(private readonly SpreadsheetImportReader $reader) {}
+    public function __construct(
+        private readonly SpreadsheetImportReader $reader,
+        private readonly ImportColumnValidationService $columnValidator,
+    ) {}
 
     public function storePreview(UploadedFile $file, User $user): ImportBatch
     {
@@ -46,8 +50,9 @@ class RenstraImportPreviewService
         try {
             $rows = $this->reader->readRows($file, self::MAX_ROWS);
             $columns = $this->reader->detectColumns($rows);
+            $columnValidation = $this->columnValidator->validate('renstra_opd', $columns);
 
-            DB::transaction(function () use ($batch, $rows, $columns) {
+            DB::transaction(function () use ($batch, $rows, $columns, $columnValidation) {
                 foreach ($rows as $index => $row) {
                     $batch->rows()->create([
                         'row_number' => $index + 1,
@@ -69,6 +74,7 @@ class RenstraImportPreviewService
                     'metadata' => [
                         ...($batch->metadata ?? []),
                         'columns' => $columns,
+                        'column_validation' => $columnValidation,
                     ],
                 ]);
             });

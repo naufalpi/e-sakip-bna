@@ -29,6 +29,7 @@ use App\Http\Controllers\Master\UrusanPemerintahanController;
 use App\Http\Controllers\Master\UserController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Perencanaan\PohonKinerjaController;
+use App\Http\Controllers\Perencanaan\TargetRevisionController;
 use App\Http\Controllers\Perencanaan\TargetTriwulanIndikatorController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdImportController;
@@ -55,8 +56,13 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('pohon-kinerja/kabupaten/{rpjmd}', [PohonKinerjaController::class, 'kabupaten'])->name('pohon-kinerja.kabupaten');
     Route::get('pohon-kinerja/opd/{renstra_opd}', [PohonKinerjaController::class, 'opd'])->name('pohon-kinerja.opd');
     Route::get('pohon-kinerja/cascading-opd/{renstra_opd}', [PohonKinerjaController::class, 'cascadingOpd'])->name('pohon-kinerja.cascading-opd');
+    Route::get('target-revisions', [TargetRevisionController::class, 'index'])->name('target-revisions.index');
+    Route::post('target-revisions', [TargetRevisionController::class, 'store'])->name('target-revisions.store');
+    Route::patch('target-revisions/{targetRevision}/approve', [TargetRevisionController::class, 'approve'])->name('target-revisions.approve');
+    Route::patch('target-revisions/{targetRevision}/reject', [TargetRevisionController::class, 'reject'])->name('target-revisions.reject');
 
     Route::get('rpjmd/import', [RpjmdImportController::class, 'create'])->name('rpjmd.import.create');
+    Route::get('rpjmd/import/template', [RpjmdImportController::class, 'template'])->name('rpjmd.import.template');
     Route::post('rpjmd/import', [RpjmdImportController::class, 'store'])->name('rpjmd.import.store');
     Route::post('rpjmd/import/{importBatch}/apply', [RpjmdImportController::class, 'apply'])->name('rpjmd.import.apply');
     Route::get('rpjmd/import/{importBatch}', [RpjmdImportController::class, 'show'])->name('rpjmd.import.show');
@@ -66,6 +72,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::delete('rpjmd/{rpjmd}/nodes/{type}/{id}', [RpjmdNodeController::class, 'destroy'])->name('rpjmd.nodes.destroy');
 
     Route::get('renstra-opd/import', [RenstraOpdImportController::class, 'create'])->name('renstra-opd.import.create');
+    Route::get('renstra-opd/import/template', [RenstraOpdImportController::class, 'template'])->name('renstra-opd.import.template');
     Route::post('renstra-opd/import', [RenstraOpdImportController::class, 'store'])->name('renstra-opd.import.store');
     Route::post('renstra-opd/import/{importBatch}/apply', [RenstraOpdImportController::class, 'apply'])->name('renstra-opd.import.apply');
     Route::get('renstra-opd/import/{importBatch}', [RenstraOpdImportController::class, 'show'])->name('renstra-opd.import.show');

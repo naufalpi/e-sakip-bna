@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Rpjmd\StoreRpjmdImportRequest;
 use App\Models\ImportBatch;
 use App\Models\Rpjmd;
+use App\Services\Imports\ImportTemplateService;
 use App\Services\RpjmdImportApplyService;
 use App\Services\RpjmdImportPreviewService;
+use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -21,6 +23,18 @@ class RpjmdImportController extends Controller
 
         return Inertia::render('Rpjmd/Import', [
             'recentImports' => $this->recentImports(),
+        ]);
+    }
+
+    public function template(ImportTemplateService $service): HttpResponse
+    {
+        $this->authorize('create', Rpjmd::class);
+
+        $template = $service->make('rpjmd');
+
+        return response($template['content'], 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$template['filename'].'"',
         ]);
     }
 

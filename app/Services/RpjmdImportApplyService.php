@@ -391,7 +391,7 @@ class RpjmdImportApplyService
             return $rpjmd;
         }
 
-        $judul = $this->requiredText($mapped, ['rpjmd_judul', 'judul', 'nama', 'uraian'], 'Judul RPJMD');
+        $judul = $this->requiredText($mapped, ['rpjmd_judul', 'judul_rpjmd', 'judul', 'nama', 'uraian'], 'Judul RPJMD');
         $tahunAwal = $this->integer($mapped, ['tahun_awal', 'awal_periode']);
         $tahunAkhir = $this->integer($mapped, ['tahun_akhir', 'akhir_periode']);
 

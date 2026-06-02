@@ -3,7 +3,7 @@ import InputError from '@/components/InputError.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { FileSpreadsheet, Upload } from 'lucide-vue-next';
+import { Download, FileSpreadsheet, Upload } from 'lucide-vue-next';
 
 type RecentImport = {
     id: number;
@@ -71,9 +71,14 @@ const statusClass = (status: string) =>
                         <div>
                             <h2 class="text-sm font-semibold">File Import</h2>
                             <p class="mt-1 text-sm text-muted-foreground">
-                                Kolom utama: level, opd_kode/opd_id, rpjmd_id/rpjmd_judul, kode, uraian, tahun_target, target, target_text, pagu, dan
-                                referensi RPJMD bila ada.
+                                Gunakan template resmi agar kolom level, OPD, referensi RPJMD, target tahunan, target triwulan, dan pagu terbaca konsisten.
                             </p>
+                        </div>
+                        <div>
+                            <a :href="route('renstra-opd.import.template')" class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted">
+                                <Download class="size-4" />
+                                Download Template Renstra
+                            </a>
                         </div>
                         <div class="grid gap-2">
                             <label class="text-sm font-medium" for="file">Pilih File</label>

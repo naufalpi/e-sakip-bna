@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\RenstraOpd\StoreRenstraOpdImportRequest;
 use App\Models\ImportBatch;
 use App\Models\RenstraOpd;
+use App\Services\Imports\ImportTemplateService;
 use App\Services\RenstraImportApplyService;
 use App\Services\RenstraImportPreviewService;
+use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -21,6 +23,18 @@ class RenstraOpdImportController extends Controller
 
         return Inertia::render('RenstraOpd/Import', [
             'recentImports' => $this->recentImports(),
+        ]);
+    }
+
+    public function template(ImportTemplateService $service): HttpResponse
+    {
+        $this->authorize('create', RenstraOpd::class);
+
+        $template = $service->make('renstra_opd');
+
+        return response($template['content'], 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$template['filename'].'"',
         ]);
     }
 
