@@ -56,7 +56,7 @@ const props = defineProps<{
     perjanjianKinerjaItemOptions: Option[];
     rencanaAksiItemOptions: Option[];
     workflow: Workflow;
-    can: { manage: boolean; review: boolean; lock: boolean };
+    can: { manage: boolean; review: boolean; lock: boolean; export: boolean };
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -134,6 +134,10 @@ const destroyProgram = (row: ProgramRow) => {
     }
 };
 
+const exportReport = (format: 'pdf' | 'word') => {
+    router.post(route('realisasi-kinerja.export', props.item.id), { format }, { preserveScroll: true });
+};
+
 const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
@@ -173,6 +177,8 @@ const statusClass = (status: string) =>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <button v-if="can.export" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportReport('pdf')">Export PDF</button>
+                    <button v-if="can.export" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportReport('word')">Export Word</button>
                     <Link v-if="can.manage" :href="route('realisasi-kinerja.edit', item.id)" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Edit</Link>
                     <WorkflowActionButtons
                         module="realisasi_kinerja"

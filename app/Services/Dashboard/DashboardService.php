@@ -23,7 +23,7 @@ class DashboardService
 {
     private const CACHE_TTL_SECONDS = 300;
 
-    private const CACHE_VERSION = 'v3';
+    private const CACHE_SCHEMA_VERSION = 'v4';
 
     /**
      * @param  array<string, mixed>  $filters
@@ -36,25 +36,27 @@ class DashboardService
         $tahun = $this->selectedYear($filters['tahun'] ?? null);
         $opdId = $this->selectedOpdId($user, $filters['opd_id'] ?? null);
         $scope = $this->dashboardScope($user);
+        $cacheVersion = app(DashboardCacheService::class)->version();
 
         $cacheKey = sprintf(
-            'dashboard:%s:user:%d:scope:%s:tahun:%d:opd:%s',
-            self::CACHE_VERSION,
+            'dashboard:%s:data:%d:user:%d:scope:%s:tahun:%d:opd:%s',
+            self::CACHE_SCHEMA_VERSION,
+            $cacheVersion,
             $user->id,
             $scope,
             $tahun,
             $opdId ?: 'all',
         );
 
-        return Cache::remember($cacheKey, now()->addSeconds(self::CACHE_TTL_SECONDS), function () use ($user, $tahun, $opdId, $scope, $cacheKey) {
-            return $this->buildDashboard($user, $tahun, $opdId, $scope, $cacheKey);
+        return Cache::remember($cacheKey, now()->addSeconds(self::CACHE_TTL_SECONDS), function () use ($user, $tahun, $opdId, $scope, $cacheKey, $cacheVersion) {
+            return $this->buildDashboard($user, $tahun, $opdId, $scope, $cacheKey, $cacheVersion);
         });
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function buildDashboard(User $user, int $tahun, ?int $opdId, string $scope, string $cacheKey): array
+    private function buildDashboard(User $user, int $tahun, ?int $opdId, string $scope, string $cacheKey, int $cacheVersion): array
     {
         $opdOptions = $this->opdOptions($user);
         $visibleOpds = $this->visibleOpds($user, $opdId);
@@ -90,6 +92,7 @@ class DashboardService
             $evaluasiByOpd,
             $rekomendasiTerbukaByOpd,
             $capaianByOpd,
+            $tahun,
         );
 
         $achievementByYear = $this->achievementByYear($opdIds, $tahun);
@@ -126,6 +129,7 @@ class DashboardService
             ],
             'cache' => [
                 'key' => $cacheKey,
+                'version' => $cacheVersion,
                 'store' => (string) config('cache.default'),
                 'ttl_seconds' => self::CACHE_TTL_SECONDS,
                 'generated_at' => now()->toISOString(),
@@ -385,9 +389,10 @@ class DashboardService
         Collection $evaluasiByOpd,
         array $rekomendasiTerbukaByOpd,
         array $capaianByOpd,
+        int $tahun,
     ): array {
         return $opds
-            ->map(function (Opd $opd) use ($rpjmdOpdIds, $renstraOpdIds, $pkOpdIds, $rencanaAksiOpdIds, $realisasiOpdIds, $lkjipOpdIds, $evaluasiByOpd, $rekomendasiTerbukaByOpd, $capaianByOpd) {
+            ->map(function (Opd $opd) use ($rpjmdOpdIds, $renstraOpdIds, $pkOpdIds, $rencanaAksiOpdIds, $realisasiOpdIds, $lkjipOpdIds, $evaluasiByOpd, $rekomendasiTerbukaByOpd, $capaianByOpd, $tahun) {
                 $modules = [
                     'rpjmd' => in_array($opd->id, $rpjmdOpdIds, true),
                     'renstra' => in_array($opd->id, $renstraOpdIds, true),
@@ -413,6 +418,13 @@ class DashboardService
                     'status_evaluasi' => $evaluasi?->status,
                     'capaian_persen' => $capaianByOpd[$opd->id] ?? null,
                     'rekomendasi_terbuka_count' => $rekomendasiTerbukaByOpd[$opd->id] ?? 0,
+                    'detail_url' => route('dashboard', ['tahun' => $tahun, 'opd_id' => $opd->id]),
+                    'renstra_url' => route('renstra-opd.index', ['opd_id' => $opd->id]),
+                    'pk_url' => route('perjanjian-kinerja.index', ['tahun' => $tahun, 'opd_id' => $opd->id]),
+                    'rencana_aksi_url' => route('rencana-aksi.index', ['tahun' => $tahun, 'opd_id' => $opd->id]),
+                    'realisasi_url' => route('realisasi-kinerja.index', ['tahun' => $tahun, 'opd_id' => $opd->id]),
+                    'lkjip_url' => route('lkjip.index', ['tahun' => $tahun, 'opd_id' => $opd->id]),
+                    'evaluasi_url' => route('evaluasi-sakip.index', ['tahun' => $tahun, 'opd_id' => $opd->id]),
                 ];
             })
             ->sortBy([
@@ -489,6 +501,7 @@ class DashboardService
                     'predikat' => $row['predikat'],
                     'rekomendasi_terbuka_count' => $row['rekomendasi_terbuka_count'],
                     'monitoring_score' => $row['monitoring_score'],
+                    'detail_url' => $row['detail_url'],
                 ];
             })
             ->all();
@@ -548,6 +561,8 @@ class DashboardService
                 'periode_realisasi' => $row->periode_realisasi,
                 'triwulan' => $row->triwulan,
                 'triwulan_label' => $this->triwulanLabel($row->triwulan),
+                'detail_url' => route('realisasi-kinerja.show', (int) $row->realisasi_kinerja_id),
+                'opd_detail_url' => route('dashboard', ['tahun' => $tahun, 'opd_id' => (int) $row->opd_id]),
             ])
             ->all();
     }

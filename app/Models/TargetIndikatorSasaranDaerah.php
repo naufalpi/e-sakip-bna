@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TargetIndikatorSasaranDaerah extends Model
 {
+    use LogsActivity;
+
     protected $table = 'target_indikator_sasaran_daerah';
 
     protected $fillable = ['indikator_sasaran_daerah_id', 'periode_tahun_id', 'target', 'target_text'];

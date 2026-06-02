@@ -16,7 +16,9 @@ use App\Models\Role;
 use App\Models\Rpjmd;
 use App\Models\User;
 use App\Models\WorkflowSubmission;
+use App\Services\Dashboard\DashboardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -108,14 +110,42 @@ class DashboardTest extends TestCase
                 ->has('achievementIndicatorDrilldown', 1)
                 ->where('achievementIndicatorDrilldown.0.status_capaian', 'kuning')
                 ->where('achievementIndicatorDrilldown.0.triwulan_label', 'Triwulan I')
+                ->where('achievementIndicatorDrilldown.0.detail_url', route('realisasi-kinerja.show', $scenario['realisasi']->id))
+                ->where('achievementIndicatorDrilldown.0.opd_detail_url', route('dashboard', ['tahun' => $scenario['periode']->tahun, 'opd_id' => $scenario['opd']->id]))
+                ->where('opdPerformanceRanking.0.detail_url', route('dashboard', ['tahun' => $scenario['periode']->tahun, 'opd_id' => $scenario['opd']->id]))
                 ->where('cache.ttl_seconds', 300)
                 ->has('cache.generated_at')
+                ->has('cache.version')
                 ->has('opdsWithoutRealization', 1)
                 ->has('overdueRecommendations', 1)
                 ->has('workflowStatus', 1)
                 ->has('evaluationRanking', 1)
                 ->has('openRecommendations', 1)
             );
+    }
+
+    public function test_dashboard_cache_version_is_invalidated_when_strategic_data_changes(): void
+    {
+        $this->seed();
+        Cache::flush();
+
+        $scenario = $this->dashboardScenario();
+        $monitor = User::factory()->create();
+        $monitor->roles()->sync([Role::where('name', 'admin_kabupaten_bagian_organisasi')->value('id')]);
+
+        $service = app(DashboardService::class);
+        $first = $service->forUser($monitor, ['tahun' => $scenario['periode']->tahun]);
+
+        Opd::create([
+            'kode' => '9.99',
+            'nama' => 'OPD Pemicu Cache',
+            'status' => 'active',
+        ]);
+
+        $second = $service->forUser($monitor, ['tahun' => $scenario['periode']->tahun]);
+
+        $this->assertGreaterThan($first['cache']['version'], $second['cache']['version']);
+        $this->assertNotSame($first['cache']['key'], $second['cache']['key']);
     }
 
     public function test_admin_opd_dashboard_is_limited_to_own_opd(): void
@@ -299,6 +329,7 @@ class DashboardTest extends TestCase
             'opd' => $opd,
             'other_opd' => $otherOpd,
             'admin_opd' => $adminOpd,
+            'realisasi' => $realisasi,
         ];
     }
 }

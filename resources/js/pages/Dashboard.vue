@@ -6,7 +6,7 @@ import { AlertTriangle, ArrowRight, BarChart3, Building2, ClipboardCheck, FileCh
 import { computed, reactive } from 'vue';
 
 type Option = { id?: number; tahun?: number; label: string };
-type CacheMeta = { key: string; store: string; ttl_seconds: number; generated_at: string };
+type CacheMeta = { key: string; version: number; store: string; ttl_seconds: number; generated_at: string };
 type Completion = { key: string; label: string; count: number; total: number; percent: number };
 type WorkflowStatus = { status: string; label: string; count: number };
 type RecommendationStatus = { status: string; label: string; count: number };
@@ -30,6 +30,8 @@ type AchievementIndicator = {
     periode_realisasi?: string | null;
     triwulan?: string | null;
     triwulan_label?: string | null;
+    detail_url?: string | null;
+    opd_detail_url?: string | null;
 };
 type ProgressOpd = {
     opd_id: number;
@@ -43,10 +45,18 @@ type ProgressOpd = {
     status_evaluasi?: string | null;
     capaian_persen?: number | null;
     rekomendasi_terbuka_count: number;
+    detail_url?: string | null;
+    renstra_url?: string | null;
+    pk_url?: string | null;
+    rencana_aksi_url?: string | null;
+    realisasi_url?: string | null;
+    lkjip_url?: string | null;
+    evaluasi_url?: string | null;
 };
 type OpdPerformanceRank = Pick<ProgressOpd, 'opd_id' | 'kode' | 'nama' | 'singkatan' | 'progress_percent' | 'capaian_persen' | 'nilai_evaluasi' | 'predikat' | 'rekomendasi_terbuka_count'> & {
     rank: number;
     monitoring_score: number;
+    detail_url?: string | null;
 };
 type EvaluationRank = { id: number; opd?: string | null; nilai_akhir: string | number; predikat?: string | null; status: string };
 type OpenRecommendation = {
@@ -251,7 +261,7 @@ function booleanClass(value: boolean) {
                 <div>
                     <h1 class="text-2xl font-semibold tracking-normal text-foreground">{{ dashboard.title }}</h1>
                     <p class="mt-1 max-w-3xl text-sm text-muted-foreground">{{ dashboard.description }}</p>
-                    <p class="mt-2 text-xs text-muted-foreground">Data diperbarui {{ formatDateTime(cache.generated_at) }} melalui cache {{ cache.store }} selama {{ cache.ttl_seconds }} detik.</p>
+                    <p class="mt-2 text-xs text-muted-foreground">Data diperbarui {{ formatDateTime(cache.generated_at) }} melalui cache {{ cache.store }} versi {{ cache.version }} selama {{ cache.ttl_seconds }} detik.</p>
                 </div>
 
                 <form class="flex flex-col gap-2 md:flex-row md:items-center" @submit.prevent="applyFilters">
@@ -385,7 +395,9 @@ function booleanClass(value: boolean) {
                                 {{ row.rank }}
                             </div>
                             <div class="min-w-0">
-                                <div class="truncate font-medium">{{ row.singkatan || row.nama }}</div>
+                                <Link :href="row.detail_url || route('dashboard', { tahun: filters.tahun, opd_id: row.opd_id })" class="truncate font-medium text-emerald-800 hover:underline">
+                                    {{ row.singkatan || row.nama }}
+                                </Link>
                                 <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
                                     <span>Progress {{ row.progress_percent }}%</span>
                                     <span>Capaian {{ row.capaian_persen === null || row.capaian_persen === undefined ? '-' : formatPercent(row.capaian_persen) }}</span>
@@ -423,9 +435,12 @@ function booleanClass(value: boolean) {
                             <tbody>
                                 <tr v-for="row in achievementIndicatorDrilldown" :key="row.id" class="border-b last:border-0">
                                     <td class="px-4 py-3">
-                                        <div class="font-medium">{{ row.indikator }}</div>
+                                        <Link :href="row.detail_url || route('realisasi-kinerja.show', row.realisasi_kinerja_id)" class="font-medium text-emerald-800 hover:underline">
+                                            {{ row.indikator }}
+                                        </Link>
                                         <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                            <span>{{ row.opd || '-' }}</span>
+                                            <Link v-if="row.opd_detail_url" :href="row.opd_detail_url" class="hover:text-emerald-800 hover:underline">{{ row.opd || '-' }}</Link>
+                                            <span v-else>{{ row.opd || '-' }}</span>
                                             <span>{{ row.triwulan_label || row.periode_realisasi || '-' }}</span>
                                         </div>
                                     </td>
@@ -477,7 +492,9 @@ function booleanClass(value: boolean) {
                         <tbody>
                             <tr v-for="row in progressOpd" :key="row.opd_id" class="border-b last:border-0">
                                 <td class="px-4 py-3">
-                                    <div class="font-medium">{{ row.singkatan || row.nama }}</div>
+                                    <Link :href="row.detail_url || route('dashboard', { tahun: filters.tahun, opd_id: row.opd_id })" class="font-medium text-emerald-800 hover:underline">
+                                        {{ row.singkatan || row.nama }}
+                                    </Link>
                                     <div class="text-xs text-muted-foreground">{{ row.kode || row.nama }}</div>
                                 </td>
                                 <td class="px-4 py-3">
@@ -485,6 +502,13 @@ function booleanClass(value: boolean) {
                                         <span v-for="(done, key) in row.modules" :key="key" class="rounded-full border px-2 py-1 text-xs" :class="booleanClass(done)">
                                             {{ moduleLabels[key] ?? key }}
                                         </span>
+                                    </div>
+                                    <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                                        <Link v-if="row.renstra_url" :href="row.renstra_url" class="text-emerald-800 hover:underline">Renstra</Link>
+                                        <Link v-if="row.pk_url" :href="row.pk_url" class="text-emerald-800 hover:underline">PK</Link>
+                                        <Link v-if="row.rencana_aksi_url" :href="row.rencana_aksi_url" class="text-emerald-800 hover:underline">Rencana Aksi</Link>
+                                        <Link v-if="row.realisasi_url" :href="row.realisasi_url" class="text-emerald-800 hover:underline">Realisasi</Link>
+                                        <Link v-if="row.evaluasi_url" :href="row.evaluasi_url" class="text-emerald-800 hover:underline">Evaluasi</Link>
                                     </div>
                                 </td>
                                 <td class="px-4 py-3">

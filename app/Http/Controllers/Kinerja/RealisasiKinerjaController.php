@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Kinerja;
 
+use App\Jobs\ExportKinerjaReportDocumentJob;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Kinerja\Concerns\BuildsKinerjaOptions;
 use App\Http\Requests\Kinerja\StoreRealisasiKinerjaRequest;
@@ -17,6 +18,7 @@ use App\Services\Perencanaan\PerencanaanHierarchyValidationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -136,8 +138,25 @@ class RealisasiKinerjaController extends Controller
                 'manage' => $request->user()->can('update', $realisasiKinerja),
                 'review' => $this->canReviewWorkflow($request->user()),
                 'lock' => $this->canLockWorkflow($request->user()),
+                'export' => $this->canExportRealisasiKinerja($request->user(), $realisasiKinerja),
             ],
         ]);
+    }
+
+    public function export(Request $request, RealisasiKinerja $realisasiKinerja): RedirectResponse
+    {
+        $this->authorize('view', $realisasiKinerja);
+        abort_unless($this->canExportRealisasiKinerja($request->user(), $realisasiKinerja), 403);
+
+        $data = $request->validate([
+            'format' => ['required', Rule::in(['pdf', 'word'])],
+        ]);
+
+        ExportKinerjaReportDocumentJob::dispatch('realisasi_kinerja', $realisasiKinerja->id, $request->user()->id, $data['format']);
+
+        $formatLabel = $data['format'] === 'pdf' ? 'PDF' : 'Word';
+
+        return back()->with('success', "Export Laporan Realisasi Kinerja {$formatLabel} masuk antrean. Jalankan worker queue untuk memproses dokumen.");
     }
 
     public function edit(Request $request, RealisasiKinerja $realisasiKinerja): Response
@@ -331,5 +350,12 @@ class RealisasiKinerjaController extends Controller
     private function canLockWorkflow(User $user): bool
     {
         return $user->isSuperAdmin() || $user->hasPermission('lock_period');
+    }
+
+    private function canExportRealisasiKinerja(User $user, RealisasiKinerja $realisasiKinerja): bool
+    {
+        return $user->can('update', $realisasiKinerja)
+            || ($user->hasRole('admin_opd') && (int) $user->opd_id === (int) $realisasiKinerja->opd_id)
+            || ($user->can('view', $realisasiKinerja) && $user->hasPermission('export_laporan'));
     }
 }

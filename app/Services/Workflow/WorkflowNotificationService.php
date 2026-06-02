@@ -2,15 +2,18 @@
 
 namespace App\Services\Workflow;
 
-use App\Models\Notification;
 use App\Models\User;
 use App\Models\WorkflowSubmission;
+use App\Services\Notifications\SakipNotificationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 class WorkflowNotificationService
 {
-    public function __construct(private readonly WorkflowModuleRegistry $registry) {}
+    public function __construct(
+        private readonly WorkflowModuleRegistry $registry,
+        private readonly SakipNotificationService $notificationService,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $metadata
@@ -22,24 +25,24 @@ class WorkflowNotificationService
             ->unique('id')
             ->values();
 
-        foreach ($recipients as $recipient) {
-            Notification::create([
-                'user_id' => $recipient->id,
-                'type' => 'workflow',
-                'title' => $this->title($module, $action),
-                'message' => $this->message($module, $action, $actor),
-                'data' => [
-                    'module' => $module,
-                    'module_label' => $this->registry->label($module),
-                    'action' => $action,
-                    'status' => $submission->status,
-                    'related_table' => $model->getTable(),
-                    'related_id' => $model->getKey(),
-                    'workflow_submission_id' => $submission->id,
-                    'metadata' => $metadata,
-                ],
-            ]);
-        }
+        $this->notificationService->notify(
+            $recipients,
+            $this->type($action),
+            $this->title($module, $action),
+            $this->message($module, $action, $actor),
+            [
+                'dedupe_key' => 'workflow:'.$submission->id.':'.$action.':'.$submission->status,
+                'module' => $module,
+                'module_label' => $this->registry->label($module),
+                'action' => $action,
+                'status' => $submission->status,
+                'related_table' => $model->getTable(),
+                'related_id' => $model->getKey(),
+                'workflow_submission_id' => $submission->id,
+                'metadata' => $metadata,
+            ],
+            $this->url($module, $model),
+        );
     }
 
     /**
@@ -87,8 +90,35 @@ class WorkflowNotificationService
         };
     }
 
+    private function type(string $action): string
+    {
+        return match ($action) {
+            'submit' => 'workflow_submitted',
+            'verify' => 'workflow_verified',
+            'approve' => 'workflow_approved',
+            'reject' => 'workflow_rejected',
+            'revision' => 'workflow_revision',
+            'lock' => 'workflow_locked',
+            default => 'workflow_updated',
+        };
+    }
+
     private function message(string $module, string $action, User $actor): string
     {
         return $actor->name.' memproses workflow '.$this->registry->label($module).' dengan aksi '.$action.'.';
+    }
+
+    private function url(string $module, Model $model): ?string
+    {
+        return match ($module) {
+            'rpjmd' => route('rpjmd.show', $model->getKey()),
+            'renstra_opd' => route('renstra-opd.show', $model->getKey()),
+            'perjanjian_kinerja' => route('perjanjian-kinerja.show', $model->getKey()),
+            'rencana_aksi' => route('rencana-aksi.show', $model->getKey()),
+            'realisasi_kinerja' => route('realisasi-kinerja.show', $model->getKey()),
+            'lkjip' => route('lkjip.show', $model->getKey()),
+            'evaluasi_sakip' => route('evaluasi-sakip.show', $model->getKey()),
+            default => null,
+        };
     }
 }

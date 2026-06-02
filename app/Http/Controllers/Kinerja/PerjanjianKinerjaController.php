@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Kinerja;
 
+use App\Jobs\ExportKinerjaReportDocumentJob;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Kinerja\Concerns\BuildsKinerjaOptions;
 use App\Http\Requests\Kinerja\StorePerjanjianKinerjaRequest;
@@ -14,6 +15,7 @@ use App\Models\WorkflowSubmission;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -125,8 +127,25 @@ class PerjanjianKinerjaController extends Controller
                 'manage' => $request->user()->can('update', $perjanjianKinerja),
                 'review' => $this->canReviewWorkflow($request->user()),
                 'lock' => $this->canLockWorkflow($request->user()),
+                'export' => $this->canExportPerjanjianKinerja($request->user(), $perjanjianKinerja),
             ],
         ]);
+    }
+
+    public function export(Request $request, PerjanjianKinerja $perjanjianKinerja): RedirectResponse
+    {
+        $this->authorize('view', $perjanjianKinerja);
+        abort_unless($this->canExportPerjanjianKinerja($request->user(), $perjanjianKinerja), 403);
+
+        $data = $request->validate([
+            'format' => ['required', Rule::in(['pdf', 'word'])],
+        ]);
+
+        ExportKinerjaReportDocumentJob::dispatch('perjanjian_kinerja', $perjanjianKinerja->id, $request->user()->id, $data['format']);
+
+        $formatLabel = $data['format'] === 'pdf' ? 'PDF' : 'Word';
+
+        return back()->with('success', "Export Perjanjian Kinerja {$formatLabel} masuk antrean. Jalankan worker queue untuk memproses dokumen.");
     }
 
     public function edit(Request $request, PerjanjianKinerja $perjanjianKinerja): Response
@@ -242,5 +261,12 @@ class PerjanjianKinerjaController extends Controller
     private function canLockWorkflow(User $user): bool
     {
         return $user->isSuperAdmin() || $user->hasPermission('lock_period');
+    }
+
+    private function canExportPerjanjianKinerja(User $user, PerjanjianKinerja $perjanjianKinerja): bool
+    {
+        return $user->can('update', $perjanjianKinerja)
+            || ($user->hasRole('admin_opd') && (int) $user->opd_id === (int) $perjanjianKinerja->opd_id)
+            || ($user->can('view', $perjanjianKinerja) && $user->hasPermission('export_laporan'));
     }
 }

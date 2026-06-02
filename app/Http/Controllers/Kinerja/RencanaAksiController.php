@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Kinerja;
 
+use App\Jobs\ExportKinerjaReportDocumentJob;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Kinerja\Concerns\BuildsKinerjaOptions;
 use App\Http\Requests\Kinerja\StoreRencanaAksiRequest;
@@ -15,6 +16,7 @@ use App\Services\Perencanaan\PerencanaanHierarchyValidationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -117,8 +119,25 @@ class RencanaAksiController extends Controller
                 'manage' => $request->user()->can('update', $rencanaAksi),
                 'review' => $this->canReviewWorkflow($request->user()),
                 'lock' => $this->canLockWorkflow($request->user()),
+                'export' => $this->canExportRencanaAksi($request->user(), $rencanaAksi),
             ],
         ]);
+    }
+
+    public function export(Request $request, RencanaAksi $rencanaAksi): RedirectResponse
+    {
+        $this->authorize('view', $rencanaAksi);
+        abort_unless($this->canExportRencanaAksi($request->user(), $rencanaAksi), 403);
+
+        $data = $request->validate([
+            'format' => ['required', Rule::in(['pdf', 'word'])],
+        ]);
+
+        ExportKinerjaReportDocumentJob::dispatch('rencana_aksi', $rencanaAksi->id, $request->user()->id, $data['format']);
+
+        $formatLabel = $data['format'] === 'pdf' ? 'PDF' : 'Word';
+
+        return back()->with('success', "Export Rencana Aksi {$formatLabel} masuk antrean. Jalankan worker queue untuk memproses dokumen.");
     }
 
     public function edit(Request $request, RencanaAksi $rencanaAksi): Response
@@ -241,5 +260,12 @@ class RencanaAksiController extends Controller
     private function canLockWorkflow(User $user): bool
     {
         return $user->isSuperAdmin() || $user->hasPermission('lock_period');
+    }
+
+    private function canExportRencanaAksi(User $user, RencanaAksi $rencanaAksi): bool
+    {
+        return $user->can('update', $rencanaAksi)
+            || ($user->hasRole('admin_opd') && (int) $user->opd_id === (int) $rencanaAksi->opd_id)
+            || ($user->can('view', $rencanaAksi) && $user->hasPermission('export_laporan'));
     }
 }

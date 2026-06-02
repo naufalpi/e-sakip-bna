@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TargetIndikatorProgramRpjmd extends Model
 {
+    use LogsActivity;
+
     protected $table = 'target_indikator_program_rpjmd';
 
     protected $fillable = ['indikator_program_rpjmd_id', 'periode_tahun_id', 'target', 'target_text', 'pagu'];

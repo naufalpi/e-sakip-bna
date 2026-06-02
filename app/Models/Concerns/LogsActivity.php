@@ -3,6 +3,7 @@
 namespace App\Models\Concerns;
 
 use App\Services\ActivityLogger;
+use App\Services\Dashboard\DashboardCacheService;
 use Illuminate\Database\Eloquent\Model;
 
 trait LogsActivity
@@ -24,6 +25,8 @@ trait LogsActivity
                 oldValues: null,
                 newValues: static::activityValues($model->getAttributes()),
             );
+
+            static::invalidateDashboardCache($model);
         });
 
         static::updated(function (Model $model) {
@@ -33,6 +36,8 @@ trait LogsActivity
                 oldValues: static::activityValues($model->getOriginal()),
                 newValues: static::activityValues($model->getChanges()),
             );
+
+            static::invalidateDashboardCache($model);
         });
 
         static::deleted(function (Model $model) {
@@ -42,6 +47,8 @@ trait LogsActivity
                 oldValues: static::activityValues($model->getOriginal()),
                 newValues: null,
             );
+
+            static::invalidateDashboardCache($model);
         });
     }
 
@@ -50,5 +57,10 @@ trait LogsActivity
         return collect($values)
             ->except(static::$activityHidden)
             ->all();
+    }
+
+    protected static function invalidateDashboardCache(Model $model): void
+    {
+        app(DashboardCacheService::class)->invalidateForModel($model);
     }
 }
