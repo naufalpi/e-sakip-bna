@@ -14,8 +14,8 @@ defineProps<{
             <div class="flex flex-col gap-8">
                 <div class="flex flex-col items-center gap-4">
                     <Link :href="route('home')" class="flex flex-col items-center gap-2 font-medium">
-                        <div class="mb-1 flex h-10 w-10 items-center justify-center rounded-md bg-emerald-700 text-white">
-                            <AppLogoIcon class="text-sm" />
+                        <div class="mb-1 flex size-24 items-center justify-center">
+                            <AppLogoIcon class="size-full" />
                         </div>
                         <span class="text-sm font-semibold">E-SAKIP Kabupaten Banjarnegara</span>
                     </Link>

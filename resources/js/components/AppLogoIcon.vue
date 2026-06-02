@@ -13,5 +13,13 @@ defineProps<Props>();
 </script>
 
 <template>
-    <span :class="className" v-bind="$attrs" class="inline-flex items-center justify-center text-xs font-semibold leading-none">ES</span>
+    <img
+        src="/images/lambang-banjarnegara.svg"
+        alt="Lambang Kabupaten Banjarnegara"
+        :class="className"
+        v-bind="$attrs"
+        class="block h-full w-full object-contain"
+        loading="eager"
+        decoding="async"
+    />
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -258,10 +259,15 @@ function booleanClass(value: boolean) {
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 p-4">
             <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div>
-                    <h1 class="text-2xl font-semibold tracking-normal text-foreground">{{ dashboard.title }}</h1>
-                    <p class="mt-1 max-w-3xl text-sm text-muted-foreground">{{ dashboard.description }}</p>
-                    <p class="mt-2 text-xs text-muted-foreground">Data diperbarui {{ formatDateTime(cache.generated_at) }} melalui cache {{ cache.store }} versi {{ cache.version }} selama {{ cache.ttl_seconds }} detik.</p>
+                <div class="flex min-w-0 items-start gap-3">
+                    <div class="hidden size-14 shrink-0 items-center justify-center sm:flex">
+                        <AppLogoIcon class="size-full" />
+                    </div>
+                    <div class="min-w-0">
+                        <h1 class="text-2xl font-semibold tracking-normal text-foreground">{{ dashboard.title }}</h1>
+                        <p class="mt-1 max-w-3xl text-sm text-muted-foreground">{{ dashboard.description }}</p>
+                        <p class="mt-2 text-xs text-muted-foreground">Data diperbarui {{ formatDateTime(cache.generated_at) }} melalui cache {{ cache.store }} versi {{ cache.version }} selama {{ cache.ttl_seconds }} detik.</p>
+                    </div>
                 </div>
 
                 <form class="flex flex-col gap-2 md:flex-row md:items-center" @submit.prevent="applyFilters">
