@@ -266,6 +266,18 @@ class KinerjaWorkflowTest extends TestCase
             ->assertForbidden();
 
         $this->actingAs($adminOpd)
+            ->post(route('perjanjian-kinerja.items.store', $pk), [
+                'sasaran_opd_id' => $sasaranOpd->id,
+                'indikator_sasaran_opd_id' => $indikatorSasaranOpd->id,
+                'sasaran' => 'Item baru pada PK approved',
+                'indikator' => 'Indikator baru',
+                'target' => 95,
+                'target_text' => '95 persen',
+                'urutan' => 4,
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($adminOpd)
             ->post(route('rencana-aksi.store'), [
                 'opd_id' => $opd->id,
                 'perjanjian_kinerja_id' => $pk->id,
@@ -341,6 +353,21 @@ class KinerjaWorkflowTest extends TestCase
             ->assertForbidden();
 
         $this->actingAs($adminOpd)
+            ->post(route('rencana-aksi.items.store', $rencanaAksi), [
+                'perjanjian_kinerja_item_id' => $pkItem->id,
+                'periode_realisasi' => 'triwulan',
+                'triwulan' => 'tw4',
+                'aksi' => 'Item baru pada rencana aksi approved',
+                'indikator' => 'Layanan selesai tepat waktu',
+                'target' => 100,
+                'target_text' => '100 persen',
+                'anggaran' => 2500000,
+                'status' => 'draft',
+                'urutan' => 4,
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($adminOpd)
             ->post(route('realisasi-kinerja.store'), [
                 'opd_id' => $opd->id,
                 'perjanjian_kinerja_id' => $pk->id,
@@ -389,6 +416,22 @@ class KinerjaWorkflowTest extends TestCase
                 'urutan' => 2,
             ])
             ->assertRedirect();
+
+        $realisasi->forceFill(['status' => 'approved'])->save();
+
+        $this->actingAs($adminOpd)
+            ->post(route('realisasi-kinerja.programs.store', $realisasi), [
+                'perjanjian_kinerja_item_id' => $pkItem->id,
+                'indikator' => 'Item baru pada realisasi approved',
+                'target' => 90,
+                'target_text' => '90 persen',
+                'realisasi' => 90,
+                'realisasi_text' => '90 persen',
+                'anggaran' => 1000000,
+                'realisasi_anggaran' => 900000,
+                'urutan' => 3,
+            ])
+            ->assertForbidden();
 
         $this->assertDatabaseHas('rencana_aksi_items', [
             'rencana_aksi_id' => $rencanaAksi->id,

@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { Plus, Search, SlidersHorizontal } from 'lucide-vue-next';
+import { FileSpreadsheet, Plus, Search, SlidersHorizontal } from 'lucide-vue-next';
 import { reactive } from 'vue';
 
 type Option = { id: number; label: string };
@@ -120,19 +120,32 @@ const progressClass = (status: string) => (status === 'terisi' ? 'bg-emerald-100
             <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                     <h1 class="text-2xl font-semibold tracking-normal">Renstra OPD</h1>
-                    <p class="mt-1 text-sm text-muted-foreground">Cascading tujuan, sasaran, program, kegiatan, dan target OPD yang terhubung ke RPJMD Kabupaten.</p>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                        Cascading tujuan, sasaran, program, kegiatan, dan target OPD yang terhubung ke RPJMD Kabupaten.
+                    </p>
                 </div>
-                <Link
-                    v-if="can.manage"
-                    :href="route('renstra-opd.create')"
-                    class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800"
-                >
-                    <Plus class="size-4" />
-                    Tambah Renstra
-                </Link>
+                <div v-if="can.manage" class="flex flex-wrap gap-2">
+                    <Link
+                        :href="route('renstra-opd.import.create')"
+                        class="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-muted"
+                    >
+                        <FileSpreadsheet class="size-4" />
+                        Import Renstra
+                    </Link>
+                    <Link
+                        :href="route('renstra-opd.create')"
+                        class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800"
+                    >
+                        <Plus class="size-4" />
+                        Tambah Renstra
+                    </Link>
+                </div>
             </div>
 
-            <form class="grid gap-3 rounded-lg border bg-card p-3 lg:grid-cols-[1fr_190px_220px_220px_180px_auto_auto]" @submit.prevent="applyFilters">
+            <form
+                class="grid gap-3 rounded-lg border bg-card p-3 lg:grid-cols-[1fr_190px_220px_220px_180px_auto_auto]"
+                @submit.prevent="applyFilters"
+            >
                 <div class="relative">
                     <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <input
@@ -142,7 +155,10 @@ const progressClass = (status: string) => (status === 'terisi' ? 'bg-emerald-100
                         placeholder="Cari judul, dokumen, atau OPD"
                     />
                 </div>
-                <select v-model="filterForm.status" class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700">
+                <select
+                    v-model="filterForm.status"
+                    class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                >
                     <option value="">Semua status</option>
                     <option value="draft">Draft</option>
                     <option value="submitted">Diajukan</option>
@@ -152,19 +168,31 @@ const progressClass = (status: string) => (status === 'terisi' ? 'bg-emerald-100
                     <option value="rejected">Ditolak</option>
                     <option value="locked">Terkunci</option>
                 </select>
-                <select v-model="filterForm.opd_id" class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700">
+                <select
+                    v-model="filterForm.opd_id"
+                    class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                >
                     <option value="">Semua OPD</option>
                     <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                 </select>
-                <select v-model="filterForm.rpjmd_id" class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700">
+                <select
+                    v-model="filterForm.rpjmd_id"
+                    class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                >
                     <option value="">Semua RPJMD</option>
                     <option v-for="option in rpjmdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                 </select>
-                <select v-model="filterForm.periode_tahun_id" class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700">
+                <select
+                    v-model="filterForm.periode_tahun_id"
+                    class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                >
                     <option value="">Semua tahun</option>
                     <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                 </select>
-                <button type="submit" class="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-muted">
+                <button
+                    type="submit"
+                    class="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-muted"
+                >
                     <SlidersHorizontal class="size-4" />
                     Filter
                 </button>
@@ -196,7 +224,9 @@ const progressClass = (status: string) => (status === 'terisi' ? 'bg-emerald-100
                                     <div class="text-xs text-muted-foreground">{{ renstra.tahun_awal }}-{{ renstra.tahun_akhir }}</div>
                                 </td>
                                 <td class="px-4 py-3 text-muted-foreground">
-                                    <span v-if="renstra.rpjmd">{{ renstra.rpjmd.tahun_awal }}-{{ renstra.rpjmd.tahun_akhir }} - {{ renstra.rpjmd.judul }}</span>
+                                    <span v-if="renstra.rpjmd"
+                                        >{{ renstra.rpjmd.tahun_awal }}-{{ renstra.rpjmd.tahun_akhir }} - {{ renstra.rpjmd.judul }}</span
+                                    >
                                     <span v-else>-</span>
                                 </td>
                                 <td class="px-4 py-3">
@@ -204,8 +234,12 @@ const progressClass = (status: string) => (status === 'terisi' ? 'bg-emerald-100
                                         <span class="rounded-full px-2 py-1 text-xs font-medium" :class="progressClass(renstra.progress.status)">
                                             {{ renstra.progress.status === 'terisi' ? 'Terisi' : 'Belum lengkap' }}
                                         </span>
-                                        <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ renstra.progress.tujuan_count }} tujuan</span>
-                                        <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ renstra.progress.program_count }} program</span>
+                                        <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                                            >{{ renstra.progress.tujuan_count }} tujuan</span
+                                        >
+                                        <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                                            >{{ renstra.progress.program_count }} program</span
+                                        >
                                     </div>
                                 </td>
                                 <td class="px-4 py-3">
@@ -215,8 +249,15 @@ const progressClass = (status: string) => (status === 'terisi' ? 'bg-emerald-100
                                 </td>
                                 <td class="px-4 py-3 text-right">
                                     <div class="inline-flex gap-2">
-                                        <Link :href="route('renstra-opd.show', renstra.id)" class="rounded-md border px-2 py-1 text-xs hover:bg-muted">Buka</Link>
-                                        <Link v-if="can.manage" :href="route('renstra-opd.edit', renstra.id)" class="rounded-md border px-2 py-1 text-xs hover:bg-muted">Edit</Link>
+                                        <Link :href="route('renstra-opd.show', renstra.id)" class="rounded-md border px-2 py-1 text-xs hover:bg-muted"
+                                            >Buka</Link
+                                        >
+                                        <Link
+                                            v-if="can.manage"
+                                            :href="route('renstra-opd.edit', renstra.id)"
+                                            class="rounded-md border px-2 py-1 text-xs hover:bg-muted"
+                                            >Edit</Link
+                                        >
                                         <button
                                             v-if="can.manage"
                                             type="button"
@@ -237,10 +278,14 @@ const progressClass = (status: string) => (status === 'terisi' ? 'bg-emerald-100
                 <div class="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
                     <span>Menampilkan {{ renstras.from ?? 0 }}-{{ renstras.to ?? 0 }} dari {{ renstras.total }} data</span>
                     <div class="flex gap-2">
-                        <Link v-if="renstras.prev_page_url" :href="renstras.prev_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted">Sebelumnya</Link>
+                        <Link v-if="renstras.prev_page_url" :href="renstras.prev_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted"
+                            >Sebelumnya</Link
+                        >
                         <span v-else class="rounded-md border px-3 py-1.5 opacity-50">Sebelumnya</span>
                         <span class="px-2 py-1.5">Halaman {{ renstras.current_page }} / {{ renstras.last_page }}</span>
-                        <Link v-if="renstras.next_page_url" :href="renstras.next_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted">Berikutnya</Link>
+                        <Link v-if="renstras.next_page_url" :href="renstras.next_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted"
+                            >Berikutnya</Link
+                        >
                         <span v-else class="rounded-md border px-3 py-1.5 opacity-50">Berikutnya</span>
                     </div>
                 </div>

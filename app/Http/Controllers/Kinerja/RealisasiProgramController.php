@@ -19,6 +19,8 @@ class RealisasiProgramController extends Controller
 {
     public function store(StoreRealisasiProgramRequest $request, RealisasiKinerja $realisasiKinerja, CapaianKinerjaService $capaianService): RedirectResponse
     {
+        $this->authorize('update', $realisasiKinerja);
+
         $data = $request->validated();
         $this->assertRelationsBelongToOpd($data, (int) $realisasiKinerja->opd_id);
         $data = $this->withCalculatedMetrics($data, $capaianService);

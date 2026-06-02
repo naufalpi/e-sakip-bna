@@ -18,6 +18,8 @@ class RencanaAksiItemController extends Controller
 {
     public function store(StoreRencanaAksiItemRequest $request, RencanaAksi $rencanaAksi): RedirectResponse
     {
+        $this->authorize('update', $rencanaAksi);
+
         $data = $request->validated();
         $this->assertRelationsBelongToOpd($data, (int) $rencanaAksi->opd_id);
 

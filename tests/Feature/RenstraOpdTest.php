@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ImportBatch;
 use App\Models\IndikatorOpdProgram;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
@@ -23,6 +24,8 @@ use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -280,6 +283,148 @@ class RenstraOpdTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_renstra_import_preview_and_apply_creates_cascading_data(): void
+    {
+        $this->seed();
+        Storage::fake('local');
+        config(['filesystems.default' => 'local']);
+
+        $opd = Opd::create(['kode' => '4.01', 'nama' => 'Dinas Import', 'status' => 'active']);
+        $tree = $this->createRpjmdTree();
+        $periode = PeriodeTahun::where('tahun', 2026)->firstOrFail();
+        $user = User::factory()->create(['opd_id' => $opd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $csv = $this->renstraImportCsv([
+            ['level', 'opd_kode', 'rpjmd_id', 'renstra_judul', 'tahun_awal', 'tahun_akhir', 'kode', 'uraian', 'tahun_target', 'target', 'target_text', 'pagu', 'triwulan', 'target_anggaran'],
+            ['renstra', '4.01', $tree['rpjmd']->id, 'Renstra Import Dinas', 2026, 2031, '', '', '', '', '', '', '', ''],
+            ['tujuan', '', '', '', '', '', 'T1', 'Tujuan Import', '', '', '', '', '', ''],
+            ['indikator_tujuan', '', '', '', '', '', 'IT1', 'Indikator Tujuan Import', 2026, 80, '80 persen', '', '', ''],
+            ['sasaran', '', '', '', '', '', 'S1', 'Sasaran Import', '', '', '', '', '', ''],
+            ['indikator_sasaran', '', '', '', '', '', 'IS1', 'Indikator Sasaran Import', 2026, 75, '75 persen', '', '', ''],
+            ['program', '', '', '', '', '', 'P1', 'Program Import', '', '', '', 1000000, '', ''],
+            ['indikator_program', '', '', '', '', '', 'IP1', 'Indikator Program Import', 2026, 70, '70 persen', 500000, '', ''],
+            ['kegiatan', '', '', '', '', '', 'K1', 'Kegiatan Import', '', '', '', 250000, '', ''],
+            ['sub_kegiatan', '', '', '', '', '', 'SK1', 'Sub Kegiatan Import', '', '', '', 200000, '', ''],
+            ['indikator_sub_kegiatan', '', '', '', '', '', 'ISK1', 'Indikator Sub Kegiatan Import', '', '', '', '', '', ''],
+            ['target_triwulan', '', '', '', '', '', '', '', 2026, 25, '25 persen', '', 'tw1', 50000],
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.import.store'), [
+                'file' => UploadedFile::fake()->createWithContent('renstra-import.csv', $csv),
+            ])
+            ->assertRedirect();
+
+        $batch = ImportBatch::where('module', 'renstra_opd')->latest('id')->firstOrFail();
+
+        $this->assertSame('previewed', $batch->status);
+        $this->assertSame(12, $batch->rows()->count());
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.import.apply', $batch))
+            ->assertRedirect(route('renstra-opd.import.show', $batch));
+
+        $batch->refresh();
+
+        $this->assertSame('imported', $batch->status);
+        $this->assertDatabaseHas('renstra_opd', ['opd_id' => $opd->id, 'judul' => 'Renstra Import Dinas']);
+        $this->assertDatabaseHas('tujuan_opd', ['kode' => 'T1', 'tujuan' => 'Tujuan Import']);
+        $this->assertDatabaseHas('indikator_tujuan_opd', ['kode' => 'IT1', 'indikator' => 'Indikator Tujuan Import']);
+        $this->assertDatabaseHas('target_indikator_tujuan_opd', ['periode_tahun_id' => $periode->id, 'target_text' => '80 persen']);
+        $this->assertDatabaseHas('sasaran_opd', ['kode' => 'S1', 'sasaran' => 'Sasaran Import']);
+        $this->assertDatabaseHas('indikator_sasaran_opd', ['kode' => 'IS1', 'indikator' => 'Indikator Sasaran Import']);
+        $this->assertDatabaseHas('opd_program', ['kode' => 'P1', 'nama' => 'Program Import']);
+        $this->assertDatabaseHas('indikator_opd_program', ['kode' => 'IP1', 'indikator' => 'Indikator Program Import']);
+        $this->assertDatabaseHas('target_indikator_opd_program', ['periode_tahun_id' => $periode->id, 'target_text' => '70 persen', 'pagu' => 500000]);
+        $this->assertDatabaseHas('opd_kegiatan', ['kode' => 'K1', 'nama' => 'Kegiatan Import']);
+        $this->assertDatabaseHas('opd_sub_kegiatan', ['kode' => 'SK1', 'nama' => 'Sub Kegiatan Import']);
+        $this->assertDatabaseHas('indikator_sub_kegiatan', ['kode' => 'ISK1', 'indikator' => 'Indikator Sub Kegiatan Import']);
+        $this->assertDatabaseHas('target_triwulan_indikator', [
+            'related_table' => 'indikator_sub_kegiatan',
+            'periode_tahun_id' => $periode->id,
+            'triwulan' => 'tw1',
+            'target_text' => '25 persen',
+            'target_anggaran' => 50000,
+        ]);
+    }
+
+    public function test_renstra_import_rolls_back_when_any_row_fails(): void
+    {
+        $this->seed();
+        Storage::fake('local');
+        config(['filesystems.default' => 'local']);
+
+        $opd = Opd::create(['kode' => '4.02', 'nama' => 'Dinas Rollback', 'status' => 'active']);
+        $tree = $this->createRpjmdTree();
+        $user = User::factory()->create(['opd_id' => $opd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $csv = $this->renstraImportCsv([
+            ['level', 'opd_kode', 'rpjmd_id', 'renstra_judul', 'tahun_awal', 'tahun_akhir', 'kode', 'uraian'],
+            ['renstra', '4.02', $tree['rpjmd']->id, 'Renstra Rollback', 2026, 2031, '', ''],
+            ['program', '', '', '', '', '', 'P1', 'Program Tanpa Sasaran'],
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.import.store'), [
+                'file' => UploadedFile::fake()->createWithContent('renstra-rollback.csv', $csv),
+            ])
+            ->assertRedirect();
+
+        $batch = ImportBatch::where('module', 'renstra_opd')->latest('id')->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.import.apply', $batch))
+            ->assertRedirect(route('renstra-opd.import.show', $batch));
+
+        $batch->refresh();
+
+        $this->assertSame('failed', $batch->status);
+        $this->assertTrue((bool) data_get($batch->metadata, 'applied.rolled_back'));
+        $this->assertDatabaseMissing('renstra_opd', ['judul' => 'Renstra Rollback']);
+        $this->assertDatabaseHas('import_batch_rows', [
+            'import_batch_id' => $batch->id,
+            'row_number' => 3,
+            'status' => 'failed',
+        ]);
+    }
+
+    public function test_admin_opd_cannot_apply_renstra_import_for_other_opd(): void
+    {
+        $this->seed();
+        Storage::fake('local');
+        config(['filesystems.default' => 'local']);
+
+        $ownOpd = Opd::create(['kode' => '4.03', 'nama' => 'Dinas Sendiri', 'status' => 'active']);
+        Opd::create(['kode' => '4.04', 'nama' => 'Dinas Lain Import', 'status' => 'active']);
+        $tree = $this->createRpjmdTree();
+        $user = User::factory()->create(['opd_id' => $ownOpd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $csv = $this->renstraImportCsv([
+            ['level', 'opd_kode', 'rpjmd_id', 'renstra_judul', 'tahun_awal', 'tahun_akhir'],
+            ['renstra', '4.04', $tree['rpjmd']->id, 'Renstra OPD Lain Dari Import', 2026, 2031],
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.import.store'), [
+                'file' => UploadedFile::fake()->createWithContent('renstra-opd-lain.csv', $csv),
+            ])
+            ->assertRedirect();
+
+        $batch = ImportBatch::where('module', 'renstra_opd')->latest('id')->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.import.apply', $batch))
+            ->assertRedirect(route('renstra-opd.import.show', $batch));
+
+        $batch->refresh();
+
+        $this->assertSame('failed', $batch->status);
+        $this->assertDatabaseMissing('renstra_opd', ['judul' => 'Renstra OPD Lain Dari Import']);
+    }
+
     private function createRpjmdTree(): array
     {
         $rpjmd = Rpjmd::create(['judul' => 'RPJMD Link Renstra', 'tahun_awal' => 2026, 'tahun_akhir' => 2031, 'status' => 'approved']);
@@ -302,5 +447,29 @@ class RenstraOpdTest extends TestCase
             'program_rpjmd' => $program,
             'indikator_program' => $indikatorProgram,
         ];
+    }
+
+    /**
+     * @param  array<int, array<int, mixed>>  $rows
+     */
+    private function renstraImportCsv(array $rows): string
+    {
+        return collect($rows)
+            ->map(fn (array $row) => collect($row)
+                ->map(fn (mixed $value) => $this->csvValue($value))
+                ->implode(',')
+            )
+            ->implode("\n");
+    }
+
+    private function csvValue(mixed $value): string
+    {
+        $value = (string) $value;
+
+        if (str_contains($value, ',') || str_contains($value, '"') || str_contains($value, "\n")) {
+            return '"'.str_replace('"', '""', $value).'"';
+        }
+
+        return $value;
     }
 }

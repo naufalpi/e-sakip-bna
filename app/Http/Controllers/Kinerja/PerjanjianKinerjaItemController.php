@@ -21,6 +21,8 @@ class PerjanjianKinerjaItemController extends Controller
         PerjanjianKinerja $perjanjianKinerja,
         PerencanaanHierarchyValidationService $hierarchyValidation
     ): RedirectResponse {
+        $this->authorize('update', $perjanjianKinerja);
+
         $data = $request->validated();
         $this->assertRelationsBelongToOpd($data, (int) $perjanjianKinerja->opd_id);
         $data = $hierarchyValidation->applyApprovedPerjanjianKinerjaTarget($perjanjianKinerja, $data);

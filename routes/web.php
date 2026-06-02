@@ -31,6 +31,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Perencanaan\PohonKinerjaController;
 use App\Http\Controllers\Perencanaan\TargetTriwulanIndikatorController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdController;
+use App\Http\Controllers\RenstraOpd\RenstraOpdImportController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdNodeController;
 use App\Http\Controllers\Rpjmd\RpjmdController;
 use App\Http\Controllers\Rpjmd\RpjmdImportController;
@@ -64,6 +65,10 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::put('rpjmd/{rpjmd}/nodes/{type}/{id}', [RpjmdNodeController::class, 'update'])->name('rpjmd.nodes.update');
     Route::delete('rpjmd/{rpjmd}/nodes/{type}/{id}', [RpjmdNodeController::class, 'destroy'])->name('rpjmd.nodes.destroy');
 
+    Route::get('renstra-opd/import', [RenstraOpdImportController::class, 'create'])->name('renstra-opd.import.create');
+    Route::post('renstra-opd/import', [RenstraOpdImportController::class, 'store'])->name('renstra-opd.import.store');
+    Route::post('renstra-opd/import/{importBatch}/apply', [RenstraOpdImportController::class, 'apply'])->name('renstra-opd.import.apply');
+    Route::get('renstra-opd/import/{importBatch}', [RenstraOpdImportController::class, 'show'])->name('renstra-opd.import.show');
     Route::resource('renstra-opd', RenstraOpdController::class);
     Route::post('renstra-opd/{renstra_opd}/nodes', [RenstraOpdNodeController::class, 'store'])->name('renstra-opd.nodes.store');
     Route::put('renstra-opd/{renstra_opd}/nodes/{type}/{id}', [RenstraOpdNodeController::class, 'update'])->name('renstra-opd.nodes.update');
