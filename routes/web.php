@@ -42,6 +42,9 @@ use App\Http\Controllers\Rpjmd\RpjmdNodeController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', PublicLandingController::class)->name('home');
+Route::get('{section}', PublicLandingController::class)
+    ->whereIn('section', ['perencanaan', 'pengukuran', 'pelaporan', 'evaluasi'])
+    ->name('public.section');
 Route::get('publik/dokumen/{dokumen}/lihat', [PublicDokumenController::class, 'view'])->name('public.dokumen.view');
 Route::get('publik/dokumen/{dokumen}/download', [PublicDokumenController::class, 'download'])->name('public.dokumen.download');
 

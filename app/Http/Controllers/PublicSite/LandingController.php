@@ -9,8 +9,8 @@ use Inertia\Response;
 
 class LandingController extends Controller
 {
-    public function __invoke(PublicLandingService $landingService): Response
+    public function __invoke(PublicLandingService $landingService, ?string $section = null): Response
     {
-        return Inertia::render('PublicSite/Landing', $landingService->payload());
+        return Inertia::render('PublicSite/Landing', $landingService->payload($section));
     }
 }

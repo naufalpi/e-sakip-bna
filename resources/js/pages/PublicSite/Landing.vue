@@ -16,7 +16,7 @@ import {
     ShieldCheck,
     X,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 type PublicDocument = {
     id: number;
@@ -53,7 +53,13 @@ type Column = {
     label: string;
 };
 
+type SectionId = 'perencanaan' | 'pengukuran' | 'pelaporan' | 'evaluasi';
+
+type SectionUrls = Record<'home' | SectionId, string>;
+
 const props = defineProps<{
+    active_section: SectionId | null;
+    section_urls: SectionUrls;
     meta: {
         tahun: number;
         periode_label: string;
@@ -78,18 +84,25 @@ const props = defineProps<{
 
 const page = usePage<SharedData>();
 const isMobileMenuOpen = ref(false);
+const isPageReady = ref(false);
 
 const user = computed(() => page.props.auth.user);
 const entryUrl = computed(() => (user.value ? route('dashboard') : route('login')));
 const entryLabel = computed(() => (user.value ? 'Dashboard' : 'Login'));
 
-const navItems = [
-    { id: 'beranda', label: 'Beranda' },
-    { id: 'perencanaan', label: 'Perencanaan' },
-    { id: 'pengukuran', label: 'Pengukuran' },
-    { id: 'pelaporan', label: 'Pelaporan' },
-    { id: 'evaluasi', label: 'Evaluasi' },
-];
+onMounted(() => {
+    window.requestAnimationFrame(() => {
+        isPageReady.value = true;
+    });
+});
+
+const navItems = computed(() => [
+    { id: 'beranda', label: 'Beranda', href: props.section_urls.home, isActive: props.active_section === null },
+    { id: 'perencanaan', label: 'Perencanaan', href: props.section_urls.perencanaan, isActive: props.active_section === 'perencanaan' },
+    { id: 'pengukuran', label: 'Pengukuran', href: props.section_urls.pengukuran, isActive: props.active_section === 'pengukuran' },
+    { id: 'pelaporan', label: 'Pelaporan', href: props.section_urls.pelaporan, isActive: props.active_section === 'pelaporan' },
+    { id: 'evaluasi', label: 'Evaluasi', href: props.section_urls.evaluasi, isActive: props.active_section === 'evaluasi' },
+]);
 
 const perencanaanColumns: Column[] = [
     { key: 'pohon_kinerja', label: 'Pohon Kinerja' },
@@ -162,6 +175,28 @@ const tableSections = computed(() => [
     },
 ]);
 
+const activeSection = computed(() => props.active_section);
+const currentSection = computed(() => tableSections.value.find((section) => section.id === activeSection.value) ?? null);
+const visibleTableSections = computed(() => (currentSection.value ? [currentSection.value] : []));
+const homeModules = computed(() =>
+    tableSections.value.map((section) => ({
+        ...section,
+        href: props.section_urls[section.id as SectionId],
+        completeness: progressWidth(section.rows.filter((row) => row.is_ready).length, props.stats.opd_count),
+    })),
+);
+
+const heroTitle = computed(() =>
+    currentSection.value ? `${currentSection.value.title} Publik` : 'Selamat Datang di E-SAKIP Kabupaten Banjarnegara',
+);
+const heroDescription = computed(() =>
+    currentSection.value
+        ? `${currentSection.value.summary} Data ditampilkan pada halaman khusus agar tetap ringan saat jumlah dokumen bertambah.`
+        : 'Portal publik untuk melihat informasi perencanaan, pengukuran, pelaporan, dan evaluasi kinerja perangkat daerah secara ringkas dan mudah dipahami.',
+);
+const primaryCtaHref = computed(() => (currentSection.value ? `#${currentSection.value.id}` : props.section_urls.perencanaan));
+const primaryCtaLabel = computed(() => (currentSection.value ? 'Lihat Tabel' : 'Mulai dari Perencanaan'));
+
 const statCards = computed(() => [
     {
         label: 'OPD aktif',
@@ -216,6 +251,17 @@ function dotClass(cell?: PublicCell): string {
     }[cell?.state ?? 'missing'];
 }
 
+function cycleCardClass(id: string): string {
+    return (
+        {
+            perencanaan: 'cycle-card-planning',
+            pengukuran: 'cycle-card-measurement',
+            pelaporan: 'cycle-card-reporting',
+            evaluasi: 'cycle-card-evaluation',
+        }[id] ?? ''
+    );
+}
+
 function progressWidth(count: number, total: number): string {
     if (total <= 0) {
         return '0%';
@@ -230,28 +276,51 @@ function closeMobileMenu(): void {
 </script>
 
 <template>
-    <Head title="Beranda Publik" />
+    <Head :title="currentSection ? currentSection.title : 'Beranda Publik'" />
 
     <div class="public-site min-h-dvh bg-[#f6f8fb] text-slate-900">
-        <header class="fixed inset-x-0 top-0 z-50 border-b border-white/20 bg-white/88 shadow-sm shadow-slate-900/5 backdrop-blur-xl">
+        <Transition name="page-loader">
+            <div v-if="!isPageReady" class="page-loader fixed inset-0 z-[70] flex items-center justify-center bg-[#071916] text-white">
+                <div class="w-64 text-center">
+                    <div
+                        class="mx-auto flex h-16 w-16 items-center justify-center rounded-md border border-emerald-300/35 bg-white/10 shadow-2xl shadow-emerald-950/50"
+                    >
+                        <img src="/images/logo-banjarnegara.svg" alt="" class="h-12 w-12 object-contain" />
+                    </div>
+                    <p class="mt-5 text-sm font-semibold uppercase text-emerald-100">Memuat Portal Publik</p>
+                    <div class="loader-track mt-4"><span></span></div>
+                </div>
+            </div>
+        </Transition>
+
+        <header class="shadow-slate-900/8 fixed inset-x-0 top-0 z-50 border-b border-emerald-900/15 bg-white shadow-lg">
+            <div class="h-1 bg-[linear-gradient(90deg,#063f35,#d6a326,#0f5f7d)]"></div>
             <div class="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-                <a href="#beranda" class="flex min-h-11 items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2">
+                <Link
+                    :href="props.section_urls.home"
+                    class="flex min-h-11 items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
+                >
                     <img src="/images/logo-banjarnegara.svg" alt="Lambang Kabupaten Banjarnegara" class="h-12 w-12 object-contain" />
                     <div class="leading-tight">
                         <p class="text-sm font-semibold uppercase text-emerald-800">E-SAKIP</p>
                         <p class="text-sm font-medium text-slate-700">Kabupaten Banjarnegara</p>
                     </div>
-                </a>
+                </Link>
 
                 <nav class="hidden items-center gap-1 lg:flex" aria-label="Navigasi utama">
-                    <a
+                    <Link
                         v-for="item in navItems"
                         :key="item.id"
-                        :href="`#${item.id}`"
-                        class="rounded-md px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
+                        :href="item.href"
+                        class="rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
+                        :class="
+                            item.isActive
+                                ? 'bg-emerald-800 text-white shadow-sm shadow-emerald-950/20'
+                                : 'text-slate-700 hover:bg-emerald-50 hover:text-emerald-800'
+                        "
                     >
                         {{ item.label }}
-                    </a>
+                    </Link>
                 </nav>
 
                 <div class="hidden items-center gap-3 lg:flex">
@@ -277,16 +346,20 @@ function closeMobileMenu(): void {
 
             <div v-if="isMobileMenuOpen" class="border-t border-slate-200 bg-white px-4 py-4 lg:hidden">
                 <nav class="grid gap-2" aria-label="Navigasi mobile">
-                    <a
+                    <Link
                         v-for="item in navItems"
                         :key="item.id"
-                        :href="`#${item.id}`"
-                        class="min-h-11 rounded-md px-3 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                        :href="item.href"
+                        class="min-h-11 rounded-md px-3 py-3 text-sm font-semibold"
+                        :class="item.isActive ? 'bg-emerald-800 text-white' : 'text-slate-700 hover:bg-emerald-50'"
                         @click="closeMobileMenu"
                     >
                         {{ item.label }}
-                    </a>
-                    <Link :href="entryUrl" class="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+                    </Link>
+                    <Link
+                        :href="entryUrl"
+                        class="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+                    >
                         <LogIn class="h-4 w-4" />
                         {{ entryLabel }}
                     </Link>
@@ -295,10 +368,14 @@ function closeMobileMenu(): void {
         </header>
 
         <main>
-            <section id="beranda" class="hero-section relative isolate flex min-h-[88dvh] items-center overflow-hidden pt-24">
+            <section
+                id="beranda"
+                class="hero-section relative isolate flex items-center overflow-hidden pt-24"
+                :class="currentSection ? 'min-h-[62dvh]' : 'min-h-[88dvh]'"
+            >
                 <img
-                    src="/images/hero-esakip-banjarnegara.webp"
-                    alt="Ilustrasi gedung pemerintahan Kabupaten Banjarnegara dan aktivitas ASN"
+                    src="/images/hero-dieng-banjarnegara.webp"
+                    alt="Lanskap Dieng Banjarnegara dengan danau, candi, dan dataran tinggi berkabut"
                     class="hero-photo absolute inset-0 -z-30 h-full w-full object-cover"
                 />
                 <div class="hero-vignette absolute inset-0 -z-20"></div>
@@ -306,7 +383,10 @@ function closeMobileMenu(): void {
                 <div class="hero-grain absolute inset-0 -z-10"></div>
                 <div class="hero-ridge absolute -z-10"></div>
 
-                <div class="hero-status-panel pointer-events-none absolute right-6 top-32 hidden w-72 rounded-lg border border-white/20 bg-slate-950/36 p-4 text-white shadow-2xl shadow-slate-950/25 backdrop-blur-xl lg:block">
+                <div
+                    v-if="!currentSection"
+                    class="hero-status-panel bg-slate-950/36 pointer-events-none absolute right-6 top-32 hidden w-72 rounded-lg border border-white/20 p-4 text-white shadow-2xl shadow-slate-950/25 backdrop-blur-xl lg:block"
+                >
                     <div class="flex items-center justify-between gap-3">
                         <span class="text-xs font-semibold uppercase text-emerald-100">Layanan Kinerja</span>
                         <span class="flex h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-lg shadow-emerald-300/70"></span>
@@ -316,16 +396,24 @@ function closeMobileMenu(): void {
                             <span>Perencanaan</span>
                             <strong>{{ stats.planning_ready_count }}/{{ stats.opd_count }}</strong>
                         </div>
-                        <div class="hero-progress-track"><span class="hero-progress-fill" :style="{ width: progressWidth(stats.planning_ready_count, stats.opd_count) }"></span></div>
+                        <div class="hero-progress-track">
+                            <span class="hero-progress-fill" :style="{ width: progressWidth(stats.planning_ready_count, stats.opd_count) }"></span>
+                        </div>
                         <div class="hero-progress-row">
                             <span>Pelaporan</span>
                             <strong>{{ stats.report_ready_count }}/{{ stats.opd_count }}</strong>
                         </div>
-                        <div class="hero-progress-track"><span class="hero-progress-fill" :style="{ width: progressWidth(stats.report_ready_count, stats.opd_count) }"></span></div>
+                        <div class="hero-progress-track">
+                            <span class="hero-progress-fill" :style="{ width: progressWidth(stats.report_ready_count, stats.opd_count) }"></span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="asn-walkway pointer-events-none absolute bottom-8 right-4 hidden h-24 w-[34rem] overflow-hidden lg:block" aria-hidden="true">
+                <div
+                    v-if="!currentSection"
+                    class="asn-walkway pointer-events-none absolute bottom-8 right-4 hidden h-24 w-[34rem] overflow-hidden lg:block"
+                    aria-hidden="true"
+                >
                     <div class="asn-ground"></div>
                     <div class="asn-person asn-one">
                         <span class="asn-head"></span>
@@ -357,15 +445,17 @@ function closeMobileMenu(): void {
                 </div>
 
                 <div class="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-                    <div class="max-w-4xl animate-rise lg:max-w-3xl">
-                        <p class="inline-flex rounded-md border border-white/25 bg-white/10 px-3 py-2 text-sm font-semibold uppercase tracking-normal text-emerald-50 backdrop-blur">
-                            Transparansi Akuntabilitas Kinerja
+                    <div class="animate-rise max-w-4xl lg:max-w-3xl">
+                        <p
+                            class="inline-flex rounded-md border border-white/25 bg-white/10 px-3 py-2 text-sm font-semibold uppercase tracking-normal text-emerald-50 backdrop-blur"
+                        >
+                            {{ currentSection ? currentSection.eyebrow : 'Transparansi Akuntabilitas Kinerja' }}
                         </p>
                         <h1 class="hero-title mt-6 max-w-4xl text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
-                            Selamat Datang di E-SAKIP Kabupaten Banjarnegara
+                            {{ heroTitle }}
                         </h1>
                         <p class="mt-5 max-w-3xl text-base leading-8 text-emerald-50 sm:text-lg">
-                            Portal publik untuk melihat informasi perencanaan, pengukuran, pelaporan, dan evaluasi kinerja perangkat daerah secara ringkas dan mudah dipahami.
+                            {{ heroDescription }}
                         </p>
                         <div class="hero-proofline mt-6 flex flex-wrap gap-2 text-xs font-semibold uppercase text-emerald-50/90">
                             <span>Perencanaan</span>
@@ -376,15 +466,22 @@ function closeMobileMenu(): void {
 
                         <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                             <a
-                                href="#perencanaan"
+                                :href="primaryCtaHref"
                                 class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
                             >
-                                Lihat Data Publik
+                                {{ primaryCtaLabel }}
                                 <ChevronRight class="h-4 w-4" />
                             </a>
                             <Link
+                                v-if="currentSection"
+                                :href="props.section_urls.home"
+                                class="hover:bg-white/18 inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
+                            >
+                                Kembali Beranda
+                            </Link>
+                            <Link
                                 :href="entryUrl"
-                                class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/18 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
+                                class="hover:bg-white/18 inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
                             >
                                 <LogIn class="h-4 w-4" />
                                 {{ entryLabel }}
@@ -396,7 +493,7 @@ function closeMobileMenu(): void {
                         <div
                             v-for="(stat, index) in statCards"
                             :key="stat.label"
-                            class="animate-rise rounded-lg border border-white/20 bg-white/12 p-4 text-white shadow-sm backdrop-blur"
+                            class="animate-rise bg-white/12 rounded-lg border border-white/20 p-4 text-white shadow-sm backdrop-blur"
                             :style="{ animationDelay: `${100 + index * 70}ms` }"
                         >
                             <div class="flex items-center justify-between gap-3">
@@ -412,47 +509,70 @@ function closeMobileMenu(): void {
 
             <section class="cycle-band border-b border-slate-200 bg-white">
                 <div class="mx-auto grid max-w-7xl gap-4 px-4 py-8 sm:px-6 md:grid-cols-4 lg:px-8">
-                    <div class="cycle-card cycle-card-planning">
+                    <Link
+                        v-for="(module, index) in homeModules"
+                        :key="module.id"
+                        :href="module.href"
+                        class="cycle-card"
+                        :class="[cycleCardClass(module.id), module.id === activeSection ? 'cycle-card-active' : '']"
+                    >
                         <div class="cycle-icon">
-                            <Network class="h-5 w-5" />
+                            <component :is="module.icon" class="h-5 w-5" />
                         </div>
                         <div>
-                            <p>01</p>
-                            <span>Perencanaan</span>
+                            <p>{{ String(index + 1).padStart(2, '0') }}</p>
+                            <span>{{ module.eyebrow }}</span>
                         </div>
+                    </Link>
+                </div>
+            </section>
+
+            <section v-if="!currentSection" class="overview-section bg-[#f6f8fb] py-14 sm:py-16">
+                <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                    <div class="max-w-3xl">
+                        <p class="text-sm font-semibold uppercase text-emerald-800">Data Publik</p>
+                        <h2 class="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">Pilih siklus SAKIP yang ingin dilihat</h2>
+                        <p class="mt-3 text-sm leading-6 text-slate-600">
+                            Setiap siklus memiliki halaman sendiri supaya tabel perangkat daerah tetap nyaman dibuka saat data dan dokumen semakin
+                            banyak.
+                        </p>
                     </div>
-                    <div class="cycle-card cycle-card-measurement">
-                        <div class="cycle-icon">
-                            <Gauge class="h-5 w-5" />
-                        </div>
-                        <div>
-                            <p>02</p>
-                            <span>Pengukuran</span>
-                        </div>
-                    </div>
-                    <div class="cycle-card cycle-card-reporting">
-                        <div class="cycle-icon">
-                            <FileText class="h-5 w-5" />
-                        </div>
-                        <div>
-                            <p>03</p>
-                            <span>Pelaporan</span>
-                        </div>
-                    </div>
-                    <div class="cycle-card cycle-card-evaluation">
-                        <div class="cycle-icon">
-                            <ShieldCheck class="h-5 w-5" />
-                        </div>
-                        <div>
-                            <p>04</p>
-                            <span>Evaluasi</span>
-                        </div>
+
+                    <div class="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+                        <Link
+                            v-for="module in homeModules"
+                            :key="`overview-${module.id}`"
+                            :href="module.href"
+                            class="module-card-3d group rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
+                            :class="cycleCardClass(module.id)"
+                        >
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="cycle-icon">
+                                    <component :is="module.icon" class="h-5 w-5" />
+                                </div>
+                                <ChevronRight class="mt-1 h-5 w-5 text-slate-400 transition group-hover:translate-x-1 group-hover:text-emerald-800" />
+                            </div>
+                            <h3 class="mt-5 text-lg font-bold text-slate-950">{{ module.title }}</h3>
+                            <p class="mt-2 min-h-16 text-sm leading-6 text-slate-600">{{ module.summary }}</p>
+                            <div class="mt-5">
+                                <div class="flex items-center justify-between text-xs font-semibold uppercase text-slate-500">
+                                    <span>Kelengkapan</span>
+                                    <span>{{ module.completeness }}</span>
+                                </div>
+                                <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                                    <span
+                                        class="block h-full rounded-full bg-[linear-gradient(90deg,var(--cycle-color),#d6a326)]"
+                                        :style="{ width: module.completeness }"
+                                    ></span>
+                                </div>
+                            </div>
+                        </Link>
                     </div>
                 </div>
             </section>
 
             <section
-                v-for="section in tableSections"
+                v-for="section in visibleTableSections"
                 :id="section.id"
                 :key="section.id"
                 class="scroll-mt-24 border-b border-slate-200 bg-[#f6f8fb] py-14 sm:py-16"
@@ -493,7 +613,9 @@ function closeMobileMenu(): void {
                                         <td class="px-4 py-4 text-sm font-medium text-slate-500">{{ row.no }}</td>
                                         <td class="px-4 py-4">
                                             <div class="flex items-center gap-3">
-                                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-sm font-bold text-emerald-800">
+                                                <div
+                                                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-sm font-bold text-emerald-800"
+                                                >
                                                     {{ row.opd.singkatan?.slice(0, 3) || row.no }}
                                                 </div>
                                                 <div>
@@ -559,7 +681,11 @@ function closeMobileMenu(): void {
                                 </div>
                                 <span
                                     class="shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold"
-                                    :class="row.is_ready ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-500'"
+                                    :class="
+                                        row.is_ready
+                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                            : 'border-slate-200 bg-slate-50 text-slate-500'
+                                    "
                                 >
                                     {{ row.is_ready ? 'Ada data' : 'Belum lengkap' }}
                                 </span>
@@ -602,7 +728,10 @@ function closeMobileMenu(): void {
                             </div>
                         </article>
 
-                        <div v-if="section.rows.length === 0" class="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+                        <div
+                            v-if="section.rows.length === 0"
+                            class="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500"
+                        >
                             Data OPD belum tersedia.
                         </div>
                     </div>
@@ -611,7 +740,9 @@ function closeMobileMenu(): void {
         </main>
 
         <footer class="bg-slate-950 py-8 text-white">
-            <div class="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+            <div
+                class="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"
+            >
                 <p>E-SAKIP Kabupaten Banjarnegara</p>
                 <p>Data publik diperbarui dari status dokumen resmi yang sudah diverifikasi.</p>
             </div>
@@ -634,6 +765,39 @@ function closeMobileMenu(): void {
     letter-spacing: 0;
 }
 
+.page-loader {
+    background: radial-gradient(circle at 50% 38%, rgba(16, 185, 129, 0.18), transparent 34%), linear-gradient(135deg, #071916, #062e2b 54%, #0f172a);
+}
+
+.page-loader-enter-active,
+.page-loader-leave-active {
+    transition:
+        opacity 260ms ease,
+        transform 260ms ease;
+}
+
+.page-loader-enter-from,
+.page-loader-leave-to {
+    opacity: 0;
+    transform: scale(1.015);
+}
+
+.loader-track {
+    height: 0.35rem;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.loader-track span {
+    display: block;
+    height: 100%;
+    width: 46%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #10b981, #fbbf24, #38bdf8);
+    animation: loader-sweep 900ms ease-in-out infinite alternate;
+}
+
 .hero-section {
     background-color: #062e2b;
 }
@@ -646,15 +810,14 @@ function closeMobileMenu(): void {
 
 .hero-vignette {
     background:
-        linear-gradient(90deg, rgba(4, 35, 32, 0.94) 0%, rgba(4, 35, 32, 0.78) 35%, rgba(4, 35, 32, 0.28) 66%, rgba(4, 35, 32, 0.34) 100%),
-        linear-gradient(180deg, rgba(2, 6, 23, 0.24) 0%, rgba(2, 6, 23, 0.08) 46%, rgba(2, 6, 23, 0.7) 100%);
+        linear-gradient(90deg, rgba(4, 35, 32, 0.97) 0%, rgba(4, 35, 32, 0.82) 37%, rgba(4, 35, 32, 0.22) 68%, rgba(4, 35, 32, 0.2) 100%),
+        linear-gradient(180deg, rgba(2, 6, 23, 0.18) 0%, rgba(2, 6, 23, 0.05) 46%, rgba(2, 6, 23, 0.68) 100%);
 }
 
 .hero-grid {
     opacity: 0.22;
     background-image:
-        linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+        linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
     background-size: 56px 56px;
     mask-image: linear-gradient(90deg, black, transparent 70%);
 }
@@ -878,10 +1041,13 @@ function closeMobileMenu(): void {
     color: rgb(15 23 42);
     box-shadow: 0 1.2rem 2.6rem rgb(15 23 42 / 0.07);
     isolation: isolate;
+    perspective: 900px;
+    transform: perspective(900px) translateZ(0);
+    transform-style: preserve-3d;
     transition:
-        transform 180ms ease,
+        transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
         border-color 180ms ease,
-        box-shadow 180ms ease;
+        box-shadow 220ms ease;
 }
 
 .cycle-card::after {
@@ -896,12 +1062,21 @@ function closeMobileMenu(): void {
 }
 
 .cycle-card:hover {
-    transform: translateY(-0.18rem);
+    transform: perspective(900px) translateY(-0.28rem) rotateX(2deg) rotateY(-1.4deg);
     border-color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 35%, white);
     box-shadow: 0 1.4rem 3rem rgb(15 23 42 / 0.11);
 }
 
 .cycle-card:hover::after {
+    transform: scaleX(1);
+}
+
+.cycle-card-active {
+    border-color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 45%, white);
+    background: linear-gradient(180deg, white, color-mix(in srgb, var(--cycle-color, var(--civic-green)) 8%, white));
+}
+
+.cycle-card-active::after {
     transform: scaleX(1);
 }
 
@@ -926,6 +1101,7 @@ function closeMobileMenu(): void {
     border-radius: 0.5rem;
     background: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 12%, white);
     color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 86%, black);
+    transform: translateZ(1.2rem);
 }
 
 .cycle-card-planning {
@@ -944,6 +1120,44 @@ function closeMobileMenu(): void {
     --cycle-color: #b42318;
 }
 
+.overview-section {
+    background: radial-gradient(circle at top left, rgba(4, 120, 87, 0.1), transparent 28rem), linear-gradient(180deg, #f6f8fb, #eef5f2);
+}
+
+.module-card-3d {
+    position: relative;
+    isolation: isolate;
+    perspective: 1100px;
+    transform: perspective(1100px) translateZ(0);
+    transform-style: preserve-3d;
+    transition:
+        transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 200ms ease,
+        box-shadow 240ms ease;
+}
+
+.module-card-3d::before {
+    position: absolute;
+    inset: 0.55rem -0.25rem -0.55rem 0.75rem;
+    z-index: -1;
+    content: '';
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 18%, transparent);
+    filter: blur(1.1rem);
+    opacity: 0;
+    transition: opacity 220ms ease;
+}
+
+.module-card-3d:hover {
+    transform: perspective(1100px) translateY(-0.45rem) rotateX(3deg) rotateY(-2deg);
+    border-color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 36%, white);
+    box-shadow: 0 1.6rem 3.6rem rgb(15 23 42 / 0.12);
+}
+
+.module-card-3d:hover::before {
+    opacity: 1;
+}
+
 .animate-rise {
     animation: rise-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -957,6 +1171,16 @@ function closeMobileMenu(): void {
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+@keyframes loader-sweep {
+    from {
+        transform: translateX(-72%);
+    }
+
+    to {
+        transform: translateX(126%);
     }
 }
 
@@ -1038,6 +1262,7 @@ function closeMobileMenu(): void {
     }
 
     .animate-rise,
+    .loader-track span,
     .hero-photo,
     .hero-ridge,
     .hero-status-panel,

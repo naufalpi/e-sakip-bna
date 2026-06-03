@@ -39,11 +39,14 @@ class PublicLandingService
         'tw4' => 'Triwulan IV',
     ];
 
+    private const PUBLIC_SECTIONS = ['perencanaan', 'pengukuran', 'pelaporan', 'evaluasi'];
+
     /**
      * @return array<string, mixed>
      */
-    public function payload(): array
+    public function payload(?string $section = null): array
     {
+        $activeSection = in_array($section, self::PUBLIC_SECTIONS, true) ? $section : null;
         $periode = $this->currentPeriode();
         $tahun = $periode?->tahun ?? (int) now()->year;
         $opds = Opd::query()
@@ -78,7 +81,31 @@ class PublicLandingService
             ->filter(fn (EvaluasiSakip $evaluasi) => $evaluasi->nilai_akhir !== null)
             ->map(fn (EvaluasiSakip $evaluasi) => (float) $evaluasi->nilai_akhir);
 
+        $tables = [
+            'perencanaan' => [],
+            'pengukuran' => [],
+            'pelaporan' => [],
+            'evaluasi' => [],
+        ];
+
+        if ($activeSection) {
+            $tables[$activeSection] = [
+                'perencanaan' => $perencanaan,
+                'pengukuran' => $pengukuran,
+                'pelaporan' => $pelaporan,
+                'evaluasi' => $evaluasi,
+            ][$activeSection];
+        }
+
         return [
+            'active_section' => $activeSection,
+            'section_urls' => [
+                'home' => route('home'),
+                'perencanaan' => route('public.section', 'perencanaan'),
+                'pengukuran' => route('public.section', 'pengukuran'),
+                'pelaporan' => route('public.section', 'pelaporan'),
+                'evaluasi' => route('public.section', 'evaluasi'),
+            ],
             'meta' => [
                 'tahun' => $tahun,
                 'periode_label' => $periode ? $periode->nama : 'Tahun '.$tahun,
@@ -93,12 +120,7 @@ class PublicLandingService
                 'public_document_count' => $documents['count'],
                 'average_sakip' => $nilaiEvaluasi->isNotEmpty() ? round($nilaiEvaluasi->avg(), 2) : null,
             ],
-            'tables' => [
-                'perencanaan' => $perencanaan,
-                'pengukuran' => $pengukuran,
-                'pelaporan' => $pelaporan,
-                'evaluasi' => $evaluasi,
-            ],
+            'tables' => $tables,
         ];
     }
 
