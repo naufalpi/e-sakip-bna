@@ -14,7 +14,7 @@ defineProps<Props>();
 
 <template>
     <img
-        src="/images/lambang-banjarnegara.svg"
+        src="/images/logo-banjarnegara.svg"
         alt="Lambang Kabupaten Banjarnegara"
         :class="className"
         v-bind="$attrs"

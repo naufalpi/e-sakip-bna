@@ -503,7 +503,7 @@ class ReportDocumentRenderService
      */
     private function logoPath(array $report): ?string
     {
-        $path = $this->metadata($report, 'logo_path', public_path('images/lambang-banjarnegara.svg'));
+        $path = $this->metadata($report, 'logo_path', public_path('images/logo-banjarnegara.png'));
 
         return is_string($path) && $path !== '' ? $path : null;
     }

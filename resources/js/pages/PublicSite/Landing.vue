@@ -228,7 +228,7 @@ function closeMobileMenu(): void {
         <header class="fixed inset-x-0 top-0 z-50 border-b border-white/20 bg-white/88 shadow-sm shadow-slate-900/5 backdrop-blur-xl">
             <div class="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                 <a href="#beranda" class="flex min-h-11 items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2">
-                    <img src="/images/lambang-banjarnegara.svg" alt="Lambang Kabupaten Banjarnegara" class="h-12 w-12 object-contain" />
+                    <img src="/images/logo-banjarnegara.svg" alt="Lambang Kabupaten Banjarnegara" class="h-12 w-12 object-contain" />
                     <div class="leading-tight">
                         <p class="text-sm font-semibold uppercase text-emerald-800">E-SAKIP</p>
                         <p class="text-sm font-medium text-slate-700">Kabupaten Banjarnegara</p>
@@ -290,7 +290,7 @@ function closeMobileMenu(): void {
             <section id="beranda" class="hero-section relative isolate flex min-h-[82dvh] items-center overflow-hidden pt-24">
                 <div class="hero-backdrop absolute inset-0 -z-10"></div>
                 <img
-                    src="/images/lambang-banjarnegara.svg"
+                    src="/images/logo-banjarnegara.svg"
                     alt=""
                     aria-hidden="true"
                     class="hero-emblem pointer-events-none absolute right-[-3rem] top-24 -z-10 h-[34rem] w-[34rem] max-w-none opacity-10 sm:right-10 lg:right-24"
