@@ -303,8 +303,8 @@ function closeMobileMenu(): void {
                 />
                 <div class="hero-vignette absolute inset-0 -z-20"></div>
                 <div class="hero-grid absolute inset-0 -z-10"></div>
-                <div class="hero-light hero-light-one absolute -z-10"></div>
-                <div class="hero-light hero-light-two absolute -z-10"></div>
+                <div class="hero-grain absolute inset-0 -z-10"></div>
+                <div class="hero-ridge absolute -z-10"></div>
 
                 <div class="hero-status-panel pointer-events-none absolute right-6 top-32 hidden w-72 rounded-lg border border-white/20 bg-slate-950/36 p-4 text-white shadow-2xl shadow-slate-950/25 backdrop-blur-xl lg:block">
                     <div class="flex items-center justify-between gap-3">
@@ -361,12 +361,18 @@ function closeMobileMenu(): void {
                         <p class="inline-flex rounded-md border border-white/25 bg-white/10 px-3 py-2 text-sm font-semibold uppercase tracking-normal text-emerald-50 backdrop-blur">
                             Transparansi Akuntabilitas Kinerja
                         </p>
-                        <h1 class="mt-6 max-w-4xl text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
+                        <h1 class="hero-title mt-6 max-w-4xl text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
                             Selamat Datang di E-SAKIP Kabupaten Banjarnegara
                         </h1>
                         <p class="mt-5 max-w-3xl text-base leading-8 text-emerald-50 sm:text-lg">
                             Portal publik untuk melihat informasi perencanaan, pengukuran, pelaporan, dan evaluasi kinerja perangkat daerah secara ringkas dan mudah dipahami.
                         </p>
+                        <div class="hero-proofline mt-6 flex flex-wrap gap-2 text-xs font-semibold uppercase text-emerald-50/90">
+                            <span>Perencanaan</span>
+                            <span>Pengukuran</span>
+                            <span>Pelaporan</span>
+                            <span>Evaluasi</span>
+                        </div>
 
                         <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                             <a
@@ -404,23 +410,43 @@ function closeMobileMenu(): void {
                 </div>
             </section>
 
-            <section class="border-b border-slate-200 bg-white">
+            <section class="cycle-band border-b border-slate-200 bg-white">
                 <div class="mx-auto grid max-w-7xl gap-4 px-4 py-8 sm:px-6 md:grid-cols-4 lg:px-8">
-                    <div class="cycle-card">
-                        <Network class="h-5 w-5 text-emerald-700" />
-                        <span>Perencanaan</span>
+                    <div class="cycle-card cycle-card-planning">
+                        <div class="cycle-icon">
+                            <Network class="h-5 w-5" />
+                        </div>
+                        <div>
+                            <p>01</p>
+                            <span>Perencanaan</span>
+                        </div>
                     </div>
-                    <div class="cycle-card">
-                        <Gauge class="h-5 w-5 text-blue-700" />
-                        <span>Pengukuran</span>
+                    <div class="cycle-card cycle-card-measurement">
+                        <div class="cycle-icon">
+                            <Gauge class="h-5 w-5" />
+                        </div>
+                        <div>
+                            <p>02</p>
+                            <span>Pengukuran</span>
+                        </div>
                     </div>
-                    <div class="cycle-card">
-                        <FileText class="h-5 w-5 text-amber-700" />
-                        <span>Pelaporan</span>
+                    <div class="cycle-card cycle-card-reporting">
+                        <div class="cycle-icon">
+                            <FileText class="h-5 w-5" />
+                        </div>
+                        <div>
+                            <p>03</p>
+                            <span>Pelaporan</span>
+                        </div>
                     </div>
-                    <div class="cycle-card">
-                        <ShieldCheck class="h-5 w-5 text-red-700" />
-                        <span>Evaluasi</span>
+                    <div class="cycle-card cycle-card-evaluation">
+                        <div class="cycle-icon">
+                            <ShieldCheck class="h-5 w-5" />
+                        </div>
+                        <div>
+                            <p>04</p>
+                            <span>Evaluasi</span>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -595,7 +621,17 @@ function closeMobileMenu(): void {
 
 <style scoped>
 .public-site {
+    --civic-ink: #071916;
+    --civic-green: #063f35;
+    --civic-gold: #d6a326;
+    --civic-blue: #0f5f7d;
     scroll-behavior: smooth;
+    font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+.public-site :is(h1, h2) {
+    font-family: Cambria, Georgia, 'Times New Roman', serif;
+    letter-spacing: 0;
 }
 
 .hero-section {
@@ -623,26 +659,24 @@ function closeMobileMenu(): void {
     mask-image: linear-gradient(90deg, black, transparent 70%);
 }
 
-.hero-light {
-    width: 20rem;
-    height: 20rem;
-    border-radius: 9999px;
-    filter: blur(20px);
-    opacity: 0.28;
+.hero-grain {
+    opacity: 0.16;
+    background-image:
+        linear-gradient(115deg, rgba(255, 255, 255, 0.08), transparent 38%, rgba(255, 255, 255, 0.06) 58%, transparent),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 4px);
+    mix-blend-mode: soft-light;
 }
 
-.hero-light-one {
-    left: 8%;
-    top: 18%;
-    background: rgba(250, 204, 21, 0.58);
-    animation: light-pulse 7s ease-in-out infinite;
-}
-
-.hero-light-two {
-    right: 12%;
-    top: 22%;
-    background: rgba(14, 165, 233, 0.5);
-    animation: light-pulse 8s ease-in-out infinite reverse;
+.hero-ridge {
+    left: -12rem;
+    top: 8rem;
+    width: 64rem;
+    height: 10rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.28);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(90deg, rgba(214, 163, 38, 0.18), transparent);
+    transform: rotate(-10deg);
+    animation: ridge-sweep 11s ease-in-out infinite alternate;
 }
 
 .hero-section::after {
@@ -651,6 +685,22 @@ function closeMobileMenu(): void {
     height: 8rem;
     content: '';
     background: linear-gradient(to bottom, transparent, rgba(246, 248, 251, 0.92));
+}
+
+.hero-title {
+    text-wrap: balance;
+    text-shadow: 0 1.5rem 3rem rgba(2, 6, 23, 0.42);
+}
+
+.hero-proofline span {
+    display: inline-flex;
+    min-height: 2rem;
+    align-items: center;
+    border-radius: 0.375rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.35rem 0.7rem;
+    backdrop-filter: blur(10px);
 }
 
 .hero-status-panel {
@@ -798,19 +848,100 @@ function closeMobileMenu(): void {
     transform: rotate(-7deg);
 }
 
+.cycle-band {
+    position: relative;
+    overflow: hidden;
+}
+
+.cycle-band::before {
+    position: absolute;
+    inset: 0;
+    content: '';
+    background:
+        linear-gradient(90deg, rgba(6, 63, 53, 0.08), transparent 34%, rgba(214, 163, 38, 0.11)),
+        repeating-linear-gradient(135deg, rgba(15, 23, 42, 0.035) 0 1px, transparent 1px 18px);
+    pointer-events: none;
+}
+
 .cycle-card {
+    position: relative;
     display: flex;
-    min-height: 4rem;
+    min-height: 5.5rem;
     align-items: center;
     gap: 0.75rem;
     border-radius: 0.5rem;
     border: 1px solid rgb(226 232 240);
     background: white;
-    padding: 1rem;
+    padding: 1rem 1.1rem;
     font-size: 0.875rem;
     font-weight: 700;
     color: rgb(15 23 42);
-    box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+    box-shadow: 0 1.2rem 2.6rem rgb(15 23 42 / 0.07);
+    isolation: isolate;
+    transition:
+        transform 180ms ease,
+        border-color 180ms ease,
+        box-shadow 180ms ease;
+}
+
+.cycle-card::after {
+    position: absolute;
+    inset: auto 0 0;
+    height: 0.22rem;
+    content: '';
+    background: var(--cycle-color, var(--civic-green));
+    transform: scaleX(0.48);
+    transform-origin: left;
+    transition: transform 180ms ease;
+}
+
+.cycle-card:hover {
+    transform: translateY(-0.18rem);
+    border-color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 35%, white);
+    box-shadow: 0 1.4rem 3rem rgb(15 23 42 / 0.11);
+}
+
+.cycle-card:hover::after {
+    transform: scaleX(1);
+}
+
+.cycle-card p {
+    margin-bottom: 0.15rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 88%, black);
+}
+
+.cycle-card span {
+    font-size: 1rem;
+    color: var(--civic-ink);
+}
+
+.cycle-icon {
+    display: inline-flex;
+    min-width: 3rem;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 12%, white);
+    color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 86%, black);
+}
+
+.cycle-card-planning {
+    --cycle-color: #047857;
+}
+
+.cycle-card-measurement {
+    --cycle-color: #0f5f7d;
+}
+
+.cycle-card-reporting {
+    --cycle-color: #d6a326;
+}
+
+.cycle-card-evaluation {
+    --cycle-color: #b42318;
 }
 
 .animate-rise {
@@ -839,16 +970,13 @@ function closeMobileMenu(): void {
     }
 }
 
-@keyframes light-pulse {
-    0%,
-    100% {
-        opacity: 0.2;
-        transform: scale(0.96);
+@keyframes ridge-sweep {
+    from {
+        transform: translateX(-1rem) rotate(-10deg);
     }
 
-    50% {
-        opacity: 0.34;
-        transform: scale(1.08);
+    to {
+        transform: translateX(3rem) rotate(-10deg);
     }
 }
 
@@ -911,7 +1039,7 @@ function closeMobileMenu(): void {
 
     .animate-rise,
     .hero-photo,
-    .hero-light,
+    .hero-ridge,
     .hero-status-panel,
     .asn-person,
     .asn-arm,
