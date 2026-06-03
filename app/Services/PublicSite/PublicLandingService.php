@@ -44,11 +44,11 @@ class PublicLandingService
     /**
      * @return array<string, mixed>
      */
-    public function payload(?string $section = null): array
+    public function payload(?string $section = null, ?int $requestedYear = null): array
     {
         $activeSection = in_array($section, self::PUBLIC_SECTIONS, true) ? $section : null;
-        $periode = $this->currentPeriode();
-        $tahun = $periode?->tahun ?? (int) now()->year;
+        $periode = $this->periodeForYear($requestedYear);
+        $tahun = $requestedYear ?: ($periode?->tahun ?? (int) now()->year);
         $opds = Opd::query()
             ->where('status', 'active')
             ->orderBy('nama')
@@ -100,11 +100,15 @@ class PublicLandingService
         return [
             'active_section' => $activeSection,
             'section_urls' => [
-                'home' => route('home'),
-                'perencanaan' => route('public.section', 'perencanaan'),
-                'pengukuran' => route('public.section', 'pengukuran'),
-                'pelaporan' => route('public.section', 'pelaporan'),
-                'evaluasi' => route('public.section', 'evaluasi'),
+                'home' => route('home', ['tahun' => $tahun]),
+                'perencanaan' => route('public.section', ['section' => 'perencanaan', 'tahun' => $tahun]),
+                'pengukuran' => route('public.section', ['section' => 'pengukuran', 'tahun' => $tahun]),
+                'pelaporan' => route('public.section', ['section' => 'pelaporan', 'tahun' => $tahun]),
+                'evaluasi' => route('public.section', ['section' => 'evaluasi', 'tahun' => $tahun]),
+            ],
+            'available_years' => $this->availableYears($tahun),
+            'filters' => [
+                'tahun' => $tahun,
             ],
             'meta' => [
                 'tahun' => $tahun,
@@ -122,6 +126,36 @@ class PublicLandingService
             ],
             'tables' => $tables,
         ];
+    }
+
+    private function periodeForYear(?int $tahun): ?PeriodeTahun
+    {
+        if ($tahun) {
+            $periode = PeriodeTahun::query()
+                ->where('tahun', $tahun)
+                ->orderByDesc('id')
+                ->first();
+
+            if ($periode) {
+                return $periode;
+            }
+        }
+
+        return $this->currentPeriode();
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function availableYears(int $selectedYear): array
+    {
+        return PeriodeTahun::query()
+            ->orderByDesc('tahun')
+            ->pluck('tahun')
+            ->push($selectedYear)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function currentPeriode(): ?PeriodeTahun

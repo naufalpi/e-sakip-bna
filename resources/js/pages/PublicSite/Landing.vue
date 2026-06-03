@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { SharedData } from '@/types';
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     BarChart3,
     Building2,
+    CalendarDays,
     CheckCircle2,
     ChevronRight,
     Download,
@@ -13,6 +14,7 @@ import {
     LogIn,
     Menu,
     Network,
+    Search,
     ShieldCheck,
     X,
 } from 'lucide-vue-next';
@@ -60,6 +62,10 @@ type SectionUrls = Record<'home' | SectionId, string>;
 const props = defineProps<{
     active_section: SectionId | null;
     section_urls: SectionUrls;
+    available_years: number[];
+    filters: {
+        tahun: number;
+    };
     meta: {
         tahun: number;
         periode_label: string;
@@ -85,6 +91,7 @@ const props = defineProps<{
 const page = usePage<SharedData>();
 const isMobileMenuOpen = ref(false);
 const isPageReady = ref(false);
+const searchQuery = ref('');
 
 const user = computed(() => page.props.auth.user);
 const entryUrl = computed(() => (user.value ? route('dashboard') : route('login')));
@@ -182,20 +189,19 @@ const homeModules = computed(() =>
     tableSections.value.map((section) => ({
         ...section,
         href: props.section_urls[section.id as SectionId],
-        completeness: progressWidth(section.rows.filter((row) => row.is_ready).length, props.stats.opd_count),
+        completeness: progressWidth(sectionReadyCount(section.id), props.stats.opd_count),
     })),
 );
 
-const heroTitle = computed(() =>
-    currentSection.value ? `${currentSection.value.title} Publik` : 'Selamat Datang di E-SAKIP Kabupaten Banjarnegara',
+const filteredTableSections = computed(() =>
+    visibleTableSections.value.map((section) => ({
+        ...section,
+        rows: filterRows(section.rows),
+    })),
 );
-const heroDescription = computed(() =>
-    currentSection.value
-        ? `${currentSection.value.summary} Data ditampilkan pada halaman khusus agar tetap ringan saat jumlah dokumen bertambah.`
-        : 'Portal publik untuk melihat informasi perencanaan, pengukuran, pelaporan, dan evaluasi kinerja perangkat daerah secara ringkas dan mudah dipahami.',
-);
-const primaryCtaHref = computed(() => (currentSection.value ? `#${currentSection.value.id}` : props.section_urls.perencanaan));
-const primaryCtaLabel = computed(() => (currentSection.value ? 'Lihat Tabel' : 'Mulai dari Perencanaan'));
+const currentRowsCount = computed(() => currentSection.value?.rows.length ?? 0);
+const filteredRowsCount = computed(() => filteredTableSections.value[0]?.rows.length ?? 0);
+const selectedYearLabel = computed(() => `Tahun ${props.filters.tahun}`);
 
 const statCards = computed(() => [
     {
@@ -260,6 +266,59 @@ function cycleCardClass(id: string): string {
             evaluasi: 'cycle-card-evaluation',
         }[id] ?? ''
     );
+}
+
+function sectionReadyCount(id: string): number {
+    return (
+        {
+            perencanaan: props.stats.planning_ready_count,
+            pengukuran: props.stats.measurement_ready_count,
+            pelaporan: props.stats.report_ready_count,
+            evaluasi: props.stats.evaluation_count,
+        }[id] ?? 0
+    );
+}
+
+function filterRows(rows: PublicRow[]): PublicRow[] {
+    const query = searchQuery.value.trim().toLowerCase();
+
+    if (!query) {
+        return rows;
+    }
+
+    return rows.filter((row) => rowSearchText(row).includes(query));
+}
+
+function rowSearchText(row: PublicRow): string {
+    const cellText = Object.values(row.cells)
+        .flatMap((cell) => [cell.label, cell.description, cell.dokumen?.judul, cell.dokumen?.filename])
+        .filter(Boolean)
+        .join(' ');
+
+    return [row.opd.nama, row.opd.singkatan, row.opd.kode, row.opd.label, cellText].filter(Boolean).join(' ').toLowerCase();
+}
+
+function changeYear(event: Event): void {
+    const target = event.target as HTMLSelectElement;
+    const tahun = Number(target.value);
+    const destination = currentSection.value ? route('public.section', { section: currentSection.value.id }) : route('home');
+
+    router.get(
+        destination,
+        { tahun },
+        {
+            preserveScroll: false,
+            preserveState: false,
+        },
+    );
+}
+
+function emptyTableMessage(sectionRows: PublicRow[]): string {
+    if (searchQuery.value.trim() && sectionRows.length === 0) {
+        return 'Tidak ada data yang cocok dengan pencarian.';
+    }
+
+    return 'Data OPD belum tersedia.';
 }
 
 function progressWidth(count: number, total: number): string {
@@ -368,11 +427,7 @@ function closeMobileMenu(): void {
         </header>
 
         <main>
-            <section
-                id="beranda"
-                class="hero-section relative isolate flex items-center overflow-hidden pt-24"
-                :class="currentSection ? 'min-h-[62dvh]' : 'min-h-[88dvh]'"
-            >
+            <section v-if="!currentSection" id="beranda" class="hero-section relative isolate flex min-h-[88dvh] items-center overflow-hidden pt-24">
                 <img
                     src="/images/hero-dieng-banjarnegara.webp"
                     alt="Lanskap Dieng Banjarnegara dengan danau, candi, dan dataran tinggi berkabut"
@@ -384,7 +439,6 @@ function closeMobileMenu(): void {
                 <div class="hero-ridge absolute -z-10"></div>
 
                 <div
-                    v-if="!currentSection"
                     class="hero-status-panel bg-slate-950/36 pointer-events-none absolute right-6 top-32 hidden w-72 rounded-lg border border-white/20 p-4 text-white shadow-2xl shadow-slate-950/25 backdrop-blur-xl lg:block"
                 >
                     <div class="flex items-center justify-between gap-3">
@@ -410,7 +464,6 @@ function closeMobileMenu(): void {
                 </div>
 
                 <div
-                    v-if="!currentSection"
                     class="asn-walkway pointer-events-none absolute bottom-8 right-4 hidden h-24 w-[34rem] overflow-hidden lg:block"
                     aria-hidden="true"
                 >
@@ -449,13 +502,14 @@ function closeMobileMenu(): void {
                         <p
                             class="inline-flex rounded-md border border-white/25 bg-white/10 px-3 py-2 text-sm font-semibold uppercase tracking-normal text-emerald-50 backdrop-blur"
                         >
-                            {{ currentSection ? currentSection.eyebrow : 'Transparansi Akuntabilitas Kinerja' }}
+                            Transparansi Akuntabilitas Kinerja
                         </p>
                         <h1 class="hero-title mt-6 max-w-4xl text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
-                            {{ heroTitle }}
+                            Selamat Datang di E-SAKIP Kabupaten Banjarnegara
                         </h1>
                         <p class="mt-5 max-w-3xl text-base leading-8 text-emerald-50 sm:text-lg">
-                            {{ heroDescription }}
+                            Portal publik untuk melihat informasi perencanaan, pengukuran, pelaporan, dan evaluasi kinerja perangkat daerah secara
+                            ringkas dan mudah dipahami.
                         </p>
                         <div class="hero-proofline mt-6 flex flex-wrap gap-2 text-xs font-semibold uppercase text-emerald-50/90">
                             <span>Perencanaan</span>
@@ -466,19 +520,12 @@ function closeMobileMenu(): void {
 
                         <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                             <a
-                                :href="primaryCtaHref"
+                                :href="props.section_urls.perencanaan"
                                 class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
                             >
-                                {{ primaryCtaLabel }}
+                                Mulai dari Perencanaan
                                 <ChevronRight class="h-4 w-4" />
                             </a>
-                            <Link
-                                v-if="currentSection"
-                                :href="props.section_urls.home"
-                                class="hover:bg-white/18 inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
-                            >
-                                Kembali Beranda
-                            </Link>
                             <Link
                                 :href="entryUrl"
                                 class="hover:bg-white/18 inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
@@ -504,6 +551,38 @@ function closeMobileMenu(): void {
                             <p class="mt-2 text-sm text-emerald-100">{{ stat.note }}</p>
                         </div>
                     </dl>
+                </div>
+            </section>
+
+            <section v-else class="module-header pt-28">
+                <div class="mx-auto max-w-7xl px-4 pb-8 pt-8 sm:px-6 lg:px-8">
+                    <div class="module-header-panel rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                        <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                            <div class="flex gap-4">
+                                <div class="cycle-icon shrink-0" :class="cycleCardClass(currentSection.id)">
+                                    <component :is="currentSection.icon" class="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <p class="text-sm font-semibold uppercase text-emerald-800">{{ currentSection.eyebrow }}</p>
+                                    <h1 class="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">{{ currentSection.title }}</h1>
+                                    <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                                        {{ currentSection.summary }} Gunakan pencarian dan filter tahun untuk melihat data publik yang relevan.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="grid gap-3 sm:grid-cols-2 lg:min-w-[22rem]">
+                                <div class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+                                    <p class="text-xs font-semibold uppercase text-slate-500">Periode</p>
+                                    <p class="mt-1 text-sm font-semibold text-slate-950">{{ meta.periode_label }}</p>
+                                </div>
+                                <div class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+                                    <p class="text-xs font-semibold uppercase text-slate-500">Baris tampil</p>
+                                    <p class="mt-1 text-sm font-semibold text-slate-950">{{ filteredRowsCount }} dari {{ currentRowsCount }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -572,13 +651,13 @@ function closeMobileMenu(): void {
             </section>
 
             <section
-                v-for="section in visibleTableSections"
+                v-for="section in filteredTableSections"
                 :id="section.id"
                 :key="section.id"
                 class="scroll-mt-24 border-b border-slate-200 bg-[#f6f8fb] py-14 sm:py-16"
             >
                 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div class="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                    <div class="mb-7 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                         <div class="max-w-3xl">
                             <p class="inline-flex items-center gap-2 text-sm font-semibold uppercase text-emerald-800">
                                 <component :is="section.icon" class="h-4 w-4" />
@@ -587,9 +666,54 @@ function closeMobileMenu(): void {
                             <h2 class="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">{{ section.title }}</h2>
                             <p class="mt-2 text-sm leading-6 text-slate-600">{{ section.summary }}</p>
                         </div>
-                        <div class="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
-                            Periode: <span class="font-semibold text-slate-900">{{ meta.periode_label }}</span>
+
+                        <div class="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-[13rem_minmax(16rem,24rem)]">
+                            <label class="block">
+                                <span class="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
+                                    <CalendarDays class="h-3.5 w-3.5" />
+                                    Tahun
+                                </span>
+                                <select
+                                    :value="props.filters.tahun"
+                                    class="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+                                    @change="changeYear"
+                                >
+                                    <option v-for="year in props.available_years" :key="year" :value="year">
+                                        {{ year }}
+                                    </option>
+                                </select>
+                            </label>
+
+                            <label class="block">
+                                <span class="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
+                                    <Search class="h-3.5 w-3.5" />
+                                    Cari tabel
+                                </span>
+                                <input
+                                    v-model="searchQuery"
+                                    type="search"
+                                    class="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+                                    placeholder="Cari OPD, status, dokumen..."
+                                />
+                            </label>
                         </div>
+                    </div>
+
+                    <div class="mb-4 flex flex-col gap-2 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                        <p>
+                            Menampilkan <span class="font-semibold text-slate-950">{{ section.rows.length }}</span> dari
+                            <span class="font-semibold text-slate-950">{{ currentRowsCount }}</span> OPD untuk
+                            <span class="font-semibold text-slate-950">{{ selectedYearLabel }}</span
+                            >.
+                        </p>
+                        <button
+                            v-if="searchQuery"
+                            type="button"
+                            class="inline-flex min-h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-800"
+                            @click="searchQuery = ''"
+                        >
+                            Reset pencarian
+                        </button>
                     </div>
 
                     <div class="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm lg:block">
@@ -659,7 +783,7 @@ function closeMobileMenu(): void {
                                     </tr>
                                     <tr v-if="section.rows.length === 0">
                                         <td :colspan="section.columns.length + 2" class="px-4 py-10 text-center text-sm text-slate-500">
-                                            Data OPD belum tersedia.
+                                            {{ emptyTableMessage(section.rows) }}
                                         </td>
                                     </tr>
                                 </tbody>
@@ -732,7 +856,7 @@ function closeMobileMenu(): void {
                             v-if="section.rows.length === 0"
                             class="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500"
                         >
-                            Data OPD belum tersedia.
+                            {{ emptyTableMessage(section.rows) }}
                         </div>
                     </div>
                 </div>
@@ -1122,6 +1246,28 @@ function closeMobileMenu(): void {
 
 .overview-section {
     background: radial-gradient(circle at top left, rgba(4, 120, 87, 0.1), transparent 28rem), linear-gradient(180deg, #f6f8fb, #eef5f2);
+}
+
+.module-header {
+    background:
+        linear-gradient(135deg, rgba(6, 63, 53, 0.08), transparent 24rem),
+        repeating-linear-gradient(135deg, rgba(15, 23, 42, 0.035) 0 1px, transparent 1px 18px), #f6f8fb;
+}
+
+.module-header-panel {
+    position: relative;
+    overflow: hidden;
+}
+
+.module-header-panel::after {
+    position: absolute;
+    inset: auto -8rem -7rem auto;
+    width: 16rem;
+    height: 16rem;
+    content: '';
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--civic-green) 10%, transparent);
+    pointer-events: none;
 }
 
 .module-card-3d {

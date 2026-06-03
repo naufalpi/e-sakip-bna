@@ -38,13 +38,15 @@ class PublicLandingTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('PublicSite/Landing')
                 ->where('active_section', null)
+                ->where('filters.tahun', 2026)
+                ->where('available_years.0', 2026)
                 ->where('meta.tahun', 2026)
                 ->where('stats.opd_count', 1)
-                ->where('section_urls.perencanaan', route('public.section', 'perencanaan'))
+                ->where('section_urls.perencanaan', route('public.section', ['section' => 'perencanaan', 'tahun' => 2026]))
                 ->where('tables.perencanaan', [])
             );
 
-        $this->get(route('public.section', 'perencanaan'))
+        $this->get(route('public.section', ['section' => 'perencanaan', 'tahun' => 2026]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('PublicSite/Landing')
