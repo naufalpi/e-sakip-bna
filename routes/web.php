@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DashboardExportController;
 use App\Http\Controllers\Dokumen\DokumenController;
 use App\Http\Controllers\Evaluasi\EvaluasiSakipController;
 use App\Http\Controllers\Evaluasi\EvaluasiSakipItemController;
@@ -48,7 +47,6 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
-    Route::get('dashboard/export', DashboardExportController::class)->name('dashboard.export');
     Route::get('audit-log', AuditLogController::class)->name('audit-log.index');
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');

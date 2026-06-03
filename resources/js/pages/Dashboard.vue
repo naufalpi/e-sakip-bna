@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { AlertTriangle, ArrowRight, BarChart3, Building2, ClipboardCheck, Download, FileCheck2, Gauge, GitBranch, ListChecks, SlidersHorizontal, TrendingUp, Trophy } from 'lucide-vue-next';
+import { AlertTriangle, ArrowRight, BarChart3, Building2, CheckCircle2, ClipboardCheck, FileCheck2, Gauge, ListChecks, SlidersHorizontal, TrendingUp, Trophy } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
 
 type Option = { id?: number; tahun?: number; label: string };
-type CacheMeta = { key: string; version: number; store: string; ttl_seconds: number; generated_at: string };
 type Completion = { key: string; label: string; count: number; total: number; percent: number };
 type WorkflowStatus = { status: string; label: string; count: number };
 type RecommendationStatus = { status: string; label: string; count: number };
@@ -29,7 +27,6 @@ type AchievementIndicator = {
     serapan_anggaran_persen?: number | null;
     status_efisiensi?: string | null;
     periode_realisasi?: string | null;
-    triwulan?: string | null;
     triwulan_label?: string | null;
     detail_url?: string | null;
     opd_detail_url?: string | null;
@@ -56,7 +53,6 @@ type ProgramDrilldown = {
     indicator_count: number;
     avg_capaian?: number | null;
     avg_serapan?: number | null;
-    status_capaian?: string | null;
     total_anggaran: number;
     total_realisasi_anggaran: number;
     dominant_efficiency_status?: string | null;
@@ -71,7 +67,6 @@ type ProgressOpd = {
     progress_percent: number;
     nilai_evaluasi?: string | number | null;
     predikat?: string | null;
-    status_evaluasi?: string | null;
     capaian_persen?: number | null;
     rekomendasi_terbuka_count: number;
     detail_url?: string | null;
@@ -101,31 +96,26 @@ type OverdueRecommendation = OpenRecommendation & { overdue_days: number };
 type OpdWithoutRealization = { id: number; kode?: string | null; nama: string; singkatan?: string | null };
 type LatestWorkflow = {
     id: number;
-    module: string;
     module_label: string;
     status: string;
     status_label: string;
     submitted_by?: string | null;
     current_reviewer?: string | null;
-    updated_at?: string | null;
 };
 
 const props = defineProps<{
     dashboard: {
         type: 'kabupaten' | 'opd' | 'pimpinan' | 'evaluasi';
         title: string;
-        description: string;
         tahun: number;
         can_filter_opd: boolean;
     };
     filters: { tahun: number; opd_id?: number | null };
-    cache: CacheMeta;
     opdOptions: Option[];
     periodeOptions: Option[];
     stats: {
         opd_count: number;
         rpjmd_count: number;
-        rpjmd_linked_opd_count: number;
         renstra_opd_count: number;
         perjanjian_kinerja_opd_count: number;
         rencana_aksi_opd_count: number;
@@ -169,16 +159,6 @@ const filterForm = reactive({
     opd_id: props.filters.opd_id ? String(props.filters.opd_id) : '',
 });
 
-const applyFilters = () => {
-    router.get(route('dashboard'), filterForm, { preserveState: true, replace: true });
-};
-
-const resetFilters = () => {
-    filterForm.tahun = String(props.dashboard.tahun);
-    filterForm.opd_id = '';
-    applyFilters();
-};
-
 const moduleLabels: Record<string, string> = {
     rpjmd: 'RPJMD',
     renstra: 'Renstra',
@@ -189,24 +169,72 @@ const moduleLabels: Record<string, string> = {
     evaluasi: 'Evaluasi',
 };
 
-const metricCards = computed(() => [
-    { label: 'OPD Terpantau', value: props.stats.opd_count, helper: `${props.stats.rpjmd_count} RPJMD aktif`, icon: Building2 },
-    { label: 'OPD Input Renstra', value: props.stats.renstra_opd_count, helper: `dari ${props.stats.opd_count} OPD`, icon: GitBranch },
-    { label: 'OPD Input Realisasi', value: props.stats.realisasi_opd_count, helper: `capaian rata-rata ${formatPercent(props.stats.avg_capaian)}`, icon: BarChart3 },
-    { label: 'Nilai Evaluasi', value: formatScore(props.stats.avg_evaluasi), helper: `${props.stats.evaluasi_opd_count} OPD sudah dievaluasi`, icon: FileCheck2 },
-    { label: 'Workflow Perlu Diproses', value: props.stats.workflow_pending_count, helper: 'status diajukan/revisi', icon: ClipboardCheck },
-    { label: 'Rekomendasi Terbuka', value: props.stats.rekomendasi_terbuka_count, helper: 'belum/proses/perlu perbaikan', icon: ListChecks },
-    { label: 'OPD Belum Realisasi', value: props.stats.opd_belum_realisasi_count, helper: 'perlu input capaian tahun berjalan', icon: AlertTriangle },
-    { label: 'Lewat Target TL', value: props.stats.rekomendasi_overdue_count, helper: 'rekomendasi belum selesai melewati target', icon: AlertTriangle },
+const selectedOpdLabel = computed(() => {
+    if (!filterForm.opd_id) {
+        return 'Semua OPD';
+    }
+
+    return props.opdOptions.find((option) => String(option.id) === filterForm.opd_id)?.label ?? 'OPD terpilih';
+});
+
+const priorityCards = computed(() => [
+    {
+        label: 'Workflow Menunggu',
+        value: props.stats.workflow_pending_count,
+        helper: 'Diajukan / revisi',
+        icon: ClipboardCheck,
+        tone: props.stats.workflow_pending_count > 0 ? 'blue' : 'green',
+    },
+    {
+        label: 'Lewat Target TL',
+        value: props.stats.rekomendasi_overdue_count,
+        helper: 'Rekomendasi terlambat',
+        icon: AlertTriangle,
+        tone: props.stats.rekomendasi_overdue_count > 0 ? 'red' : 'green',
+    },
+    {
+        label: 'Belum Realisasi',
+        value: props.stats.opd_belum_realisasi_count,
+        helper: 'OPD belum input',
+        icon: Building2,
+        tone: props.stats.opd_belum_realisasi_count > 0 ? 'amber' : 'green',
+    },
+    {
+        label: 'Indikator Merah',
+        value: props.stats.indikator_merah_count,
+        helper: 'Capaian < 70%',
+        icon: Gauge,
+        tone: props.stats.indikator_merah_count > 0 ? 'red' : 'green',
+    },
 ]);
-const exportHref = computed(() =>
-    route('dashboard.export', {
-        tahun: filterForm.tahun,
-        ...(filterForm.opd_id ? { opd_id: filterForm.opd_id } : {}),
-    }),
-);
+
+const mainMetrics = computed(() => [
+    { label: 'Rata-rata Capaian', value: formatPercent(props.stats.avg_capaian), helper: `${props.stats.indikator_merah_count} merah, ${props.stats.indikator_kuning_count} kuning, ${props.stats.indikator_hijau_count} hijau`, icon: BarChart3 },
+    { label: 'Nilai Evaluasi', value: formatScore(props.stats.avg_evaluasi), helper: `${props.stats.evaluasi_opd_count} OPD dievaluasi`, icon: FileCheck2 },
+    { label: 'Realisasi OPD', value: `${props.stats.realisasi_opd_count}/${props.stats.opd_count}`, helper: 'OPD sudah input realisasi', icon: CheckCircle2 },
+    { label: 'Rekomendasi Terbuka', value: props.stats.rekomendasi_terbuka_count, helper: 'Belum selesai', icon: ListChecks },
+]);
+
+const planningSummary = computed(() => [
+    { label: 'RPJMD', value: props.stats.rpjmd_count },
+    { label: 'Renstra', value: props.stats.renstra_opd_count },
+    { label: 'PK', value: props.stats.perjanjian_kinerja_opd_count },
+    { label: 'Rencana Aksi', value: props.stats.rencana_aksi_opd_count },
+    { label: 'Realisasi', value: props.stats.realisasi_opd_count },
+    { label: 'LKJIP', value: props.stats.lkjip_opd_count },
+]);
 
 const achievementDistributionTotal = computed(() => props.achievementStatusDistribution.reduce((sum, row) => sum + row.count, 0));
+
+const applyFilters = () => {
+    router.get(route('dashboard'), filterForm, { preserveState: true, replace: true });
+};
+
+const resetFilters = () => {
+    filterForm.tahun = String(props.dashboard.tahun);
+    filterForm.opd_id = '';
+    applyFilters();
+};
 
 function formatPercent(value?: number | string | null) {
     const number = Number(value ?? 0);
@@ -228,17 +256,6 @@ function formatCurrency(value?: number | string | null) {
         currency: 'IDR',
         maximumFractionDigits: 0,
     }).format(Number(value));
-}
-
-function formatDateTime(value?: string | null) {
-    if (!value) {
-        return '-';
-    }
-
-    return new Date(value).toLocaleString('id-ID', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    });
 }
 
 function formatMetricValue(value?: number | string | null, text?: string | null) {
@@ -298,6 +315,44 @@ function statusClass(status?: string | null) {
     );
 }
 
+function priorityClass(tone: string) {
+    return (
+        {
+            red: 'border-red-200 bg-red-50 text-red-950',
+            amber: 'border-amber-200 bg-amber-50 text-amber-950',
+            blue: 'border-blue-200 bg-blue-50 text-blue-950',
+            green: 'border-emerald-200 bg-emerald-50 text-emerald-950',
+        }[tone] ?? 'border-slate-200 bg-card'
+    );
+}
+
+function priorityIconClass(tone: string) {
+    return (
+        {
+            red: 'text-red-700',
+            amber: 'text-amber-700',
+            blue: 'text-blue-700',
+            green: 'text-emerald-700',
+        }[tone] ?? 'text-slate-700'
+    );
+}
+
+function completionClass(value: number) {
+    if (value >= 100) {
+        return 'bg-emerald-700';
+    }
+
+    if (value >= 70) {
+        return 'bg-blue-600';
+    }
+
+    if (value >= 40) {
+        return 'bg-amber-500';
+    }
+
+    return 'bg-red-600';
+}
+
 function booleanClass(value: boolean) {
     return value ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-500';
 }
@@ -307,67 +362,109 @@ function booleanClass(value: boolean) {
     <Head :title="dashboard.title" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 p-4">
-            <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div class="flex min-w-0 items-start gap-3">
-                    <div class="hidden size-14 shrink-0 items-center justify-center sm:flex">
-                        <AppLogoIcon class="size-full" />
+        <div class="flex h-full flex-1 flex-col gap-5 p-4">
+            <section class="flex flex-col gap-3 border-b pb-4 xl:flex-row xl:items-center xl:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span class="rounded-full border bg-background px-2 py-1">{{ selectedOpdLabel }}</span>
+                        <span class="rounded-full border bg-background px-2 py-1">Tahun {{ filters.tahun }}</span>
                     </div>
-                    <div class="min-w-0">
-                        <h1 class="text-2xl font-semibold tracking-normal text-foreground">{{ dashboard.title }}</h1>
-                        <p class="mt-1 max-w-3xl text-sm text-muted-foreground">{{ dashboard.description }}</p>
-                        <p class="mt-2 text-xs text-muted-foreground">Data diperbarui {{ formatDateTime(cache.generated_at) }} melalui cache {{ cache.store }} versi {{ cache.version }} selama {{ cache.ttl_seconds }} detik.</p>
-                    </div>
+                    <h1 class="mt-2 text-2xl font-semibold tracking-normal text-foreground">{{ dashboard.title }}</h1>
                 </div>
 
-                <form class="flex flex-col gap-2 md:flex-row md:items-center" @submit.prevent="applyFilters">
+                <form class="grid gap-2 sm:grid-cols-[160px_1fr_auto_auto]" @submit.prevent="applyFilters">
                     <select v-model="filterForm.tahun" class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700">
                         <option v-for="option in periodeOptions" :key="option.tahun" :value="option.tahun">{{ option.label }}</option>
                     </select>
-                    <select v-if="dashboard.can_filter_opd" v-model="filterForm.opd_id" class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700">
+                    <select v-if="dashboard.can_filter_opd" v-model="filterForm.opd_id" class="h-9 min-w-56 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700">
                         <option value="">Semua OPD</option>
                         <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                     </select>
-                    <button type="submit" class="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-muted">
+                    <button type="submit" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800">
                         <SlidersHorizontal class="size-4" />
                         Filter
                     </button>
-                    <button type="button" class="h-9 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">Reset</button>
-                    <a :href="exportHref" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800">
-                        <Download class="size-4" />
-                        Export CSV
-                    </a>
+                    <button type="button" class="h-9 rounded-md border px-3 text-sm hover:bg-muted" @click="resetFilters">Reset</button>
                 </form>
-            </div>
+            </section>
 
-            <div v-if="quickLinks.length" class="flex flex-wrap gap-2">
+            <section v-if="quickLinks.length" class="flex flex-wrap gap-2">
                 <Link v-for="link in quickLinks" :key="link.href" :href="link.href" class="inline-flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm hover:bg-muted">
                     {{ link.label }}
                     <ArrowRight class="size-4" />
                 </Link>
-            </div>
+            </section>
+
+            <section>
+                <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Perlu Ditindaklanjuti</h2>
+                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div v-for="card in priorityCards" :key="card.label" class="rounded-lg border p-4" :class="priorityClass(card.tone)">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="text-sm font-medium">{{ card.label }}</p>
+                                <p class="mt-2 text-3xl font-semibold">{{ card.value }}</p>
+                                <p class="mt-1 text-xs opacity-80">{{ card.helper }}</p>
+                            </div>
+                            <component :is="card.icon" class="size-5" :class="priorityIconClass(card.tone)" />
+                        </div>
+                    </div>
+                </div>
+            </section>
 
             <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div v-for="card in metricCards" :key="card.label" class="rounded-lg border bg-card p-4">
+                <div v-for="metric in mainMetrics" :key="metric.label" class="rounded-lg border bg-card p-4">
                     <div class="flex items-start justify-between gap-3">
                         <div>
-                            <p class="text-sm text-muted-foreground">{{ card.label }}</p>
-                            <p class="mt-3 text-2xl font-semibold">{{ card.value }}</p>
+                            <p class="text-sm text-muted-foreground">{{ metric.label }}</p>
+                            <p class="mt-2 text-2xl font-semibold">{{ metric.value }}</p>
+                            <p class="mt-1 text-xs text-muted-foreground">{{ metric.helper }}</p>
                         </div>
-                        <component :is="card.icon" class="size-5 text-emerald-700" />
+                        <component :is="metric.icon" class="size-5 text-emerald-700" />
                     </div>
-                    <p class="mt-2 text-xs text-muted-foreground">{{ card.helper }}</p>
+                </div>
+            </section>
+
+            <section class="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <h2 class="text-sm font-semibold">Kelengkapan Siklus SAKIP</h2>
+                    </div>
+                    <div class="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+                        <div v-for="item in moduleCompletion" :key="item.key" class="rounded-md border bg-background p-3">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-medium">{{ item.label }}</p>
+                                    <p class="mt-1 text-xs text-muted-foreground">{{ item.count }} / {{ item.total }} OPD</p>
+                                </div>
+                                <span class="text-lg font-semibold">{{ item.percent }}%</span>
+                            </div>
+                            <div class="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                                <div class="h-full rounded-full" :class="completionClass(item.percent)" :style="{ width: `${item.percent}%` }" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <h2 class="text-sm font-semibold">Jumlah Dokumen Tahun Ini</h2>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 p-4">
+                        <div v-for="item in planningSummary" :key="item.label" class="rounded-md border bg-background p-3">
+                            <p class="text-xs text-muted-foreground">{{ item.label }}</p>
+                            <p class="mt-1 text-xl font-semibold">{{ item.value }}</p>
+                        </div>
+                    </div>
                 </div>
             </section>
 
             <section class="grid gap-4 xl:grid-cols-3">
                 <div class="rounded-lg border bg-card">
                     <div class="border-b px-4 py-3">
-                        <h2 class="text-sm font-semibold">Distribusi Status Capaian</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">Jumlah indikator berdasarkan warna capaian tahun terpilih.</p>
+                        <h2 class="text-sm font-semibold">Status Capaian</h2>
                     </div>
                     <div class="space-y-3 p-4">
-                        <div v-if="achievementDistributionTotal > 0" class="flex h-3 overflow-hidden rounded-full bg-muted">
+                        <div v-if="achievementDistributionTotal > 0" class="flex h-4 overflow-hidden rounded-full bg-muted">
                             <div
                                 v-for="row in achievementStatusDistribution"
                                 :key="`${row.status}-segment`"
@@ -377,25 +474,19 @@ function booleanClass(value: boolean) {
                                 :title="`${row.label}: ${row.count}`"
                             />
                         </div>
-                        <div v-for="row in achievementStatusDistribution" :key="row.status" class="space-y-1.5">
-                            <div class="flex items-center justify-between gap-3 text-sm">
-                                <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status)">{{ row.label }}</span>
-                                <span class="font-semibold">{{ row.count }}</span>
-                            </div>
-                            <div class="h-2 overflow-hidden rounded-full bg-muted">
-                                <div class="h-full rounded-full" :class="row.status === 'merah' ? 'bg-red-600' : row.status === 'kuning' ? 'bg-amber-500' : 'bg-emerald-700'" :style="{ width: `${row.percent}%` }" />
-                            </div>
+                        <div v-for="row in achievementStatusDistribution" :key="row.status" class="flex items-center justify-between gap-3 text-sm">
+                            <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status)">{{ row.label }}</span>
+                            <span class="font-semibold">{{ row.count }} indikator</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="rounded-lg border bg-card">
                     <div class="border-b px-4 py-3">
-                        <h2 class="text-sm font-semibold">Tren Capaian Triwulan</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">Rata-rata capaian indikator dan cakupan OPD per triwulan.</p>
+                        <h2 class="text-sm font-semibold">Triwulan</h2>
                     </div>
                     <div class="space-y-3 p-4">
-                        <div v-for="row in quarterlyAchievement" :key="row.triwulan" class="grid grid-cols-[92px_1fr_84px] items-center gap-3 text-sm">
+                        <div v-for="row in quarterlyAchievement" :key="row.triwulan" class="grid grid-cols-[86px_1fr_80px] items-center gap-3 text-sm">
                             <div>
                                 <div class="font-medium">{{ row.label }}</div>
                                 <div class="text-xs text-muted-foreground">{{ row.opd_count }} OPD</div>
@@ -408,18 +499,14 @@ function booleanClass(value: boolean) {
                                     <div class="h-full rounded-full bg-slate-400" :style="{ width: `${row.completion_percent}%` }" />
                                 </div>
                             </div>
-                            <div class="text-right">
-                                <div class="font-semibold">{{ formatPercent(row.rata_capaian) }}</div>
-                                <div class="text-xs text-muted-foreground">{{ row.indikator_count }} indikator</div>
-                            </div>
+                            <div class="text-right font-semibold">{{ formatPercent(row.rata_capaian) }}</div>
                         </div>
                     </div>
                 </div>
 
                 <div class="rounded-lg border bg-card">
                     <div class="border-b px-4 py-3">
-                        <h2 class="text-sm font-semibold">Efisiensi Kinerja</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">Perbandingan capaian kinerja dengan serapan anggaran.</p>
+                        <h2 class="text-sm font-semibold">Efisiensi</h2>
                     </div>
                     <div class="space-y-3 p-4">
                         <div v-for="row in efficiencyStatusDistribution" :key="row.status" class="space-y-1.5">
@@ -435,29 +522,67 @@ function booleanClass(value: boolean) {
                 </div>
             </section>
 
-            <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-                <div v-for="item in moduleCompletion" :key="item.key" class="rounded-lg border bg-card p-4">
-                    <div class="flex items-center justify-between gap-3">
-                        <div>
-                            <p class="text-sm font-medium">{{ item.label }}</p>
-                            <p class="mt-1 text-xs text-muted-foreground">{{ item.count }} / {{ item.total }} OPD</p>
-                        </div>
-                        <span class="text-lg font-semibold">{{ item.percent }}%</span>
-                    </div>
-                    <div class="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                        <div class="h-full rounded-full bg-emerald-700" :style="{ width: `${item.percent}%` }" />
-                    </div>
-                </div>
-            </section>
-
             <section class="grid gap-4 xl:grid-cols-2">
                 <div class="rounded-lg border bg-card">
                     <div class="border-b px-4 py-3">
                         <div class="flex items-center gap-2">
-                            <Trophy class="size-4 text-emerald-700" />
-                            <h2 class="text-sm font-semibold">Ranking Monitoring OPD</h2>
+                            <Gauge class="size-4 text-emerald-700" />
+                            <h2 class="text-sm font-semibold">Indikator Perlu Perhatian</h2>
                         </div>
-                        <p class="mt-1 text-xs text-muted-foreground">Skor gabungan progress input, capaian, nilai evaluasi, dan rekomendasi terbuka.</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
+                                <tr>
+                                    <th class="px-4 py-3">Indikator</th>
+                                    <th class="px-4 py-3">Target / Realisasi</th>
+                                    <th class="px-4 py-3">Capaian</th>
+                                    <th class="px-4 py-3">Efisiensi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="row in achievementIndicatorDrilldown" :key="row.id" class="border-b last:border-0">
+                                    <td class="px-4 py-3">
+                                        <Link :href="row.detail_url || route('realisasi-kinerja.show', row.realisasi_kinerja_id)" class="font-medium text-emerald-800 hover:underline">
+                                            {{ row.indikator }}
+                                        </Link>
+                                        <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                            <Link v-if="row.opd_detail_url" :href="row.opd_detail_url" class="hover:text-emerald-800 hover:underline">{{ row.opd || '-' }}</Link>
+                                            <span v-else>{{ row.opd || '-' }}</span>
+                                            <span>{{ row.triwulan_label || row.periode_realisasi || '-' }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3 text-xs">
+                                        <div>{{ formatMetricValue(row.target, row.target_text) }}</div>
+                                        <div class="mt-1 text-muted-foreground">{{ formatMetricValue(row.realisasi, row.realisasi_text) }}</div>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="font-semibold">{{ row.capaian_persen === null || row.capaian_persen === undefined ? '-' : formatPercent(row.capaian_persen) }}</div>
+                                        <span class="mt-1 inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status_capaian)">
+                                            {{ statusLabel(row.status_capaian) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="text-xs text-muted-foreground">{{ row.serapan_anggaran_persen === null || row.serapan_anggaran_persen === undefined ? '-' : formatPercent(row.serapan_anggaran_persen) }}</div>
+                                        <span class="mt-1 inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status_efisiensi)">
+                                            {{ statusLabel(row.status_efisiensi) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr v-if="achievementIndicatorDrilldown.length === 0">
+                                    <td colspan="4" class="px-4 py-8 text-center text-muted-foreground">Belum ada data capaian indikator.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <div class="flex items-center gap-2">
+                            <Trophy class="size-4 text-emerald-700" />
+                            <h2 class="text-sm font-semibold">Ranking OPD</h2>
+                        </div>
                     </div>
                     <div class="divide-y">
                         <div v-for="row in opdPerformanceRanking" :key="row.opd_id" class="grid grid-cols-[44px_1fr_92px] items-center gap-3 px-4 py-3 text-sm">
@@ -483,68 +608,12 @@ function booleanClass(value: boolean) {
                         <div v-if="opdPerformanceRanking.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">Belum ada data OPD untuk diranking.</div>
                     </div>
                 </div>
-
-                <div class="rounded-lg border bg-card">
-                    <div class="border-b px-4 py-3">
-                        <div class="flex items-center gap-2">
-                            <Gauge class="size-4 text-emerald-700" />
-                            <h2 class="text-sm font-semibold">Drilldown Capaian Indikator</h2>
-                        </div>
-                        <p class="mt-1 text-xs text-muted-foreground">Prioritas indikator dimulai dari status merah, lalu kuning, lalu hijau.</p>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm">
-                            <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
-                                <tr>
-                                    <th class="px-4 py-3">Indikator</th>
-                                    <th class="px-4 py-3">Target / Realisasi</th>
-                                    <th class="px-4 py-3">Capaian</th>
-                                    <th class="px-4 py-3">Efisiensi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="row in achievementIndicatorDrilldown" :key="row.id" class="border-b last:border-0">
-                                    <td class="px-4 py-3">
-                                        <Link :href="row.detail_url || route('realisasi-kinerja.show', row.realisasi_kinerja_id)" class="font-medium text-emerald-800 hover:underline">
-                                            {{ row.indikator }}
-                                        </Link>
-                                        <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                            <Link v-if="row.opd_detail_url" :href="row.opd_detail_url" class="hover:text-emerald-800 hover:underline">{{ row.opd || '-' }}</Link>
-                                            <span v-else>{{ row.opd || '-' }}</span>
-                                            <span>{{ row.triwulan_label || row.periode_realisasi || '-' }}</span>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3 text-xs">
-                                        <div>Target {{ formatMetricValue(row.target, row.target_text) }}</div>
-                                        <div class="mt-1 text-muted-foreground">Realisasi {{ formatMetricValue(row.realisasi, row.realisasi_text) }}</div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="font-semibold">{{ row.capaian_persen === null || row.capaian_persen === undefined ? '-' : formatPercent(row.capaian_persen) }}</div>
-                                        <span class="mt-1 inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status_capaian)">
-                                            {{ statusLabel(row.status_capaian) }}
-                                        </span>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="text-xs text-muted-foreground">Serapan {{ row.serapan_anggaran_persen === null || row.serapan_anggaran_persen === undefined ? '-' : formatPercent(row.serapan_anggaran_persen) }}</div>
-                                        <span class="mt-1 inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status_efisiensi)">
-                                            {{ statusLabel(row.status_efisiensi) }}
-                                        </span>
-                                    </td>
-                                </tr>
-                                <tr v-if="achievementIndicatorDrilldown.length === 0">
-                                    <td colspan="4" class="px-4 py-8 text-center text-muted-foreground">Belum ada data capaian indikator.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
             </section>
 
             <section class="grid gap-4 xl:grid-cols-2">
                 <div class="rounded-lg border bg-card">
                     <div class="border-b px-4 py-3">
-                        <h2 class="text-sm font-semibold">Drilldown per Sasaran</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">Sasaran dengan capaian rendah ditampilkan lebih dahulu.</p>
+                        <h2 class="text-sm font-semibold">Capaian per Sasaran</h2>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm">
@@ -587,8 +656,7 @@ function booleanClass(value: boolean) {
 
                 <div class="rounded-lg border bg-card">
                     <div class="border-b px-4 py-3">
-                        <h2 class="text-sm font-semibold">Drilldown per Program</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">Program dengan capaian rendah dan serapan anggaran terkait.</p>
+                        <h2 class="text-sm font-semibold">Capaian per Program</h2>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm">
@@ -633,10 +701,7 @@ function booleanClass(value: boolean) {
 
             <section class="overflow-hidden rounded-lg border bg-card">
                 <div class="flex items-center justify-between gap-3 border-b px-4 py-3">
-                    <div>
-                        <h2 class="text-sm font-semibold">Progress Input per OPD</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">Urutan dimulai dari OPD dengan progress terendah.</p>
-                    </div>
+                    <h2 class="text-sm font-semibold">Progress per OPD</h2>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
@@ -675,7 +740,7 @@ function booleanClass(value: boolean) {
                                 <td class="px-4 py-3">
                                     <div class="flex min-w-32 items-center gap-2">
                                         <div class="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                                            <div class="h-full rounded-full bg-emerald-700" :style="{ width: `${row.progress_percent}%` }" />
+                                            <div class="h-full rounded-full" :class="completionClass(row.progress_percent)" :style="{ width: `${row.progress_percent}%` }" />
                                         </div>
                                         <span class="w-10 text-right text-xs font-medium">{{ row.progress_percent }}%</span>
                                     </div>
@@ -704,7 +769,7 @@ function booleanClass(value: boolean) {
                     <div class="border-b px-4 py-3">
                         <div class="flex items-center gap-2">
                             <TrendingUp class="size-4 text-emerald-700" />
-                            <h2 class="text-sm font-semibold">Capaian Indikator per Tahun</h2>
+                            <h2 class="text-sm font-semibold">Capaian per Tahun</h2>
                         </div>
                     </div>
                     <div class="space-y-3 p-4">
@@ -736,7 +801,7 @@ function booleanClass(value: boolean) {
             <section class="grid gap-4 xl:grid-cols-2">
                 <div class="rounded-lg border bg-card">
                     <div class="border-b px-4 py-3">
-                        <h2 class="text-sm font-semibold">Nilai Evaluasi SAKIP per OPD</h2>
+                        <h2 class="text-sm font-semibold">Evaluasi SAKIP</h2>
                     </div>
                     <div class="divide-y">
                         <div v-for="row in evaluationRanking" :key="row.id" class="grid grid-cols-[1fr_80px_70px] items-center gap-3 px-4 py-3 text-sm">
@@ -750,7 +815,7 @@ function booleanClass(value: boolean) {
 
                 <div class="rounded-lg border bg-card">
                     <div class="border-b px-4 py-3">
-                        <h2 class="text-sm font-semibold">Status Tindak Lanjut Rekomendasi</h2>
+                        <h2 class="text-sm font-semibold">Status Tindak Lanjut</h2>
                     </div>
                     <div class="divide-y">
                         <div v-for="row in recommendationStatus" :key="row.status" class="flex items-center justify-between gap-3 px-4 py-3 text-sm">
@@ -765,8 +830,7 @@ function booleanClass(value: boolean) {
             <section class="grid gap-4 xl:grid-cols-2">
                 <div class="rounded-lg border bg-card">
                     <div class="border-b px-4 py-3">
-                        <h2 class="text-sm font-semibold">OPD Belum Input Realisasi</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">Daftar OPD aktif yang belum memiliki realisasi pada tahun terpilih.</p>
+                        <h2 class="text-sm font-semibold">OPD Belum Realisasi</h2>
                     </div>
                     <div class="divide-y">
                         <div v-for="row in opdsWithoutRealization" :key="row.id" class="flex items-center justify-between gap-3 px-4 py-3 text-sm">
@@ -783,7 +847,6 @@ function booleanClass(value: boolean) {
                 <div class="rounded-lg border bg-card">
                     <div class="border-b px-4 py-3">
                         <h2 class="text-sm font-semibold">Rekomendasi Lewat Target</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">Rekomendasi terbuka dengan target tindak lanjut yang sudah terlewati.</p>
                     </div>
                     <div class="divide-y">
                         <div v-for="row in overdueRecommendations" :key="row.id" class="px-4 py-3 text-sm">

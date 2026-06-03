@@ -134,29 +134,6 @@ class DashboardTest extends TestCase
             );
     }
 
-    public function test_dashboard_can_be_exported_as_csv_with_current_filters(): void
-    {
-        $this->seed();
-
-        $scenario = $this->dashboardScenario();
-        $monitor = User::factory()->create();
-        $monitor->roles()->sync([Role::where('name', 'admin_kabupaten_bagian_organisasi')->value('id')]);
-
-        $response = $this->actingAs($monitor)
-            ->get(route('dashboard.export', ['tahun' => $scenario['periode']->tahun]));
-
-        $response->assertOk();
-        $response->assertDownload();
-
-        $content = $response->streamedContent();
-
-        $this->assertStringContainsString('Ringkasan Dashboard', $content);
-        $this->assertStringContainsString('Drilldown per Sasaran', $content);
-        $this->assertStringContainsString('Meningkatnya layanan dasar', $content);
-        $this->assertStringContainsString('Drilldown per Program', $content);
-        $this->assertStringContainsString('Program Layanan Dasar', $content);
-    }
-
     public function test_dashboard_cache_version_is_invalidated_when_strategic_data_changes(): void
     {
         $this->seed();
