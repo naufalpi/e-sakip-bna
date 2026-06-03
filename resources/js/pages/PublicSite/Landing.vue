@@ -216,6 +216,14 @@ function dotClass(cell?: PublicCell): string {
     }[cell?.state ?? 'missing'];
 }
 
+function progressWidth(count: number, total: number): string {
+    if (total <= 0) {
+        return '0%';
+    }
+
+    return `${Math.min(100, Math.max(0, Math.round((count / total) * 100)))}%`;
+}
+
 function closeMobileMenu(): void {
     isMobileMenuOpen.value = false;
 }
@@ -287,17 +295,69 @@ function closeMobileMenu(): void {
         </header>
 
         <main>
-            <section id="beranda" class="hero-section relative isolate flex min-h-[82dvh] items-center overflow-hidden pt-24">
-                <div class="hero-backdrop absolute inset-0 -z-10"></div>
+            <section id="beranda" class="hero-section relative isolate flex min-h-[88dvh] items-center overflow-hidden pt-24">
                 <img
-                    src="/images/logo-banjarnegara.svg"
-                    alt=""
-                    aria-hidden="true"
-                    class="hero-emblem pointer-events-none absolute right-[-3rem] top-24 -z-10 h-[34rem] w-[34rem] max-w-none opacity-10 sm:right-10 lg:right-24"
+                    src="/images/hero-esakip-banjarnegara.webp"
+                    alt="Ilustrasi gedung pemerintahan Kabupaten Banjarnegara dan aktivitas ASN"
+                    class="hero-photo absolute inset-0 -z-30 h-full w-full object-cover"
                 />
+                <div class="hero-vignette absolute inset-0 -z-20"></div>
+                <div class="hero-grid absolute inset-0 -z-10"></div>
+                <div class="hero-light hero-light-one absolute -z-10"></div>
+                <div class="hero-light hero-light-two absolute -z-10"></div>
+
+                <div class="hero-status-panel pointer-events-none absolute right-6 top-32 hidden w-72 rounded-lg border border-white/20 bg-slate-950/36 p-4 text-white shadow-2xl shadow-slate-950/25 backdrop-blur-xl lg:block">
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-xs font-semibold uppercase text-emerald-100">Layanan Kinerja</span>
+                        <span class="flex h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-lg shadow-emerald-300/70"></span>
+                    </div>
+                    <div class="mt-4 space-y-3">
+                        <div class="hero-progress-row">
+                            <span>Perencanaan</span>
+                            <strong>{{ stats.planning_ready_count }}/{{ stats.opd_count }}</strong>
+                        </div>
+                        <div class="hero-progress-track"><span class="hero-progress-fill" :style="{ width: progressWidth(stats.planning_ready_count, stats.opd_count) }"></span></div>
+                        <div class="hero-progress-row">
+                            <span>Pelaporan</span>
+                            <strong>{{ stats.report_ready_count }}/{{ stats.opd_count }}</strong>
+                        </div>
+                        <div class="hero-progress-track"><span class="hero-progress-fill" :style="{ width: progressWidth(stats.report_ready_count, stats.opd_count) }"></span></div>
+                    </div>
+                </div>
+
+                <div class="asn-walkway pointer-events-none absolute bottom-8 right-4 hidden h-24 w-[34rem] overflow-hidden lg:block" aria-hidden="true">
+                    <div class="asn-ground"></div>
+                    <div class="asn-person asn-one">
+                        <span class="asn-head"></span>
+                        <span class="asn-body"></span>
+                        <span class="asn-arm left"></span>
+                        <span class="asn-arm right"></span>
+                        <span class="asn-leg left"></span>
+                        <span class="asn-leg right"></span>
+                        <span class="asn-folder"></span>
+                    </div>
+                    <div class="asn-person asn-two">
+                        <span class="asn-head"></span>
+                        <span class="asn-body"></span>
+                        <span class="asn-arm left"></span>
+                        <span class="asn-arm right"></span>
+                        <span class="asn-leg left"></span>
+                        <span class="asn-leg right"></span>
+                        <span class="asn-folder"></span>
+                    </div>
+                    <div class="asn-person asn-three">
+                        <span class="asn-head"></span>
+                        <span class="asn-body"></span>
+                        <span class="asn-arm left"></span>
+                        <span class="asn-arm right"></span>
+                        <span class="asn-leg left"></span>
+                        <span class="asn-leg right"></span>
+                        <span class="asn-folder"></span>
+                    </div>
+                </div>
 
                 <div class="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-                    <div class="max-w-4xl animate-rise">
+                    <div class="max-w-4xl animate-rise lg:max-w-3xl">
                         <p class="inline-flex rounded-md border border-white/25 bg-white/10 px-3 py-2 text-sm font-semibold uppercase tracking-normal text-emerald-50 backdrop-blur">
                             Transparansi Akuntabilitas Kinerja
                         </p>
@@ -539,14 +599,50 @@ function closeMobileMenu(): void {
 }
 
 .hero-section {
-    background-color: #063b34;
+    background-color: #062e2b;
 }
 
-.hero-backdrop {
+.hero-photo {
+    transform: scale(1.04);
+    transform-origin: center;
+    animation: hero-photo-drift 18s ease-in-out infinite alternate;
+}
+
+.hero-vignette {
     background:
-        radial-gradient(circle at 16% 22%, rgba(250, 204, 21, 0.28), transparent 24rem),
-        radial-gradient(circle at 86% 28%, rgba(14, 165, 233, 0.24), transparent 26rem),
-        linear-gradient(135deg, rgba(4, 47, 46, 0.98), rgba(15, 68, 91, 0.96) 48%, rgba(12, 74, 110, 0.98));
+        linear-gradient(90deg, rgba(4, 35, 32, 0.94) 0%, rgba(4, 35, 32, 0.78) 35%, rgba(4, 35, 32, 0.28) 66%, rgba(4, 35, 32, 0.34) 100%),
+        linear-gradient(180deg, rgba(2, 6, 23, 0.24) 0%, rgba(2, 6, 23, 0.08) 46%, rgba(2, 6, 23, 0.7) 100%);
+}
+
+.hero-grid {
+    opacity: 0.22;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: linear-gradient(90deg, black, transparent 70%);
+}
+
+.hero-light {
+    width: 20rem;
+    height: 20rem;
+    border-radius: 9999px;
+    filter: blur(20px);
+    opacity: 0.28;
+}
+
+.hero-light-one {
+    left: 8%;
+    top: 18%;
+    background: rgba(250, 204, 21, 0.58);
+    animation: light-pulse 7s ease-in-out infinite;
+}
+
+.hero-light-two {
+    right: 12%;
+    top: 22%;
+    background: rgba(14, 165, 233, 0.5);
+    animation: light-pulse 8s ease-in-out infinite reverse;
 }
 
 .hero-section::after {
@@ -557,8 +653,149 @@ function closeMobileMenu(): void {
     background: linear-gradient(to bottom, transparent, rgba(246, 248, 251, 0.92));
 }
 
-.hero-emblem {
-    animation: emblem-float 9s ease-in-out infinite;
+.hero-status-panel {
+    animation: panel-float 6s ease-in-out infinite;
+}
+
+.hero-progress-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.8125rem;
+    color: rgb(209 250 229);
+}
+
+.hero-progress-row strong {
+    color: white;
+}
+
+.hero-progress-track {
+    height: 0.5rem;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.hero-progress-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgb(16 185 129), rgb(251 191 36));
+    animation: progress-shine 2.8s ease-in-out infinite;
+}
+
+.asn-walkway {
+    mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent);
+}
+
+.asn-ground {
+    position: absolute;
+    bottom: 0.75rem;
+    left: 0;
+    right: 0;
+    height: 0.25rem;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.28);
+}
+
+.asn-person {
+    position: absolute;
+    bottom: 1rem;
+    width: 2.5rem;
+    height: 4.5rem;
+    animation: asn-walk 11s linear infinite;
+}
+
+.asn-one {
+    animation-delay: -1s;
+}
+
+.asn-two {
+    animation-delay: -4.8s;
+    transform: scale(0.92);
+}
+
+.asn-three {
+    animation-delay: -8.2s;
+    transform: scale(0.86);
+}
+
+.asn-head,
+.asn-body,
+.asn-arm,
+.asn-leg,
+.asn-folder {
+    position: absolute;
+    display: block;
+}
+
+.asn-head {
+    left: 0.78rem;
+    top: 0;
+    width: 0.92rem;
+    height: 0.92rem;
+    border-radius: 9999px;
+    background: #f3c7a4;
+    box-shadow: 0 -0.22rem 0 #111827;
+}
+
+.asn-body {
+    left: 0.55rem;
+    top: 1rem;
+    width: 1.35rem;
+    height: 1.8rem;
+    border-radius: 0.35rem 0.35rem 0.2rem 0.2rem;
+    background: linear-gradient(#c9aa74, #9d7d45);
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+}
+
+.asn-arm {
+    top: 1.18rem;
+    width: 0.26rem;
+    height: 1.38rem;
+    border-radius: 9999px;
+    background: #9d7d45;
+    transform-origin: top center;
+    animation: asn-arm-swing 640ms ease-in-out infinite alternate;
+}
+
+.asn-arm.left {
+    left: 0.38rem;
+}
+
+.asn-arm.right {
+    right: 0.38rem;
+    animation-delay: 320ms;
+}
+
+.asn-leg {
+    top: 2.68rem;
+    width: 0.3rem;
+    height: 1.45rem;
+    border-radius: 9999px;
+    background: #27364a;
+    transform-origin: top center;
+    animation: asn-leg-swing 640ms ease-in-out infinite alternate;
+}
+
+.asn-leg.left {
+    left: 0.82rem;
+}
+
+.asn-leg.right {
+    right: 0.82rem;
+    animation-delay: 320ms;
+}
+
+.asn-folder {
+    right: -0.18rem;
+    top: 1.75rem;
+    width: 0.82rem;
+    height: 0.58rem;
+    border-radius: 0.12rem;
+    background: #f59e0b;
+    transform: rotate(-7deg);
 }
 
 .cycle-card {
@@ -592,14 +829,78 @@ function closeMobileMenu(): void {
     }
 }
 
-@keyframes emblem-float {
+@keyframes hero-photo-drift {
+    from {
+        transform: scale(1.04) translate3d(0, 0, 0);
+    }
+
+    to {
+        transform: scale(1.09) translate3d(-1.2rem, 0.8rem, 0);
+    }
+}
+
+@keyframes light-pulse {
     0%,
     100% {
-        transform: translateY(0) rotate(0deg);
+        opacity: 0.2;
+        transform: scale(0.96);
     }
 
     50% {
-        transform: translateY(14px) rotate(1deg);
+        opacity: 0.34;
+        transform: scale(1.08);
+    }
+}
+
+@keyframes panel-float {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(10px);
+    }
+}
+
+@keyframes progress-shine {
+    0%,
+    100% {
+        filter: brightness(1);
+    }
+
+    50% {
+        filter: brightness(1.2);
+    }
+}
+
+@keyframes asn-walk {
+    from {
+        left: 100%;
+    }
+
+    to {
+        left: -10%;
+    }
+}
+
+@keyframes asn-arm-swing {
+    from {
+        transform: rotate(18deg);
+    }
+
+    to {
+        transform: rotate(-18deg);
+    }
+}
+
+@keyframes asn-leg-swing {
+    from {
+        transform: rotate(-14deg);
+    }
+
+    to {
+        transform: rotate(16deg);
     }
 }
 
@@ -609,7 +910,13 @@ function closeMobileMenu(): void {
     }
 
     .animate-rise,
-    .hero-emblem {
+    .hero-photo,
+    .hero-light,
+    .hero-status-panel,
+    .asn-person,
+    .asn-arm,
+    .asn-leg,
+    .hero-progress-fill {
         animation: none;
     }
 
