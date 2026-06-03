@@ -31,6 +31,8 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Perencanaan\PohonKinerjaController;
 use App\Http\Controllers\Perencanaan\TargetRevisionController;
 use App\Http\Controllers\Perencanaan\TargetTriwulanIndikatorController;
+use App\Http\Controllers\PublicSite\DokumenController as PublicDokumenController;
+use App\Http\Controllers\PublicSite\LandingController as PublicLandingController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdImportController;
 use App\Http\Controllers\RenstraOpd\RenstraOpdNodeController;
@@ -39,11 +41,9 @@ use App\Http\Controllers\Rpjmd\RpjmdImportController;
 use App\Http\Controllers\Rpjmd\RpjmdNodeController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return auth()->check()
-        ? redirect()->route('dashboard')
-        : redirect()->route('login');
-})->name('home');
+Route::get('/', PublicLandingController::class)->name('home');
+Route::get('publik/dokumen/{dokumen}/lihat', [PublicDokumenController::class, 'view'])->name('public.dokumen.view');
+Route::get('publik/dokumen/{dokumen}/download', [PublicDokumenController::class, 'download'])->name('public.dokumen.download');
 
 Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
