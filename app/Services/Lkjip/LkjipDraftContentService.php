@@ -213,6 +213,7 @@ class LkjipDraftContentService
             'source' => 'lkjip_auto_draft',
             'document_title' => 'Laporan Kinerja Instansi Pemerintah (LKJIP)',
             'document_subtitle' => $this->opdName($lkjip).' Tahun '.$lkjip->tahun,
+            'document_number' => $lkjip->nomor_dokumen ?: 'LKJIP/'.$lkjip->id.'/'.$lkjip->tahun,
             'agency_name' => 'PEMERINTAH KABUPATEN BANJARNEGARA',
             'office_name' => strtoupper($this->opdName($lkjip)),
             'address_line' => 'Kabupaten Banjarnegara, Jawa Tengah',

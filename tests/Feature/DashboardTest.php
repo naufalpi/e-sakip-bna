@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Models\EvaluasiSakip;
 use App\Models\Notification;
 use App\Models\Opd;
+use App\Models\OpdProgram;
 use App\Models\PeriodeTahun;
 use App\Models\PerjanjianKinerja;
+use App\Models\PerjanjianKinerjaItem;
 use App\Models\RealisasiKinerja;
 use App\Models\RealisasiProgram;
 use App\Models\RekomendasiEvaluasi;
@@ -14,6 +16,8 @@ use App\Models\RencanaAksi;
 use App\Models\RenstraOpd;
 use App\Models\Role;
 use App\Models\Rpjmd;
+use App\Models\SasaranOpd;
+use App\Models\TujuanOpd;
 use App\Models\User;
 use App\Models\WorkflowSubmission;
 use App\Services\Dashboard\DashboardService;
@@ -108,6 +112,12 @@ class DashboardTest extends TestCase
                 ->has('efficiencyStatusDistribution', 3)
                 ->has('quarterlyAchievement', 4)
                 ->has('achievementIndicatorDrilldown', 1)
+                ->has('sasaranDrilldown', 1)
+                ->where('sasaranDrilldown.0.sasaran', 'Meningkatnya layanan dasar')
+                ->where('sasaranDrilldown.0.status_capaian', 'kuning')
+                ->has('programDrilldown', 1)
+                ->where('programDrilldown.0.program', 'Program Layanan Dasar')
+                ->where('programDrilldown.0.dominant_efficiency_status', 'efisien')
                 ->where('achievementIndicatorDrilldown.0.status_capaian', 'kuning')
                 ->where('achievementIndicatorDrilldown.0.triwulan_label', 'Triwulan I')
                 ->where('achievementIndicatorDrilldown.0.detail_url', route('realisasi-kinerja.show', $scenario['realisasi']->id))
@@ -122,6 +132,29 @@ class DashboardTest extends TestCase
                 ->has('evaluationRanking', 1)
                 ->has('openRecommendations', 1)
             );
+    }
+
+    public function test_dashboard_can_be_exported_as_csv_with_current_filters(): void
+    {
+        $this->seed();
+
+        $scenario = $this->dashboardScenario();
+        $monitor = User::factory()->create();
+        $monitor->roles()->sync([Role::where('name', 'admin_kabupaten_bagian_organisasi')->value('id')]);
+
+        $response = $this->actingAs($monitor)
+            ->get(route('dashboard.export', ['tahun' => $scenario['periode']->tahun]));
+
+        $response->assertOk();
+        $response->assertDownload();
+
+        $content = $response->streamedContent();
+
+        $this->assertStringContainsString('Ringkasan Dashboard', $content);
+        $this->assertStringContainsString('Drilldown per Sasaran', $content);
+        $this->assertStringContainsString('Meningkatnya layanan dasar', $content);
+        $this->assertStringContainsString('Drilldown per Program', $content);
+        $this->assertStringContainsString('Program Layanan Dasar', $content);
     }
 
     public function test_dashboard_cache_version_is_invalidated_when_strategic_data_changes(): void
@@ -269,6 +302,37 @@ class DashboardTest extends TestCase
             'status' => 'verified',
         ]);
 
+        $tujuanOpd = TujuanOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'tujuan' => 'Meningkatkan layanan dasar',
+            'urutan' => 1,
+        ]);
+
+        $sasaranOpd = SasaranOpd::create([
+            'tujuan_opd_id' => $tujuanOpd->id,
+            'sasaran' => 'Meningkatnya layanan dasar',
+            'urutan' => 1,
+        ]);
+
+        $opdProgram = OpdProgram::create([
+            'renstra_opd_id' => $renstra->id,
+            'sasaran_opd_id' => $sasaranOpd->id,
+            'kode' => '1.01.01',
+            'nama' => 'Program Layanan Dasar',
+            'pagu_indikatif' => 100000000,
+            'status' => 'approved',
+            'urutan' => 1,
+        ]);
+
+        $pkItem = PerjanjianKinerjaItem::create([
+            'perjanjian_kinerja_id' => $pk->id,
+            'opd_program_id' => $opdProgram->id,
+            'sasaran' => 'Meningkatnya layanan dasar',
+            'indikator' => 'Cakupan layanan dasar',
+            'target' => 100,
+            'urutan' => 1,
+        ]);
+
         $realisasi = RealisasiKinerja::create([
             'opd_id' => $opd->id,
             'perjanjian_kinerja_id' => $pk->id,
@@ -282,6 +346,8 @@ class DashboardTest extends TestCase
 
         RealisasiProgram::create([
             'realisasi_kinerja_id' => $realisasi->id,
+            'perjanjian_kinerja_item_id' => $pkItem->id,
+            'opd_program_id' => $opdProgram->id,
             'indikator' => 'Cakupan layanan dasar',
             'target' => 100,
             'realisasi' => 80,

@@ -23,7 +23,7 @@ class DashboardService
 {
     private const CACHE_TTL_SECONDS = 300;
 
-    private const CACHE_SCHEMA_VERSION = 'v4';
+    private const CACHE_SCHEMA_VERSION = 'v5';
 
     /**
      * @param  array<string, mixed>  $filters
@@ -109,6 +109,8 @@ class DashboardService
         $opdsWithoutRealization = $this->opdsWithoutRealization($visibleOpds, $realisasiOpdIds);
         $opdPerformanceRanking = $this->opdPerformanceRanking($progressOpd);
         $achievementIndicatorDrilldown = $this->achievementIndicatorDrilldown($opdIds, $tahun);
+        $sasaranDrilldown = $this->sasaranDrilldown($opdIds, $tahun);
+        $programDrilldown = $this->programDrilldown($opdIds, $tahun);
 
         $totalOpd = count($opdIds);
         $openRecommendationTotal = array_sum($rekomendasiTerbukaByOpd);
@@ -180,6 +182,8 @@ class DashboardService
             'efficiencyStatusDistribution' => $efficiencyStatusDistribution,
             'quarterlyAchievement' => $quarterlyAchievement,
             'achievementIndicatorDrilldown' => $achievementIndicatorDrilldown,
+            'sasaranDrilldown' => $sasaranDrilldown,
+            'programDrilldown' => $programDrilldown,
             'opdsWithoutRealization' => $opdsWithoutRealization,
             'quickLinks' => $this->quickLinks($scope, $user),
         ];
@@ -568,6 +572,108 @@ class DashboardService
     }
 
     /**
+     * @param  array<int, int>  $opdIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function sasaranDrilldown(array $opdIds, int $tahun): array
+    {
+        return DB::table('realisasi_program')
+            ->join('realisasi_kinerja', 'realisasi_kinerja.id', '=', 'realisasi_program.realisasi_kinerja_id')
+            ->leftJoin('perjanjian_kinerja_items', 'perjanjian_kinerja_items.id', '=', 'realisasi_program.perjanjian_kinerja_item_id')
+            ->leftJoin('opds', 'opds.id', '=', 'realisasi_kinerja.opd_id')
+            ->whereNull('realisasi_program.deleted_at')
+            ->whereNull('realisasi_kinerja.deleted_at')
+            ->whereIn('realisasi_kinerja.opd_id', $opdIds)
+            ->where('realisasi_kinerja.tahun', $tahun)
+            ->select([
+                'realisasi_kinerja.opd_id',
+                'opds.nama as opd_nama',
+                'opds.singkatan as opd_singkatan',
+                'perjanjian_kinerja_items.sasaran_opd_id',
+                DB::raw("coalesce(perjanjian_kinerja_items.sasaran, 'Sasaran belum dikaitkan') as sasaran"),
+                DB::raw('count(realisasi_program.id) as indicator_count'),
+                DB::raw('avg(realisasi_program.capaian_persen) as avg_capaian'),
+                DB::raw("sum(case when realisasi_program.status_capaian = 'merah' then 1 else 0 end) as merah_count"),
+                DB::raw("sum(case when realisasi_program.status_capaian = 'kuning' then 1 else 0 end) as kuning_count"),
+                DB::raw("sum(case when realisasi_program.status_capaian = 'hijau' then 1 else 0 end) as hijau_count"),
+            ])
+            ->groupBy('realisasi_kinerja.opd_id', 'opds.nama', 'opds.singkatan', 'perjanjian_kinerja_items.sasaran_opd_id', 'perjanjian_kinerja_items.sasaran')
+            ->orderByRaw('avg(coalesce(realisasi_program.capaian_persen, 0)) asc')
+            ->limit(10)
+            ->get()
+            ->map(fn ($row) => [
+                'opd_id' => (int) $row->opd_id,
+                'opd' => $row->opd_singkatan ?: $row->opd_nama,
+                'sasaran_opd_id' => $row->sasaran_opd_id ? (int) $row->sasaran_opd_id : null,
+                'sasaran' => (string) $row->sasaran,
+                'indicator_count' => (int) $row->indicator_count,
+                'avg_capaian' => $row->avg_capaian !== null ? round((float) $row->avg_capaian, 2) : null,
+                'status_capaian' => $this->statusFromAverage($row->avg_capaian),
+                'merah_count' => (int) $row->merah_count,
+                'kuning_count' => (int) $row->kuning_count,
+                'hijau_count' => (int) $row->hijau_count,
+                'detail_url' => route('dashboard', ['tahun' => $tahun, 'opd_id' => (int) $row->opd_id]),
+            ])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $opdIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function programDrilldown(array $opdIds, int $tahun): array
+    {
+        return DB::table('realisasi_program')
+            ->join('realisasi_kinerja', 'realisasi_kinerja.id', '=', 'realisasi_program.realisasi_kinerja_id')
+            ->leftJoin('opd_program', 'opd_program.id', '=', 'realisasi_program.opd_program_id')
+            ->leftJoin('opds', 'opds.id', '=', 'realisasi_kinerja.opd_id')
+            ->whereNull('realisasi_program.deleted_at')
+            ->whereNull('realisasi_kinerja.deleted_at')
+            ->whereIn('realisasi_kinerja.opd_id', $opdIds)
+            ->where('realisasi_kinerja.tahun', $tahun)
+            ->select([
+                'realisasi_kinerja.opd_id',
+                'opds.nama as opd_nama',
+                'opds.singkatan as opd_singkatan',
+                'opd_program.id as opd_program_id',
+                'opd_program.kode as program_kode',
+                DB::raw("coalesce(opd_program.nama, 'Program belum dikaitkan') as program"),
+                DB::raw('count(realisasi_program.id) as indicator_count'),
+                DB::raw('avg(realisasi_program.capaian_persen) as avg_capaian'),
+                DB::raw('avg(realisasi_program.serapan_anggaran_persen) as avg_serapan'),
+                DB::raw('sum(coalesce(realisasi_program.anggaran, 0)) as total_anggaran'),
+                DB::raw('sum(coalesce(realisasi_program.realisasi_anggaran, 0)) as total_realisasi_anggaran'),
+                DB::raw("sum(case when realisasi_program.status_efisiensi = 'efisien' then 1 else 0 end) as efisien_count"),
+                DB::raw("sum(case when realisasi_program.status_efisiensi = 'cukup_efisien' then 1 else 0 end) as cukup_efisien_count"),
+                DB::raw("sum(case when realisasi_program.status_efisiensi = 'tidak_efisien' then 1 else 0 end) as tidak_efisien_count"),
+            ])
+            ->groupBy('realisasi_kinerja.opd_id', 'opds.nama', 'opds.singkatan', 'opd_program.id', 'opd_program.kode', 'opd_program.nama')
+            ->orderByRaw('avg(coalesce(realisasi_program.capaian_persen, 0)) asc')
+            ->limit(10)
+            ->get()
+            ->map(fn ($row) => [
+                'opd_id' => (int) $row->opd_id,
+                'opd' => $row->opd_singkatan ?: $row->opd_nama,
+                'opd_program_id' => $row->opd_program_id ? (int) $row->opd_program_id : null,
+                'program_kode' => $row->program_kode,
+                'program' => (string) $row->program,
+                'indicator_count' => (int) $row->indicator_count,
+                'avg_capaian' => $row->avg_capaian !== null ? round((float) $row->avg_capaian, 2) : null,
+                'avg_serapan' => $row->avg_serapan !== null ? round((float) $row->avg_serapan, 2) : null,
+                'status_capaian' => $this->statusFromAverage($row->avg_capaian),
+                'total_anggaran' => round((float) $row->total_anggaran, 2),
+                'total_realisasi_anggaran' => round((float) $row->total_realisasi_anggaran, 2),
+                'dominant_efficiency_status' => $this->dominantEfficiencyStatus([
+                    'efisien' => (int) $row->efisien_count,
+                    'cukup_efisien' => (int) $row->cukup_efisien_count,
+                    'tidak_efisien' => (int) $row->tidak_efisien_count,
+                ]),
+                'detail_url' => route('dashboard', ['tahun' => $tahun, 'opd_id' => (int) $row->opd_id]),
+            ])
+            ->all();
+    }
+
+    /**
      * @param  array<int, array{tahun: int, rata_capaian: float}>  $achievementByYear
      */
     private function selectedYearAchievement(array $achievementByYear, int $tahun): float
@@ -651,6 +757,42 @@ class DashboardService
             ])
             ->values()
             ->all();
+    }
+
+    private function statusFromAverage(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $number = (float) $value;
+
+        if ($number < 70) {
+            return 'merah';
+        }
+
+        if ($number <= 90) {
+            return 'kuning';
+        }
+
+        return 'hijau';
+    }
+
+    /**
+     * @param  array{efisien: int, cukup_efisien: int, tidak_efisien: int}  $counts
+     */
+    private function dominantEfficiencyStatus(array $counts): ?string
+    {
+        $filtered = collect($counts)->filter(fn (int $count) => $count > 0);
+
+        if ($filtered->isEmpty()) {
+            return null;
+        }
+
+        return (string) $filtered
+            ->sortDesc()
+            ->keys()
+            ->first();
     }
 
     /**

@@ -328,6 +328,7 @@ class KinerjaReportContentService
     {
         return [
             'source' => $source.'_official_report',
+            'document_number' => $this->documentNumber($model, $source),
             'agency_name' => 'PEMERINTAH KABUPATEN BANJARNEGARA',
             'office_name' => strtoupper($opdName),
             'address_line' => 'Kabupaten Banjarnegara, Jawa Tengah',
@@ -345,6 +346,21 @@ class KinerjaReportContentService
             'periode_tahun_id' => $model->getAttribute('periode_tahun_id'),
             'generated_at' => now()->toDateTimeString(),
         ];
+    }
+
+    private function documentNumber(Model $model, string $source): string
+    {
+        $explicitNumber = $model->getAttribute('nomor_dokumen');
+
+        if (filled($explicitNumber)) {
+            return (string) $explicitNumber;
+        }
+
+        $sourceCode = str($source)->replace('_', '/')->upper()->toString();
+        $year = $model->getAttribute('tahun') ?: now()->year;
+        $id = $model->getKey() ?: 'DRAFT';
+
+        return $sourceCode.'/'.$id.'/'.$year;
     }
 
     private function opdName(Model $model): string

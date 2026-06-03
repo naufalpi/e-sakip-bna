@@ -48,6 +48,7 @@ class LheDocumentContentService
                 'source' => 'lhe_auto_export',
                 'document_title' => 'Laporan Hasil Evaluasi SAKIP',
                 'document_subtitle' => $this->opdName($evaluasi).' Tahun '.$evaluasi->tahun,
+                'document_number' => $evaluasi->lhe?->nomor_lhe ?: 'LHE/'.$evaluasi->id.'/'.$evaluasi->tahun,
                 'agency_name' => 'PEMERINTAH KABUPATEN BANJARNEGARA',
                 'office_name' => 'INSPEKTORAT DAERAH KABUPATEN BANJARNEGARA',
                 'address_line' => 'Kabupaten Banjarnegara, Jawa Tengah',

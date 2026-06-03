@@ -17,6 +17,7 @@ type Stats = {
     target_tahunan_nodes: number;
     target_triwulan_nodes: number;
     linked_nodes: number;
+    incomplete_nodes: number;
     opd_penanggung_jawab_nodes: number;
     total_pagu: number;
     total_target_anggaran_triwulan: number;
@@ -96,6 +97,7 @@ const statCards = computed(() => [
     { label: 'Target Tahunan', value: props.stats.target_tahunan_nodes },
     { label: 'Target Triwulan', value: props.stats.target_triwulan_nodes },
     { label: 'Node Terhubung', value: props.stats.linked_nodes },
+    { label: 'Perlu Dilengkapi', value: props.stats.incomplete_nodes },
     { label: 'OPD PJ', value: props.stats.opd_penanggung_jawab_nodes },
 ]);
 
@@ -182,7 +184,7 @@ const formatCurrency = (value?: number | string | null) => {
                 </div>
             </form>
 
-            <section class="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <section class="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
                 <div v-for="stat in statCards" :key="stat.label" class="rounded-lg border bg-card p-3">
                     <div class="text-xs uppercase text-muted-foreground">{{ stat.label }}</div>
                     <div class="mt-1 text-xl font-semibold">{{ stat.value }}</div>

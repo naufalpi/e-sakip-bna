@@ -131,6 +131,7 @@ class PohonKinerjaService
             'target_tahunan_nodes' => $flat->where('type', 'target_tahunan')->count(),
             'target_triwulan_nodes' => $flat->where('type', 'target_triwulan')->count(),
             'linked_nodes' => $flat->filter(fn (array $node) => filled($node['linked_to'] ?? null))->count(),
+            'incomplete_nodes' => $flat->filter(fn (array $node) => ($node['meta']['kelengkapan_status'] ?? null) === 'perlu_dilengkapi')->count(),
             'opd_penanggung_jawab_nodes' => $flat->where('type', 'opd_penanggung_jawab')->count(),
             'total_pagu' => $flat->sum(fn (array $node) => (float) ($node['meta']['pagu_indikatif'] ?? $node['meta']['pagu'] ?? 0)),
             'total_target_anggaran_triwulan' => $flat->where('type', 'target_triwulan')->sum(fn (array $node) => (float) ($node['meta']['target_anggaran'] ?? 0)),
@@ -493,19 +494,82 @@ class PohonKinerjaService
      */
     private function node(string $type, int|string $id, string $label, array $meta = [], array $children = [], ?array $linkedTo = null): array
     {
+        $children = collect($children)
+            ->filter()
+            ->values()
+            ->all();
+        $meta = collect($meta)
+            ->reject(fn ($value) => $value === null || $value === '')
+            ->all();
+        $meta = [
+            ...$meta,
+            ...$this->completionMeta($type, $meta, $children, $linkedTo),
+        ];
+
         return [
             'key' => "{$type}:{$id}",
             'type' => $type,
             'id' => $id,
             'label' => $label,
-            'meta' => collect($meta)
-                ->reject(fn ($value) => $value === null || $value === '')
-                ->all(),
+            'meta' => $meta,
             'linked_to' => $linkedTo,
-            'children' => collect($children)
-                ->filter()
-                ->values()
-                ->all(),
+            'children' => $children,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     * @param  array<int, array<string, mixed>>  $children
+     * @return array{kelengkapan_status: string, kelengkapan_catatan: string}
+     */
+    private function completionMeta(string $type, array $meta, array $children, ?array $linkedTo): array
+    {
+        $childTypes = collect($children)->pluck('type');
+        $hasTarget = $childTypes->contains('target_tahunan') || $childTypes->contains('target_triwulan');
+        $isIndicator = str_starts_with($type, 'indikator_');
+
+        if ($type === 'target_tahunan' && ! filled($meta['target'] ?? null) && ! filled($meta['target_text'] ?? null)) {
+            return $this->incomplete('Target tahunan belum memiliki nilai target.');
+        }
+
+        if ($type === 'target_triwulan' && ! filled($meta['target_angka'] ?? null) && ! filled($meta['target_text'] ?? null)) {
+            return $this->incomplete('Target triwulan belum memiliki nilai target.');
+        }
+
+        if ($isIndicator && ! $hasTarget) {
+            return $this->incomplete('Indikator belum memiliki target tahunan atau triwulan.');
+        }
+
+        if ($type === 'program_rpjmd' && ! $childTypes->contains('indikator_program_rpjmd')) {
+            return $this->incomplete('Program RPJMD belum memiliki indikator program.');
+        }
+
+        if ($type === 'program_rpjmd' && ! $childTypes->contains('opd_penanggung_jawab')) {
+            return $this->incomplete('Program RPJMD belum memiliki OPD penanggung jawab.');
+        }
+
+        if (in_array($type, ['tujuan_opd', 'sasaran_opd', 'opd_program', 'indikator_tujuan_opd', 'indikator_sasaran_opd', 'indikator_opd_program'], true) && ! $linkedTo) {
+            return $this->incomplete('Node OPD belum terhubung ke referensi RPJMD.');
+        }
+
+        if (in_array($type, ['visi', 'misi', 'tujuan_daerah', 'sasaran_daerah', 'strategi_daerah', 'tujuan_opd', 'sasaran_opd', 'opd_program', 'opd_kegiatan', 'opd_sub_kegiatan'], true) && $children === []) {
+            return $this->incomplete('Node belum memiliki turunan cascading.');
+        }
+
+        return [
+            'kelengkapan_status' => 'lengkap',
+            'kelengkapan_catatan' => 'Struktur minimal tersedia.',
+        ];
+    }
+
+    /**
+     * @return array{kelengkapan_status: string, kelengkapan_catatan: string}
+     */
+    private function incomplete(string $note): array
+    {
+        return [
+            'kelengkapan_status' => 'perlu_dilengkapi',
+            'kelengkapan_catatan' => $note,
         ];
     }
 

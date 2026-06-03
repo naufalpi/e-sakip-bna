@@ -105,6 +105,7 @@ class ReportDocumentRenderService
             $this->addWordParagraphs($section, $reportSection['content']);
         }
 
+        $this->addWordAppendixList($section, $report['tables'] ?? []);
         $this->addWordTables($section, $report['tables'] ?? []);
         $this->addWordSignature($section, $report);
 
@@ -149,16 +150,25 @@ class ReportDocumentRenderService
         th, td { border: 1px solid #64748b; padding: 5px 6px; vertical-align: top; }
         th { background: #e5e7eb; text-align: center; }
         .cover { page-break-after: always; text-align: center; }
+        .cover-logo { height: 118px; margin: 70px auto 20px; width: auto; }
         .cover-title { font-size: 22px; font-weight: 700; margin-top: 92px; text-transform: uppercase; }
         .cover-subtitle { font-size: 14px; font-weight: 700; margin-top: 14px; text-transform: uppercase; }
         .cover-year { font-size: 18px; font-weight: 700; margin-top: 34px; }
         .cover-agency { font-size: 14px; font-weight: 700; margin-top: 140px; text-transform: uppercase; }
-        .letterhead { border-bottom: 3px double #111827; margin-bottom: 18px; padding-bottom: 8px; text-align: center; }
+        .letterhead { border-bottom: 3px double #111827; margin-bottom: 18px; padding-bottom: 8px; }
+        .letterhead-inner { display: table; width: 100%; }
+        .letterhead-logo { display: table-cell; text-align: center; vertical-align: top; width: 76px; }
+        .letterhead-logo img { height: 68px; width: auto; }
+        .letterhead-text { display: table-cell; padding-right: 76px; text-align: center; vertical-align: top; }
         .letterhead .agency { font-size: 15px; font-weight: 700; text-transform: uppercase; }
         .letterhead .office { font-size: 13px; font-weight: 700; text-transform: uppercase; }
         .letterhead .address { font-size: 10px; margin-top: 2px; }
+        .document-number { font-size: 10px; margin: 10px 0 12px; text-align: center; }
         .meta-table th { text-align: left; width: 34%; }
         .chapter { page-break-inside: avoid; }
+        .appendix-list { margin: 18px 0; page-break-inside: avoid; }
+        .appendix-list ol { margin: 6px 0 0 18px; padding: 0; }
+        .signature-page { page-break-before: always; }
         .signature { margin-left: auto; margin-top: 32px; page-break-inside: avoid; width: 260px; }
         .signature p { margin-bottom: 4px; text-align: center; }
         .signature .space { height: 54px; }
@@ -170,6 +180,7 @@ class ReportDocumentRenderService
     '.$this->letterheadHtml($report).'
     '.$this->identityTableHtml($report).'
     '.$sections.'
+    '.$this->appendixListHtml($report['tables'] ?? []).'
     '.$this->tablesHtml($report['tables'] ?? []).'
     '.$this->signatureHtml($report).'
     <div class="small">Dokumen dibuat otomatis dari E-SAKIP Kabupaten Banjarnegara pada '.e(now()->format('Y-m-d H:i:s')).'.</div>
@@ -183,6 +194,7 @@ class ReportDocumentRenderService
     private function coverHtml(array $report): string
     {
         return '<div class="cover">
+            '.$this->logoHtml($report, 'cover-logo').'
             <div class="cover-title">'.e($report['title']).'</div>
             <div class="cover-subtitle">'.e((string) ($report['subtitle'] ?? '')).'</div>
             <div class="cover-year">TAHUN '.e((string) $this->metadata($report, 'tahun', date('Y'))).'</div>
@@ -196,9 +208,14 @@ class ReportDocumentRenderService
     private function letterheadHtml(array $report): string
     {
         return '<div class="letterhead">
-            <div class="agency">'.e($this->agencyName($report)).'</div>
-            <div class="office">'.e($this->officeName($report)).'</div>
-            <div class="address">'.e($this->metadata($report, 'address_line', 'Kabupaten Banjarnegara, Jawa Tengah')).'</div>
+            <div class="letterhead-inner">
+                <div class="letterhead-logo">'.$this->logoHtml($report).'</div>
+                <div class="letterhead-text">
+                    <div class="agency">'.e($this->agencyName($report)).'</div>
+                    <div class="office">'.e($this->officeName($report)).'</div>
+                    <div class="address">'.e($this->metadata($report, 'address_line', 'Kabupaten Banjarnegara, Jawa Tengah')).'</div>
+                </div>
+            </div>
         </div>';
     }
 
@@ -239,23 +256,51 @@ class ReportDocumentRenderService
     }
 
     /**
+     * @param  array<int, array{title: string, headers: array<int, string>, rows: array<int, array<int, string>>}>  $tables
+     */
+    private function appendixListHtml(array $tables): string
+    {
+        if ($tables === []) {
+            return '';
+        }
+
+        $items = collect($tables)
+            ->map(fn (array $table) => '<li>'.e($table['title']).'</li>')
+            ->implode('');
+
+        return '<section class="appendix-list">
+            <h2>Daftar Lampiran</h2>
+            <ol>'.$items.'</ol>
+        </section>';
+    }
+
+    /**
      * @param  array<string, mixed>  $report
      */
     private function signatureHtml(array $report): string
     {
         $signature = $this->metadata($report, 'signature', []);
 
-        return '<div class="signature">
+        return '<section class="signature-page">
+            <h2>Halaman Pengesahan</h2>
+            <p>Dokumen ini diterbitkan sebagai keluaran resmi E-SAKIP Kabupaten Banjarnegara dan menjadi bahan monitoring, pelaporan, serta evaluasi akuntabilitas kinerja.</p>
+            <div class="document-number">Nomor Dokumen: '.e($this->documentNumber($report)).'</div>
+            <div class="signature">
             <p>'.e((string) ($signature['place_date'] ?? 'Banjarnegara, '.now()->translatedFormat('d F Y'))).'</p>
             <p>'.e((string) ($signature['title'] ?? 'Pejabat Penanggung Jawab')).'</p>
             <div class="space"></div>
             <p><strong>'.e((string) ($signature['name'] ?? '(nama pejabat)')).'</strong></p>
             <p>NIP. '.e((string) ($signature['nip'] ?? '-')).'</p>
-        </div>';
+            </div>
+        </section>';
     }
 
     private function addWordCover($section, array $report): void
     {
+        if ($path = $this->wordLogoPath($report)) {
+            $section->addImage($path, ['height' => 86, 'alignment' => Jc::CENTER]);
+        }
+
         $section->addTextBreak(4);
         $section->addText($report['title'], ['bold' => true, 'size' => 16], ['alignment' => Jc::CENTER, 'spaceAfter' => 180]);
 
@@ -271,9 +316,14 @@ class ReportDocumentRenderService
 
     private function addWordLetterhead($section, array $report): void
     {
+        if ($path = $this->wordLogoPath($report)) {
+            $section->addImage($path, ['height' => 54, 'alignment' => Jc::CENTER]);
+        }
+
         $section->addText($this->agencyName($report), ['bold' => true, 'size' => 12], ['alignment' => Jc::CENTER]);
         $section->addText($this->officeName($report), ['bold' => true, 'size' => 11], ['alignment' => Jc::CENTER]);
         $section->addText((string) $this->metadata($report, 'address_line', 'Kabupaten Banjarnegara, Jawa Tengah'), ['size' => 9], ['alignment' => Jc::CENTER]);
+        $section->addText('Nomor Dokumen: '.$this->documentNumber($report), ['size' => 9], ['alignment' => Jc::CENTER]);
         $section->addLine(['weight' => 1.5, 'width' => 460, 'height' => 0]);
         $section->addTextBreak();
 
@@ -331,10 +381,32 @@ class ReportDocumentRenderService
         }
     }
 
+    /**
+     * @param  array<int, array{title: string, headers: array<int, string>, rows: array<int, array<int, string>>}>  $tables
+     */
+    private function addWordAppendixList($section, array $tables): void
+    {
+        if ($tables === []) {
+            return;
+        }
+
+        $section->addTitle('Daftar Lampiran', 1);
+
+        foreach ($tables as $index => $table) {
+            $section->addText(($index + 1).'. '.$table['title'], [], ['spaceAfter' => 80]);
+        }
+
+        $section->addTextBreak();
+    }
+
     private function addWordSignature($section, array $report): void
     {
         $signature = $this->metadata($report, 'signature', []);
 
+        $section->addPageBreak();
+        $section->addTitle('Halaman Pengesahan', 1);
+        $section->addText('Dokumen ini diterbitkan sebagai keluaran resmi E-SAKIP Kabupaten Banjarnegara dan menjadi bahan monitoring, pelaporan, serta evaluasi akuntabilitas kinerja.', [], ['alignment' => Jc::BOTH, 'spaceAfter' => 120]);
+        $section->addText('Nomor Dokumen: '.$this->documentNumber($report), ['bold' => true], ['alignment' => Jc::CENTER, 'spaceAfter' => 160]);
         $section->addTextBreak(2);
         $section->addText((string) ($signature['place_date'] ?? 'Banjarnegara, '.now()->translatedFormat('d F Y')), [], ['alignment' => Jc::RIGHT]);
         $section->addText((string) ($signature['title'] ?? 'Pejabat Penanggung Jawab'), [], ['alignment' => Jc::RIGHT]);
@@ -357,6 +429,83 @@ class ReportDocumentRenderService
     private function officeName(array $report): string
     {
         return (string) $this->metadata($report, 'office_name', 'E-SAKIP KABUPATEN BANJARNEGARA');
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     */
+    private function documentNumber(array $report): string
+    {
+        return (string) ($this->metadata($report, 'document_number')
+            ?: $this->metadata($report, 'nomor_dokumen')
+            ?: $this->metadata($report, 'nomor_lhe')
+            ?: '-');
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     */
+    private function logoHtml(array $report, string $class = ''): string
+    {
+        $dataUri = $this->logoDataUri($report);
+
+        if (! $dataUri) {
+            return '';
+        }
+
+        return '<img class="'.e($class).'" src="'.e($dataUri).'" alt="Lambang Kabupaten Banjarnegara">';
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     */
+    private function logoDataUri(array $report): ?string
+    {
+        $path = $this->logoPath($report);
+
+        if (! $path || ! File::exists($path)) {
+            return null;
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $mimeType = match ($extension) {
+            'svg' => 'image/svg+xml',
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            default => null,
+        };
+
+        if (! $mimeType) {
+            return null;
+        }
+
+        return 'data:'.$mimeType.';base64,'.base64_encode(File::get($path));
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     */
+    private function wordLogoPath(array $report): ?string
+    {
+        $path = $this->logoPath($report);
+
+        if (! $path || ! File::exists($path)) {
+            return null;
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return in_array($extension, ['png', 'jpg', 'jpeg'], true) ? $path : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     */
+    private function logoPath(array $report): ?string
+    {
+        $path = $this->metadata($report, 'logo_path', public_path('images/lambang-banjarnegara.svg'));
+
+        return is_string($path) && $path !== '' ? $path : null;
     }
 
     /**

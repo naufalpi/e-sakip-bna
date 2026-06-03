@@ -3,7 +3,7 @@ import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { AlertTriangle, ArrowRight, BarChart3, Building2, ClipboardCheck, FileCheck2, Gauge, GitBranch, ListChecks, SlidersHorizontal, TrendingUp, Trophy } from 'lucide-vue-next';
+import { AlertTriangle, ArrowRight, BarChart3, Building2, ClipboardCheck, Download, FileCheck2, Gauge, GitBranch, ListChecks, SlidersHorizontal, TrendingUp, Trophy } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
 
 type Option = { id?: number; tahun?: number; label: string };
@@ -33,6 +33,34 @@ type AchievementIndicator = {
     triwulan_label?: string | null;
     detail_url?: string | null;
     opd_detail_url?: string | null;
+};
+type SasaranDrilldown = {
+    opd_id: number;
+    opd?: string | null;
+    sasaran_opd_id?: number | null;
+    sasaran: string;
+    indicator_count: number;
+    avg_capaian?: number | null;
+    status_capaian?: string | null;
+    merah_count: number;
+    kuning_count: number;
+    hijau_count: number;
+    detail_url?: string | null;
+};
+type ProgramDrilldown = {
+    opd_id: number;
+    opd?: string | null;
+    opd_program_id?: number | null;
+    program_kode?: string | null;
+    program: string;
+    indicator_count: number;
+    avg_capaian?: number | null;
+    avg_serapan?: number | null;
+    status_capaian?: string | null;
+    total_anggaran: number;
+    total_realisasi_anggaran: number;
+    dominant_efficiency_status?: string | null;
+    detail_url?: string | null;
 };
 type ProgressOpd = {
     opd_id: number;
@@ -128,6 +156,8 @@ const props = defineProps<{
     efficiencyStatusDistribution: Distribution[];
     quarterlyAchievement: QuarterlyAchievement[];
     achievementIndicatorDrilldown: AchievementIndicator[];
+    sasaranDrilldown: SasaranDrilldown[];
+    programDrilldown: ProgramDrilldown[];
     opdsWithoutRealization: OpdWithoutRealization[];
     quickLinks: Array<{ label: string; href: string }>;
 }>();
@@ -169,6 +199,14 @@ const metricCards = computed(() => [
     { label: 'OPD Belum Realisasi', value: props.stats.opd_belum_realisasi_count, helper: 'perlu input capaian tahun berjalan', icon: AlertTriangle },
     { label: 'Lewat Target TL', value: props.stats.rekomendasi_overdue_count, helper: 'rekomendasi belum selesai melewati target', icon: AlertTriangle },
 ]);
+const exportHref = computed(() =>
+    route('dashboard.export', {
+        tahun: filterForm.tahun,
+        ...(filterForm.opd_id ? { opd_id: filterForm.opd_id } : {}),
+    }),
+);
+
+const achievementDistributionTotal = computed(() => props.achievementStatusDistribution.reduce((sum, row) => sum + row.count, 0));
 
 function formatPercent(value?: number | string | null) {
     const number = Number(value ?? 0);
@@ -178,6 +216,18 @@ function formatPercent(value?: number | string | null) {
 function formatScore(value?: number | string | null) {
     const number = Number(value ?? 0);
     return number.toLocaleString('id-ID', { maximumFractionDigits: 2 });
+}
+
+function formatCurrency(value?: number | string | null) {
+    if (value === null || value === undefined || value === '') {
+        return '-';
+    }
+
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0,
+    }).format(Number(value));
 }
 
 function formatDateTime(value?: string | null) {
@@ -283,6 +333,10 @@ function booleanClass(value: boolean) {
                         Filter
                     </button>
                     <button type="button" class="h-9 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">Reset</button>
+                    <a :href="exportHref" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800">
+                        <Download class="size-4" />
+                        Export CSV
+                    </a>
                 </form>
             </div>
 
@@ -313,6 +367,16 @@ function booleanClass(value: boolean) {
                         <p class="mt-1 text-xs text-muted-foreground">Jumlah indikator berdasarkan warna capaian tahun terpilih.</p>
                     </div>
                     <div class="space-y-3 p-4">
+                        <div v-if="achievementDistributionTotal > 0" class="flex h-3 overflow-hidden rounded-full bg-muted">
+                            <div
+                                v-for="row in achievementStatusDistribution"
+                                :key="`${row.status}-segment`"
+                                class="h-full"
+                                :class="row.status === 'merah' ? 'bg-red-600' : row.status === 'kuning' ? 'bg-amber-500' : 'bg-emerald-700'"
+                                :style="{ width: `${row.percent}%` }"
+                                :title="`${row.label}: ${row.count}`"
+                            />
+                        </div>
                         <div v-for="row in achievementStatusDistribution" :key="row.status" class="space-y-1.5">
                             <div class="flex items-center justify-between gap-3 text-sm">
                                 <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status)">{{ row.label }}</span>
@@ -469,6 +533,97 @@ function booleanClass(value: boolean) {
                                 </tr>
                                 <tr v-if="achievementIndicatorDrilldown.length === 0">
                                     <td colspan="4" class="px-4 py-8 text-center text-muted-foreground">Belum ada data capaian indikator.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="grid gap-4 xl:grid-cols-2">
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <h2 class="text-sm font-semibold">Drilldown per Sasaran</h2>
+                        <p class="mt-1 text-xs text-muted-foreground">Sasaran dengan capaian rendah ditampilkan lebih dahulu.</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
+                                <tr>
+                                    <th class="px-4 py-3">Sasaran</th>
+                                    <th class="px-4 py-3">Indikator</th>
+                                    <th class="px-4 py-3">Capaian</th>
+                                    <th class="px-4 py-3">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="row in sasaranDrilldown" :key="`${row.opd_id}-${row.sasaran_opd_id || row.sasaran}`" class="border-b last:border-0">
+                                    <td class="px-4 py-3">
+                                        <Link :href="row.detail_url || route('dashboard', { tahun: filters.tahun, opd_id: row.opd_id })" class="font-medium text-emerald-800 hover:underline">
+                                            {{ row.sasaran }}
+                                        </Link>
+                                        <div class="mt-1 text-xs text-muted-foreground">{{ row.opd || '-' }}</div>
+                                    </td>
+                                    <td class="px-4 py-3">{{ row.indicator_count }}</td>
+                                    <td class="px-4 py-3 font-semibold">{{ row.avg_capaian === null || row.avg_capaian === undefined ? '-' : formatPercent(row.avg_capaian) }}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status_capaian)">
+                                            {{ statusLabel(row.status_capaian) }}
+                                        </span>
+                                        <div class="mt-2 flex gap-1 text-[11px] text-muted-foreground">
+                                            <span class="rounded bg-red-50 px-1.5 py-0.5 text-red-800">M {{ row.merah_count }}</span>
+                                            <span class="rounded bg-amber-50 px-1.5 py-0.5 text-amber-800">K {{ row.kuning_count }}</span>
+                                            <span class="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-800">H {{ row.hijau_count }}</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr v-if="sasaranDrilldown.length === 0">
+                                    <td colspan="4" class="px-4 py-8 text-center text-muted-foreground">Belum ada data capaian per sasaran.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="rounded-lg border bg-card">
+                    <div class="border-b px-4 py-3">
+                        <h2 class="text-sm font-semibold">Drilldown per Program</h2>
+                        <p class="mt-1 text-xs text-muted-foreground">Program dengan capaian rendah dan serapan anggaran terkait.</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
+                                <tr>
+                                    <th class="px-4 py-3">Program</th>
+                                    <th class="px-4 py-3">Capaian / Serapan</th>
+                                    <th class="px-4 py-3">Anggaran</th>
+                                    <th class="px-4 py-3">Efisiensi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="row in programDrilldown" :key="`${row.opd_id}-${row.opd_program_id || row.program}`" class="border-b last:border-0">
+                                    <td class="px-4 py-3">
+                                        <Link :href="row.detail_url || route('dashboard', { tahun: filters.tahun, opd_id: row.opd_id })" class="font-medium text-emerald-800 hover:underline">
+                                            {{ row.program_kode ? `${row.program_kode} - ` : '' }}{{ row.program }}
+                                        </Link>
+                                        <div class="mt-1 text-xs text-muted-foreground">{{ row.opd || '-' }} / {{ row.indicator_count }} indikator</div>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="font-semibold">{{ row.avg_capaian === null || row.avg_capaian === undefined ? '-' : formatPercent(row.avg_capaian) }}</div>
+                                        <div class="mt-1 text-xs text-muted-foreground">Serapan {{ row.avg_serapan === null || row.avg_serapan === undefined ? '-' : formatPercent(row.avg_serapan) }}</div>
+                                    </td>
+                                    <td class="px-4 py-3 text-xs">
+                                        <div>{{ formatCurrency(row.total_anggaran) }}</div>
+                                        <div class="mt-1 text-muted-foreground">Realisasi {{ formatCurrency(row.total_realisasi_anggaran) }}</div>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.dominant_efficiency_status)">
+                                            {{ statusLabel(row.dominant_efficiency_status) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr v-if="programDrilldown.length === 0">
+                                    <td colspan="4" class="px-4 py-8 text-center text-muted-foreground">Belum ada data capaian per program.</td>
                                 </tr>
                             </tbody>
                         </table>

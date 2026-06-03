@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Link2 } from 'lucide-vue-next';
+import { AlertTriangle, CheckCircle2, ChevronRight, Link2 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 export type TreeNode = {
@@ -82,12 +82,26 @@ const badgeClass = computed(() => {
 
 const metaEntries = computed(() =>
     Object.entries(props.node.meta ?? {})
+        .filter(([key]) => !key.startsWith('kelengkapan_'))
         .filter(([, value]) => value !== null && value !== undefined && value !== '')
         .map(([key, value]) => ({
             key,
             label: key.replaceAll('_', ' '),
             value: formatValue(key, value),
         })),
+);
+
+const completionStatus = computed(() => String(props.node.meta?.kelengkapan_status ?? 'lengkap'));
+const completionNote = computed(() => String(props.node.meta?.kelengkapan_catatan ?? 'Struktur minimal tersedia.'));
+const isIncomplete = computed(() => completionStatus.value === 'perlu_dilengkapi');
+const completionLabel = computed(() => (isIncomplete.value ? 'Perlu dilengkapi' : 'Lengkap'));
+const completionClass = computed(() => (isIncomplete.value ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200' : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'));
+const nodeClass = computed(() =>
+    isIncomplete.value
+        ? 'border-amber-200 bg-amber-50/35 shadow-[inset_3px_0_0_#d97706]'
+        : props.node.linked_to
+          ? 'border-emerald-200 bg-emerald-50/20 shadow-[inset_3px_0_0_#047857]'
+          : 'border-slate-200 bg-white',
 );
 
 const formatValue = (key: string, value: unknown) => {
@@ -113,7 +127,7 @@ const formatValue = (key: string, value: unknown) => {
     <div class="relative">
         <div class="flex gap-2">
             <div v-if="level > 0" class="w-4 shrink-0 border-l border-dashed border-slate-300" />
-            <div class="min-w-0 flex-1 rounded-md border bg-white px-3 py-2">
+            <div class="min-w-0 flex-1 rounded-md border px-3 py-2" :class="nodeClass">
                 <div class="flex items-start gap-2">
                     <button
                         type="button"
@@ -132,9 +146,15 @@ const formatValue = (key: string, value: unknown) => {
                                 <Link2 class="size-3" />
                                 Terhubung
                             </span>
+                            <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium" :class="completionClass" :title="completionNote">
+                                <AlertTriangle v-if="isIncomplete" class="size-3" />
+                                <CheckCircle2 v-else class="size-3" />
+                                {{ completionLabel }}
+                            </span>
                         </div>
                         <div class="mt-1 break-words text-sm font-medium leading-5">{{ node.label }}</div>
                         <div v-if="node.linked_to" class="mt-1 text-xs text-muted-foreground">Referensi: {{ node.linked_to.label }}</div>
+                        <div v-if="isIncomplete" class="mt-1 text-xs text-amber-800">{{ completionNote }}</div>
 
                         <div v-if="metaEntries.length" class="mt-2 flex flex-wrap gap-1.5">
                             <span v-for="entry in metaEntries" :key="entry.key" class="rounded border bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700">
