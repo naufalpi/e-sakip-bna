@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { useAutoFilters } from '@/composables/useAutoFilters';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { Search, SlidersHorizontal } from 'lucide-vue-next';
+import { Search } from 'lucide-vue-next';
 import { reactive } from 'vue';
 
 type LogRow = {
@@ -48,11 +49,12 @@ const filterForm = reactive({
 });
 
 const applyFilters = () => router.get(route('audit-log.index'), filterForm, { preserveState: true, replace: true });
+const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 const resetFilters = () => {
     filterForm.search = '';
     filterForm.action = '';
     filterForm.model_type = '';
-    applyFilters();
+    applyFiltersNow();
 };
 
 const shortJson = (value?: Record<string, unknown> | null) => {
@@ -72,7 +74,7 @@ const shortJson = (value?: Record<string, unknown> | null) => {
                 <p class="mt-1 text-sm text-muted-foreground">Catatan perubahan data penting aplikasi.</p>
             </div>
 
-            <form class="grid gap-3 rounded-lg border bg-card p-3 lg:grid-cols-[1fr_180px_260px_auto_auto]" @submit.prevent="applyFilters">
+            <form class="grid gap-3 rounded-lg border bg-card p-3 lg:grid-cols-[1fr_180px_260px_auto]" @submit.prevent="applyFiltersNow">
                 <div class="relative">
                     <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <input v-model="filterForm.search" type="search" class="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700" placeholder="Cari deskripsi, user, model" />
@@ -85,10 +87,6 @@ const shortJson = (value?: Record<string, unknown> | null) => {
                     <option value="">Semua model</option>
                     <option v-for="model in modelTypes" :key="model" :value="model">{{ model.split('\\').pop() }}</option>
                 </select>
-                <button type="submit" class="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-muted">
-                    <SlidersHorizontal class="size-4" />
-                    Filter
-                </button>
                 <button type="button" class="h-9 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">Reset</button>
             </form>
 

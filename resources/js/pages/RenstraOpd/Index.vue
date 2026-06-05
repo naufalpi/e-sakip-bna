@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { useAutoFilters } from '@/composables/useAutoFilters';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { FileSpreadsheet, Plus, Search, SlidersHorizontal } from 'lucide-vue-next';
+import { FileSpreadsheet, Plus, Search } from 'lucide-vue-next';
 import { reactive } from 'vue';
 
 type Option = { id: number; label: string };
@@ -71,6 +72,7 @@ const applyFilters = () => {
         replace: true,
     });
 };
+const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 
 const resetFilters = () => {
     filterForm.search = '';
@@ -78,7 +80,7 @@ const resetFilters = () => {
     filterForm.opd_id = '';
     filterForm.rpjmd_id = '';
     filterForm.periode_tahun_id = '';
-    applyFilters();
+    applyFiltersNow();
 };
 
 const destroy = (renstra: RenstraRow) => {
@@ -143,8 +145,8 @@ const progressClass = (status: string) => (status === 'terisi' ? 'bg-emerald-100
             </div>
 
             <form
-                class="grid gap-3 rounded-lg border bg-card p-3 lg:grid-cols-[1fr_190px_220px_220px_180px_auto_auto]"
-                @submit.prevent="applyFilters"
+                class="grid gap-3 rounded-lg border bg-card p-3 lg:grid-cols-[1fr_190px_220px_220px_180px_auto]"
+                @submit.prevent="applyFiltersNow"
             >
                 <div class="relative">
                     <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -189,13 +191,6 @@ const progressClass = (status: string) => (status === 'terisi' ? 'bg-emerald-100
                     <option value="">Semua tahun</option>
                     <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                 </select>
-                <button
-                    type="submit"
-                    class="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-muted"
-                >
-                    <SlidersHorizontal class="size-4" />
-                    Filter
-                </button>
                 <button type="button" class="h-9 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">Reset</button>
             </form>
 

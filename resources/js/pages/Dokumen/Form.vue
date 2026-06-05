@@ -134,21 +134,6 @@ function submit(): void {
                         lewat otorisasi aplikasi.
                     </p>
                 </div>
-                <div class="flex gap-2">
-                    <Link
-                        :href="route('dokumen.index')"
-                        class="inline-flex h-10 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
-                    >
-                        Batal
-                    </Link>
-                    <button
-                        type="submit"
-                        :disabled="form.processing"
-                        class="inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
-                    >
-                        {{ form.processing ? 'Menyimpan...' : 'Simpan Dokumen' }}
-                    </button>
-                </div>
             </div>
 
             <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
@@ -396,6 +381,27 @@ function submit(): void {
                         </div>
                     </section>
                 </aside>
+            </div>
+
+            <div class="sticky bottom-0 z-20 -mx-4 mt-1 border-t bg-background/95 px-4 py-3 shadow-[0_-14px_28px_rgba(15,23,42,0.08)] backdrop-blur">
+                <div class="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p class="text-xs text-muted-foreground">Pastikan jenis dokumen, OPD, periode, dan file sudah sesuai sebelum disimpan.</p>
+                    <div class="flex gap-2">
+                        <Link
+                            :href="route('dokumen.index')"
+                            class="inline-flex h-10 flex-1 items-center justify-center rounded-md border bg-background px-4 text-sm font-medium hover:bg-muted sm:flex-none"
+                        >
+                            Batal
+                        </Link>
+                        <button
+                            type="submit"
+                            :disabled="form.processing"
+                            class="inline-flex h-10 flex-1 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60 sm:flex-none"
+                        >
+                            {{ form.processing ? 'Menyimpan...' : 'Simpan Dokumen' }}
+                        </button>
+                    </div>
+                </div>
             </div>
         </form>
     </AppLayout>

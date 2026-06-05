@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { useAutoFilters } from '@/composables/useAutoFilters';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { Plus, Search, SlidersHorizontal } from 'lucide-vue-next';
+import { Plus, Search } from 'lucide-vue-next';
 import { reactive } from 'vue';
 
 type Urusan = {
@@ -42,10 +43,11 @@ const filterForm = reactive({
 });
 
 const applyFilters = () => router.get(route('master.urusan-pemerintahan.index'), filterForm, { preserveState: true, replace: true });
+const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 const resetFilters = () => {
     filterForm.search = '';
     filterForm.status = '';
-    applyFilters();
+    applyFiltersNow();
 };
 const destroy = (item: Urusan) => {
     if (confirm(`Hapus urusan ${item.kode} - ${item.nama}?`)) {
@@ -70,7 +72,7 @@ const destroy = (item: Urusan) => {
                 </Link>
             </div>
 
-            <form class="flex flex-col gap-3 rounded-lg border bg-card p-3 md:flex-row md:items-center" @submit.prevent="applyFilters">
+            <form class="flex flex-col gap-3 rounded-lg border bg-card p-3 md:flex-row md:items-center" @submit.prevent="applyFiltersNow">
                 <div class="relative flex-1">
                     <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <input v-model="filterForm.search" type="search" class="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700" placeholder="Cari kode, nama, atau deskripsi" />
@@ -80,10 +82,6 @@ const destroy = (item: Urusan) => {
                     <option value="active">Aktif</option>
                     <option value="inactive">Tidak aktif</option>
                 </select>
-                <button type="submit" class="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-muted">
-                    <SlidersHorizontal class="size-4" />
-                    Filter
-                </button>
                 <button type="button" class="h-9 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">Reset</button>
             </form>
 

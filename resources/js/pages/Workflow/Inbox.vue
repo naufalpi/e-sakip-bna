@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { useAutoFilters } from '@/composables/useAutoFilters';
 import AppLayout from '@/layouts/AppLayout.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ExternalLink, Inbox, RotateCcw, Search, SlidersHorizontal } from 'lucide-vue-next';
+import { ExternalLink, Inbox, RotateCcw, Search } from 'lucide-vue-next';
 import { reactive } from 'vue';
 
 type Option = { value: string; label: string; description?: string };
@@ -75,16 +76,17 @@ const filterForm = reactive({
 });
 
 const applyFilters = () => router.get(route('workflow.inbox'), filterForm, { preserveState: true, replace: true });
+const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 const resetFilters = () => {
     filterForm.search = '';
     filterForm.module = '';
     filterForm.status = '';
     filterForm.scope = props.scopeOptions[0]?.value ?? 'mine';
-    applyFilters();
+    applyFiltersNow();
 };
 const setScope = (scope: string) => {
     filterForm.scope = scope;
-    applyFilters();
+    applyFiltersNow();
 };
 
 const statusLabel = (status: string) =>
@@ -168,7 +170,7 @@ const formatDate = (value?: string | null) => {
                 </div>
             </section>
 
-            <form class="grid gap-3 rounded-lg border bg-card p-3 lg:grid-cols-[1fr_220px_180px_auto_auto]" @submit.prevent="applyFilters">
+            <form class="grid gap-3 rounded-lg border bg-card p-3 lg:grid-cols-[1fr_220px_180px_auto]" @submit.prevent="applyFiltersNow">
                 <div class="relative">
                     <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <input v-model="filterForm.search" type="search" class="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700" placeholder="Cari dokumen, OPD, pengaju, atau reviewer" />
@@ -181,10 +183,6 @@ const formatDate = (value?: string | null) => {
                     <option value="">Semua status</option>
                     <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                 </select>
-                <button type="submit" class="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-muted">
-                    <SlidersHorizontal class="size-4" />
-                    Filter
-                </button>
                 <button type="button" class="inline-flex h-9 items-center justify-center gap-2 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">
                     <RotateCcw class="size-4" />
                     Reset

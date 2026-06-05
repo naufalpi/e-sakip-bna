@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { useAutoFilters } from '@/composables/useAutoFilters';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { AlertTriangle, ArrowRight, BarChart3, Building2, CheckCircle2, ClipboardCheck, FileCheck2, Gauge, ListChecks, SlidersHorizontal, TrendingUp, Trophy } from 'lucide-vue-next';
+import { AlertTriangle, ArrowRight, BarChart3, Building2, CheckCircle2, ClipboardCheck, FileCheck2, Gauge, ListChecks, TrendingUp, Trophy } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
 
 type Option = { id?: number; tahun?: number; label: string };
@@ -229,11 +230,12 @@ const achievementDistributionTotal = computed(() => props.achievementStatusDistr
 const applyFilters = () => {
     router.get(route('dashboard'), filterForm, { preserveState: true, replace: true });
 };
+const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 
 const resetFilters = () => {
     filterForm.tahun = String(props.dashboard.tahun);
     filterForm.opd_id = '';
-    applyFilters();
+    applyFiltersNow();
 };
 
 function formatPercent(value?: number | string | null) {
@@ -372,7 +374,7 @@ function booleanClass(value: boolean) {
                     <h1 class="mt-2 text-2xl font-semibold tracking-normal text-foreground">{{ dashboard.title }}</h1>
                 </div>
 
-                <form class="grid gap-2 sm:grid-cols-[160px_1fr_auto_auto]" @submit.prevent="applyFilters">
+                <form class="grid gap-2 sm:grid-cols-[160px_1fr_auto]" @submit.prevent="applyFiltersNow">
                     <select v-model="filterForm.tahun" class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700">
                         <option v-for="option in periodeOptions" :key="option.tahun" :value="option.tahun">{{ option.label }}</option>
                     </select>
@@ -380,10 +382,6 @@ function booleanClass(value: boolean) {
                         <option value="">Semua OPD</option>
                         <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                     </select>
-                    <button type="submit" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800">
-                        <SlidersHorizontal class="size-4" />
-                        Filter
-                    </button>
                     <button type="button" class="h-9 rounded-md border px-3 text-sm hover:bg-muted" @click="resetFilters">Reset</button>
                 </form>
             </section>

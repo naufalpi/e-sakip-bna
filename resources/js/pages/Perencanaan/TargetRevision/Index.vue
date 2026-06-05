@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useAutoFilters } from '@/composables/useAutoFilters';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -53,12 +54,13 @@ const activeAction = ref<{ id: number; action: 'approve' | 'reject' } | null>(nu
 const applyFilters = () => {
     router.get(route('target-revisions.index'), filterForm, { preserveState: true, replace: true });
 };
+const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 
 const resetFilters = () => {
     filterForm.status = '';
     filterForm.module = '';
     filterForm.search = '';
-    applyFilters();
+    applyFiltersNow();
 };
 
 const openReview = (id: number, action: 'approve' | 'reject') => {
@@ -133,7 +135,7 @@ const formatValues = (values: Record<string, unknown>) =>
                     </p>
                 </div>
 
-                <form class="grid gap-2 md:grid-cols-[160px_180px_1fr_auto_auto]" @submit.prevent="applyFilters">
+                <form class="grid gap-2 md:grid-cols-[160px_180px_1fr_auto]" @submit.prevent="applyFiltersNow">
                     <select v-model="filterForm.status" class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700">
                         <option value="">Semua Status</option>
                         <option value="submitted">Diajukan</option>
@@ -149,7 +151,6 @@ const formatValues = (values: Record<string, unknown>) =>
                         <Search class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
                         <input v-model="filterForm.search" type="search" class="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700" placeholder="Cari alasan, dokumen, atau tabel target" />
                     </div>
-                    <button type="submit" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Filter</button>
                     <button type="button" class="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">Reset</button>
                 </form>
             </div>
