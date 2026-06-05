@@ -18,7 +18,7 @@ import {
     ShieldCheck,
     X,
 } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 
 type PublicDocument = {
     id: number;
@@ -90,18 +90,12 @@ const props = defineProps<{
 
 const page = usePage<SharedData>();
 const isMobileMenuOpen = ref(false);
-const isPageReady = ref(false);
 const searchQuery = ref('');
 
 const user = computed(() => page.props.auth.user);
 const entryUrl = computed(() => (user.value ? route('dashboard') : route('login')));
 const entryLabel = computed(() => (user.value ? 'Dashboard' : 'Login'));
-
-onMounted(() => {
-    window.requestAnimationFrame(() => {
-        isPageReady.value = true;
-    });
-});
+const currentYear = computed(() => new Date().getFullYear());
 
 const navItems = computed(() => [
     { id: 'beranda', label: 'Beranda', href: props.section_urls.home, isActive: props.active_section === null },
@@ -338,30 +332,21 @@ function closeMobileMenu(): void {
     <Head :title="currentSection ? currentSection.title : 'Beranda Publik'" />
 
     <div class="public-site min-h-dvh bg-[#f6f8fb] text-slate-900">
-        <Transition name="page-loader">
-            <div v-if="!isPageReady" class="page-loader fixed inset-0 z-[70] flex items-center justify-center bg-[#071916] text-white">
-                <div class="w-64 text-center">
-                    <div
-                        class="mx-auto flex h-16 w-16 items-center justify-center rounded-md border border-emerald-300/35 bg-white/10 shadow-2xl shadow-emerald-950/50"
-                    >
-                        <img src="/images/logo-banjarnegara.svg" alt="" class="h-12 w-12 object-contain" />
-                    </div>
-                    <p class="mt-5 text-sm font-semibold uppercase text-emerald-100">Memuat Portal Publik</p>
-                    <div class="loader-track mt-4"><span></span></div>
+        <header class="fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 bg-slate-50">
+                <div class="mx-auto flex min-h-9 max-w-7xl items-center gap-2 px-4 text-xs font-medium text-slate-600 sm:px-6 lg:px-8">
+                    <ShieldCheck class="h-3.5 w-3.5 text-emerald-800" />
+                    Portal publik akuntabilitas kinerja Pemerintah Kabupaten Banjarnegara
                 </div>
             </div>
-        </Transition>
-
-        <header class="shadow-slate-900/8 fixed inset-x-0 top-0 z-50 border-b border-emerald-900/15 bg-white shadow-lg">
-            <div class="h-1 bg-[linear-gradient(90deg,#063f35,#d6a326,#0f5f7d)]"></div>
-            <div class="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+            <div class="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                 <Link
                     :href="props.section_urls.home"
                     class="flex min-h-11 items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
                 >
-                    <img src="/images/logo-banjarnegara.svg" alt="Lambang Kabupaten Banjarnegara" class="h-12 w-12 object-contain" />
+                    <img src="/images/logo-banjarnegara.svg" alt="Lambang Kabupaten Banjarnegara" class="h-11 w-11 object-contain" />
                     <div class="leading-tight">
-                        <p class="text-sm font-semibold uppercase text-emerald-800">E-SAKIP</p>
+                        <p class="text-sm font-bold uppercase text-emerald-900">E-SAKIP</p>
                         <p class="text-sm font-medium text-slate-700">Kabupaten Banjarnegara</p>
                     </div>
                 </Link>
@@ -427,83 +412,46 @@ function closeMobileMenu(): void {
         </header>
 
         <main>
-            <section v-if="!currentSection" id="beranda" class="hero-section relative isolate flex min-h-[88dvh] items-center overflow-hidden pt-24">
+            <section v-if="!currentSection" id="beranda" class="hero-section relative isolate flex min-h-[76dvh] items-center overflow-hidden pt-28">
                 <img
                     src="/images/hero-dieng-banjarnegara.webp"
                     alt="Lanskap Dieng Banjarnegara dengan danau, candi, dan dataran tinggi berkabut"
                     class="hero-photo absolute inset-0 -z-30 h-full w-full object-cover"
                 />
                 <div class="hero-vignette absolute inset-0 -z-20"></div>
-                <div class="hero-grid absolute inset-0 -z-10"></div>
-                <div class="hero-grain absolute inset-0 -z-10"></div>
-                <div class="hero-ridge absolute -z-10"></div>
-
-                <div
-                    class="asn-walkway pointer-events-none absolute bottom-8 right-4 hidden h-24 w-[34rem] overflow-hidden lg:block"
-                    aria-hidden="true"
-                >
-                    <div class="asn-ground"></div>
-                    <div class="asn-person asn-one">
-                        <span class="asn-head"></span>
-                        <span class="asn-body"></span>
-                        <span class="asn-arm left"></span>
-                        <span class="asn-arm right"></span>
-                        <span class="asn-leg left"></span>
-                        <span class="asn-leg right"></span>
-                        <span class="asn-folder"></span>
-                    </div>
-                    <div class="asn-person asn-two">
-                        <span class="asn-head"></span>
-                        <span class="asn-body"></span>
-                        <span class="asn-arm left"></span>
-                        <span class="asn-arm right"></span>
-                        <span class="asn-leg left"></span>
-                        <span class="asn-leg right"></span>
-                        <span class="asn-folder"></span>
-                    </div>
-                    <div class="asn-person asn-three">
-                        <span class="asn-head"></span>
-                        <span class="asn-body"></span>
-                        <span class="asn-arm left"></span>
-                        <span class="asn-arm right"></span>
-                        <span class="asn-leg left"></span>
-                        <span class="asn-leg right"></span>
-                        <span class="asn-folder"></span>
-                    </div>
-                </div>
 
                 <div class="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-                    <div class="animate-rise max-w-4xl lg:max-w-3xl">
+                    <div class="max-w-4xl lg:max-w-3xl">
                         <p
-                            class="inline-flex rounded-md border border-white/25 bg-white/10 px-3 py-2 text-sm font-semibold uppercase tracking-normal text-emerald-50 backdrop-blur"
+                            class="inline-flex rounded-sm border-l-4 border-amber-300 bg-white/95 px-3 py-2 text-sm font-semibold uppercase tracking-normal text-emerald-950"
                         >
                             Transparansi Akuntabilitas Kinerja
                         </p>
                         <h1 class="hero-title mt-6 max-w-4xl text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
-                            Selamat Datang di E-SAKIP Kabupaten Banjarnegara
+                            E-SAKIP Kabupaten Banjarnegara
                         </h1>
                         <p class="mt-5 max-w-3xl text-base leading-8 text-emerald-50 sm:text-lg">
-                            Portal publik untuk melihat informasi perencanaan, pengukuran, pelaporan, dan evaluasi kinerja perangkat daerah secara
-                            ringkas dan mudah dipahami.
+                            Selamat datang di portal publik untuk melihat informasi perencanaan, pengukuran, pelaporan, dan evaluasi kinerja
+                            perangkat daerah secara ringkas dan dapat ditelusuri.
                         </p>
-                        <div class="hero-proofline mt-6 flex flex-wrap gap-2 text-xs font-semibold uppercase text-emerald-50/90">
-                            <span>Perencanaan</span>
-                            <span>Pengukuran</span>
-                            <span>Pelaporan</span>
-                            <span>Evaluasi</span>
+                        <div class="hero-proofline mt-6 grid max-w-2xl gap-2 text-sm font-semibold text-emerald-50/95 sm:grid-cols-2">
+                            <span>Perencanaan kinerja</span>
+                            <span>Pengukuran capaian</span>
+                            <span>Pelaporan LKJIP</span>
+                            <span>Evaluasi SAKIP</span>
                         </div>
 
                         <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                             <a
                                 :href="props.section_urls.perencanaan"
-                                class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
+                                class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-lg shadow-slate-950/15 transition hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
                             >
                                 Mulai dari Perencanaan
                                 <ChevronRight class="h-4 w-4" />
                             </a>
                             <Link
                                 :href="entryUrl"
-                                class="hover:bg-white/18 inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
+                                class="hover:bg-white/18 inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
                             >
                                 <LogIn class="h-4 w-4" />
                                 {{ entryLabel }}
@@ -515,8 +463,7 @@ function closeMobileMenu(): void {
                         <div
                             v-for="(stat, index) in statCards"
                             :key="stat.label"
-                            class="animate-rise bg-white/12 rounded-lg border border-white/20 p-4 text-white shadow-sm backdrop-blur"
-                            :style="{ animationDelay: `${100 + index * 70}ms` }"
+                            class="rounded-md border border-white/20 bg-white/12 p-4 text-white shadow-sm backdrop-blur"
                         >
                             <div class="flex items-center justify-between gap-3">
                                 <dt class="text-sm font-medium text-emerald-50">{{ stat.label }}</dt>
@@ -597,7 +544,7 @@ function closeMobileMenu(): void {
                             v-for="module in homeModules"
                             :key="`overview-${module.id}`"
                             :href="module.href"
-                            class="module-card-3d group rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
+                            class="module-card group rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
                             :class="cycleCardClass(module.id)"
                         >
                             <div class="flex items-start justify-between gap-4">
@@ -829,10 +776,15 @@ function closeMobileMenu(): void {
 
         <footer class="bg-slate-950 py-8 text-white">
             <div
-                class="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"
+                class="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm text-slate-300 sm:px-6 lg:px-8"
             >
-                <p>E-SAKIP Kabupaten Banjarnegara</p>
-                <p>Data publik diperbarui dari status dokumen resmi yang sudah diverifikasi.</p>
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p class="font-semibold text-white">E-SAKIP Kabupaten Banjarnegara</p>
+                    <p>Data publik diperbarui dari status dokumen resmi yang sudah diverifikasi.</p>
+                </div>
+                <div class="border-t border-white/10 pt-3 text-xs text-slate-400">
+                    &copy; {{ currentYear }} Dinas Komunikasi dan Informatika Kabupaten Banjarnegara.
+                </div>
             </div>
         </footer>
     </div>
@@ -853,39 +805,6 @@ function closeMobileMenu(): void {
     letter-spacing: 0;
 }
 
-.page-loader {
-    background: radial-gradient(circle at 50% 38%, rgba(16, 185, 129, 0.18), transparent 34%), linear-gradient(135deg, #071916, #062e2b 54%, #0f172a);
-}
-
-.page-loader-enter-active,
-.page-loader-leave-active {
-    transition:
-        opacity 260ms ease,
-        transform 260ms ease;
-}
-
-.page-loader-enter-from,
-.page-loader-leave-to {
-    opacity: 0;
-    transform: scale(1.015);
-}
-
-.loader-track {
-    height: 0.35rem;
-    overflow: hidden;
-    border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.14);
-}
-
-.loader-track span {
-    display: block;
-    height: 100%;
-    width: 46%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, #10b981, #fbbf24, #38bdf8);
-    animation: loader-sweep 900ms ease-in-out infinite alternate;
-}
-
 .hero-section {
     background-color: #062e2b;
 }
@@ -893,41 +812,12 @@ function closeMobileMenu(): void {
 .hero-photo {
     transform: scale(1.04);
     transform-origin: center;
-    animation: hero-photo-drift 18s ease-in-out infinite alternate;
 }
 
 .hero-vignette {
     background:
         linear-gradient(90deg, rgba(4, 35, 32, 0.97) 0%, rgba(4, 35, 32, 0.82) 37%, rgba(4, 35, 32, 0.22) 68%, rgba(4, 35, 32, 0.2) 100%),
         linear-gradient(180deg, rgba(2, 6, 23, 0.18) 0%, rgba(2, 6, 23, 0.05) 46%, rgba(2, 6, 23, 0.68) 100%);
-}
-
-.hero-grid {
-    opacity: 0.22;
-    background-image:
-        linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
-    background-size: 56px 56px;
-    mask-image: linear-gradient(90deg, black, transparent 70%);
-}
-
-.hero-grain {
-    opacity: 0.16;
-    background-image:
-        linear-gradient(115deg, rgba(255, 255, 255, 0.08), transparent 38%, rgba(255, 255, 255, 0.06) 58%, transparent),
-        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 4px);
-    mix-blend-mode: soft-light;
-}
-
-.hero-ridge {
-    left: -12rem;
-    top: 8rem;
-    width: 64rem;
-    height: 10rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.28);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    background: linear-gradient(90deg, rgba(214, 163, 38, 0.18), transparent);
-    transform: rotate(-10deg);
-    animation: ridge-sweep 11s ease-in-out infinite alternate;
 }
 
 .hero-section::after {
@@ -952,119 +842,6 @@ function closeMobileMenu(): void {
     background: rgba(255, 255, 255, 0.1);
     padding: 0.35rem 0.7rem;
     backdrop-filter: blur(10px);
-}
-
-.asn-walkway {
-    mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent);
-}
-
-.asn-ground {
-    position: absolute;
-    bottom: 0.75rem;
-    left: 0;
-    right: 0;
-    height: 0.25rem;
-    border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.28);
-}
-
-.asn-person {
-    position: absolute;
-    bottom: 1rem;
-    width: 2.5rem;
-    height: 4.5rem;
-    animation: asn-walk 11s linear infinite;
-}
-
-.asn-one {
-    animation-delay: -1s;
-}
-
-.asn-two {
-    animation-delay: -4.8s;
-    transform: scale(0.92);
-}
-
-.asn-three {
-    animation-delay: -8.2s;
-    transform: scale(0.86);
-}
-
-.asn-head,
-.asn-body,
-.asn-arm,
-.asn-leg,
-.asn-folder {
-    position: absolute;
-    display: block;
-}
-
-.asn-head {
-    left: 0.78rem;
-    top: 0;
-    width: 0.92rem;
-    height: 0.92rem;
-    border-radius: 9999px;
-    background: #f3c7a4;
-    box-shadow: 0 -0.22rem 0 #111827;
-}
-
-.asn-body {
-    left: 0.55rem;
-    top: 1rem;
-    width: 1.35rem;
-    height: 1.8rem;
-    border-radius: 0.35rem 0.35rem 0.2rem 0.2rem;
-    background: linear-gradient(#c9aa74, #9d7d45);
-    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
-}
-
-.asn-arm {
-    top: 1.18rem;
-    width: 0.26rem;
-    height: 1.38rem;
-    border-radius: 9999px;
-    background: #9d7d45;
-    transform-origin: top center;
-    animation: asn-arm-swing 640ms ease-in-out infinite alternate;
-}
-
-.asn-arm.left {
-    left: 0.38rem;
-}
-
-.asn-arm.right {
-    right: 0.38rem;
-    animation-delay: 320ms;
-}
-
-.asn-leg {
-    top: 2.68rem;
-    width: 0.3rem;
-    height: 1.45rem;
-    border-radius: 9999px;
-    background: #27364a;
-    transform-origin: top center;
-    animation: asn-leg-swing 640ms ease-in-out infinite alternate;
-}
-
-.asn-leg.left {
-    left: 0.82rem;
-}
-
-.asn-leg.right {
-    right: 0.82rem;
-    animation-delay: 320ms;
-}
-
-.asn-folder {
-    right: -0.18rem;
-    top: 1.75rem;
-    width: 0.82rem;
-    height: 0.58rem;
-    border-radius: 0.12rem;
-    background: #f59e0b;
-    transform: rotate(-7deg);
 }
 
 .cycle-band {
@@ -1095,15 +872,11 @@ function closeMobileMenu(): void {
     font-size: 0.875rem;
     font-weight: 700;
     color: rgb(15 23 42);
-    box-shadow: 0 1.2rem 2.6rem rgb(15 23 42 / 0.07);
+    box-shadow: 0 0.5rem 1.4rem rgb(15 23 42 / 0.05);
     isolation: isolate;
-    perspective: 900px;
-    transform: perspective(900px) translateZ(0);
-    transform-style: preserve-3d;
     transition:
-        transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
         border-color 180ms ease,
-        box-shadow 220ms ease;
+        box-shadow 180ms ease;
 }
 
 .cycle-card::after {
@@ -1118,9 +891,8 @@ function closeMobileMenu(): void {
 }
 
 .cycle-card:hover {
-    transform: perspective(900px) translateY(-0.28rem) rotateX(2deg) rotateY(-1.4deg);
     border-color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 35%, white);
-    box-shadow: 0 1.4rem 3rem rgb(15 23 42 / 0.11);
+    box-shadow: 0 0.7rem 1.8rem rgb(15 23 42 / 0.08);
 }
 
 .cycle-card:hover::after {
@@ -1157,7 +929,6 @@ function closeMobileMenu(): void {
     border-radius: 0.5rem;
     background: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 12%, white);
     color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 86%, black);
-    transform: translateZ(1.2rem);
 }
 
 .cycle-card-planning {
@@ -1202,114 +973,28 @@ function closeMobileMenu(): void {
     pointer-events: none;
 }
 
-.module-card-3d {
+.module-card {
     position: relative;
     isolation: isolate;
-    perspective: 1100px;
-    transform: perspective(1100px) translateZ(0);
-    transform-style: preserve-3d;
     transition:
-        transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
         border-color 200ms ease,
-        box-shadow 240ms ease;
+        box-shadow 200ms ease;
 }
 
-.module-card-3d::before {
+.module-card::before {
     position: absolute;
-    inset: 0.55rem -0.25rem -0.55rem 0.75rem;
+    inset: auto 0 0;
     z-index: -1;
     content: '';
-    border-radius: inherit;
-    background: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 18%, transparent);
-    filter: blur(1.1rem);
-    opacity: 0;
-    transition: opacity 220ms ease;
+    height: 0.22rem;
+    border-radius: 0 0 0.5rem 0.5rem;
+    background: var(--cycle-color, var(--civic-green));
+    opacity: 0.72;
 }
 
-.module-card-3d:hover {
-    transform: perspective(1100px) translateY(-0.45rem) rotateX(3deg) rotateY(-2deg);
+.module-card:hover {
     border-color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 36%, white);
-    box-shadow: 0 1.6rem 3.6rem rgb(15 23 42 / 0.12);
-}
-
-.module-card-3d:hover::before {
-    opacity: 1;
-}
-
-.animate-rise {
-    animation: rise-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes rise-in {
-    from {
-        opacity: 0;
-        transform: translateY(18px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes loader-sweep {
-    from {
-        transform: translateX(-72%);
-    }
-
-    to {
-        transform: translateX(126%);
-    }
-}
-
-@keyframes hero-photo-drift {
-    from {
-        transform: scale(1.04) translate3d(0, 0, 0);
-    }
-
-    to {
-        transform: scale(1.09) translate3d(-1.2rem, 0.8rem, 0);
-    }
-}
-
-@keyframes ridge-sweep {
-    from {
-        transform: translateX(-1rem) rotate(-10deg);
-    }
-
-    to {
-        transform: translateX(3rem) rotate(-10deg);
-    }
-}
-
-@keyframes asn-walk {
-    from {
-        left: 100%;
-    }
-
-    to {
-        left: -10%;
-    }
-}
-
-@keyframes asn-arm-swing {
-    from {
-        transform: rotate(18deg);
-    }
-
-    to {
-        transform: rotate(-18deg);
-    }
-}
-
-@keyframes asn-leg-swing {
-    from {
-        transform: rotate(-14deg);
-    }
-
-    to {
-        transform: rotate(16deg);
-    }
+    box-shadow: 0 0.9rem 2rem rgb(15 23 42 / 0.08);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1317,13 +1002,7 @@ function closeMobileMenu(): void {
         scroll-behavior: auto;
     }
 
-    .animate-rise,
-    .loader-track span,
-    .hero-photo,
-    .hero-ridge,
-    .asn-person,
-    .asn-arm,
-    .asn-leg {
+    .hero-photo {
         animation: none;
     }
 
