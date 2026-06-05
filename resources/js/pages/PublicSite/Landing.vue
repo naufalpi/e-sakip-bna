@@ -439,31 +439,6 @@ function closeMobileMenu(): void {
                 <div class="hero-ridge absolute -z-10"></div>
 
                 <div
-                    class="hero-status-panel bg-slate-950/36 pointer-events-none absolute right-6 top-32 hidden w-72 rounded-lg border border-white/20 p-4 text-white shadow-2xl shadow-slate-950/25 backdrop-blur-xl lg:block"
-                >
-                    <div class="flex items-center justify-between gap-3">
-                        <span class="text-xs font-semibold uppercase text-emerald-100">Layanan Kinerja</span>
-                        <span class="flex h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-lg shadow-emerald-300/70"></span>
-                    </div>
-                    <div class="mt-4 space-y-3">
-                        <div class="hero-progress-row">
-                            <span>Perencanaan</span>
-                            <strong>{{ stats.planning_ready_count }}/{{ stats.opd_count }}</strong>
-                        </div>
-                        <div class="hero-progress-track">
-                            <span class="hero-progress-fill" :style="{ width: progressWidth(stats.planning_ready_count, stats.opd_count) }"></span>
-                        </div>
-                        <div class="hero-progress-row">
-                            <span>Pelaporan</span>
-                            <strong>{{ stats.report_ready_count }}/{{ stats.opd_count }}</strong>
-                        </div>
-                        <div class="hero-progress-track">
-                            <span class="hero-progress-fill" :style="{ width: progressWidth(stats.report_ready_count, stats.opd_count) }"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <div
                     class="asn-walkway pointer-events-none absolute bottom-8 right-4 hidden h-24 w-[34rem] overflow-hidden lg:block"
                     aria-hidden="true"
                 >
@@ -736,17 +711,7 @@ function closeMobileMenu(): void {
                                     <tr v-for="row in section.rows" :key="`${section.id}-${row.opd.id}`" class="transition hover:bg-slate-50">
                                         <td class="px-4 py-4 text-sm font-medium text-slate-500">{{ row.no }}</td>
                                         <td class="px-4 py-4">
-                                            <div class="flex items-center gap-3">
-                                                <div
-                                                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-sm font-bold text-emerald-800"
-                                                >
-                                                    {{ row.opd.singkatan?.slice(0, 3) || row.no }}
-                                                </div>
-                                                <div>
-                                                    <p class="text-sm font-semibold text-slate-950">{{ row.opd.nama }}</p>
-                                                    <p class="text-xs text-slate-500">{{ row.opd.kode || 'Kode belum tersedia' }}</p>
-                                                </div>
-                                            </div>
+                                            <p class="text-sm font-semibold leading-6 text-slate-950">{{ row.opd.nama }}</p>
                                         </td>
                                         <td v-for="column in section.columns" :key="column.key" class="px-4 py-4 align-top">
                                             <div class="space-y-2">
@@ -801,7 +766,6 @@ function closeMobileMenu(): void {
                                 <div>
                                     <p class="text-xs font-semibold uppercase text-slate-500">No {{ row.no }}</p>
                                     <h3 class="mt-1 text-base font-bold leading-snug text-slate-950">{{ row.opd.nama }}</h3>
-                                    <p class="mt-1 text-xs text-slate-500">{{ row.opd.kode || 'Kode belum tersedia' }}</p>
                                 </div>
                                 <span
                                     class="shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold"
@@ -988,38 +952,6 @@ function closeMobileMenu(): void {
     background: rgba(255, 255, 255, 0.1);
     padding: 0.35rem 0.7rem;
     backdrop-filter: blur(10px);
-}
-
-.hero-status-panel {
-    animation: panel-float 6s ease-in-out infinite;
-}
-
-.hero-progress-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    font-size: 0.8125rem;
-    color: rgb(209 250 229);
-}
-
-.hero-progress-row strong {
-    color: white;
-}
-
-.hero-progress-track {
-    height: 0.5rem;
-    overflow: hidden;
-    border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.16);
-}
-
-.hero-progress-fill {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, rgb(16 185 129), rgb(251 191 36));
-    animation: progress-shine 2.8s ease-in-out infinite;
 }
 
 .asn-walkway {
@@ -1350,28 +1282,6 @@ function closeMobileMenu(): void {
     }
 }
 
-@keyframes panel-float {
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(10px);
-    }
-}
-
-@keyframes progress-shine {
-    0%,
-    100% {
-        filter: brightness(1);
-    }
-
-    50% {
-        filter: brightness(1.2);
-    }
-}
-
 @keyframes asn-walk {
     from {
         left: 100%;
@@ -1411,11 +1321,9 @@ function closeMobileMenu(): void {
     .loader-track span,
     .hero-photo,
     .hero-ridge,
-    .hero-status-panel,
     .asn-person,
     .asn-arm,
-    .asn-leg,
-    .hero-progress-fill {
+    .asn-leg {
         animation: none;
     }
 

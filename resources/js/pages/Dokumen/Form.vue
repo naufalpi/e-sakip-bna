@@ -3,6 +3,7 @@ import InputError from '@/components/InputError.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { CheckCircle2, FileText, Link2, UploadCloud, X } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 type Option = { id?: number; value?: string; label: string };
@@ -58,14 +59,70 @@ const relationTypeOptions = [
     { value: 'lkjip', label: 'LKJIP' },
 ];
 
+const recommendedJenis = ['pohon_kinerja', 'cascading', 'iku', 'renstra', 'perjanjian_kinerja', 'rencana_aksi', 'lkjip', 'bukti_dukung'];
+
+const primaryJenisOptions = computed(() =>
+    recommendedJenis
+        .map((value) => props.jenisOptions.find((option) => option.value === value))
+        .filter((option): option is Option => Boolean(option)),
+);
+const selectedJenis = computed(() => props.jenisOptions.find((option) => option.value === form.jenis));
+const selectedStatus = computed(() => props.statusOptions.find((option) => option.value === form.status));
+const selectedOpd = computed(() => props.opdOptions.find((option) => String(option.id) === String(form.opd_id)));
+const selectedPeriode = computed(() => props.periodeOptions.find((option) => String(option.id) === String(form.periode_tahun_id)));
 const selectedRelationOptions = computed(() => (form.related_type ? props.relationOptions[form.related_type] || [] : []));
+const selectedRelationType = computed(() => relationTypeOptions.find((option) => option.value === form.related_type));
+const selectedRelation = computed(() => selectedRelationOptions.value.find((option) => String(option.id) === String(form.related_id)));
+const fileName = computed(() => form.file?.name ?? '');
+const fileSize = computed(() => (form.file ? formatSize(form.file.size) : ''));
+const isCreate = computed(() => props.mode === 'create');
 
-const handleFile = (event: Event) => {
+function setJenis(value?: string): void {
+    if (!value) {
+        return;
+    }
+
+    form.jenis = value;
+
+    if (!form.judul && selectedJenis.value?.label) {
+        form.judul = selectedJenis.value.label;
+    }
+}
+
+function handleFile(event: Event): void {
     const input = event.target as HTMLInputElement;
-    form.file = input.files?.[0] ?? null;
-};
+    setFile(input.files?.[0] ?? null);
+}
 
-const submit = () => {
+function handleDrop(event: DragEvent): void {
+    setFile(event.dataTransfer?.files?.[0] ?? null);
+}
+
+function setFile(file: File | null): void {
+    form.file = file;
+
+    if (file && !form.judul) {
+        form.judul = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+    }
+}
+
+function clearFile(): void {
+    form.file = null;
+}
+
+function formatSize(size: number): string {
+    if (size >= 1024 * 1024) {
+        return `${(size / 1024 / 1024).toFixed(2)} MB`;
+    }
+
+    if (size >= 1024) {
+        return `${(size / 1024).toFixed(1)} KB`;
+    }
+
+    return `${size} B`;
+}
+
+function submit(): void {
     if (props.mode === 'create') {
         form.post(route('dokumen.store'), { forceFormData: true });
         return;
@@ -80,102 +137,291 @@ const submit = () => {
         deskripsi: data.deskripsi,
         status: data.status,
     })).put(route('dokumen.update', props.dokumen?.id));
-};
+}
 </script>
 
 <template>
     <Head :title="mode === 'create' ? 'Unggah Dokumen' : 'Edit Dokumen'" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <form class="flex max-w-5xl flex-col gap-4 p-4" @submit.prevent="submit">
-            <div>
-                <h1 class="text-2xl font-semibold tracking-normal">{{ mode === 'create' ? 'Unggah Dokumen' : 'Edit Dokumen' }}</h1>
-                <p class="mt-1 text-sm text-muted-foreground">File disimpan di storage privat dan hanya bisa diunduh lewat otorisasi aplikasi.</p>
+        <form class="mx-auto flex max-w-7xl flex-col gap-5 p-4" @submit.prevent="submit">
+            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <h1 class="text-2xl font-semibold tracking-normal">{{ mode === 'create' ? 'Unggah Dokumen' : 'Edit Dokumen' }}</h1>
+                    <p class="mt-1 max-w-3xl text-sm text-muted-foreground">
+                        Pilih jenis dokumen, unggah file, lalu lengkapi OPD dan periode. File tetap disimpan di storage privat dan hanya dapat diakses
+                        lewat otorisasi aplikasi.
+                    </p>
+                </div>
+                <div class="flex gap-2">
+                    <Link
+                        :href="route('dokumen.index')"
+                        class="inline-flex h-10 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
+                    >
+                        Batal
+                    </Link>
+                    <button
+                        type="submit"
+                        :disabled="form.processing"
+                        class="inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
+                    >
+                        {{ form.processing ? 'Menyimpan...' : 'Simpan Dokumen' }}
+                    </button>
+                </div>
             </div>
 
-            <section class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">Metadata Dokumen</h2>
-                <div class="mt-4 grid gap-4 md:grid-cols-2">
-                    <div class="grid gap-2">
-                        <label class="text-sm font-medium" for="judul">Judul</label>
-                        <input id="judul" v-model="form.judul" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                        <InputError :message="form.errors.judul" />
-                    </div>
-                    <div class="grid gap-2">
-                        <label class="text-sm font-medium" for="nomor_dokumen">Nomor Dokumen</label>
-                        <input id="nomor_dokumen" v-model="form.nomor_dokumen" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                        <InputError :message="form.errors.nomor_dokumen" />
-                    </div>
-                    <div class="grid gap-2">
-                        <label class="text-sm font-medium" for="jenis">Jenis Dokumen</label>
-                        <select id="jenis" v-model="form.jenis" class="h-9 rounded-md border bg-background px-3 text-sm">
-                            <option v-for="option in jenisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                        </select>
-                        <InputError :message="form.errors.jenis" />
-                    </div>
-                    <div class="grid gap-2">
-                        <label class="text-sm font-medium" for="status">Status</label>
-                        <select id="status" v-model="form.status" class="h-9 rounded-md border bg-background px-3 text-sm">
-                            <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                        </select>
-                        <InputError :message="form.errors.status" />
-                    </div>
-                    <div class="grid gap-2">
-                        <label class="text-sm font-medium" for="opd_id">OPD</label>
-                        <select id="opd_id" v-model="form.opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                            <option value="">Tidak terkait OPD</option>
-                            <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                        </select>
-                        <InputError :message="form.errors.opd_id" />
-                    </div>
-                    <div class="grid gap-2">
-                        <label class="text-sm font-medium" for="periode_tahun_id">Periode</label>
-                        <select id="periode_tahun_id" v-model="form.periode_tahun_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                            <option value="">Tidak terkait periode</option>
-                            <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                        </select>
-                        <InputError :message="form.errors.periode_tahun_id" />
-                    </div>
-                    <div class="grid gap-2 md:col-span-2">
-                        <label class="text-sm font-medium" for="deskripsi">Deskripsi</label>
-                        <textarea id="deskripsi" v-model="form.deskripsi" rows="4" class="rounded-md border bg-background px-3 py-2 text-sm" />
-                        <InputError :message="form.errors.deskripsi" />
-                    </div>
-                </div>
-            </section>
+            <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+                <div class="grid gap-5">
+                    <section class="rounded-lg border bg-card p-4 shadow-sm">
+                        <div class="flex items-start gap-3">
+                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-800">
+                                <FileText class="size-5" />
+                            </div>
+                            <div>
+                                <h2 class="text-base font-semibold">1. Pilih jenis dokumen</h2>
+                                <p class="mt-1 text-sm text-muted-foreground">Gunakan pilihan cepat untuk dokumen yang paling sering diunggah OPD.</p>
+                            </div>
+                        </div>
 
-            <section v-if="mode === 'create'" class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">File dan Relasi</h2>
-                <div class="mt-4 grid gap-4 md:grid-cols-2">
-                    <div class="grid gap-2 md:col-span-2">
-                        <label class="text-sm font-medium" for="file">File</label>
-                        <input id="file" type="file" class="rounded-md border bg-background px-3 py-2 text-sm" @change="handleFile" />
+                        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            <button
+                                v-for="option in primaryJenisOptions"
+                                :key="option.value"
+                                type="button"
+                                class="rounded-lg border p-3 text-left text-sm transition hover:border-emerald-300 hover:bg-emerald-50/50"
+                                :class="
+                                    form.jenis === option.value
+                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm'
+                                        : 'border-border bg-background'
+                                "
+                                @click="setJenis(option.value)"
+                            >
+                                <span class="font-semibold">{{ option.label }}</span>
+                                <span class="mt-1 block text-xs text-muted-foreground">
+                                    {{ option.value === 'bukti_dukung' ? 'Evidence pendukung' : 'Ditampilkan sesuai status dokumen' }}
+                                </span>
+                            </button>
+                        </div>
+
+                        <div class="mt-4 grid gap-4 md:grid-cols-2">
+                            <div class="grid gap-2">
+                                <label class="text-sm font-medium" for="jenis">Jenis dokumen</label>
+                                <select id="jenis" v-model="form.jenis" class="h-10 rounded-md border bg-background px-3 text-sm">
+                                    <option v-for="option in jenisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                </select>
+                                <InputError :message="form.errors.jenis" />
+                            </div>
+                            <div class="grid gap-2">
+                                <label class="text-sm font-medium" for="status">Status publikasi</label>
+                                <select id="status" v-model="form.status" class="h-10 rounded-md border bg-background px-3 text-sm">
+                                    <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                </select>
+                                <p class="text-xs text-muted-foreground">
+                                    Dokumen publik muncul jika statusnya terverifikasi, disetujui, atau terkunci.
+                                </p>
+                                <InputError :message="form.errors.status" />
+                            </div>
+                        </div>
+                    </section>
+
+                    <section v-if="isCreate" class="rounded-lg border bg-card p-4 shadow-sm">
+                        <div class="flex items-start gap-3">
+                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-sky-50 text-sky-800">
+                                <UploadCloud class="size-5" />
+                            </div>
+                            <div>
+                                <h2 class="text-base font-semibold">2. Unggah file</h2>
+                                <p class="mt-1 text-sm text-muted-foreground">
+                                    Format umum seperti PDF, gambar, Word, dan spreadsheet dapat diunggah.
+                                </p>
+                            </div>
+                        </div>
+
+                        <label
+                            for="file"
+                            class="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center transition hover:border-emerald-400 hover:bg-emerald-50/50"
+                            @dragover.prevent
+                            @drop.prevent="handleDrop"
+                        >
+                            <UploadCloud class="size-8 text-emerald-700" />
+                            <span class="mt-3 text-sm font-semibold text-slate-950">Klik untuk memilih file atau tarik file ke sini</span>
+                            <span class="mt-1 text-xs text-muted-foreground">Maksimal 20 MB per dokumen.</span>
+                            <input id="file" type="file" class="sr-only" @change="handleFile" />
+                        </label>
                         <InputError :message="form.errors.file" />
-                    </div>
-                    <div class="grid gap-2">
-                        <label class="text-sm font-medium" for="related_type">Jenis Relasi</label>
-                        <select id="related_type" v-model="form.related_type" class="h-9 rounded-md border bg-background px-3 text-sm" @change="form.related_id = ''">
-                            <option value="">Tidak dikaitkan</option>
-                            <option v-for="option in relationTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                        </select>
-                        <InputError :message="form.errors.related_type" />
-                    </div>
-                    <div class="grid gap-2">
-                        <label class="text-sm font-medium" for="related_id">Data Terkait</label>
-                        <select id="related_id" v-model="form.related_id" class="h-9 rounded-md border bg-background px-3 text-sm" :disabled="!form.related_type">
-                            <option value="">Pilih data</option>
-                            <option v-for="option in selectedRelationOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                        </select>
-                        <InputError :message="form.errors.related_id" />
-                    </div>
-                </div>
-            </section>
 
-            <div class="flex justify-end gap-2">
-                <Link :href="route('dokumen.index')" class="rounded-md border px-4 py-2 text-sm hover:bg-muted">Batal</Link>
-                <button type="submit" :disabled="form.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
-                    Simpan
-                </button>
+                        <div v-if="fileName" class="mt-4 flex items-center justify-between gap-3 rounded-lg border bg-background p-3">
+                            <div class="min-w-0">
+                                <p class="truncate text-sm font-semibold text-slate-950">{{ fileName }}</p>
+                                <p class="text-xs text-muted-foreground">{{ fileSize }}</p>
+                            </div>
+                            <button
+                                type="button"
+                                class="rounded-md border p-2 text-muted-foreground hover:bg-muted"
+                                aria-label="Hapus file"
+                                @click="clearFile"
+                            >
+                                <X class="size-4" />
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="rounded-lg border bg-card p-4 shadow-sm">
+                        <div class="flex items-start gap-3">
+                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-amber-50 text-amber-800">
+                                <CheckCircle2 class="size-5" />
+                            </div>
+                            <div>
+                                <h2 class="text-base font-semibold">{{ isCreate ? '3' : '2' }}. Lengkapi metadata</h2>
+                                <p class="mt-1 text-sm text-muted-foreground">
+                                    Data ini membantu dokumen mudah dicari, difilter, dan ditampilkan di portal publik.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 grid gap-4 md:grid-cols-2">
+                            <div class="grid gap-2">
+                                <label class="text-sm font-medium" for="judul">Judul dokumen</label>
+                                <input
+                                    id="judul"
+                                    v-model="form.judul"
+                                    class="h-10 rounded-md border bg-background px-3 text-sm"
+                                    placeholder="Contoh: Pohon Kinerja 2026"
+                                />
+                                <InputError :message="form.errors.judul" />
+                            </div>
+                            <div class="grid gap-2">
+                                <label class="text-sm font-medium" for="nomor_dokumen">Nomor dokumen</label>
+                                <input
+                                    id="nomor_dokumen"
+                                    v-model="form.nomor_dokumen"
+                                    class="h-10 rounded-md border bg-background px-3 text-sm"
+                                    placeholder="Opsional"
+                                />
+                                <InputError :message="form.errors.nomor_dokumen" />
+                            </div>
+                            <div class="grid gap-2">
+                                <label class="text-sm font-medium" for="opd_id">OPD</label>
+                                <select id="opd_id" v-model="form.opd_id" class="h-10 rounded-md border bg-background px-3 text-sm">
+                                    <option value="">Tidak terkait OPD</option>
+                                    <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                </select>
+                                <InputError :message="form.errors.opd_id" />
+                            </div>
+                            <div class="grid gap-2">
+                                <label class="text-sm font-medium" for="periode_tahun_id">Periode/tahun</label>
+                                <select
+                                    id="periode_tahun_id"
+                                    v-model="form.periode_tahun_id"
+                                    class="h-10 rounded-md border bg-background px-3 text-sm"
+                                >
+                                    <option value="">Tidak terkait periode</option>
+                                    <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                </select>
+                                <InputError :message="form.errors.periode_tahun_id" />
+                            </div>
+                            <div class="grid gap-2 md:col-span-2">
+                                <label class="text-sm font-medium" for="deskripsi">Catatan/deskripsi</label>
+                                <textarea
+                                    id="deskripsi"
+                                    v-model="form.deskripsi"
+                                    rows="4"
+                                    class="rounded-md border bg-background px-3 py-2 text-sm"
+                                    placeholder="Tambahkan catatan singkat jika diperlukan."
+                                />
+                                <InputError :message="form.errors.deskripsi" />
+                            </div>
+                        </div>
+                    </section>
+
+                    <section v-if="isCreate" class="rounded-lg border bg-card p-4 shadow-sm">
+                        <div class="flex items-start gap-3">
+                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-700">
+                                <Link2 class="size-5" />
+                            </div>
+                            <div>
+                                <h2 class="text-base font-semibold">4. Kaitkan ke data aplikasi</h2>
+                                <p class="mt-1 text-sm text-muted-foreground">
+                                    Opsional. Gunakan jika dokumen harus menempel ke Renstra, PK, realisasi, atau LKJIP tertentu.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 grid gap-4 md:grid-cols-2">
+                            <div class="grid gap-2">
+                                <label class="text-sm font-medium" for="related_type">Jenis relasi</label>
+                                <select
+                                    id="related_type"
+                                    v-model="form.related_type"
+                                    class="h-10 rounded-md border bg-background px-3 text-sm"
+                                    @change="form.related_id = ''"
+                                >
+                                    <option value="">Tidak dikaitkan</option>
+                                    <option v-for="option in relationTypeOptions" :key="option.value" :value="option.value">
+                                        {{ option.label }}
+                                    </option>
+                                </select>
+                                <InputError :message="form.errors.related_type" />
+                            </div>
+                            <div class="grid gap-2">
+                                <label class="text-sm font-medium" for="related_id">Data terkait</label>
+                                <select
+                                    id="related_id"
+                                    v-model="form.related_id"
+                                    class="h-10 rounded-md border bg-background px-3 text-sm"
+                                    :disabled="!form.related_type"
+                                >
+                                    <option value="">Pilih data</option>
+                                    <option v-for="option in selectedRelationOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                </select>
+                                <InputError :message="form.errors.related_id" />
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <aside class="xl:sticky xl:top-24 xl:self-start">
+                    <section class="rounded-lg border bg-card p-4 shadow-sm">
+                        <h2 class="text-base font-semibold">Ringkasan</h2>
+                        <dl class="mt-4 space-y-3 text-sm">
+                            <div>
+                                <dt class="text-xs font-semibold uppercase text-muted-foreground">Jenis</dt>
+                                <dd class="mt-1 font-medium">{{ selectedJenis?.label || '-' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-xs font-semibold uppercase text-muted-foreground">Status</dt>
+                                <dd class="mt-1 font-medium">{{ selectedStatus?.label || '-' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-xs font-semibold uppercase text-muted-foreground">OPD</dt>
+                                <dd class="mt-1 font-medium">{{ selectedOpd?.label || 'Tidak terkait OPD' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-xs font-semibold uppercase text-muted-foreground">Periode</dt>
+                                <dd class="mt-1 font-medium">{{ selectedPeriode?.label || 'Tidak terkait periode' }}</dd>
+                            </div>
+                            <div v-if="isCreate">
+                                <dt class="text-xs font-semibold uppercase text-muted-foreground">File</dt>
+                                <dd class="mt-1 break-all font-medium">{{ fileName || 'Belum dipilih' }}</dd>
+                            </div>
+                            <div v-if="isCreate">
+                                <dt class="text-xs font-semibold uppercase text-muted-foreground">Relasi</dt>
+                                <dd class="mt-1 font-medium">
+                                    {{ selectedRelationType?.label || 'Tidak dikaitkan' }}
+                                    <span v-if="selectedRelation"> - {{ selectedRelation.label }}</span>
+                                </dd>
+                            </div>
+                        </dl>
+
+                        <div class="mt-5 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+                            <p class="font-semibold">Tips publikasi</p>
+                            <p class="mt-1 text-xs leading-5">
+                                Untuk tampil di halaman publik, pilih jenis dokumen yang sesuai, isi OPD dan periode, lalu gunakan status
+                                terverifikasi, disetujui, atau terkunci.
+                            </p>
+                        </div>
+                    </section>
+                </aside>
             </div>
         </form>
     </AppLayout>

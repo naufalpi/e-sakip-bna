@@ -21,6 +21,8 @@ class PublicLandingService
     private const PUBLIC_DOCUMENT_STATUSES = ['verified', 'approved', 'locked'];
 
     private const PUBLIC_DOCUMENT_TYPES = [
+        'pohon_kinerja',
+        'cascading',
         'iku',
         'renstra',
         'renja',
@@ -72,7 +74,7 @@ class PublicLandingService
             'sub_kegiatan' => $this->countSubKegiatan($opdIds, $tahun),
         ];
 
-        $perencanaan = $this->perencanaanRows($opds, $counts, $renstraByOpd, $pkByOpd, $rencanaAksiByOpd, $documents);
+        $perencanaan = $this->perencanaanRows($opds, $renstraByOpd, $pkByOpd, $rencanaAksiByOpd, $documents);
         $pengukuran = $this->pengukuranRows($opds, $counts);
         $pelaporan = $this->pelaporanRows($opds, $lkjipByOpd, $realisasiByOpdTriwulan, $documents);
         $evaluasi = $this->evaluasiRows($opds, $evaluasiByOpd, $documents);
@@ -308,27 +310,25 @@ class PublicLandingService
 
     /**
      * @param  Collection<int, Opd>  $opds
-     * @param  array<string, Collection<int, int>>  $counts
      * @param  Collection<int, RenstraOpd>  $renstraByOpd
      * @param  Collection<int, PerjanjianKinerja>  $pkByOpd
      * @param  Collection<int, RencanaAksi>  $rencanaAksiByOpd
      * @param  array<string, mixed>  $documents
      * @return array<int, array<string, mixed>>
      */
-    private function perencanaanRows(Collection $opds, array $counts, Collection $renstraByOpd, Collection $pkByOpd, Collection $rencanaAksiByOpd, array $documents): array
+    private function perencanaanRows(Collection $opds, Collection $renstraByOpd, Collection $pkByOpd, Collection $rencanaAksiByOpd, array $documents): array
     {
-        return $opds->values()->map(function (Opd $opd, int $index) use ($counts, $renstraByOpd, $pkByOpd, $rencanaAksiByOpd, $documents) {
+        return $opds->values()->map(function (Opd $opd, int $index) use ($renstraByOpd, $pkByOpd, $rencanaAksiByOpd, $documents) {
             $opdId = (int) $opd->id;
             $renstra = $renstraByOpd->get($opdId);
             $pk = $pkByOpd->get($opdId);
             $rencanaAksi = $rencanaAksiByOpd->get($opdId);
-            $nodeCount = $this->countValue($counts['tujuan'], $opdId)
-                + $this->countValue($counts['sasaran'], $opdId)
-                + $this->countValue($counts['program'], $opdId);
-            $indikatorCount = $this->countValue($counts['indikator_sasaran'], $opdId);
 
             $renstraDocument = $this->documentForModel($documents, $renstra, 'renstra')
                 ?: $this->documentByOpd($documents, $opdId, 'renstra');
+            $pohonKinerjaDocument = $this->documentByOpd($documents, $opdId, 'pohon_kinerja');
+            $cascadingDocument = $this->documentForModel($documents, $renstra, 'cascading')
+                ?: $this->documentByOpd($documents, $opdId, 'cascading');
             $pkDocument = $this->documentForModel($documents, $pk, 'perjanjian_kinerja')
                 ?: $this->documentByOpd($documents, $opdId, 'perjanjian_kinerja');
             $rencanaAksiDocument = $this->documentForModel($documents, $rencanaAksi, 'rencana_aksi')
@@ -339,9 +339,9 @@ class PublicLandingService
                 'opd' => $this->serializeOpd($opd),
                 'is_ready' => $renstra !== null && $pk !== null && $rencanaAksi !== null,
                 'cells' => [
-                    'pohon_kinerja' => $this->statusCell($nodeCount > 0, $nodeCount.' node', 'Belum tersedia'),
-                    'cascading' => $this->statusCell($renstra !== null, $renstra ? 'Terhubung RPJMD' : 'Belum terhubung', 'Belum terhubung'),
-                    'iku' => $this->fileCell($this->documentByOpd($documents, $opdId, 'iku'), $indikatorCount > 0, $indikatorCount.' indikator'),
+                    'pohon_kinerja' => $this->fileCell($pohonKinerjaDocument),
+                    'cascading' => $this->fileCell($cascadingDocument),
+                    'iku' => $this->fileCell($this->documentByOpd($documents, $opdId, 'iku')),
                     'renstra' => $this->fileCell($renstraDocument, $renstra !== null, $renstra ? $this->statusLabel($renstra->status) : 'Data tersedia'),
                     'renja_rkt' => $this->fileCell($this->documentByOpd($documents, $opdId, 'renja')),
                     'rencana_aksi' => $this->fileCell($rencanaAksiDocument, $rencanaAksi !== null, $rencanaAksi ? $this->statusLabel($rencanaAksi->status) : 'Data tersedia'),

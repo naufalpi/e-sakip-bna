@@ -42,6 +42,8 @@ class StoreDokumenRequest extends FormRequest
     {
         return [
             'rpjmd',
+            'pohon_kinerja',
+            'cascading',
             'renstra',
             'renja',
             'iku',

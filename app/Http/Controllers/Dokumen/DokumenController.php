@@ -234,6 +234,8 @@ class DokumenController extends Controller
     {
         return [
             ['value' => 'rpjmd', 'label' => 'RPJMD'],
+            ['value' => 'pohon_kinerja', 'label' => 'Pohon Kinerja'],
+            ['value' => 'cascading', 'label' => 'Cascading'],
             ['value' => 'renstra', 'label' => 'Renstra'],
             ['value' => 'renja', 'label' => 'Renja'],
             ['value' => 'iku', 'label' => 'IKU'],

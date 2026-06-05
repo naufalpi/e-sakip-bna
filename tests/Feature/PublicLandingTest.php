@@ -31,7 +31,10 @@ class PublicLandingTest extends TestCase
             'status' => 'active',
         ]);
 
-        $document = $this->createDocument($periode, $opd, 'renstra', 'approved');
+        $pohonKinerja = $this->createDocument($periode, $opd, 'pohon_kinerja', 'approved');
+        $cascading = $this->createDocument($periode, $opd, 'cascading', 'approved');
+        $iku = $this->createDocument($periode, $opd, 'iku', 'approved');
+        $renstra = $this->createDocument($periode, $opd, 'renstra', 'approved');
 
         $this->get('/')
             ->assertOk()
@@ -52,7 +55,10 @@ class PublicLandingTest extends TestCase
                 ->component('PublicSite/Landing')
                 ->where('active_section', 'perencanaan')
                 ->where('tables.perencanaan.0.opd.nama', 'Dinas Publik Demo')
-                ->where('tables.perencanaan.0.cells.renstra.dokumen.id', $document->id)
+                ->where('tables.perencanaan.0.cells.pohon_kinerja.dokumen.id', $pohonKinerja->id)
+                ->where('tables.perencanaan.0.cells.cascading.dokumen.id', $cascading->id)
+                ->where('tables.perencanaan.0.cells.iku.dokumen.id', $iku->id)
+                ->where('tables.perencanaan.0.cells.renstra.dokumen.id', $renstra->id)
             );
     }
 
