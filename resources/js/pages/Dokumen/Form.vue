@@ -59,13 +59,6 @@ const relationTypeOptions = [
     { value: 'lkjip', label: 'LKJIP' },
 ];
 
-const recommendedJenis = ['pohon_kinerja', 'cascading', 'iku', 'renstra', 'perjanjian_kinerja', 'rencana_aksi', 'lkjip', 'bukti_dukung'];
-
-const primaryJenisOptions = computed(() =>
-    recommendedJenis
-        .map((value) => props.jenisOptions.find((option) => option.value === value))
-        .filter((option): option is Option => Boolean(option)),
-);
 const selectedJenis = computed(() => props.jenisOptions.find((option) => option.value === form.jenis));
 const selectedStatus = computed(() => props.statusOptions.find((option) => option.value === form.status));
 const selectedOpd = computed(() => props.opdOptions.find((option) => String(option.id) === String(form.opd_id)));
@@ -76,18 +69,6 @@ const selectedRelation = computed(() => selectedRelationOptions.value.find((opti
 const fileName = computed(() => form.file?.name ?? '');
 const fileSize = computed(() => (form.file ? formatSize(form.file.size) : ''));
 const isCreate = computed(() => props.mode === 'create');
-
-function setJenis(value?: string): void {
-    if (!value) {
-        return;
-    }
-
-    form.jenis = value;
-
-    if (!form.judul && selectedJenis.value?.label) {
-        form.judul = selectedJenis.value.label;
-    }
-}
 
 function handleFile(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -179,28 +160,8 @@ function submit(): void {
                             </div>
                             <div>
                                 <h2 class="text-base font-semibold">1. Pilih jenis dokumen</h2>
-                                <p class="mt-1 text-sm text-muted-foreground">Gunakan pilihan cepat untuk dokumen yang paling sering diunggah OPD.</p>
+                                <p class="mt-1 text-sm text-muted-foreground">Tentukan kategori dokumen agar tampil di kolom publik yang sesuai.</p>
                             </div>
-                        </div>
-
-                        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                            <button
-                                v-for="option in primaryJenisOptions"
-                                :key="option.value"
-                                type="button"
-                                class="rounded-lg border p-3 text-left text-sm transition hover:border-emerald-300 hover:bg-emerald-50/50"
-                                :class="
-                                    form.jenis === option.value
-                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm'
-                                        : 'border-border bg-background'
-                                "
-                                @click="setJenis(option.value)"
-                            >
-                                <span class="font-semibold">{{ option.label }}</span>
-                                <span class="mt-1 block text-xs text-muted-foreground">
-                                    {{ option.value === 'bukti_dukung' ? 'Evidence pendukung' : 'Ditampilkan sesuai status dokumen' }}
-                                </span>
-                            </button>
                         </div>
 
                         <div class="mt-4 grid gap-4 md:grid-cols-2">
@@ -209,18 +170,31 @@ function submit(): void {
                                 <select id="jenis" v-model="form.jenis" class="h-10 rounded-md border bg-background px-3 text-sm">
                                     <option v-for="option in jenisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
+                                <p class="text-xs text-muted-foreground">
+                                    Untuk halaman publik: Pohon Kinerja, Cascading, IKU, Renstra, Renja/RKT, Rencana Aksi, PK, LKJIP, LHE, dan Tindak
+                                    Lanjut akan muncul sesuai menu.
+                                </p>
                                 <InputError :message="form.errors.jenis" />
                             </div>
                             <div class="grid gap-2">
-                                <label class="text-sm font-medium" for="status">Status publikasi</label>
+                                <label class="text-sm font-medium" for="status">Status dokumen</label>
                                 <select id="status" v-model="form.status" class="h-10 rounded-md border bg-background px-3 text-sm">
                                     <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                                 <p class="text-xs text-muted-foreground">
-                                    Dokumen publik muncul jika statusnya terverifikasi, disetujui, atau terkunci.
+                                    Draft belum tampil publik. Diajukan berarti menunggu pengecekan admin kabupaten. Tampil publik jika statusnya
+                                    terverifikasi, disetujui, atau terkunci.
                                 </p>
                                 <InputError :message="form.errors.status" />
                             </div>
+                        </div>
+
+                        <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                            <p class="font-semibold">Catatan alur verifikasi</p>
+                            <p class="mt-1 leading-6">
+                                Untuk sementara, status dokumen masih diubah manual oleh admin yang berwenang. Alur idealnya: OPD mengunggah sebagai
+                                Draft/Diajukan, lalu admin kabupaten memverifikasi atau menyetujui sesuai jenis dokumen.
+                            </p>
                         </div>
                     </section>
 
