@@ -172,21 +172,21 @@ const progressClass = (status: string) => (status === 'terisi' ? 'bg-emerald-100
                 </select>
                 <select
                     v-model="filterForm.opd_id"
-                    class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                    class="h-9 w-full min-w-0 truncate rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
                 >
                     <option value="">Semua OPD</option>
                     <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                 </select>
                 <select
                     v-model="filterForm.rpjmd_id"
-                    class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                    class="h-9 w-full min-w-0 truncate rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
                 >
                     <option value="">Semua RPJMD</option>
                     <option v-for="option in rpjmdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                 </select>
                 <select
                     v-model="filterForm.periode_tahun_id"
-                    class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                    class="h-9 w-full min-w-0 truncate rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
                 >
                     <option value="">Semua tahun</option>
                     <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>

@@ -259,20 +259,20 @@ function submit(): void {
                                 />
                                 <InputError :message="form.errors.nomor_dokumen" />
                             </div>
-                            <div class="grid gap-2">
+                            <div class="grid min-w-0 gap-2">
                                 <label class="text-sm font-medium" for="opd_id">OPD</label>
-                                <select id="opd_id" v-model="form.opd_id" class="h-10 rounded-md border bg-background px-3 text-sm">
+                                <select id="opd_id" v-model="form.opd_id" class="h-10 w-full min-w-0 truncate rounded-md border bg-background px-3 text-sm">
                                     <option value="">Tidak terkait OPD</option>
                                     <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                                 </select>
                                 <InputError :message="form.errors.opd_id" />
                             </div>
-                            <div class="grid gap-2">
+                            <div class="grid min-w-0 gap-2">
                                 <label class="text-sm font-medium" for="periode_tahun_id">Periode/tahun</label>
                                 <select
                                     id="periode_tahun_id"
                                     v-model="form.periode_tahun_id"
-                                    class="h-10 rounded-md border bg-background px-3 text-sm"
+                                    class="h-10 w-full min-w-0 truncate rounded-md border bg-background px-3 text-sm"
                                 >
                                     <option value="">Tidak terkait periode</option>
                                     <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
@@ -353,11 +353,11 @@ function submit(): void {
                             </div>
                             <div>
                                 <dt class="text-xs font-semibold uppercase text-muted-foreground">OPD</dt>
-                                <dd class="mt-1 font-medium">{{ selectedOpd?.label || 'Tidak terkait OPD' }}</dd>
+                                <dd class="mt-1 break-words font-medium">{{ selectedOpd?.label || 'Tidak terkait OPD' }}</dd>
                             </div>
                             <div>
                                 <dt class="text-xs font-semibold uppercase text-muted-foreground">Periode</dt>
-                                <dd class="mt-1 font-medium">{{ selectedPeriode?.label || 'Tidak terkait periode' }}</dd>
+                                <dd class="mt-1 break-words font-medium">{{ selectedPeriode?.label || 'Tidak terkait periode' }}</dd>
                             </div>
                             <div v-if="isCreate">
                                 <dt class="text-xs font-semibold uppercase text-muted-foreground">File</dt>
