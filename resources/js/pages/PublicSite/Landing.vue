@@ -2,13 +2,10 @@
 import type { SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
-    BarChart3,
-    Building2,
     CalendarDays,
     CheckCircle2,
     ChevronRight,
     Download,
-    FileCheck2,
     FileText,
     Gauge,
     LogIn,
@@ -202,25 +199,21 @@ const statCards = computed(() => [
         label: 'OPD aktif',
         value: props.stats.opd_count,
         note: 'perangkat daerah',
-        icon: Building2,
     },
     {
         label: 'Dokumen publik',
         value: props.stats.public_document_count,
         note: 'dokumen resmi',
-        icon: FileCheck2,
     },
     {
         label: 'Evaluasi SAKIP',
         value: props.stats.evaluation_count,
         note: 'OPD dinilai',
-        icon: BarChart3,
     },
     {
         label: 'Rata-rata SAKIP',
         value: props.stats.average_sakip !== null && props.stats.average_sakip !== undefined ? formatDecimal(props.stats.average_sakip) : '-',
         note: `tahun ${props.meta.tahun}`,
-        icon: CheckCircle2,
     },
 ]);
 
@@ -412,7 +405,7 @@ function closeMobileMenu(): void {
         </header>
 
         <main>
-            <section v-if="!currentSection" id="beranda" class="hero-section relative isolate flex min-h-[76dvh] items-center overflow-hidden pt-28">
+            <section v-if="!currentSection" id="beranda" class="hero-section relative isolate flex min-h-[74dvh] items-end overflow-hidden pt-28">
                 <img
                     src="/images/hero-dieng-banjarnegara.webp"
                     alt="Lanskap Dieng Banjarnegara dengan danau, candi, dan dataran tinggi berkabut"
@@ -420,25 +413,24 @@ function closeMobileMenu(): void {
                 />
                 <div class="hero-vignette absolute inset-0 -z-20"></div>
 
-                <div class="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-                    <div class="max-w-4xl lg:max-w-3xl">
-                        <p
-                            class="inline-flex rounded-sm border-l-4 border-amber-300 bg-white/95 px-3 py-2 text-sm font-semibold uppercase tracking-normal text-emerald-950"
-                        >
-                            Transparansi Akuntabilitas Kinerja
+                <div class="mx-auto w-full max-w-7xl px-4 pb-10 pt-14 sm:px-6 lg:px-8">
+                    <div class="hero-content max-w-5xl">
+                        <p class="hero-kicker text-sm font-semibold uppercase tracking-normal text-amber-200">
+                            Portal Publik Akuntabilitas Kinerja
                         </p>
-                        <h1 class="hero-title mt-6 max-w-4xl text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
+                        <h1 class="hero-title mt-4 max-w-5xl text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
                             E-SAKIP Kabupaten Banjarnegara
                         </h1>
-                        <p class="mt-5 max-w-3xl text-base leading-8 text-emerald-50 sm:text-lg">
-                            Selamat datang di portal publik untuk melihat informasi perencanaan, pengukuran, pelaporan, dan evaluasi kinerja
-                            perangkat daerah secara ringkas dan dapat ditelusuri.
+                        <p class="mt-5 max-w-3xl text-base leading-8 text-slate-100 sm:text-lg">
+                            Selamat datang di kanal informasi kinerja perangkat daerah. Masyarakat dapat melihat dokumen perencanaan, capaian,
+                            pelaporan, dan evaluasi SAKIP berdasarkan periode berjalan.
                         </p>
-                        <div class="hero-proofline mt-6 grid max-w-2xl gap-2 text-sm font-semibold text-emerald-50/95 sm:grid-cols-2">
-                            <span>Perencanaan kinerja</span>
-                            <span>Pengukuran capaian</span>
-                            <span>Pelaporan LKJIP</span>
-                            <span>Evaluasi SAKIP</span>
+
+                        <div class="hero-proofline mt-7 grid max-w-3xl gap-x-8 gap-y-3 text-sm font-semibold text-white sm:grid-cols-2 lg:grid-cols-4">
+                            <span><CheckCircle2 class="h-4 w-4" /> Perencanaan</span>
+                            <span><CheckCircle2 class="h-4 w-4" /> Pengukuran</span>
+                            <span><CheckCircle2 class="h-4 w-4" /> Pelaporan</span>
+                            <span><CheckCircle2 class="h-4 w-4" /> Evaluasi</span>
                         </div>
 
                         <div class="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -446,7 +438,7 @@ function closeMobileMenu(): void {
                                 :href="props.section_urls.perencanaan"
                                 class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-lg shadow-slate-950/15 transition hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
                             >
-                                Mulai dari Perencanaan
+                                Lihat Data Publik
                                 <ChevronRight class="h-4 w-4" />
                             </a>
                             <Link
@@ -459,18 +451,15 @@ function closeMobileMenu(): void {
                         </div>
                     </div>
 
-                    <dl class="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <dl class="hero-data-strip mt-10 grid border-y border-white/20 py-4 text-white sm:grid-cols-2 lg:grid-cols-4">
                         <div
-                            v-for="(stat, index) in statCards"
+                            v-for="stat in statCards"
                             :key="stat.label"
-                            class="rounded-md border border-white/20 bg-white/12 p-4 text-white shadow-sm backdrop-blur"
+                            class="border-white/15 py-3 sm:px-4 lg:border-l lg:first:border-l-0"
                         >
-                            <div class="flex items-center justify-between gap-3">
-                                <dt class="text-sm font-medium text-emerald-50">{{ stat.label }}</dt>
-                                <component :is="stat.icon" class="h-5 w-5 text-amber-200" />
-                            </div>
-                            <dd class="mt-3 text-3xl font-bold leading-none">{{ stat.value }}</dd>
-                            <p class="mt-2 text-sm text-emerald-100">{{ stat.note }}</p>
+                            <dt class="text-xs font-semibold uppercase tracking-normal text-emerald-100">{{ stat.label }}</dt>
+                            <dd class="mt-2 text-2xl font-bold leading-none">{{ stat.value }}</dd>
+                            <p class="mt-1 text-sm text-slate-200">{{ stat.note }}</p>
                         </div>
                     </dl>
                 </div>
@@ -812,12 +801,13 @@ function closeMobileMenu(): void {
 .hero-photo {
     transform: scale(1.04);
     transform-origin: center;
+    object-position: center 42%;
 }
 
 .hero-vignette {
     background:
-        linear-gradient(90deg, rgba(4, 35, 32, 0.97) 0%, rgba(4, 35, 32, 0.82) 37%, rgba(4, 35, 32, 0.22) 68%, rgba(4, 35, 32, 0.2) 100%),
-        linear-gradient(180deg, rgba(2, 6, 23, 0.18) 0%, rgba(2, 6, 23, 0.05) 46%, rgba(2, 6, 23, 0.68) 100%);
+        linear-gradient(90deg, rgba(4, 35, 32, 0.98) 0%, rgba(4, 35, 32, 0.84) 42%, rgba(4, 35, 32, 0.3) 74%, rgba(4, 35, 32, 0.18) 100%),
+        linear-gradient(180deg, rgba(2, 6, 23, 0.2) 0%, rgba(2, 6, 23, 0.08) 48%, rgba(2, 6, 23, 0.72) 100%);
 }
 
 .hero-section::after {
@@ -833,15 +823,28 @@ function closeMobileMenu(): void {
     text-shadow: 0 1.5rem 3rem rgba(2, 6, 23, 0.42);
 }
 
+.hero-content {
+    border-left: 0.28rem solid var(--civic-gold);
+    padding-left: clamp(1rem, 2vw, 1.5rem);
+}
+
+.hero-kicker {
+    text-shadow: 0 0.8rem 1.6rem rgba(2, 6, 23, 0.46);
+}
+
 .hero-proofline span {
-    display: inline-flex;
-    min-height: 2rem;
+    display: flex;
+    min-height: 1.75rem;
     align-items: center;
-    border-radius: 0.375rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.1);
-    padding: 0.35rem 0.7rem;
-    backdrop-filter: blur(10px);
+    gap: 0.45rem;
+}
+
+.hero-proofline svg {
+    color: var(--civic-gold);
+}
+
+.hero-data-strip {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
 }
 
 .cycle-band {
