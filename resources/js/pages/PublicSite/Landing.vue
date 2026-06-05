@@ -651,16 +651,6 @@ function closeMobileMenu(): void {
                                         </td>
                                         <td v-for="column in section.columns" :key="column.key" class="px-4 py-4 align-top">
                                             <div class="space-y-2">
-                                                <span
-                                                    class="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
-                                                    :class="cellClass(row.cells[column.key])"
-                                                >
-                                                    <span class="h-2 w-2 rounded-full" :class="dotClass(row.cells[column.key])"></span>
-                                                    {{ row.cells[column.key]?.label || 'Belum tersedia' }}
-                                                </span>
-                                                <p v-if="row.cells[column.key]?.description" class="text-xs text-slate-500">
-                                                    {{ row.cells[column.key].description }}
-                                                </p>
                                                 <div v-if="row.cells[column.key]?.dokumen" class="flex flex-wrap gap-2">
                                                     <a
                                                         :href="row.cells[column.key].dokumen?.view_url"
@@ -679,6 +669,18 @@ function closeMobileMenu(): void {
                                                         Download
                                                     </a>
                                                 </div>
+                                                <template v-else>
+                                                    <span
+                                                        class="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
+                                                        :class="cellClass(row.cells[column.key])"
+                                                    >
+                                                        <span class="h-2 w-2 rounded-full" :class="dotClass(row.cells[column.key])"></span>
+                                                        {{ row.cells[column.key]?.label || 'Belum tersedia' }}
+                                                    </span>
+                                                    <p v-if="row.cells[column.key]?.description" class="text-xs text-slate-500">
+                                                        {{ row.cells[column.key].description }}
+                                                    </p>
+                                                </template>
                                             </div>
                                         </td>
                                     </tr>
@@ -719,16 +721,6 @@ function closeMobileMenu(): void {
                                 <div v-for="column in section.columns" :key="column.key" class="rounded-md border border-slate-100 bg-slate-50 p-3">
                                     <p class="text-xs font-semibold uppercase text-slate-500">{{ column.label }}</p>
                                     <div class="mt-2 space-y-2">
-                                        <span
-                                            class="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
-                                            :class="cellClass(row.cells[column.key])"
-                                        >
-                                            <span class="h-2 w-2 rounded-full" :class="dotClass(row.cells[column.key])"></span>
-                                            {{ row.cells[column.key]?.label || 'Belum tersedia' }}
-                                        </span>
-                                        <p v-if="row.cells[column.key]?.description" class="text-xs text-slate-500">
-                                            {{ row.cells[column.key].description }}
-                                        </p>
                                         <div v-if="row.cells[column.key]?.dokumen" class="flex flex-wrap gap-2">
                                             <a
                                                 :href="row.cells[column.key].dokumen?.view_url"
@@ -747,6 +739,18 @@ function closeMobileMenu(): void {
                                                 Download
                                             </a>
                                         </div>
+                                        <template v-else>
+                                            <span
+                                                class="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
+                                                :class="cellClass(row.cells[column.key])"
+                                            >
+                                                <span class="h-2 w-2 rounded-full" :class="dotClass(row.cells[column.key])"></span>
+                                                {{ row.cells[column.key]?.label || 'Belum tersedia' }}
+                                            </span>
+                                            <p v-if="row.cells[column.key]?.description" class="text-xs text-slate-500">
+                                                {{ row.cells[column.key].description }}
+                                            </p>
+                                        </template>
                                     </div>
                                 </div>
                             </div>
