@@ -319,6 +319,61 @@ class RenstraOpdTest extends TestCase
         ]);
     }
 
+    public function test_renstra_node_autosave_can_create_new_cascading_data(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '2.03', 'nama' => 'Dinas Bulk Create', 'status' => 'active']);
+        $tree = $this->createRpjmdTree();
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $tree['rpjmd']->id,
+            'judul' => 'Renstra Bulk Create',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'draft',
+        ]);
+        $user = User::factory()->create(['opd_id' => $opd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $response = $this->actingAs($user)
+            ->postJson(route('renstra-opd.nodes.autosave-store', $renstra), [
+                'type' => 'tujuan',
+                'tujuan_daerah_id' => $tree['tujuan_daerah']->id,
+                'kode' => 'TB1',
+                'uraian' => 'Tujuan Dibuat Dari Bulk',
+                'urutan' => 1,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('status', 'saved');
+
+        $tujuanId = $response->json('id');
+
+        $this->actingAs($user)
+            ->postJson(route('renstra-opd.nodes.autosave-store', $renstra), [
+                'type' => 'sasaran',
+                'parent_id' => $tujuanId,
+                'sasaran_daerah_id' => $tree['sasaran_daerah']->id,
+                'kode' => 'SB1',
+                'uraian' => 'Sasaran Dibuat Dari Bulk',
+                'urutan' => 1,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('status', 'saved');
+
+        $this->assertDatabaseHas('tujuan_opd', [
+            'renstra_opd_id' => $renstra->id,
+            'kode' => 'TB1',
+            'tujuan' => 'Tujuan Dibuat Dari Bulk',
+        ]);
+
+        $this->assertDatabaseHas('sasaran_opd', [
+            'tujuan_opd_id' => $tujuanId,
+            'kode' => 'SB1',
+            'sasaran' => 'Sasaran Dibuat Dari Bulk',
+        ]);
+    }
+
     public function test_kabupaten_monitoring_can_view_all_read_only(): void
     {
         $this->seed();

@@ -17,6 +17,7 @@ use App\Models\TargetIndikatorOpdProgram;
 use App\Models\TargetIndikatorSasaranOpd;
 use App\Models\TargetIndikatorTujuanOpd;
 use App\Models\TujuanOpd;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +34,23 @@ class RenstraOpdNodeController extends Controller
         DB::transaction(fn () => $this->storeNode($renstraOpd, $data));
 
         return back()->with('success', 'Data cascading Renstra OPD berhasil disimpan.');
+    }
+
+    public function autosaveStore(StoreRenstraOpdNodeRequest $request, RenstraOpd $renstraOpd): JsonResponse
+    {
+        $this->authorize('update', $renstraOpd);
+
+        $data = $request->validated();
+
+        $model = DB::transaction(fn () => $this->storeNode($renstraOpd, $data));
+
+        return response()->json([
+            'status' => 'saved',
+            'id' => $model->getKey(),
+            'type' => $data['type'],
+            'message' => 'Data cascading Renstra OPD baru tersimpan otomatis.',
+            'saved_at' => now()->toIso8601String(),
+        ], 201);
     }
 
     public function update(StoreRenstraOpdNodeRequest $request, RenstraOpd $renstraOpd, string $type, int $id): RedirectResponse
@@ -82,9 +100,9 @@ class RenstraOpdNodeController extends Controller
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeNode(RenstraOpd $renstra, array $data): void
+    private function storeNode(RenstraOpd $renstra, array $data): Model
     {
-        match ($data['type']) {
+        return match ($data['type']) {
             'tujuan' => TujuanOpd::create([
                 'renstra_opd_id' => $renstra->id,
                 'tujuan_daerah_id' => $data['tujuan_daerah_id'] ?? null,
@@ -135,18 +153,16 @@ class RenstraOpdNodeController extends Controller
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
             ]),
-            'program' => tap($this->sasaran($renstra, $data['parent_id'] ?? null), function (SasaranOpd $sasaran) use ($renstra, $data) {
-                OpdProgram::create([
-                    'renstra_opd_id' => $renstra->id,
-                    'sasaran_opd_id' => $sasaran->id,
-                    'program_rpjmd_id' => $data['program_rpjmd_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'nama' => $this->requiredText($data, 'uraian', 'Nama program OPD wajib diisi.'),
-                    'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
-                    'status' => 'draft',
-                    'urutan' => $data['urutan'] ?? 1,
-                ]);
-            }),
+            'program' => OpdProgram::create([
+                'renstra_opd_id' => $renstra->id,
+                'sasaran_opd_id' => $this->sasaran($renstra, $data['parent_id'] ?? null)->id,
+                'program_rpjmd_id' => $data['program_rpjmd_id'] ?? null,
+                'kode' => $data['kode'] ?? null,
+                'nama' => $this->requiredText($data, 'uraian', 'Nama program OPD wajib diisi.'),
+                'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
+                'status' => 'draft',
+                'urutan' => $data['urutan'] ?? 1,
+            ]),
             'indikator_program' => IndikatorOpdProgram::create([
                 'opd_program_id' => $this->program($renstra, $data['parent_id'] ?? null)->id,
                 'indikator_program_rpjmd_id' => $data['indikator_program_rpjmd_id'] ?? null,

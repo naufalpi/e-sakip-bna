@@ -162,7 +162,7 @@ type RenstraCascadingRow = {
 type BulkSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 type BulkRow = {
     key: string;
-    id: number;
+    id: number | null;
     type: NodeType;
     level: string;
     parent_label: string;
@@ -185,6 +185,7 @@ type BulkRow = {
     saveState: BulkSaveState;
     savedAt: string;
     error: string;
+    isNew: boolean;
 };
 type Workflow = {
     status: string;
@@ -323,6 +324,7 @@ const formPanel = ref<HTMLElement | null>(null);
 const bulkRows = ref<BulkRow[]>([]);
 const bulkSaveTimers = new Map<string, number>();
 const bulkLastSavedAt = ref('');
+const bulkDraftCounter = ref(0);
 
 const typeOptionMap = computed(() => new Map(typeOptions.map((option) => [option.value, option])));
 const typeGroups: Array<{ label: string; helper: string; icon: unknown; items: NodeType[] }> = [
@@ -690,9 +692,10 @@ function emptyRenstraRow(key: string, values: Partial<RenstraCascadingRow>): Ren
     };
 }
 
-function makeBulkRow(values: Partial<BulkRow> & { id: number; type: NodeType; level: string }): BulkRow {
+function makeBulkRow(values: Partial<BulkRow> & { id?: number | null; type: NodeType; level: string }): BulkRow {
     return {
-        key: `${values.type}-${values.id}`,
+        key: values.key ?? `${values.type}-${values.id ?? `draft-${bulkDraftCounter.value}`}`,
+        id: values.id ?? null,
         parent_label: '-',
         parent_id: '',
         kode: '',
@@ -713,6 +716,7 @@ function makeBulkRow(values: Partial<BulkRow> & { id: number; type: NodeType; le
         saveState: 'idle',
         savedAt: '',
         error: '',
+        isNew: false,
         ...values,
     };
 }
@@ -995,7 +999,31 @@ watch(
 const bulkParentOptions = (row: BulkRow): Option[] => {
     const key = parentKeyByType[row.type];
 
-    return key ? (props.nodeOptions[key] ?? []) : [];
+    if (!key) {
+        return [];
+    }
+
+    const savedOptions = props.nodeOptions[key] ?? [];
+    const sessionOptions = bulkRows.value
+        .filter((bulkRow) => bulkRow.type === key && bulkRow.id && !savedOptions.some((option) => Number(option.id) === Number(bulkRow.id)))
+        .map((bulkRow) => ({
+            id: Number(bulkRow.id),
+            label: bulkRowDisplayLabel(bulkRow),
+        }));
+
+    return [...savedOptions, ...sessionOptions];
+};
+
+const bulkRowDisplayLabel = (row: BulkRow): string => {
+    if (isBulkIndicatorRow(row)) {
+        return nodeText(row.kode, row.indikator);
+    }
+
+    if (isBulkTargetRow(row)) {
+        return `${row.level} ${row.target_text || row.target || ''}`.trim();
+    }
+
+    return nodeText(row.kode, row.uraian);
 };
 
 const bulkReferenceOptions = (row: BulkRow): Option[] => {
@@ -1014,10 +1042,54 @@ const isBulkIndicatorRow = (row: BulkRow) =>
 const isBulkTargetRow = (row: BulkRow) => ['target_tujuan', 'target_sasaran', 'target_program'].includes(row.type);
 const hasBulkPaguIndikatif = (row: BulkRow) => ['program', 'kegiatan', 'sub_kegiatan'].includes(row.type);
 const hasBulkPaguTahunan = (row: BulkRow) => row.type === 'target_program';
+const bulkTypeNeedsParent = (type: NodeType) => Boolean(parentKeyByType[type]);
+const bulkRowReadyToSave = (row: BulkRow) => {
+    if (!row.type) {
+        return false;
+    }
+
+    if (bulkTypeNeedsParent(row.type) && !row.parent_id) {
+        return false;
+    }
+
+    if (isBulkTextRow(row)) {
+        return Boolean(String(row.uraian || '').trim());
+    }
+
+    if (isBulkIndicatorRow(row)) {
+        return Boolean(String(row.indikator || '').trim());
+    }
+
+    return Boolean(row.periode_tahun_id && (String(row.target || '').trim() || String(row.target_text || '').trim()));
+};
+
+const bulkRequirementMessage = (row: BulkRow): string => {
+    if (bulkTypeNeedsParent(row.type) && !row.parent_id) {
+        return 'Pilih induk terlebih dahulu.';
+    }
+
+    if (isBulkTextRow(row) && !String(row.uraian || '').trim()) {
+        return 'Isi uraian/nama terlebih dahulu.';
+    }
+
+    if (isBulkIndicatorRow(row) && !String(row.indikator || '').trim()) {
+        return 'Isi indikator terlebih dahulu.';
+    }
+
+    if (isBulkTargetRow(row) && !row.periode_tahun_id) {
+        return 'Pilih periode target terlebih dahulu.';
+    }
+
+    if (isBulkTargetRow(row) && !(String(row.target || '').trim() || String(row.target_text || '').trim())) {
+        return 'Isi target angka atau target teks terlebih dahulu.';
+    }
+
+    return '';
+};
 
 const bulkStatusLabel = (row: BulkRow) =>
     ({
-        idle: 'Siap',
+        idle: row.isNew ? 'Baru' : 'Siap',
         dirty: 'Menunggu autosave',
         saving: 'Menyimpan',
         saved: row.savedAt ? `Tersimpan ${row.savedAt}` : 'Tersimpan',
@@ -1032,6 +1104,60 @@ const bulkStatusClass = (row: BulkRow) =>
         saved: 'bg-emerald-100 text-emerald-800',
         error: 'bg-red-100 text-red-800',
     })[row.saveState];
+
+const addBulkRow = (type: NodeType = 'tujuan') => {
+    bulkDraftCounter.value += 1;
+    const row = makeBulkRow({
+        key: `draft-${bulkDraftCounter.value}`,
+        id: null,
+        type,
+        level: typeOptionMap.value.get(type)?.label ?? 'Data Baru',
+        isNew: true,
+        saveState: 'dirty',
+    });
+    row.error = bulkRequirementMessage(row);
+
+    bulkRows.value = [row, ...bulkRows.value];
+};
+
+const removeBulkDraft = (row: BulkRow) => {
+    if (!row.isNew) {
+        return;
+    }
+
+    window.clearTimeout(bulkSaveTimers.get(row.key));
+    bulkRows.value = bulkRows.value.filter((bulkRow) => bulkRow.key !== row.key);
+};
+
+const onBulkTypeChanged = (row: BulkRow) => {
+    row.level = typeOptionMap.value.get(row.type)?.label ?? 'Data Baru';
+    row.parent_id = '';
+    row.parent_label = '-';
+    row.reference_field =
+        ({
+            tujuan: 'tujuan_daerah_id',
+            indikator_tujuan: 'indikator_tujuan_daerah_id',
+            sasaran: 'sasaran_daerah_id',
+            indikator_sasaran: 'indikator_sasaran_daerah_id',
+            program: 'program_rpjmd_id',
+            indikator_program: 'indikator_program_rpjmd_id',
+        } as Partial<Record<NodeType, string>>)[row.type] ?? '';
+    row.reference_value = '';
+    row.kode = '';
+    row.uraian = '';
+    row.indikator = '';
+    row.satuan_indikator_id = '';
+    row.tipe_indikator = 'positif';
+    row.formula = '';
+    row.sumber_data = '';
+    row.pagu_indikatif = '';
+    row.periode_tahun_id = '';
+    row.target = '';
+    row.target_text = '';
+    row.pagu = '';
+    row.urutan = 1;
+    scheduleBulkAutosave(row);
+};
 
 const csrfToken = () => document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
 
@@ -1072,25 +1198,39 @@ const firstErrorMessage = (errors: Record<string, string[] | string> | undefined
 };
 
 const saveBulkRow = async (row: BulkRow) => {
+    if (row.isNew && !bulkRowReadyToSave(row)) {
+        row.saveState = 'dirty';
+        row.error = bulkRequirementMessage(row);
+        return;
+    }
+
     row.saveState = 'saving';
     row.error = '';
 
     try {
-        const response = await fetch(route('renstra-opd.nodes.autosave', [props.renstra.id, row.type, row.id]), {
-            method: 'PATCH',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken(),
-                'X-Requested-With': 'XMLHttpRequest',
+        const response = await fetch(
+            row.isNew ? route('renstra-opd.nodes.autosave-store', props.renstra.id) : route('renstra-opd.nodes.autosave', [props.renstra.id, row.type, row.id]),
+            {
+                method: row.isNew ? 'POST' : 'PATCH',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(bulkRowPayload(row)),
             },
-            body: JSON.stringify(bulkRowPayload(row)),
-        });
+        );
 
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
             throw new Error(firstErrorMessage(data.errors, data.message || 'Autosave gagal.'));
+        }
+
+        if (row.isNew) {
+            row.id = Number(data.id);
+            row.isNew = false;
         }
 
         row.saveState = 'saved';
@@ -1109,7 +1249,7 @@ const scheduleBulkAutosave = (row: BulkRow) => {
 
     window.clearTimeout(bulkSaveTimers.get(row.key));
     row.saveState = 'dirty';
-    row.error = '';
+    row.error = row.isNew ? bulkRequirementMessage(row) : '';
     bulkSaveTimers.set(
         row.key,
         window.setTimeout(() => {
@@ -1404,15 +1544,16 @@ const triwulanLabel = (triwulan: string) =>
                 </div>
             </section>
 
-            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]">
+            <div :class="viewMode === 'bulk' ? 'grid gap-4' : 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]'">
                 <section v-if="viewMode === 'bulk' && can.manage" class="rounded-lg border bg-card">
-                    <div class="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div class="flex flex-col gap-4 border-b p-4">
+                        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div class="flex items-start gap-2">
                             <Save class="mt-0.5 size-5 text-emerald-700" />
                             <div>
                                 <h2 class="text-base font-semibold">Bulk Mode Autosave</h2>
                                 <p class="mt-1 text-sm leading-6 text-muted-foreground">
-                                    Edit data cascading dalam tabel lebar. Perubahan disimpan otomatis sekitar 1 detik setelah input berhenti.
+                                    Input dan edit data cascading dalam tabel lebar. Perubahan disimpan otomatis sekitar 1 detik setelah input berhenti.
                                 </p>
                             </div>
                         </div>
@@ -1421,10 +1562,78 @@ const triwulanLabel = (triwulan: string) =>
                         </div>
                     </div>
 
+                        <div class="flex flex-col gap-3 rounded-lg border bg-background p-3 xl:flex-row xl:items-center xl:justify-between">
+                            <div>
+                                <p class="text-sm font-semibold text-slate-900">Tambah baris baru</p>
+                                <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                                    Pilih jenis baris, lengkapi induk dan field utama, lalu sistem akan menyimpan otomatis.
+                                </p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center gap-2 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"
+                                    @click="addBulkRow('tujuan')"
+                                >
+                                    <Plus class="size-3.5" />
+                                    Tujuan
+                                </button>
+                                <button
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                    @click="addBulkRow('sasaran')"
+                                >
+                                    <Plus class="size-3.5" />
+                                    Sasaran
+                                </button>
+                                <button
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                    @click="addBulkRow('program')"
+                                >
+                                    <Plus class="size-3.5" />
+                                    Program
+                                </button>
+                                <button
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                    @click="addBulkRow('kegiatan')"
+                                >
+                                    <Plus class="size-3.5" />
+                                    Kegiatan
+                                </button>
+                                <button
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                    @click="addBulkRow('indikator_program')"
+                                >
+                                    <Plus class="size-3.5" />
+                                    Indikator
+                                </button>
+                                <button
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                    @click="addBulkRow('target_program')"
+                                >
+                                    <Plus class="size-3.5" />
+                                    Target
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div v-if="bulkRows.length === 0" class="p-8 text-center text-sm text-muted-foreground">
                         <Layers3 class="mx-auto size-10 text-muted-foreground" />
                         <p class="mt-3 font-semibold text-slate-900">Belum ada data untuk bulk mode</p>
-                        <p class="mt-1">Buat Tujuan OPD terlebih dahulu melalui panel pengisian atau tombol pada tree.</p>
+                        <p class="mt-1">Buat Tujuan OPD sebagai baris pertama, lalu lanjutkan sasaran, program, kegiatan, dan target.</p>
+                        <button
+                            type="button"
+                            class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
+                            @click="addBulkRow('tujuan')"
+                        >
+                            <Plus class="size-4" />
+                            Tambah Baris Tujuan
+                        </button>
                     </div>
 
                     <div v-else class="overflow-x-auto">
@@ -1432,7 +1641,7 @@ const triwulanLabel = (triwulan: string) =>
                             <thead class="sticky top-0 z-10 border-b bg-muted/80 text-xs uppercase text-muted-foreground backdrop-blur">
                                 <tr>
                                     <th class="sticky left-0 z-20 min-w-44 bg-muted/90 px-3 py-3">Status</th>
-                                    <th class="min-w-44 px-3 py-3">Level</th>
+                                    <th class="min-w-56 px-3 py-3">Jenis Data</th>
                                     <th class="min-w-72 px-3 py-3">Induk</th>
                                     <th class="min-w-40 px-3 py-3">Ubah Induk</th>
                                     <th class="min-w-32 px-3 py-3">Kode</th>
@@ -1454,13 +1663,34 @@ const triwulanLabel = (triwulan: string) =>
                             <tbody>
                                 <tr v-for="row in bulkRows" :key="row.key" class="border-b align-top last:border-0 hover:bg-muted/30">
                                     <td class="sticky left-0 z-10 bg-card px-3 py-3">
-                                        <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold" :class="bulkStatusClass(row)">
-                                            {{ bulkStatusLabel(row) }}
-                                        </span>
+                                        <div class="grid gap-2">
+                                            <span class="inline-flex w-fit rounded-full px-2 py-1 text-xs font-semibold" :class="bulkStatusClass(row)">
+                                                {{ bulkStatusLabel(row) }}
+                                            </span>
+                                            <p v-if="row.error" class="max-w-40 text-xs leading-5 text-red-700">{{ row.error }}</p>
+                                            <button
+                                                v-if="row.isNew"
+                                                type="button"
+                                                class="inline-flex min-h-8 w-fit items-center rounded-md border px-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                                                @click="removeBulkDraft(row)"
+                                            >
+                                                Hapus draft
+                                            </button>
+                                        </div>
                                     </td>
                                     <td class="px-3 py-3">
-                                        <div class="font-semibold text-slate-900">{{ row.level }}</div>
-                                        <div class="mt-1 text-xs text-muted-foreground">{{ typeOptionMap.get(row.type)?.label }}</div>
+                                        <select
+                                            v-if="row.isNew"
+                                            v-model="row.type"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-700"
+                                            @change="onBulkTypeChanged(row)"
+                                        >
+                                            <option v-for="option in typeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                        </select>
+                                        <div v-else>
+                                            <div class="font-semibold text-slate-900">{{ row.level }}</div>
+                                            <div class="mt-1 text-xs text-muted-foreground">{{ typeOptionMap.get(row.type)?.label }}</div>
+                                        </div>
                                     </td>
                                     <td class="px-3 py-3 text-xs leading-5 text-slate-700">{{ row.parent_label }}</td>
                                     <td class="px-3 py-3">
@@ -2303,7 +2533,7 @@ const triwulanLabel = (triwulan: string) =>
                     </div>
                 </section>
 
-                <aside v-if="can.manage" ref="formPanel" class="grid gap-4 xl:sticky xl:top-4 xl:self-start">
+                <aside v-if="can.manage && viewMode !== 'bulk'" ref="formPanel" class="grid gap-4 xl:sticky xl:top-4 xl:self-start">
                     <section class="overflow-hidden rounded-lg border bg-card shadow-sm">
                         <div class="border-b bg-[linear-gradient(135deg,#f8fafc,#ecfdf5)] p-4">
                             <div class="flex items-start justify-between gap-3">
