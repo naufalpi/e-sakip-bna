@@ -257,6 +257,68 @@ class RenstraOpdTest extends TestCase
         ]);
     }
 
+    public function test_renstra_node_autosave_updates_existing_cascading_data(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '2.02', 'nama' => 'Dinas Autosave', 'status' => 'active']);
+        $tree = $this->createRpjmdTree();
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $tree['rpjmd']->id,
+            'judul' => 'Renstra Autosave',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'draft',
+        ]);
+        $user = User::factory()->create(['opd_id' => $opd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $tujuan = TujuanOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'tujuan_daerah_id' => $tree['tujuan_daerah']->id,
+            'kode' => 'T1',
+            'tujuan' => 'Tujuan Lama',
+            'urutan' => 1,
+        ]);
+        $sasaran = $tujuan->sasaran()->create([
+            'sasaran_daerah_id' => $tree['sasaran_daerah']->id,
+            'kode' => 'S1',
+            'sasaran' => 'Sasaran Lama',
+            'urutan' => 1,
+        ]);
+        $program = OpdProgram::create([
+            'renstra_opd_id' => $renstra->id,
+            'sasaran_opd_id' => $sasaran->id,
+            'program_rpjmd_id' => $tree['program_rpjmd']->id,
+            'kode' => 'P1',
+            'nama' => 'Program Lama',
+            'status' => 'draft',
+            'urutan' => 1,
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson(route('renstra-opd.nodes.autosave', [$renstra, 'program', $program->id]), [
+                'type' => 'program',
+                'parent_id' => $sasaran->id,
+                'program_rpjmd_id' => $tree['program_rpjmd']->id,
+                'kode' => 'P1A',
+                'uraian' => 'Program Hasil Autosave',
+                'pagu_indikatif' => 2500000,
+                'urutan' => 2,
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', 'saved');
+
+        $this->assertDatabaseHas('opd_program', [
+            'id' => $program->id,
+            'kode' => 'P1A',
+            'nama' => 'Program Hasil Autosave',
+            'pagu_indikatif' => 2500000,
+            'urutan' => 2,
+        ]);
+    }
+
     public function test_kabupaten_monitoring_can_view_all_read_only(): void
     {
         $this->seed();

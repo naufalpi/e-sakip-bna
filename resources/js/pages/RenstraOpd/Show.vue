@@ -23,7 +23,7 @@ import {
     Trash2,
     WalletCards,
 } from 'lucide-vue-next';
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 
 type Option = { id: number; label: string };
 type NodeType =
@@ -159,6 +159,33 @@ type RenstraCascadingRow = {
     pagu: string;
     status_keterhubungan: string;
 };
+type BulkSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
+type BulkRow = {
+    key: string;
+    id: number;
+    type: NodeType;
+    level: string;
+    parent_label: string;
+    parent_id: number | string;
+    kode: string;
+    uraian: string;
+    indikator: string;
+    satuan_indikator_id: number | string;
+    tipe_indikator: string;
+    formula: string;
+    sumber_data: string;
+    pagu_indikatif: number | string;
+    periode_tahun_id: number | string;
+    target: number | string;
+    target_text: string;
+    pagu: number | string;
+    urutan: number | string;
+    reference_field: string;
+    reference_value: number | string;
+    saveState: BulkSaveState;
+    savedAt: string;
+    error: string;
+};
 type Workflow = {
     status: string;
     histories: Array<{
@@ -291,8 +318,11 @@ const targetTriwulanTypeOptions = [
 ];
 const selectedTargetTriwulanOptions = computed(() => props.targetTriwulanOptions[targetTriwulanForm.related_table] ?? []);
 const editingNode = ref<{ type: NodeType; id: number } | null>(null);
-const viewMode = ref<'tree' | 'table'>('tree');
+const viewMode = ref<'tree' | 'table' | 'bulk'>('tree');
 const formPanel = ref<HTMLElement | null>(null);
+const bulkRows = ref<BulkRow[]>([]);
+const bulkSaveTimers = new Map<string, number>();
+const bulkLastSavedAt = ref('');
 
 const typeOptionMap = computed(() => new Map(typeOptions.map((option) => [option.value, option])));
 const typeGroups: Array<{ label: string; helper: string; icon: unknown; items: NodeType[] }> = [
@@ -660,6 +690,249 @@ function emptyRenstraRow(key: string, values: Partial<RenstraCascadingRow>): Ren
     };
 }
 
+function makeBulkRow(values: Partial<BulkRow> & { id: number; type: NodeType; level: string }): BulkRow {
+    return {
+        key: `${values.type}-${values.id}`,
+        parent_label: '-',
+        parent_id: '',
+        kode: '',
+        uraian: '',
+        indikator: '',
+        satuan_indikator_id: '',
+        tipe_indikator: 'positif',
+        formula: '',
+        sumber_data: '',
+        pagu_indikatif: '',
+        periode_tahun_id: '',
+        target: '',
+        target_text: '',
+        pagu: '',
+        urutan: 1,
+        reference_field: '',
+        reference_value: '',
+        saveState: 'idle',
+        savedAt: '',
+        error: '',
+        ...values,
+    };
+}
+
+function buildBulkRows(): BulkRow[] {
+    const rows: BulkRow[] = [];
+
+    props.renstra.tujuan.forEach((tujuan) => {
+        rows.push(
+            makeBulkRow({
+                id: tujuan.id,
+                type: 'tujuan',
+                level: 'Tujuan OPD',
+                kode: valueText(tujuan.kode),
+                uraian: valueText(tujuan.tujuan),
+                urutan: tujuan.urutan ?? 1,
+                reference_field: 'tujuan_daerah_id',
+                reference_value: valueText(tujuan.tujuan_daerah_id),
+            }),
+        );
+
+        tujuan.indikator.forEach((indikator) => {
+            rows.push(
+                makeBulkRow({
+                    id: indikator.id,
+                    type: 'indikator_tujuan',
+                    level: 'Indikator Tujuan',
+                    parent_label: nodeText(tujuan.kode, tujuan.tujuan),
+                    parent_id: tujuan.id,
+                    kode: valueText(indikator.kode),
+                    indikator: valueText(indikator.indikator),
+                    satuan_indikator_id: valueText(indikator.satuan_indikator_id),
+                    tipe_indikator: valueText(indikator.tipe_indikator || 'positif'),
+                    formula: valueText(indikator.formula),
+                    sumber_data: valueText(indikator.sumber_data),
+                    urutan: indikator.urutan ?? 1,
+                    reference_field: 'indikator_tujuan_daerah_id',
+                    reference_value: valueText(indikator.indikator_tujuan_daerah_id),
+                }),
+            );
+
+            (indikator.targets ?? []).forEach((target) => {
+                rows.push(
+                    makeBulkRow({
+                        id: target.id,
+                        type: 'target_tujuan',
+                        level: 'Target Tujuan',
+                        parent_label: nodeText(indikator.kode, indikator.indikator),
+                        parent_id: indikator.id,
+                        periode_tahun_id: target.periode_tahun.id,
+                        target: valueText(target.target),
+                        target_text: valueText(target.target_text),
+                    }),
+                );
+            });
+        });
+
+        tujuan.sasaran.forEach((sasaran) => {
+            rows.push(
+                makeBulkRow({
+                    id: sasaran.id,
+                    type: 'sasaran',
+                    level: 'Sasaran OPD',
+                    parent_label: nodeText(tujuan.kode, tujuan.tujuan),
+                    parent_id: tujuan.id,
+                    kode: valueText(sasaran.kode),
+                    uraian: valueText(sasaran.sasaran),
+                    urutan: sasaran.urutan ?? 1,
+                    reference_field: 'sasaran_daerah_id',
+                    reference_value: valueText(sasaran.sasaran_daerah_id),
+                }),
+            );
+
+            sasaran.indikator.forEach((indikator) => {
+                rows.push(
+                    makeBulkRow({
+                        id: indikator.id,
+                        type: 'indikator_sasaran',
+                        level: 'Indikator Sasaran',
+                        parent_label: nodeText(sasaran.kode, sasaran.sasaran),
+                        parent_id: sasaran.id,
+                        kode: valueText(indikator.kode),
+                        indikator: valueText(indikator.indikator),
+                        satuan_indikator_id: valueText(indikator.satuan_indikator_id),
+                        tipe_indikator: valueText(indikator.tipe_indikator || 'positif'),
+                        formula: valueText(indikator.formula),
+                        sumber_data: valueText(indikator.sumber_data),
+                        urutan: indikator.urutan ?? 1,
+                        reference_field: 'indikator_sasaran_daerah_id',
+                        reference_value: valueText(indikator.indikator_sasaran_daerah_id),
+                    }),
+                );
+
+                (indikator.targets ?? []).forEach((target) => {
+                    rows.push(
+                        makeBulkRow({
+                            id: target.id,
+                            type: 'target_sasaran',
+                            level: 'Target Sasaran',
+                            parent_label: nodeText(indikator.kode, indikator.indikator),
+                            parent_id: indikator.id,
+                            periode_tahun_id: target.periode_tahun.id,
+                            target: valueText(target.target),
+                            target_text: valueText(target.target_text),
+                        }),
+                    );
+                });
+            });
+
+            sasaran.programs.forEach((program) => {
+                rows.push(
+                    makeBulkRow({
+                        id: program.id,
+                        type: 'program',
+                        level: 'Program OPD',
+                        parent_label: nodeText(sasaran.kode, sasaran.sasaran),
+                        parent_id: sasaran.id,
+                        kode: valueText(program.kode),
+                        uraian: valueText(program.nama),
+                        pagu_indikatif: valueText(program.pagu_indikatif),
+                        urutan: program.urutan ?? 1,
+                        reference_field: 'program_rpjmd_id',
+                        reference_value: valueText(program.program_rpjmd_id),
+                    }),
+                );
+
+                program.indikator.forEach((indikator) => {
+                    rows.push(
+                        makeBulkRow({
+                            id: indikator.id,
+                            type: 'indikator_program',
+                            level: 'Indikator Program',
+                            parent_label: nodeText(program.kode, program.nama),
+                            parent_id: program.id,
+                            kode: valueText(indikator.kode),
+                            indikator: valueText(indikator.indikator),
+                            satuan_indikator_id: valueText(indikator.satuan_indikator_id),
+                            tipe_indikator: valueText(indikator.tipe_indikator || 'positif'),
+                            formula: valueText(indikator.formula),
+                            sumber_data: valueText(indikator.sumber_data),
+                            urutan: indikator.urutan ?? 1,
+                            reference_field: 'indikator_program_rpjmd_id',
+                            reference_value: valueText(indikator.indikator_program_rpjmd_id),
+                        }),
+                    );
+
+                    (indikator.targets ?? []).forEach((target) => {
+                        rows.push(
+                            makeBulkRow({
+                                id: target.id,
+                                type: 'target_program',
+                                level: 'Target Program',
+                                parent_label: nodeText(indikator.kode, indikator.indikator),
+                                parent_id: indikator.id,
+                                periode_tahun_id: target.periode_tahun.id,
+                                target: valueText(target.target),
+                                target_text: valueText(target.target_text),
+                                pagu: valueText(target.pagu),
+                            }),
+                        );
+                    });
+                });
+
+                program.kegiatan.forEach((kegiatan) => {
+                    rows.push(
+                        makeBulkRow({
+                            id: kegiatan.id,
+                            type: 'kegiatan',
+                            level: 'Kegiatan OPD',
+                            parent_label: nodeText(program.kode, program.nama),
+                            parent_id: program.id,
+                            kode: valueText(kegiatan.kode),
+                            uraian: valueText(kegiatan.nama),
+                            pagu_indikatif: valueText(kegiatan.pagu_indikatif),
+                            urutan: kegiatan.urutan ?? 1,
+                        }),
+                    );
+
+                    kegiatan.sub_kegiatan.forEach((subKegiatan) => {
+                        rows.push(
+                            makeBulkRow({
+                                id: subKegiatan.id,
+                                type: 'sub_kegiatan',
+                                level: 'Sub Kegiatan',
+                                parent_label: nodeText(kegiatan.kode, kegiatan.nama),
+                                parent_id: kegiatan.id,
+                                kode: valueText(subKegiatan.kode),
+                                uraian: valueText(subKegiatan.nama),
+                                pagu_indikatif: valueText(subKegiatan.pagu_indikatif),
+                                urutan: subKegiatan.urutan ?? 1,
+                            }),
+                        );
+
+                        subKegiatan.indikator.forEach((indikator) => {
+                            rows.push(
+                                makeBulkRow({
+                                    id: indikator.id,
+                                    type: 'indikator_sub_kegiatan',
+                                    level: 'Indikator Sub Kegiatan',
+                                    parent_label: nodeText(subKegiatan.kode, subKegiatan.nama),
+                                    parent_id: subKegiatan.id,
+                                    kode: valueText(indikator.kode),
+                                    indikator: valueText(indikator.indikator),
+                                    satuan_indikator_id: valueText(indikator.satuan_indikator_id),
+                                    tipe_indikator: valueText(indikator.tipe_indikator || 'positif'),
+                                    formula: valueText(indikator.formula),
+                                    sumber_data: valueText(indikator.sumber_data),
+                                    urutan: indikator.urutan ?? 1,
+                                }),
+                            );
+                        });
+                    });
+                });
+            });
+        });
+    });
+
+    return rows;
+}
+
 const clearNodeForm = () => {
     form.parent_id = '';
     form.periode_tahun_id = '';
@@ -710,6 +983,144 @@ const selectTargetTriwulan = (relatedTable: string, relatedId: number | string =
 };
 
 const valueText = (value: unknown) => (value === null || value === undefined ? '' : String(value));
+
+watch(
+    () => props.renstra,
+    () => {
+        bulkRows.value = buildBulkRows();
+    },
+    { immediate: true },
+);
+
+const bulkParentOptions = (row: BulkRow): Option[] => {
+    const key = parentKeyByType[row.type];
+
+    return key ? (props.nodeOptions[key] ?? []) : [];
+};
+
+const bulkReferenceOptions = (row: BulkRow): Option[] => {
+    if (!row.reference_field) {
+        return [];
+    }
+
+    const referenceKey = row.reference_field.replace('_id', '');
+
+    return props.rpjmdReferenceOptions[referenceKey] ?? [];
+};
+
+const isBulkTextRow = (row: BulkRow) => ['tujuan', 'sasaran', 'program', 'kegiatan', 'sub_kegiatan'].includes(row.type);
+const isBulkIndicatorRow = (row: BulkRow) =>
+    ['indikator_tujuan', 'indikator_sasaran', 'indikator_program', 'indikator_sub_kegiatan'].includes(row.type);
+const isBulkTargetRow = (row: BulkRow) => ['target_tujuan', 'target_sasaran', 'target_program'].includes(row.type);
+const hasBulkPaguIndikatif = (row: BulkRow) => ['program', 'kegiatan', 'sub_kegiatan'].includes(row.type);
+const hasBulkPaguTahunan = (row: BulkRow) => row.type === 'target_program';
+
+const bulkStatusLabel = (row: BulkRow) =>
+    ({
+        idle: 'Siap',
+        dirty: 'Menunggu autosave',
+        saving: 'Menyimpan',
+        saved: row.savedAt ? `Tersimpan ${row.savedAt}` : 'Tersimpan',
+        error: row.error || 'Gagal simpan',
+    })[row.saveState];
+
+const bulkStatusClass = (row: BulkRow) =>
+    ({
+        idle: 'bg-slate-100 text-slate-700',
+        dirty: 'bg-amber-100 text-amber-800',
+        saving: 'bg-blue-100 text-blue-800',
+        saved: 'bg-emerald-100 text-emerald-800',
+        error: 'bg-red-100 text-red-800',
+    })[row.saveState];
+
+const csrfToken = () => document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+
+const bulkRowPayload = (row: BulkRow) => {
+    const payload: Record<string, unknown> = {
+        type: row.type,
+        parent_id: row.parent_id || null,
+        kode: row.kode || null,
+        uraian: row.uraian || null,
+        indikator: row.indikator || null,
+        satuan_indikator_id: row.satuan_indikator_id || null,
+        tipe_indikator: row.tipe_indikator || 'positif',
+        formula: row.formula || null,
+        sumber_data: row.sumber_data || null,
+        pagu_indikatif: row.pagu_indikatif || null,
+        periode_tahun_id: row.periode_tahun_id || null,
+        target: row.target || null,
+        target_text: row.target_text || null,
+        pagu: row.pagu || null,
+        urutan: row.urutan || null,
+    };
+
+    if (row.reference_field) {
+        payload[row.reference_field] = row.reference_value || null;
+    }
+
+    return payload;
+};
+
+const firstErrorMessage = (errors: Record<string, string[] | string> | undefined, fallback: string): string => {
+    if (!errors) {
+        return fallback;
+    }
+
+    const first = Object.values(errors)[0];
+
+    return Array.isArray(first) ? first[0] : first;
+};
+
+const saveBulkRow = async (row: BulkRow) => {
+    row.saveState = 'saving';
+    row.error = '';
+
+    try {
+        const response = await fetch(route('renstra-opd.nodes.autosave', [props.renstra.id, row.type, row.id]), {
+            method: 'PATCH',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken(),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(bulkRowPayload(row)),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(firstErrorMessage(data.errors, data.message || 'Autosave gagal.'));
+        }
+
+        row.saveState = 'saved';
+        row.savedAt = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        bulkLastSavedAt.value = row.savedAt;
+    } catch (error) {
+        row.saveState = 'error';
+        row.error = error instanceof Error ? error.message : 'Autosave gagal.';
+    }
+};
+
+const scheduleBulkAutosave = (row: BulkRow) => {
+    if (!props.can.manage) {
+        return;
+    }
+
+    window.clearTimeout(bulkSaveTimers.get(row.key));
+    row.saveState = 'dirty';
+    row.error = '';
+    bulkSaveTimers.set(
+        row.key,
+        window.setTimeout(() => {
+            void saveBulkRow(row);
+        }, 900),
+    );
+};
+
+onUnmounted(() => {
+    bulkSaveTimers.forEach((timer) => window.clearTimeout(timer));
+});
 
 const editNode = (type: NodeType, id: number, parentId: number | null, node: any) => {
     editingNode.value = { type, id };
@@ -980,11 +1391,235 @@ const triwulanLabel = (triwulan: string) =>
                         <Table2 class="size-4" />
                         Tabel
                     </button>
+                    <button
+                        v-if="can.manage"
+                        type="button"
+                        class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
+                        :class="viewMode === 'bulk' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
+                        @click="viewMode = 'bulk'"
+                    >
+                        <Save class="size-4" />
+                        Bulk
+                    </button>
                 </div>
             </section>
 
             <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]">
-                <section v-if="viewMode === 'table'" class="rounded-lg border bg-card">
+                <section v-if="viewMode === 'bulk' && can.manage" class="rounded-lg border bg-card">
+                    <div class="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="flex items-start gap-2">
+                            <Save class="mt-0.5 size-5 text-emerald-700" />
+                            <div>
+                                <h2 class="text-base font-semibold">Bulk Mode Autosave</h2>
+                                <p class="mt-1 text-sm leading-6 text-muted-foreground">
+                                    Edit data cascading dalam tabel lebar. Perubahan disimpan otomatis sekitar 1 detik setelah input berhenti.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="rounded-md border bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">
+                            {{ bulkLastSavedAt ? `Terakhir autosave ${bulkLastSavedAt}` : 'Belum ada perubahan bulk' }}
+                        </div>
+                    </div>
+
+                    <div v-if="bulkRows.length === 0" class="p-8 text-center text-sm text-muted-foreground">
+                        <Layers3 class="mx-auto size-10 text-muted-foreground" />
+                        <p class="mt-3 font-semibold text-slate-900">Belum ada data untuk bulk mode</p>
+                        <p class="mt-1">Buat Tujuan OPD terlebih dahulu melalui panel pengisian atau tombol pada tree.</p>
+                    </div>
+
+                    <div v-else class="overflow-x-auto">
+                        <table class="min-w-[2500px] text-left text-sm">
+                            <thead class="sticky top-0 z-10 border-b bg-muted/80 text-xs uppercase text-muted-foreground backdrop-blur">
+                                <tr>
+                                    <th class="sticky left-0 z-20 min-w-44 bg-muted/90 px-3 py-3">Status</th>
+                                    <th class="min-w-44 px-3 py-3">Level</th>
+                                    <th class="min-w-72 px-3 py-3">Induk</th>
+                                    <th class="min-w-40 px-3 py-3">Ubah Induk</th>
+                                    <th class="min-w-32 px-3 py-3">Kode</th>
+                                    <th class="min-w-80 px-3 py-3">Uraian/Nama</th>
+                                    <th class="min-w-80 px-3 py-3">Indikator</th>
+                                    <th class="min-w-72 px-3 py-3">Referensi RPJMD</th>
+                                    <th class="min-w-56 px-3 py-3">Satuan</th>
+                                    <th class="min-w-40 px-3 py-3">Tipe</th>
+                                    <th class="min-w-72 px-3 py-3">Formula</th>
+                                    <th class="min-w-60 px-3 py-3">Sumber Data</th>
+                                    <th class="min-w-44 px-3 py-3">Pagu Indikatif</th>
+                                    <th class="min-w-52 px-3 py-3">Periode Target</th>
+                                    <th class="min-w-40 px-3 py-3">Target Angka</th>
+                                    <th class="min-w-56 px-3 py-3">Target Teks</th>
+                                    <th class="min-w-44 px-3 py-3">Pagu Tahunan</th>
+                                    <th class="min-w-28 px-3 py-3">Urutan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="row in bulkRows" :key="row.key" class="border-b align-top last:border-0 hover:bg-muted/30">
+                                    <td class="sticky left-0 z-10 bg-card px-3 py-3">
+                                        <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold" :class="bulkStatusClass(row)">
+                                            {{ bulkStatusLabel(row) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <div class="font-semibold text-slate-900">{{ row.level }}</div>
+                                        <div class="mt-1 text-xs text-muted-foreground">{{ typeOptionMap.get(row.type)?.label }}</div>
+                                    </td>
+                                    <td class="px-3 py-3 text-xs leading-5 text-slate-700">{{ row.parent_label }}</td>
+                                    <td class="px-3 py-3">
+                                        <select
+                                            v-if="bulkParentOptions(row).length"
+                                            v-model="row.parent_id"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700"
+                                            @change="scheduleBulkAutosave(row)"
+                                        >
+                                            <option value="">Pilih induk</option>
+                                            <option v-for="option in bulkParentOptions(row)" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                        </select>
+                                        <span v-else class="text-xs text-muted-foreground">-</span>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <input
+                                            v-model="row.kode"
+                                            :disabled="isBulkTargetRow(row)"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <textarea
+                                            v-model="row.uraian"
+                                            :disabled="!isBulkTextRow(row)"
+                                            rows="3"
+                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <textarea
+                                            v-model="row.indikator"
+                                            :disabled="!isBulkIndicatorRow(row)"
+                                            rows="3"
+                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <select
+                                            v-if="bulkReferenceOptions(row).length"
+                                            v-model="row.reference_value"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700"
+                                            @change="scheduleBulkAutosave(row)"
+                                        >
+                                            <option value="">Tidak dihubungkan</option>
+                                            <option v-for="option in bulkReferenceOptions(row)" :key="option.id" :value="option.id">
+                                                {{ option.label }}
+                                            </option>
+                                        </select>
+                                        <span v-else class="text-xs text-muted-foreground">-</span>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <select
+                                            v-model="row.satuan_indikator_id"
+                                            :disabled="!isBulkIndicatorRow(row)"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @change="scheduleBulkAutosave(row)"
+                                        >
+                                            <option value="">Pilih satuan</option>
+                                            <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                        </select>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <select
+                                            v-model="row.tipe_indikator"
+                                            :disabled="!isBulkIndicatorRow(row)"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @change="scheduleBulkAutosave(row)"
+                                        >
+                                            <option value="positif">Positif</option>
+                                            <option value="negatif">Negatif</option>
+                                        </select>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <textarea
+                                            v-model="row.formula"
+                                            :disabled="!isBulkIndicatorRow(row)"
+                                            rows="3"
+                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <input
+                                            v-model="row.sumber_data"
+                                            :disabled="!isBulkIndicatorRow(row)"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <input
+                                            v-model="row.pagu_indikatif"
+                                            :disabled="!hasBulkPaguIndikatif(row)"
+                                            type="number"
+                                            step="0.01"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <select
+                                            v-model="row.periode_tahun_id"
+                                            :disabled="!isBulkTargetRow(row)"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @change="scheduleBulkAutosave(row)"
+                                        >
+                                            <option value="">Pilih periode</option>
+                                            <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                        </select>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <input
+                                            v-model="row.target"
+                                            :disabled="!isBulkTargetRow(row)"
+                                            type="number"
+                                            step="0.0001"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <input
+                                            v-model="row.target_text"
+                                            :disabled="!isBulkTargetRow(row)"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <input
+                                            v-model="row.pagu"
+                                            :disabled="!hasBulkPaguTahunan(row)"
+                                            type="number"
+                                            step="0.01"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <input
+                                            v-model="row.urutan"
+                                            :disabled="isBulkTargetRow(row)"
+                                            type="number"
+                                            min="1"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section v-else-if="viewMode === 'table'" class="rounded-lg border bg-card">
                     <div class="flex items-center gap-2 border-b p-4">
                         <Table2 class="size-5 text-emerald-700" />
                         <div>

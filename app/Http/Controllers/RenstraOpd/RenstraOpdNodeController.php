@@ -17,6 +17,7 @@ use App\Models\TargetIndikatorOpdProgram;
 use App\Models\TargetIndikatorSasaranOpd;
 use App\Models\TargetIndikatorTujuanOpd;
 use App\Models\TujuanOpd;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -47,6 +48,25 @@ class RenstraOpdNodeController extends Controller
         DB::transaction(fn () => $this->updateNode($renstraOpd, $type, $id, $data));
 
         return back()->with('success', 'Data cascading Renstra OPD berhasil diperbarui.');
+    }
+
+    public function autosave(StoreRenstraOpdNodeRequest $request, RenstraOpd $renstraOpd, string $type, int $id): JsonResponse
+    {
+        $this->authorize('update', $renstraOpd);
+
+        $data = $request->validated();
+
+        if (($data['type'] ?? null) !== $type) {
+            throw ValidationException::withMessages(['type' => 'Jenis data tidak sesuai dengan node yang diedit.']);
+        }
+
+        DB::transaction(fn () => $this->updateNode($renstraOpd, $type, $id, $data));
+
+        return response()->json([
+            'status' => 'saved',
+            'message' => 'Data cascading Renstra OPD tersimpan otomatis.',
+            'saved_at' => now()->toIso8601String(),
+        ]);
     }
 
     public function destroy(RenstraOpd $renstraOpd, string $type, int $id): RedirectResponse

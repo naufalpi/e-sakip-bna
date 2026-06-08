@@ -82,6 +82,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::resource('renstra-opd', RenstraOpdController::class);
     Route::post('renstra-opd/{renstra_opd}/nodes', [RenstraOpdNodeController::class, 'store'])->name('renstra-opd.nodes.store');
     Route::put('renstra-opd/{renstra_opd}/nodes/{type}/{id}', [RenstraOpdNodeController::class, 'update'])->name('renstra-opd.nodes.update');
+    Route::patch('renstra-opd/{renstra_opd}/nodes/{type}/{id}/autosave', [RenstraOpdNodeController::class, 'autosave'])->name('renstra-opd.nodes.autosave');
     Route::delete('renstra-opd/{renstra_opd}/nodes/{type}/{id}', [RenstraOpdNodeController::class, 'destroy'])->name('renstra-opd.nodes.destroy');
     Route::post('target-triwulan-indikator', [TargetTriwulanIndikatorController::class, 'store'])->name('target-triwulan-indikator.store');
     Route::post('target-triwulan-indikator/bulk', [TargetTriwulanIndikatorController::class, 'bulkStore'])->name('target-triwulan-indikator.bulk-store');
