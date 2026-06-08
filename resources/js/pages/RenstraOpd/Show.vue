@@ -1545,34 +1545,19 @@ const triwulanLabel = (triwulan: string) =>
             </section>
 
             <div :class="viewMode === 'bulk' ? 'grid gap-4' : 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]'">
-                <section v-if="viewMode === 'bulk' && can.manage" class="rounded-lg border bg-card">
-                    <div class="flex flex-col gap-4 border-b p-4">
-                        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                        <div class="flex items-start gap-2">
-                            <Save class="mt-0.5 size-5 text-emerald-700" />
-                            <div>
-                                <h2 class="text-base font-semibold">Bulk Mode Autosave</h2>
-                                <p class="mt-1 text-sm leading-6 text-muted-foreground">
-                                    Input dan edit data cascading dalam tabel lebar. Perubahan disimpan otomatis sekitar 1 detik setelah input berhenti.
-                                </p>
-                            </div>
-                        </div>
-                        <div class="rounded-md border bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">
-                            {{ bulkLastSavedAt ? `Terakhir autosave ${bulkLastSavedAt}` : 'Belum ada perubahan bulk' }}
-                        </div>
-                    </div>
-
-                        <div class="flex flex-col gap-3 rounded-lg border bg-background p-3 xl:flex-row xl:items-center xl:justify-between">
+                <section v-if="viewMode === 'bulk' && can.manage" class="overflow-hidden rounded-lg border bg-card">
+                    <div class="grid gap-4 border-b p-4 xl:grid-cols-[22rem_minmax(0,1fr)]">
+                        <aside class="rounded-lg border bg-background p-3">
                             <div>
                                 <p class="text-sm font-semibold text-slate-900">Tambah baris baru</p>
                                 <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                                    Pilih jenis baris, lengkapi induk dan field utama, lalu sistem akan menyimpan otomatis.
+                                    Tombol tambah ditempatkan di kiri. Lengkapi induk dan field utama, lalu autosave berjalan otomatis.
                                 </p>
                             </div>
-                            <div class="flex flex-wrap gap-2">
+                            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
                                 <button
                                     type="button"
-                                    class="inline-flex min-h-9 items-center gap-2 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"
+                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"
                                     @click="addBulkRow('tujuan')"
                                 >
                                     <Plus class="size-3.5" />
@@ -1580,7 +1565,7 @@ const triwulanLabel = (triwulan: string) =>
                                 </button>
                                 <button
                                     type="button"
-                                    class="inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
                                     @click="addBulkRow('sasaran')"
                                 >
                                     <Plus class="size-3.5" />
@@ -1588,7 +1573,7 @@ const triwulanLabel = (triwulan: string) =>
                                 </button>
                                 <button
                                     type="button"
-                                    class="inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
                                     @click="addBulkRow('program')"
                                 >
                                     <Plus class="size-3.5" />
@@ -1596,7 +1581,7 @@ const triwulanLabel = (triwulan: string) =>
                                 </button>
                                 <button
                                     type="button"
-                                    class="inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
                                     @click="addBulkRow('kegiatan')"
                                 >
                                     <Plus class="size-3.5" />
@@ -1604,7 +1589,7 @@ const triwulanLabel = (triwulan: string) =>
                                 </button>
                                 <button
                                     type="button"
-                                    class="inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
                                     @click="addBulkRow('indikator_program')"
                                 >
                                     <Plus class="size-3.5" />
@@ -1612,12 +1597,45 @@ const triwulanLabel = (triwulan: string) =>
                                 </button>
                                 <button
                                     type="button"
-                                    class="inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
                                     @click="addBulkRow('target_program')"
                                 >
                                     <Plus class="size-3.5" />
                                     Target
                                 </button>
+                            </div>
+                        </aside>
+
+                        <div class="grid min-w-0 gap-3">
+                            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                <div class="flex min-w-0 items-start gap-2">
+                                    <Save class="mt-0.5 size-5 shrink-0 text-emerald-700" />
+                                    <div class="min-w-0">
+                                        <h2 class="text-base font-semibold">Bulk Mode Autosave</h2>
+                                        <p class="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
+                                            Input dan edit data cascading dalam tabel lebar. Geser tabel ke kanan untuk mengisi kolom lanjutan.
+                                            Perubahan disimpan otomatis sekitar 1 detik setelah input berhenti.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="shrink-0 rounded-md border bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">
+                                    {{ bulkLastSavedAt ? `Terakhir autosave ${bulkLastSavedAt}` : 'Belum ada perubahan bulk' }}
+                                </div>
+                            </div>
+
+                            <div class="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-3">
+                                <div>
+                                    <p class="text-xs font-semibold uppercase text-muted-foreground">Cara input</p>
+                                    <p class="mt-1 text-sm text-slate-800">Tambah baris dari kiri, pilih induk jika dibutuhkan, isi field utama.</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-semibold uppercase text-muted-foreground">Autosave</p>
+                                    <p class="mt-1 text-sm text-slate-800">Status simpan tampil di kolom paling kiri setiap baris.</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-semibold uppercase text-muted-foreground">Layar lebar</p>
+                                    <p class="mt-1 text-sm text-slate-800">Panel kanan disembunyikan supaya tabel punya ruang maksimal.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1636,11 +1654,13 @@ const triwulanLabel = (triwulan: string) =>
                         </button>
                     </div>
 
-                    <div v-else class="overflow-x-auto">
+                    <div v-else class="max-w-full overflow-x-auto">
                         <table class="min-w-[2500px] text-left text-sm">
                             <thead class="sticky top-0 z-10 border-b bg-muted/80 text-xs uppercase text-muted-foreground backdrop-blur">
                                 <tr>
-                                    <th class="sticky left-0 z-20 min-w-44 bg-muted/90 px-3 py-3">Status</th>
+                                    <th class="sticky left-0 z-20 min-w-44 border-r bg-muted/95 px-3 py-3 shadow-[8px_0_16px_rgba(15,23,42,0.06)]">
+                                        Status
+                                    </th>
                                     <th class="min-w-56 px-3 py-3">Jenis Data</th>
                                     <th class="min-w-72 px-3 py-3">Induk</th>
                                     <th class="min-w-40 px-3 py-3">Ubah Induk</th>
@@ -1662,7 +1682,7 @@ const triwulanLabel = (triwulan: string) =>
                             </thead>
                             <tbody>
                                 <tr v-for="row in bulkRows" :key="row.key" class="border-b align-top last:border-0 hover:bg-muted/30">
-                                    <td class="sticky left-0 z-10 bg-card px-3 py-3">
+                                    <td class="sticky left-0 z-10 border-r bg-card px-3 py-3 shadow-[8px_0_16px_rgba(15,23,42,0.05)]">
                                         <div class="grid gap-2">
                                             <span class="inline-flex w-fit rounded-full px-2 py-1 text-xs font-semibold" :class="bulkStatusClass(row)">
                                                 {{ bulkStatusLabel(row) }}
