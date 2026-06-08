@@ -6,6 +6,7 @@ import {
     CheckCircle2,
     ChevronRight,
     Download,
+    Eye,
     FileText,
     Gauge,
     LogIn,
@@ -656,19 +657,33 @@ function closeMobileMenu(): void {
                                                         :href="row.cells[column.key].dokumen?.view_url"
                                                         target="_blank"
                                                         rel="noopener"
-                                                        class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-800"
+                                                        title="Lihat dokumen"
+                                                        :aria-label="`Lihat ${row.cells[column.key].dokumen?.judul || column.label}`"
+                                                        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-slate-200 bg-white p-2 text-slate-700 transition hover:border-emerald-300 hover:text-emerald-800"
                                                     >
-                                                        <FileText class="h-3.5 w-3.5" />
-                                                        Lihat
+                                                        <Eye class="h-4 w-4" />
+                                                        <span class="sr-only">Lihat</span>
                                                     </a>
                                                     <a
                                                         :href="row.cells[column.key].dokumen?.download_url"
-                                                        class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-800"
+                                                        title="Download dokumen"
+                                                        :aria-label="`Download ${row.cells[column.key].dokumen?.judul || column.label}`"
+                                                        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-slate-200 bg-white p-2 text-slate-700 transition hover:border-emerald-300 hover:text-emerald-800"
                                                     >
-                                                        <Download class="h-3.5 w-3.5" />
-                                                        Download
+                                                        <Download class="h-4 w-4" />
+                                                        <span class="sr-only">Download</span>
                                                     </a>
                                                 </div>
+                                                <template v-else-if="row.cells[column.key]?.state === 'missing'">
+                                                    <span
+                                                        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-400"
+                                                        title="Belum tersedia"
+                                                        aria-label="Belum tersedia"
+                                                    >
+                                                        <X class="h-4 w-4" />
+                                                        <span class="sr-only">Belum tersedia</span>
+                                                    </span>
+                                                </template>
                                                 <template v-else>
                                                     <span
                                                         class="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
@@ -726,19 +741,33 @@ function closeMobileMenu(): void {
                                                 :href="row.cells[column.key].dokumen?.view_url"
                                                 target="_blank"
                                                 rel="noopener"
-                                                class="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                                                title="Lihat dokumen"
+                                                :aria-label="`Lihat ${row.cells[column.key].dokumen?.judul || column.label}`"
+                                                class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-md border border-slate-200 bg-white p-2 text-slate-700"
                                             >
-                                                <FileText class="h-3.5 w-3.5" />
-                                                Lihat
+                                                <Eye class="h-4 w-4" />
+                                                <span class="sr-only">Lihat</span>
                                             </a>
                                             <a
                                                 :href="row.cells[column.key].dokumen?.download_url"
-                                                class="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                                                title="Download dokumen"
+                                                :aria-label="`Download ${row.cells[column.key].dokumen?.judul || column.label}`"
+                                                class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-md border border-slate-200 bg-white p-2 text-slate-700"
                                             >
-                                                <Download class="h-3.5 w-3.5" />
-                                                Download
+                                                <Download class="h-4 w-4" />
+                                                <span class="sr-only">Download</span>
                                             </a>
                                         </div>
+                                        <template v-else-if="row.cells[column.key]?.state === 'missing'">
+                                            <span
+                                                class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-400"
+                                                title="Belum tersedia"
+                                                aria-label="Belum tersedia"
+                                            >
+                                                <X class="h-4 w-4" />
+                                                <span class="sr-only">Belum tersedia</span>
+                                            </span>
+                                        </template>
                                         <template v-else>
                                             <span
                                                 class="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
