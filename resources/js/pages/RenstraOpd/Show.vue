@@ -5,8 +5,25 @@ import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { Layers3, Network, Pencil, Plus, Table2, Trash2 } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import {
+    ArrowLeft,
+    CheckCircle2,
+    CircleDot,
+    ClipboardList,
+    FileText,
+    GitBranch,
+    Layers3,
+    Link2,
+    Network,
+    Pencil,
+    Plus,
+    Save,
+    Table2,
+    Target,
+    Trash2,
+    WalletCards,
+} from 'lucide-vue-next';
+import { computed, nextTick, ref, watch } from 'vue';
 
 type Option = { id: number; label: string };
 type NodeType =
@@ -275,6 +292,125 @@ const targetTriwulanTypeOptions = [
 const selectedTargetTriwulanOptions = computed(() => props.targetTriwulanOptions[targetTriwulanForm.related_table] ?? []);
 const editingNode = ref<{ type: NodeType; id: number } | null>(null);
 const viewMode = ref<'tree' | 'table'>('tree');
+const formPanel = ref<HTMLElement | null>(null);
+
+const typeOptionMap = computed(() => new Map(typeOptions.map((option) => [option.value, option])));
+const typeGroups: Array<{ label: string; helper: string; icon: unknown; items: NodeType[] }> = [
+    {
+        label: 'Arah Kinerja',
+        helper: 'Mulai dari tujuan, sasaran, indikator, dan target tahunan.',
+        icon: GitBranch,
+        items: ['tujuan', 'indikator_tujuan', 'target_tujuan', 'sasaran', 'indikator_sasaran', 'target_sasaran'],
+    },
+    {
+        label: 'Program dan Anggaran',
+        helper: 'Turunkan sasaran menjadi program, kegiatan, sub kegiatan, dan pagu.',
+        icon: WalletCards,
+        items: ['program', 'indikator_program', 'target_program', 'kegiatan', 'sub_kegiatan', 'indikator_sub_kegiatan'],
+    },
+];
+const typeMeta: Record<NodeType, { stage: string; helper: string; primaryField: string }> = {
+    tujuan: {
+        stage: 'Level 1',
+        helper: 'Rumusan tujuan OPD yang dapat dihubungkan ke tujuan daerah RPJMD.',
+        primaryField: 'Uraian tujuan',
+    },
+    indikator_tujuan: {
+        stage: 'Level 1A',
+        helper: 'Indikator untuk mengukur pencapaian tujuan OPD.',
+        primaryField: 'Nama indikator',
+    },
+    target_tujuan: {
+        stage: 'Target',
+        helper: 'Target tahunan untuk indikator tujuan OPD.',
+        primaryField: 'Nilai target',
+    },
+    sasaran: {
+        stage: 'Level 2',
+        helper: 'Sasaran strategis yang menjadi turunan dari tujuan OPD.',
+        primaryField: 'Uraian sasaran',
+    },
+    indikator_sasaran: {
+        stage: 'Level 2A',
+        helper: 'Indikator untuk mengukur sasaran strategis OPD.',
+        primaryField: 'Nama indikator',
+    },
+    target_sasaran: {
+        stage: 'Target',
+        helper: 'Target tahunan untuk indikator sasaran OPD.',
+        primaryField: 'Nilai target',
+    },
+    program: {
+        stage: 'Level 3',
+        helper: 'Program OPD sebagai turunan sasaran dan bisa dihubungkan ke program RPJMD.',
+        primaryField: 'Nama program',
+    },
+    indikator_program: {
+        stage: 'Level 3A',
+        helper: 'Indikator untuk mengukur keberhasilan program OPD.',
+        primaryField: 'Nama indikator',
+    },
+    target_program: {
+        stage: 'Target',
+        helper: 'Target tahunan dan pagu untuk indikator program OPD.',
+        primaryField: 'Nilai target',
+    },
+    kegiatan: {
+        stage: 'Level 4',
+        helper: 'Kegiatan OPD sebagai turunan program.',
+        primaryField: 'Nama kegiatan',
+    },
+    sub_kegiatan: {
+        stage: 'Level 5',
+        helper: 'Sub kegiatan dengan pagu indikatif sebagai dasar pengukuran anggaran.',
+        primaryField: 'Nama sub kegiatan',
+    },
+    indikator_sub_kegiatan: {
+        stage: 'Level 5A',
+        helper: 'Indikator teknis untuk sub kegiatan dan target triwulan.',
+        primaryField: 'Nama indikator',
+    },
+};
+const selectedTypeMeta = computed(() => typeMeta[form.type]);
+const parentRequirementText = computed(() => {
+    if (!needsParent.value) {
+        return 'Tidak memerlukan induk.';
+    }
+
+    if (parentOptions.value.length === 0) {
+        return `${parentLabel.value} belum tersedia. Buat data induknya terlebih dahulu.`;
+    }
+
+    return `Pilih ${parentLabel.value.toLowerCase()} agar data tersimpan pada posisi cascading yang benar.`;
+});
+const contentRequirementText = computed(() => {
+    if (isTextNodeType.value) {
+        return `${selectedTypeMeta.value.primaryField} wajib diisi.`;
+    }
+
+    if (isIndicatorType.value) {
+        return 'Isi nama indikator, satuan, tipe indikator, dan sumber data bila ada.';
+    }
+
+    return 'Pilih periode dan isi target angka atau target teks.';
+});
+const nodeFormChecklist = computed(() => [
+    {
+        label: 'Jenis data',
+        complete: Boolean(form.type),
+    },
+    {
+        label: 'Induk cascading',
+        complete: !needsParent.value || Boolean(form.parent_id),
+    },
+    {
+        label: selectedTypeMeta.value.primaryField,
+        complete:
+            (isTextNodeType.value && Boolean(form.uraian)) ||
+            (isIndicatorType.value && Boolean(form.indikator)) ||
+            (isTargetType.value && Boolean(form.periode_tahun_id) && Boolean(form.target || form.target_text)),
+    },
+]);
 
 const trimText = (value: string) => value.replace(/\s+/g, ' ').trim();
 const nodeText = (kode: string | null | undefined, text: string | null | undefined) => trimText(`${kode ? `${kode} - ` : ''}${text ?? ''}`) || '-';
@@ -553,6 +689,26 @@ const resetNodeForm = () => {
     clearNodeForm();
 };
 
+const selectNodeType = (type: NodeType, parentId: number | string = '') => {
+    editingNode.value = null;
+    form.type = type;
+
+    nextTick(() => {
+        clearNodeForm();
+        form.parent_id = parentId;
+        formPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+};
+
+const selectTargetTriwulan = (relatedTable: string, relatedId: number | string = '') => {
+    targetTriwulanForm.related_table = relatedTable;
+
+    nextTick(() => {
+        targetTriwulanForm.related_id = relatedId;
+        formPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+};
+
 const valueText = (value: unknown) => (value === null || value === undefined ? '' : String(value));
 
 const editNode = (type: NodeType, id: number, parentId: number | null, node: any) => {
@@ -589,6 +745,10 @@ const editNode = (type: NodeType, id: number, parentId: number | null, node: any
         form.target_text = valueText(target.target_text);
         form.pagu = valueText(target.pagu);
     }
+
+    nextTick(() => {
+        formPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
 };
 
 watch(
@@ -714,7 +874,10 @@ const triwulanLabel = (triwulan: string) =>
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <Link :href="route('renstra-opd.index')" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Kembali</Link>
+                    <Link :href="route('renstra-opd.index')" class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted">
+                        <ArrowLeft class="size-4" />
+                        Kembali
+                    </Link>
                     <Link
                         v-if="can.manage"
                         :href="route('renstra-opd.edit', renstra.id)"
@@ -820,7 +983,7 @@ const triwulanLabel = (triwulan: string) =>
                 </div>
             </section>
 
-            <div class="grid gap-4 xl:grid-cols-[1fr_380px]">
+            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]">
                 <section v-if="viewMode === 'table'" class="rounded-lg border bg-card">
                     <div class="flex items-center gap-2 border-b p-4">
                         <Table2 class="size-5 text-emerald-700" />
@@ -904,7 +1067,18 @@ const triwulanLabel = (triwulan: string) =>
 
                     <div class="space-y-4 p-4">
                         <div v-if="renstra.tujuan.length === 0" class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-                            Belum ada cascading Renstra OPD.
+                            <Layers3 class="mx-auto size-10 text-muted-foreground" />
+                            <p class="mt-3 font-semibold text-slate-900">Belum ada cascading Renstra OPD</p>
+                            <p class="mt-1">Mulai dengan membuat Tujuan OPD sebagai level pertama pohon kinerja.</p>
+                            <button
+                                v-if="can.manage"
+                                type="button"
+                                class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
+                                @click="selectNodeType('tujuan')"
+                            >
+                                <Plus class="size-4" />
+                                Tambah Tujuan OPD
+                            </button>
                         </div>
 
                         <article v-for="tujuan in renstra.tujuan" :key="tujuan.id" class="rounded-md border bg-background">
@@ -918,7 +1092,23 @@ const triwulanLabel = (triwulan: string) =>
                                     </div>
                                     <div class="mt-1 text-sm font-medium">{{ tujuan.kode ? `${tujuan.kode} - ` : '' }}{{ tujuan.tujuan }}</div>
                                 </div>
-                                <div v-if="can.manage" class="flex items-center gap-1">
+                                <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                    <button
+                                        type="button"
+                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                        @click="selectNodeType('indikator_tujuan', tujuan.id)"
+                                    >
+                                        <Plus class="size-3.5" />
+                                        Indikator
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
+                                        @click="selectNodeType('sasaran', tujuan.id)"
+                                    >
+                                        <Plus class="size-3.5" />
+                                        Sasaran
+                                    </button>
                                     <button
                                         type="button"
                                         class="rounded-md p-1 hover:bg-muted"
@@ -955,7 +1145,23 @@ const triwulanLabel = (triwulan: string) =>
                                                 {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
                                             </div>
                                         </div>
-                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                        <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                            <button
+                                                type="button"
+                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                                @click="selectNodeType('target_tujuan', indikator.id)"
+                                            >
+                                                <Plus class="size-3.5" />
+                                                Target
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+                                                @click="selectTargetTriwulan('indikator_tujuan_opd', indikator.id)"
+                                            >
+                                                <Plus class="size-3.5" />
+                                                TW
+                                            </button>
                                             <button
                                                 type="button"
                                                 class="rounded-md p-1 hover:bg-muted"
@@ -1024,7 +1230,23 @@ const triwulanLabel = (triwulan: string) =>
                                                 {{ sasaran.kode ? `${sasaran.kode} - ` : '' }}{{ sasaran.sasaran }}
                                             </div>
                                         </div>
-                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                        <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                            <button
+                                                type="button"
+                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                                @click="selectNodeType('indikator_sasaran', sasaran.id)"
+                                            >
+                                                <Plus class="size-3.5" />
+                                                Indikator
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
+                                                @click="selectNodeType('program', sasaran.id)"
+                                            >
+                                                <Plus class="size-3.5" />
+                                                Program
+                                            </button>
                                             <button
                                                 type="button"
                                                 class="rounded-md p-1 hover:bg-muted"
@@ -1063,7 +1285,23 @@ const triwulanLabel = (triwulan: string) =>
                                                         {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
                                                     </div>
                                                 </div>
-                                                <div v-if="can.manage" class="flex items-center gap-1">
+                                                <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                                        @click="selectNodeType('target_sasaran', indikator.id)"
+                                                    >
+                                                        <Plus class="size-3.5" />
+                                                        Target
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+                                                        @click="selectTargetTriwulan('indikator_sasaran_opd', indikator.id)"
+                                                    >
+                                                        <Plus class="size-3.5" />
+                                                        TW
+                                                    </button>
                                                     <button
                                                         type="button"
                                                         class="rounded-md p-1 hover:bg-muted"
@@ -1135,7 +1373,23 @@ const triwulanLabel = (triwulan: string) =>
                                                         Pagu indikatif: {{ program.pagu_indikatif || '-' }}
                                                     </div>
                                                 </div>
-                                                <div v-if="can.manage" class="flex items-center gap-1">
+                                                <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                                        @click="selectNodeType('indikator_program', program.id)"
+                                                    >
+                                                        <Plus class="size-3.5" />
+                                                        Indikator
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
+                                                        @click="selectNodeType('kegiatan', program.id)"
+                                                    >
+                                                        <Plus class="size-3.5" />
+                                                        Kegiatan
+                                                    </button>
                                                     <button
                                                         type="button"
                                                         class="rounded-md p-1 hover:bg-muted"
@@ -1180,7 +1434,23 @@ const triwulanLabel = (triwulan: string) =>
                                                                 {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
                                                             </div>
                                                         </div>
-                                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                                        <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                            <button
+                                                                type="button"
+                                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                                                @click="selectNodeType('target_program', indikator.id)"
+                                                            >
+                                                                <Plus class="size-3.5" />
+                                                                Target
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+                                                                @click="selectTargetTriwulan('indikator_opd_program', indikator.id)"
+                                                            >
+                                                                <Plus class="size-3.5" />
+                                                                TW
+                                                            </button>
                                                             <button
                                                                 type="button"
                                                                 class="rounded-md p-1 hover:bg-muted"
@@ -1249,7 +1519,15 @@ const triwulanLabel = (triwulan: string) =>
                                                                 {{ kegiatan.kode ? `${kegiatan.kode} - ` : '' }}{{ kegiatan.nama }}
                                                             </div>
                                                         </div>
-                                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                                        <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                            <button
+                                                                type="button"
+                                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
+                                                                @click="selectNodeType('sub_kegiatan', kegiatan.id)"
+                                                            >
+                                                                <Plus class="size-3.5" />
+                                                                Sub Kegiatan
+                                                            </button>
                                                             <button
                                                                 type="button"
                                                                 class="rounded-md p-1 hover:bg-muted"
@@ -1280,7 +1558,15 @@ const triwulanLabel = (triwulan: string) =>
                                                                     {{ sub.kode ? `${sub.kode} - ` : '' }}{{ sub.nama }}
                                                                 </div>
                                                             </div>
-                                                            <div v-if="can.manage" class="flex items-center gap-1">
+                                                            <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                                                    @click="selectNodeType('indikator_sub_kegiatan', sub.id)"
+                                                                >
+                                                                    <Plus class="size-3.5" />
+                                                                    Indikator
+                                                                </button>
                                                                 <button
                                                                     type="button"
                                                                     class="rounded-md p-1 hover:bg-muted"
@@ -1315,7 +1601,15 @@ const triwulanLabel = (triwulan: string) =>
                                                                             {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
                                                                         </div>
                                                                     </div>
-                                                                    <div v-if="can.manage" class="flex items-center gap-1">
+                                                                    <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                                        <button
+                                                                            type="button"
+                                                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+                                                                            @click="selectTargetTriwulan('indikator_sub_kegiatan', indikator.id)"
+                                                                        >
+                                                                            <Plus class="size-3.5" />
+                                                                            TW
+                                                                        </button>
                                                                         <button
                                                                             type="button"
                                                                             class="rounded-md p-1 hover:bg-muted"
@@ -1374,41 +1668,131 @@ const triwulanLabel = (triwulan: string) =>
                     </div>
                 </section>
 
-                <aside v-if="can.manage" class="rounded-lg border bg-card p-4 xl:sticky xl:top-4 xl:self-start">
-                    <div class="mb-4 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-2">
-                            <Plus class="size-5 text-emerald-700" />
-                            <div>
-                                <h2 class="text-base font-semibold">{{ editingNode ? 'Edit Data Cascading' : 'Tambah Data Cascading' }}</h2>
-                                <p class="text-sm text-muted-foreground">{{ selectedTypeLabel }}</p>
+                <aside v-if="can.manage" ref="formPanel" class="grid gap-4 xl:sticky xl:top-4 xl:self-start">
+                    <section class="overflow-hidden rounded-lg border bg-card shadow-sm">
+                        <div class="border-b bg-[linear-gradient(135deg,#f8fafc,#ecfdf5)] p-4">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <div class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold uppercase text-emerald-800">
+                                        <ClipboardList class="size-3.5" />
+                                        Panel Pengisian
+                                    </div>
+                                    <h2 class="mt-3 text-base font-semibold text-slate-950">
+                                        {{ editingNode ? 'Edit Data Cascading' : 'Tambah Data Cascading' }}
+                                    </h2>
+                                    <p class="mt-1 text-sm leading-6 text-muted-foreground">
+                                        {{ selectedTypeMeta.helper }}
+                                    </p>
+                                </div>
+                                <button
+                                    v-if="editingNode"
+                                    type="button"
+                                    class="inline-flex min-h-9 shrink-0 items-center rounded-md border bg-white px-3 text-xs font-medium hover:bg-muted"
+                                    @click="resetNodeForm"
+                                >
+                                    Batal edit
+                                </button>
+                            </div>
+
+                            <div class="mt-4 grid gap-2">
+                                <div v-for="item in nodeFormChecklist" :key="item.label" class="flex items-center gap-2 text-xs">
+                                    <span
+                                        class="flex size-5 items-center justify-center rounded-full"
+                                        :class="item.complete ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'"
+                                    >
+                                        <CheckCircle2 v-if="item.complete" class="size-3.5" />
+                                        <CircleDot v-else class="size-3" />
+                                    </span>
+                                    <span :class="item.complete ? 'text-slate-700' : 'text-muted-foreground'">{{ item.label }}</span>
+                                </div>
                             </div>
                         </div>
-                        <button v-if="editingNode" type="button" class="rounded-md border px-3 py-1.5 text-xs hover:bg-muted" @click="resetNodeForm">
-                            Batal
-                        </button>
-                    </div>
 
-                    <form class="grid gap-3" @submit.prevent="submitNode">
-                        <div class="grid gap-2">
-                            <label class="text-sm font-medium" for="type">Jenis Data</label>
-                            <select id="type" v-model="form.type" class="h-9 rounded-md border bg-background px-3 text-sm">
-                                <option v-for="option in typeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                            </select>
-                            <InputError :message="form.errors.type" />
-                        </div>
+                        <form class="grid gap-4 p-4" @submit.prevent="submitNode">
+                            <div class="grid gap-3">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <h3 class="text-sm font-semibold text-slate-950">1. Pilih jenis data</h3>
+                                        <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                                            Pilih dari urutan kerja, atau klik tombol tambah langsung dari tree di kiri.
+                                        </p>
+                                    </div>
+                                    <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                        {{ selectedTypeMeta.stage }}
+                                    </span>
+                                </div>
 
-                        <div v-if="needsParent" class="grid gap-2">
-                            <label class="text-sm font-medium" for="parent_id">{{ parentLabel }}</label>
-                            <select id="parent_id" v-model="form.parent_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                                <option value="">Pilih {{ parentLabel.toLowerCase() }}</option>
-                                <option v-for="option in parentOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
-                            <InputError :message="form.errors.parent_id" />
-                        </div>
+                                <div class="grid gap-3">
+                                    <div v-for="group in typeGroups" :key="group.label" class="rounded-md border bg-background p-3">
+                                        <div class="mb-2 flex items-start gap-2">
+                                            <component :is="group.icon" class="mt-0.5 size-4 text-emerald-700" />
+                                            <div>
+                                                <p class="text-xs font-semibold uppercase text-slate-800">{{ group.label }}</p>
+                                                <p class="mt-0.5 text-xs leading-5 text-muted-foreground">{{ group.helper }}</p>
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <button
+                                                v-for="type in group.items"
+                                                :key="type"
+                                                type="button"
+                                                class="min-h-10 rounded-md border px-2 text-left text-xs font-medium transition hover:border-emerald-300 hover:bg-emerald-50"
+                                                :class="
+                                                    form.type === type
+                                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-600'
+                                                        : 'bg-white text-slate-700'
+                                                "
+                                                @click="selectNodeType(type)"
+                                            >
+                                                {{ typeOptionMap.get(type)?.label }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="grid gap-2">
+                                    <label class="text-sm font-medium" for="type">Jenis Data Terpilih</label>
+                                    <select
+                                        id="type"
+                                        v-model="form.type"
+                                        class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                    >
+                                        <option v-for="option in typeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                    <InputError :message="form.errors.type" />
+                                </div>
+                            </div>
+
+                            <div class="grid gap-3 rounded-md border bg-background p-3">
+                                <div class="flex items-start gap-2">
+                                    <Link2 class="mt-0.5 size-4 text-sky-700" />
+                                    <div>
+                                        <h3 class="text-sm font-semibold text-slate-950">2. Induk dan referensi</h3>
+                                        <p class="mt-1 text-xs leading-5 text-muted-foreground">{{ parentRequirementText }}</p>
+                                    </div>
+                                </div>
+
+                                <div v-if="needsParent" class="grid gap-2">
+                                    <label class="text-sm font-medium" for="parent_id">{{ parentLabel }} <span class="text-red-600">*</span></label>
+                                    <select
+                                        id="parent_id"
+                                        v-model="form.parent_id"
+                                        class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                    >
+                                        <option value="">Pilih {{ parentLabel.toLowerCase() }}</option>
+                                        <option v-for="option in parentOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                    </select>
+                                    <InputError :message="form.errors.parent_id" />
+                                </div>
+                            </div>
 
                         <div v-if="form.type === 'tujuan'" class="grid gap-2">
                             <label class="text-sm font-medium" for="tujuan_daerah_id">Referensi Tujuan RPJMD</label>
-                            <select id="tujuan_daerah_id" v-model="form.tujuan_daerah_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <select
+                                id="tujuan_daerah_id"
+                                v-model="form.tujuan_daerah_id"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                            >
                                 <option value="">Tidak dihubungkan</option>
                                 <option v-for="option in rpjmdReferenceOptions.tujuan_daerah || []" :key="option.id" :value="option.id">
                                     {{ option.label }}
@@ -1421,7 +1805,7 @@ const triwulanLabel = (triwulan: string) =>
                             <select
                                 id="indikator_tujuan_daerah_id"
                                 v-model="form.indikator_tujuan_daerah_id"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
                             >
                                 <option value="">Tidak dihubungkan</option>
                                 <option v-for="option in rpjmdReferenceOptions.indikator_tujuan_daerah || []" :key="option.id" :value="option.id">
@@ -1432,7 +1816,11 @@ const triwulanLabel = (triwulan: string) =>
 
                         <div v-if="form.type === 'sasaran'" class="grid gap-2">
                             <label class="text-sm font-medium" for="sasaran_daerah_id">Referensi Sasaran RPJMD</label>
-                            <select id="sasaran_daerah_id" v-model="form.sasaran_daerah_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <select
+                                id="sasaran_daerah_id"
+                                v-model="form.sasaran_daerah_id"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                            >
                                 <option value="">Tidak dihubungkan</option>
                                 <option v-for="option in rpjmdReferenceOptions.sasaran_daerah || []" :key="option.id" :value="option.id">
                                     {{ option.label }}
@@ -1445,7 +1833,7 @@ const triwulanLabel = (triwulan: string) =>
                             <select
                                 id="indikator_sasaran_daerah_id"
                                 v-model="form.indikator_sasaran_daerah_id"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
                             >
                                 <option value="">Tidak dihubungkan</option>
                                 <option v-for="option in rpjmdReferenceOptions.indikator_sasaran_daerah || []" :key="option.id" :value="option.id">
@@ -1456,7 +1844,11 @@ const triwulanLabel = (triwulan: string) =>
 
                         <div v-if="form.type === 'program'" class="grid gap-2">
                             <label class="text-sm font-medium" for="program_rpjmd_id">Referensi Program RPJMD</label>
-                            <select id="program_rpjmd_id" v-model="form.program_rpjmd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <select
+                                id="program_rpjmd_id"
+                                v-model="form.program_rpjmd_id"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                            >
                                 <option value="">Tidak dihubungkan</option>
                                 <option v-for="option in rpjmdReferenceOptions.program_rpjmd || []" :key="option.id" :value="option.id">
                                     {{ option.label }}
@@ -1469,7 +1861,7 @@ const triwulanLabel = (triwulan: string) =>
                             <select
                                 id="indikator_program_rpjmd_id"
                                 v-model="form.indikator_program_rpjmd_id"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
                             >
                                 <option value="">Tidak dihubungkan</option>
                                 <option v-for="option in rpjmdReferenceOptions.indikator_program_rpjmd || []" :key="option.id" :value="option.id">
@@ -1478,21 +1870,45 @@ const triwulanLabel = (triwulan: string) =>
                             </select>
                         </div>
 
+                        <div class="flex items-start gap-2 rounded-md border bg-background p-3">
+                            <FileText class="mt-0.5 size-4 text-amber-700" />
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-950">3. Isi data</h3>
+                                <p class="mt-1 text-xs leading-5 text-muted-foreground">{{ contentRequirementText }}</p>
+                            </div>
+                        </div>
+
                         <div v-if="!isTargetType" class="grid gap-2">
                             <label class="text-sm font-medium" for="kode">Kode</label>
-                            <input id="kode" v-model="form.kode" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                            <input
+                                id="kode"
+                                v-model="form.kode"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                placeholder="Contoh: T.1, SS.1, PR.1"
+                            />
                             <InputError :message="form.errors.kode" />
                         </div>
 
                         <div v-if="isTextNodeType" class="grid gap-2">
                             <label class="text-sm font-medium" for="uraian">{{ selectedTypeLabel }}</label>
-                            <textarea id="uraian" v-model="form.uraian" rows="3" class="rounded-md border bg-background px-3 py-2 text-sm" />
+                            <textarea
+                                id="uraian"
+                                v-model="form.uraian"
+                                rows="4"
+                                class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-emerald-700"
+                            />
                             <InputError :message="form.errors.uraian" />
                         </div>
 
                         <div v-if="isIndicatorType" class="grid gap-2">
                             <label class="text-sm font-medium" for="indikator">Indikator</label>
-                            <textarea id="indikator" v-model="form.indikator" rows="3" class="rounded-md border bg-background px-3 py-2 text-sm" />
+                            <textarea
+                                id="indikator"
+                                v-model="form.indikator"
+                                rows="4"
+                                class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-emerald-700"
+                                placeholder="Tuliskan indikator yang terukur."
+                            />
                             <InputError :message="form.errors.indikator" />
                         </div>
 
@@ -1501,7 +1917,7 @@ const triwulanLabel = (triwulan: string) =>
                             <select
                                 id="satuan_indikator_id"
                                 v-model="form.satuan_indikator_id"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
                             >
                                 <option value="">Pilih satuan</option>
                                 <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
@@ -1510,16 +1926,39 @@ const triwulanLabel = (triwulan: string) =>
 
                         <div v-if="isIndicatorType" class="grid gap-2">
                             <label class="text-sm font-medium" for="tipe_indikator">Tipe Indikator</label>
-                            <select id="tipe_indikator" v-model="form.tipe_indikator" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <select
+                                id="tipe_indikator"
+                                v-model="form.tipe_indikator"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                            >
                                 <option value="positif">Positif</option>
                                 <option value="negatif">Negatif</option>
                             </select>
+                            <span class="text-xs leading-5 text-muted-foreground">
+                                Positif berarti semakin tinggi semakin baik. Negatif berarti semakin rendah semakin baik.
+                            </span>
                             <InputError :message="form.errors.tipe_indikator" />
                         </div>
 
                         <div v-if="isIndicatorType" class="grid gap-2">
+                            <label class="text-sm font-medium" for="formula">Formula Indikator</label>
+                            <textarea
+                                id="formula"
+                                v-model="form.formula"
+                                rows="3"
+                                class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-emerald-700"
+                                placeholder="Opsional, contoh: jumlah realisasi / target x 100%"
+                            />
+                        </div>
+
+                        <div v-if="isIndicatorType" class="grid gap-2">
                             <label class="text-sm font-medium" for="sumber_data">Sumber Data</label>
-                            <input id="sumber_data" v-model="form.sumber_data" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                            <input
+                                id="sumber_data"
+                                v-model="form.sumber_data"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                placeholder="Contoh: Bidang IKP, SIPD, laporan bidang"
+                            />
                         </div>
 
                         <div v-if="hasPaguIndikatif" class="grid gap-2">
@@ -1529,13 +1968,17 @@ const triwulanLabel = (triwulan: string) =>
                                 v-model="form.pagu_indikatif"
                                 type="number"
                                 step="0.01"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
                             />
                         </div>
 
                         <div v-if="isTargetType" class="grid gap-2">
                             <label class="text-sm font-medium" for="periode_tahun_id">Periode Target</label>
-                            <select id="periode_tahun_id" v-model="form.periode_tahun_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <select
+                                id="periode_tahun_id"
+                                v-model="form.periode_tahun_id"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                            >
                                 <option value="">Pilih periode</option>
                                 <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                             </select>
@@ -1549,46 +1992,72 @@ const triwulanLabel = (triwulan: string) =>
                                 v-model="form.target"
                                 type="number"
                                 step="0.0001"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
                             />
                         </div>
 
                         <div v-if="isTargetType" class="grid gap-2">
                             <label class="text-sm font-medium" for="target_text">Target Teks</label>
-                            <input id="target_text" v-model="form.target_text" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                            <input
+                                id="target_text"
+                                v-model="form.target_text"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                placeholder="Opsional, contoh: 100 dokumen"
+                            />
                         </div>
 
                         <div v-if="form.type === 'target_program'" class="grid gap-2">
                             <label class="text-sm font-medium" for="pagu">Pagu Tahunan</label>
-                            <input id="pagu" v-model="form.pagu" type="number" step="0.01" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                            <input
+                                id="pagu"
+                                v-model="form.pagu"
+                                type="number"
+                                step="0.01"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                            />
                         </div>
 
                         <div v-if="!isTargetType" class="grid gap-2">
                             <label class="text-sm font-medium" for="urutan">Urutan</label>
-                            <input id="urutan" v-model="form.urutan" type="number" min="1" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                            <input
+                                id="urutan"
+                                v-model="form.urutan"
+                                type="number"
+                                min="1"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                            />
                         </div>
 
                         <button
                             type="submit"
                             :disabled="form.processing"
-                            class="mt-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+                            class="sticky bottom-3 z-10 mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-900/10 hover:bg-emerald-800 disabled:opacity-60"
                         >
+                            <Save class="size-4" />
                             {{ editingNode ? 'Perbarui Data Cascading' : 'Simpan Data Cascading' }}
                         </button>
                     </form>
 
-                    <form class="mt-6 grid gap-3 border-t pt-4" @submit.prevent="submitTargetTriwulan">
-                        <div>
-                            <h3 class="text-sm font-semibold">Target Triwulan Indikator</h3>
-                            <p class="mt-1 text-xs text-muted-foreground">Isi target kinerja dan target anggaran per triwulan untuk Renstra OPD.</p>
-                        </div>
+                    </section>
+
+                    <section class="rounded-lg border bg-card p-4 shadow-sm">
+                        <form class="grid gap-4" @submit.prevent="submitTargetTriwulan">
+                            <div class="flex items-start gap-2">
+                                <Target class="mt-0.5 size-5 text-blue-700" />
+                                <div>
+                                    <h3 class="text-base font-semibold text-slate-950">Target Triwulan Indikator</h3>
+                                    <p class="mt-1 text-sm leading-6 text-muted-foreground">
+                                        Isi target kinerja dan target anggaran TW I sampai TW IV tanpa scroll horizontal.
+                                    </p>
+                                </div>
+                            </div>
 
                         <div class="grid gap-2">
                             <label class="text-sm font-medium" for="target_triwulan_table">Jenis Indikator</label>
                             <select
                                 id="target_triwulan_table"
                                 v-model="targetTriwulanForm.related_table"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
                             >
                                 <option v-for="option in targetTriwulanTypeOptions" :key="option.value" :value="option.value">
                                     {{ option.label }}
@@ -1602,7 +2071,7 @@ const triwulanLabel = (triwulan: string) =>
                             <select
                                 id="target_triwulan_related_id"
                                 v-model="targetTriwulanForm.related_id"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
                             >
                                 <option value="">Pilih indikator</option>
                                 <option v-for="option in selectedTargetTriwulanOptions" :key="option.id" :value="option.id">
@@ -1617,7 +2086,7 @@ const triwulanLabel = (triwulan: string) =>
                             <select
                                 id="target_triwulan_periode"
                                 v-model="targetTriwulanForm.periode_tahun_id"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
                             >
                                 <option value="">Pilih periode</option>
                                 <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
@@ -1625,58 +2094,59 @@ const triwulanLabel = (triwulan: string) =>
                             <InputError :message="targetTriwulanForm.errors.periode_tahun_id" />
                         </div>
 
-                        <div class="overflow-x-auto rounded-md border">
-                            <table class="min-w-[680px] text-sm">
-                                <thead class="bg-muted/60 text-left text-xs uppercase text-muted-foreground">
-                                    <tr>
-                                        <th class="px-3 py-2">Triwulan</th>
-                                        <th class="px-3 py-2">Target Angka</th>
-                                        <th class="px-3 py-2">Target Teks</th>
-                                        <th class="px-3 py-2">Target Anggaran</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="(row, index) in targetTriwulanForm.targets" :key="row.triwulan" class="border-t">
-                                        <td class="px-3 py-2 font-medium">{{ targetTriwulanRows[index].label }}</td>
-                                        <td class="px-3 py-2">
-                                            <input
-                                                v-model="row.target_angka"
-                                                type="number"
-                                                step="0.0001"
-                                                class="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                                            />
-                                            <InputError :message="targetTriwulanError(index, 'target_angka')" />
-                                        </td>
-                                        <td class="px-3 py-2">
-                                            <input
-                                                v-model="row.target_text"
-                                                class="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                                                placeholder="Opsional"
-                                            />
-                                            <InputError :message="targetTriwulanError(index, 'target_text')" />
-                                        </td>
-                                        <td class="px-3 py-2">
-                                            <input
-                                                v-model="row.target_anggaran"
-                                                type="number"
-                                                step="0.01"
-                                                class="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                                            />
-                                            <InputError :message="targetTriwulanError(index, 'target_anggaran')" />
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <div class="grid gap-3">
+                            <article v-for="(row, index) in targetTriwulanForm.targets" :key="row.triwulan" class="rounded-md border bg-background p-3">
+                                <div class="mb-3 flex items-center justify-between gap-3">
+                                    <h4 class="text-sm font-semibold text-slate-950">{{ targetTriwulanRows[index].label }}</h4>
+                                    <span class="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">Triwulan</span>
+                                </div>
+
+                                <div class="grid gap-3">
+                                    <label class="grid gap-1.5">
+                                        <span class="text-xs font-semibold uppercase text-muted-foreground">Target Angka</span>
+                                        <input
+                                            v-model="row.target_angka"
+                                            type="number"
+                                            step="0.0001"
+                                            class="min-h-11 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
+                                        />
+                                        <InputError :message="targetTriwulanError(index, 'target_angka')" />
+                                    </label>
+
+                                    <label class="grid gap-1.5">
+                                        <span class="text-xs font-semibold uppercase text-muted-foreground">Target Teks</span>
+                                        <input
+                                            v-model="row.target_text"
+                                            class="min-h-11 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
+                                            placeholder="Opsional"
+                                        />
+                                        <InputError :message="targetTriwulanError(index, 'target_text')" />
+                                    </label>
+
+                                    <label class="grid gap-1.5">
+                                        <span class="text-xs font-semibold uppercase text-muted-foreground">Target Anggaran</span>
+                                        <input
+                                            v-model="row.target_anggaran"
+                                            type="number"
+                                            step="0.01"
+                                            class="min-h-11 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
+                                        />
+                                        <InputError :message="targetTriwulanError(index, 'target_anggaran')" />
+                                    </label>
+                                </div>
+                            </article>
                         </div>
 
                         <button
                             type="submit"
                             :disabled="targetTriwulanForm.processing || selectedTargetTriwulanOptions.length === 0"
-                            class="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60"
+                            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
                         >
+                            <Save class="size-4" />
                             Simpan Target TW I-IV
                         </button>
-                    </form>
+                        </form>
+                    </section>
                 </aside>
             </div>
         </div>
