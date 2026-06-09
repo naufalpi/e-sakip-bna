@@ -44,6 +44,33 @@ class MasterAccessTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_only_super_admin_and_dinkominfo_can_access_role_permission_page(): void
+    {
+        $this->seed();
+
+        $dinkominfo = User::factory()->create();
+        $dinkominfo->roles()->sync([Role::where('name', 'admin_kabupaten_dinkominfo')->value('id')]);
+
+        $this->actingAs($dinkominfo)
+            ->get(route('master.role-permission.index'))
+            ->assertOk();
+
+        foreach ([
+            'admin_kabupaten_bagian_organisasi',
+            'admin_kabupaten_bapperida',
+            'admin_kabupaten_inspektorat',
+            'admin_opd',
+            'pimpinan',
+        ] as $roleName) {
+            $user = User::factory()->create();
+            $user->roles()->sync([Role::where('name', $roleName)->value('id')]);
+
+            $this->actingAs($user)
+                ->get(route('master.role-permission.index'))
+                ->assertForbidden();
+        }
+    }
+
     public function test_seeded_super_admin_can_login_and_has_permissions(): void
     {
         $this->seed();

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\User;
 use App\Services\ActivityLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,7 @@ use Inertia\Response;
 
 class RolePermissionController extends Controller
 {
-    public function __invoke(): Response
+    public function __invoke(Request $request): Response
     {
         $this->authorize('viewAny', Role::class);
 
@@ -62,7 +63,7 @@ class RolePermissionController extends Controller
             'roles' => $roles,
             'permissionGroups' => $permissionGroups,
             'can' => [
-                'manage' => request()->user()->isSuperAdmin() || request()->user()->hasPermission('manage_roles'),
+                'manage' => $this->canAccessRolePermissions($request->user()),
             ],
         ]);
     }
@@ -104,5 +105,10 @@ class RolePermissionController extends Controller
         );
 
         return back()->with('success', 'Permission role berhasil diperbarui.');
+    }
+
+    private function canAccessRolePermissions(User $user): bool
+    {
+        return $user->hasAnyRole(['super_admin', 'admin_kabupaten_dinkominfo']);
     }
 }

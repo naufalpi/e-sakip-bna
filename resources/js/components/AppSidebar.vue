@@ -12,9 +12,12 @@ import AppLogo from './AppLogo.vue';
 const page = usePage<SharedData>();
 const hasPermission = (permission: string) => page.props.auth.user?.permissions?.includes(permission) ?? false;
 const hasAnyPermission = (permissions: string[]) => permissions.some((permission) => hasPermission(permission));
+const hasRole = (role: string) => page.props.auth.user?.roles?.some((item) => item.name === role) ?? false;
+const hasAnyRole = (roles: string[]) => roles.some((role) => hasRole(role));
 const visibleItems = (items: Array<NavItem | false>) => items.filter(Boolean) as NavItem[];
 const notificationUnreadCount = computed(() => page.props.notifications?.unread_count ?? 0);
 const notificationBadge = computed(() => (notificationUnreadCount.value > 99 ? '99+' : notificationUnreadCount.value || undefined));
+const canAccessRolePermission = computed(() => hasAnyRole(['super_admin', 'admin_kabupaten_dinkominfo']));
 
 const navigationGroups = computed<NavGroup[]>(() =>
     [
@@ -147,7 +150,7 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     href: '/master/users',
                     icon: Users,
                 },
-                hasPermission('roles.view') && {
+                canAccessRolePermission.value && {
                     title: 'Role Permission',
                     href: '/master/role-permission',
                     icon: ShieldCheck,

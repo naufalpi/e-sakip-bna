@@ -94,17 +94,17 @@ class DatabaseSeeder extends Seeder
             'admin_kabupaten_bagian_organisasi' => [
                 'label' => 'Admin Kabupaten Bagian Organisasi',
                 'description' => 'Monitoring, validasi umum, dan melihat progres OPD.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'users.view', 'roles.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'evaluasi.view', 'dokumen.view', 'lkjip.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'users.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'evaluasi.view', 'dokumen.view', 'lkjip.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_bapperida' => [
                 'label' => 'Admin Kabupaten Bapperida',
                 'description' => 'Input dan kelola data perencanaan kabupaten/RPJMD.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'roles.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'rpjmd.manage', 'view_rpjmd', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'rpjmd.manage', 'view_rpjmd', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_inspektorat' => [
                 'label' => 'Admin Kabupaten Inspektorat',
                 'description' => 'Evaluasi kinerja, LKE, LHE, rekomendasi, dan verifikasi tindak lanjut.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'roles.view', 'periode.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'evaluasi.view', 'evaluasi.manage', 'manage_evaluasi', 'verify_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'evaluasi.view', 'evaluasi.manage', 'manage_evaluasi', 'verify_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_dinkominfo' => [
                 'label' => 'Admin Kabupaten Dinkominfo',
@@ -114,7 +114,7 @@ class DatabaseSeeder extends Seeder
             'admin_opd' => [
                 'label' => 'Admin OPD',
                 'description' => 'Kelola data perencanaan dan kinerja OPD masing-masing.',
-                'permissions' => ['dashboard.view', 'view_dashboard_opd', 'opd.view', 'opd_units.manage', 'roles.view', 'periode.view', 'satuan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'renstra.manage', 'view_renstra_opd', 'manage_renstra_opd', 'kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja', 'manage_rencana_aksi', 'input_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'evaluasi.view', 'lkjip.view', 'lkjip.manage', 'laporan.view', 'laporan.manage'],
+                'permissions' => ['dashboard.view', 'view_dashboard_opd', 'opd.view', 'opd_units.manage', 'periode.view', 'satuan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'renstra.manage', 'view_renstra_opd', 'manage_renstra_opd', 'kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja', 'manage_rencana_aksi', 'input_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'evaluasi.view', 'lkjip.view', 'lkjip.manage', 'laporan.view', 'laporan.manage'],
             ],
             'pimpinan' => [
                 'label' => 'Pimpinan',
