@@ -2,8 +2,6 @@
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     ArrowLeft,
@@ -214,12 +212,6 @@ const props = defineProps<{
     };
     workflow: Workflow;
 }>();
-
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Renstra OPD', href: '/renstra-opd' },
-    { title: props.renstra.opd?.singkatan || props.renstra.opd?.nama || 'Detail', href: '#' },
-];
 
 const typeOptions: Array<{ value: NodeType; label: string }> = [
     { value: 'tujuan', label: 'Tujuan OPD' },
@@ -1134,14 +1126,16 @@ const onBulkTypeChanged = (row: BulkRow) => {
     row.parent_id = '';
     row.parent_label = '-';
     row.reference_field =
-        ({
-            tujuan: 'tujuan_daerah_id',
-            indikator_tujuan: 'indikator_tujuan_daerah_id',
-            sasaran: 'sasaran_daerah_id',
-            indikator_sasaran: 'indikator_sasaran_daerah_id',
-            program: 'program_rpjmd_id',
-            indikator_program: 'indikator_program_rpjmd_id',
-        } as Partial<Record<NodeType, string>>)[row.type] ?? '';
+        (
+            {
+                tujuan: 'tujuan_daerah_id',
+                indikator_tujuan: 'indikator_tujuan_daerah_id',
+                sasaran: 'sasaran_daerah_id',
+                indikator_sasaran: 'indikator_sasaran_daerah_id',
+                program: 'program_rpjmd_id',
+                indikator_program: 'indikator_program_rpjmd_id',
+            } as Partial<Record<NodeType, string>>
+        )[row.type] ?? '';
     row.reference_value = '';
     row.kode = '';
     row.uraian = '';
@@ -1209,7 +1203,9 @@ const saveBulkRow = async (row: BulkRow) => {
 
     try {
         const response = await fetch(
-            row.isNew ? route('renstra-opd.nodes.autosave-store', props.renstra.id) : route('renstra-opd.nodes.autosave', [props.renstra.id, row.type, row.id]),
+            row.isNew
+                ? route('renstra-opd.nodes.autosave-store', props.renstra.id)
+                : route('renstra-opd.nodes.autosave', [props.renstra.id, row.type, row.id]),
             {
                 method: row.isNew ? 'POST' : 'PATCH',
                 headers: {
@@ -1409,1137 +1405,1113 @@ const triwulanLabel = (triwulan: string) =>
 
 <template>
     <Head title="Cascading Renstra OPD" />
-
-    <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-4 p-4">
-            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <h1 class="text-2xl font-semibold tracking-normal">{{ renstra.judul }}</h1>
-                        <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(renstra.status)">
-                            {{ statusLabel(renstra.status) }}
-                        </span>
-                    </div>
-                    <p class="mt-1 text-sm text-muted-foreground">
-                        {{ renstra.opd?.singkatan || renstra.opd?.nama || '-' }} - {{ renstra.tahun_awal }}-{{ renstra.tahun_akhir }}
-                    </p>
+    <div class="flex flex-col gap-4 p-4">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <h1 class="text-2xl font-semibold tracking-normal">{{ renstra.judul }}</h1>
+                    <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(renstra.status)">
+                        {{ statusLabel(renstra.status) }}
+                    </span>
                 </div>
-                <div class="flex gap-2">
-                    <Link :href="route('renstra-opd.index')" class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted">
-                        <ArrowLeft class="size-4" />
-                        Kembali
-                    </Link>
-                    <Link
-                        v-if="can.manage"
-                        :href="route('renstra-opd.edit', renstra.id)"
-                        class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
-                    >
-                        <Pencil class="size-4" />
-                        Edit
-                    </Link>
-                    <WorkflowActionButtons
-                        module="renstra_opd"
-                        :model-id="renstra.id"
-                        :status="renstra.status"
-                        :can-manage="can.manage"
-                        :can-review="can.review"
-                        :can-lock="can.lock"
-                        :show-verify="false"
-                    />
+                <p class="mt-1 text-sm text-muted-foreground">
+                    {{ renstra.opd?.singkatan || renstra.opd?.nama || '-' }} - {{ renstra.tahun_awal }}-{{ renstra.tahun_akhir }}
+                </p>
+            </div>
+            <div class="flex gap-2">
+                <Link :href="route('renstra-opd.index')" class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted">
+                    <ArrowLeft class="size-4" />
+                    Kembali
+                </Link>
+                <Link
+                    v-if="can.manage"
+                    :href="route('renstra-opd.edit', renstra.id)"
+                    class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                >
+                    <Pencil class="size-4" />
+                    Edit
+                </Link>
+                <WorkflowActionButtons
+                    module="renstra_opd"
+                    :model-id="renstra.id"
+                    :status="renstra.status"
+                    :can-manage="can.manage"
+                    :can-review="can.review"
+                    :can-lock="can.lock"
+                    :show-verify="false"
+                />
+            </div>
+        </div>
+
+        <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-4">
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">OPD</div>
+                <div class="mt-1 text-sm font-medium">{{ renstra.opd?.nama || '-' }}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">RPJMD Terhubung</div>
+                <div class="mt-1 text-sm font-medium">{{ renstra.rpjmd ? `${renstra.rpjmd.tahun_awal}-${renstra.rpjmd.tahun_akhir}` : '-' }}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Periode</div>
+                <div class="mt-1 text-sm font-medium">{{ renstra.periode_tahun?.nama || '-' }}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Jumlah Tujuan</div>
+                <div class="mt-1 text-sm font-medium">{{ renstra.tujuan.length }}</div>
+            </div>
+        </section>
+
+        <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-lg border bg-card p-4">
+                <div class="text-xs uppercase text-muted-foreground">Tujuan dan Sasaran</div>
+                <div class="mt-2 text-2xl font-semibold">{{ renstraSummary.tujuan + renstraSummary.sasaran }}</div>
+                <div class="mt-1 text-xs text-muted-foreground">
+                    {{ renstraSummary.tujuan_terhubung }}/{{ renstraSummary.tujuan }} tujuan, {{ renstraSummary.sasaran_terhubung }}/{{
+                        renstraSummary.sasaran
+                    }}
+                    sasaran terhubung
                 </div>
             </div>
+            <div class="rounded-lg border bg-card p-4">
+                <div class="text-xs uppercase text-muted-foreground">Program OPD</div>
+                <div class="mt-2 text-2xl font-semibold">{{ renstraSummary.program }}</div>
+                <div class="mt-1 text-xs text-muted-foreground">
+                    {{ renstraSummary.program_terhubung }} terhubung RPJMD, {{ renstraSummary.program - renstraSummary.program_terhubung }} belum
+                </div>
+            </div>
+            <div class="rounded-lg border bg-card p-4">
+                <div class="text-xs uppercase text-muted-foreground">Indikator dan Target</div>
+                <div class="mt-2 text-2xl font-semibold">{{ renstraSummary.indikator }}</div>
+                <div class="mt-1 text-xs text-muted-foreground">
+                    {{ renstraSummary.target_tahunan }} target tahunan, {{ renstraSummary.target_triwulan }} target triwulan
+                </div>
+            </div>
+            <div class="rounded-lg border bg-card p-4">
+                <div class="text-xs uppercase text-muted-foreground">Pagu Berjenjang</div>
+                <div class="mt-2 text-2xl font-semibold">{{ formatCurrency(renstraSummary.pagu_indikatif) }}</div>
+                <div class="mt-1 text-xs text-muted-foreground">
+                    {{ renstraSummary.kegiatan }} kegiatan, {{ renstraSummary.sub_kegiatan }} sub kegiatan
+                </div>
+            </div>
+        </section>
 
-            <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-4">
+        <WorkflowHistoryTimeline :workflow="workflow" />
+
+        <section class="flex flex-col gap-3 rounded-lg border bg-card p-3 md:flex-row md:items-center md:justify-between">
+            <div class="flex items-center gap-2">
+                <Network class="size-5 text-emerald-700" />
                 <div>
-                    <div class="text-xs uppercase text-muted-foreground">OPD</div>
-                    <div class="mt-1 text-sm font-medium">{{ renstra.opd?.nama || '-' }}</div>
+                    <h2 class="text-base font-semibold">Cascading Renstra OPD</h2>
+                    <p class="text-sm text-muted-foreground">Pilih tampilan tree atau tabel melebar untuk membaca hubungan Renstra ke RPJMD.</p>
                 </div>
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">RPJMD Terhubung</div>
-                    <div class="mt-1 text-sm font-medium">{{ renstra.rpjmd ? `${renstra.rpjmd.tahun_awal}-${renstra.rpjmd.tahun_akhir}` : '-' }}</div>
-                </div>
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Periode</div>
-                    <div class="mt-1 text-sm font-medium">{{ renstra.periode_tahun?.nama || '-' }}</div>
-                </div>
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Jumlah Tujuan</div>
-                    <div class="mt-1 text-sm font-medium">{{ renstra.tujuan.length }}</div>
-                </div>
-            </section>
+            </div>
+            <div class="inline-flex rounded-md border bg-background p-1">
+                <button
+                    type="button"
+                    class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
+                    :class="viewMode === 'tree' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
+                    @click="viewMode = 'tree'"
+                >
+                    <Layers3 class="size-4" />
+                    Tree
+                </button>
+                <button
+                    type="button"
+                    class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
+                    :class="viewMode === 'table' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
+                    @click="viewMode = 'table'"
+                >
+                    <Table2 class="size-4" />
+                    Tabel
+                </button>
+                <button
+                    v-if="can.manage"
+                    type="button"
+                    class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
+                    :class="viewMode === 'bulk' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
+                    @click="viewMode = 'bulk'"
+                >
+                    <Save class="size-4" />
+                    Bulk
+                </button>
+            </div>
+        </section>
 
-            <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div class="rounded-lg border bg-card p-4">
-                    <div class="text-xs uppercase text-muted-foreground">Tujuan dan Sasaran</div>
-                    <div class="mt-2 text-2xl font-semibold">{{ renstraSummary.tujuan + renstraSummary.sasaran }}</div>
-                    <div class="mt-1 text-xs text-muted-foreground">
-                        {{ renstraSummary.tujuan_terhubung }}/{{ renstraSummary.tujuan }} tujuan, {{ renstraSummary.sasaran_terhubung }}/{{
-                            renstraSummary.sasaran
-                        }}
-                        sasaran terhubung
-                    </div>
-                </div>
-                <div class="rounded-lg border bg-card p-4">
-                    <div class="text-xs uppercase text-muted-foreground">Program OPD</div>
-                    <div class="mt-2 text-2xl font-semibold">{{ renstraSummary.program }}</div>
-                    <div class="mt-1 text-xs text-muted-foreground">
-                        {{ renstraSummary.program_terhubung }} terhubung RPJMD, {{ renstraSummary.program - renstraSummary.program_terhubung }} belum
-                    </div>
-                </div>
-                <div class="rounded-lg border bg-card p-4">
-                    <div class="text-xs uppercase text-muted-foreground">Indikator dan Target</div>
-                    <div class="mt-2 text-2xl font-semibold">{{ renstraSummary.indikator }}</div>
-                    <div class="mt-1 text-xs text-muted-foreground">
-                        {{ renstraSummary.target_tahunan }} target tahunan, {{ renstraSummary.target_triwulan }} target triwulan
-                    </div>
-                </div>
-                <div class="rounded-lg border bg-card p-4">
-                    <div class="text-xs uppercase text-muted-foreground">Pagu Berjenjang</div>
-                    <div class="mt-2 text-2xl font-semibold">{{ formatCurrency(renstraSummary.pagu_indikatif) }}</div>
-                    <div class="mt-1 text-xs text-muted-foreground">
-                        {{ renstraSummary.kegiatan }} kegiatan, {{ renstraSummary.sub_kegiatan }} sub kegiatan
-                    </div>
-                </div>
-            </section>
+        <div :class="viewMode === 'bulk' ? 'grid gap-4' : 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]'">
+            <section v-if="viewMode === 'bulk' && can.manage" class="overflow-hidden rounded-lg border bg-card">
+                <div class="grid gap-4 border-b p-4 xl:grid-cols-[22rem_minmax(0,1fr)]">
+                    <aside class="rounded-lg border bg-background p-3">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-900">Tambah baris baru</p>
+                            <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                                Tombol tambah ditempatkan di kiri. Lengkapi induk dan field utama, lalu autosave berjalan otomatis.
+                            </p>
+                        </div>
+                        <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
+                            <button
+                                type="button"
+                                class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"
+                                @click="addBulkRow('tujuan')"
+                            >
+                                <Plus class="size-3.5" />
+                                Tujuan
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                @click="addBulkRow('sasaran')"
+                            >
+                                <Plus class="size-3.5" />
+                                Sasaran
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                @click="addBulkRow('program')"
+                            >
+                                <Plus class="size-3.5" />
+                                Program
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                @click="addBulkRow('kegiatan')"
+                            >
+                                <Plus class="size-3.5" />
+                                Kegiatan
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                @click="addBulkRow('indikator_program')"
+                            >
+                                <Plus class="size-3.5" />
+                                Indikator
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
+                                @click="addBulkRow('target_program')"
+                            >
+                                <Plus class="size-3.5" />
+                                Target
+                            </button>
+                        </div>
+                    </aside>
 
-            <WorkflowHistoryTimeline :workflow="workflow" />
-
-            <section class="flex flex-col gap-3 rounded-lg border bg-card p-3 md:flex-row md:items-center md:justify-between">
-                <div class="flex items-center gap-2">
-                    <Network class="size-5 text-emerald-700" />
-                    <div>
-                        <h2 class="text-base font-semibold">Cascading Renstra OPD</h2>
-                        <p class="text-sm text-muted-foreground">Pilih tampilan tree atau tabel melebar untuk membaca hubungan Renstra ke RPJMD.</p>
-                    </div>
-                </div>
-                <div class="inline-flex rounded-md border bg-background p-1">
-                    <button
-                        type="button"
-                        class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
-                        :class="viewMode === 'tree' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
-                        @click="viewMode = 'tree'"
-                    >
-                        <Layers3 class="size-4" />
-                        Tree
-                    </button>
-                    <button
-                        type="button"
-                        class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
-                        :class="viewMode === 'table' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
-                        @click="viewMode = 'table'"
-                    >
-                        <Table2 class="size-4" />
-                        Tabel
-                    </button>
-                    <button
-                        v-if="can.manage"
-                        type="button"
-                        class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
-                        :class="viewMode === 'bulk' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
-                        @click="viewMode = 'bulk'"
-                    >
-                        <Save class="size-4" />
-                        Bulk
-                    </button>
-                </div>
-            </section>
-
-            <div :class="viewMode === 'bulk' ? 'grid gap-4' : 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]'">
-                <section v-if="viewMode === 'bulk' && can.manage" class="overflow-hidden rounded-lg border bg-card">
-                    <div class="grid gap-4 border-b p-4 xl:grid-cols-[22rem_minmax(0,1fr)]">
-                        <aside class="rounded-lg border bg-background p-3">
-                            <div>
-                                <p class="text-sm font-semibold text-slate-900">Tambah baris baru</p>
-                                <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                                    Tombol tambah ditempatkan di kiri. Lengkapi induk dan field utama, lalu autosave berjalan otomatis.
-                                </p>
+                    <div class="grid min-w-0 gap-3">
+                        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div class="flex min-w-0 items-start gap-2">
+                                <Save class="mt-0.5 size-5 shrink-0 text-emerald-700" />
+                                <div class="min-w-0">
+                                    <h2 class="text-base font-semibold">Bulk Mode Autosave</h2>
+                                    <p class="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
+                                        Input dan edit data cascading dalam tabel lebar. Geser tabel ke kanan untuk mengisi kolom lanjutan. Perubahan
+                                        disimpan otomatis sekitar 1 detik setelah input berhenti.
+                                    </p>
+                                </div>
                             </div>
-                            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
+                            <div class="shrink-0 rounded-md border bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">
+                                {{ bulkLastSavedAt ? `Terakhir autosave ${bulkLastSavedAt}` : 'Belum ada perubahan bulk' }}
+                            </div>
+                        </div>
+
+                        <div class="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-3">
+                            <div>
+                                <p class="text-xs font-semibold uppercase text-muted-foreground">Cara input</p>
+                                <p class="mt-1 text-sm text-slate-800">Tambah baris dari kiri, pilih induk jika dibutuhkan, isi field utama.</p>
+                            </div>
+                            <div>
+                                <p class="text-xs font-semibold uppercase text-muted-foreground">Autosave</p>
+                                <p class="mt-1 text-sm text-slate-800">Status simpan tampil di kolom paling kiri setiap baris.</p>
+                            </div>
+                            <div>
+                                <p class="text-xs font-semibold uppercase text-muted-foreground">Layar lebar</p>
+                                <p class="mt-1 text-sm text-slate-800">Panel kanan disembunyikan supaya tabel punya ruang maksimal.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="bulkRows.length === 0" class="p-8 text-center text-sm text-muted-foreground">
+                    <Layers3 class="mx-auto size-10 text-muted-foreground" />
+                    <p class="mt-3 font-semibold text-slate-900">Belum ada data untuk bulk mode</p>
+                    <p class="mt-1">Buat Tujuan OPD sebagai baris pertama, lalu lanjutkan sasaran, program, kegiatan, dan target.</p>
+                    <button
+                        type="button"
+                        class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
+                        @click="addBulkRow('tujuan')"
+                    >
+                        <Plus class="size-4" />
+                        Tambah Baris Tujuan
+                    </button>
+                </div>
+
+                <div v-else class="max-w-full overflow-x-auto">
+                    <table class="min-w-[2500px] text-left text-sm">
+                        <thead class="sticky top-0 z-10 border-b bg-muted/80 text-xs uppercase text-muted-foreground backdrop-blur">
+                            <tr>
+                                <th class="sticky left-0 z-20 min-w-44 border-r bg-muted/95 px-3 py-3 shadow-[8px_0_16px_rgba(15,23,42,0.06)]">
+                                    Status
+                                </th>
+                                <th class="min-w-56 px-3 py-3">Jenis Data</th>
+                                <th class="min-w-72 px-3 py-3">Induk</th>
+                                <th class="min-w-40 px-3 py-3">Ubah Induk</th>
+                                <th class="min-w-32 px-3 py-3">Kode</th>
+                                <th class="min-w-80 px-3 py-3">Uraian/Nama</th>
+                                <th class="min-w-80 px-3 py-3">Indikator</th>
+                                <th class="min-w-72 px-3 py-3">Referensi RPJMD</th>
+                                <th class="min-w-56 px-3 py-3">Satuan</th>
+                                <th class="min-w-40 px-3 py-3">Tipe</th>
+                                <th class="min-w-72 px-3 py-3">Formula</th>
+                                <th class="min-w-60 px-3 py-3">Sumber Data</th>
+                                <th class="min-w-44 px-3 py-3">Pagu Indikatif</th>
+                                <th class="min-w-52 px-3 py-3">Periode Target</th>
+                                <th class="min-w-40 px-3 py-3">Target Angka</th>
+                                <th class="min-w-56 px-3 py-3">Target Teks</th>
+                                <th class="min-w-44 px-3 py-3">Pagu Tahunan</th>
+                                <th class="min-w-28 px-3 py-3">Urutan</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="row in bulkRows" :key="row.key" class="border-b align-top last:border-0 hover:bg-muted/30">
+                                <td class="sticky left-0 z-10 border-r bg-card px-3 py-3 shadow-[8px_0_16px_rgba(15,23,42,0.05)]">
+                                    <div class="grid gap-2">
+                                        <span class="inline-flex w-fit rounded-full px-2 py-1 text-xs font-semibold" :class="bulkStatusClass(row)">
+                                            {{ bulkStatusLabel(row) }}
+                                        </span>
+                                        <p v-if="row.error" class="max-w-40 text-xs leading-5 text-red-700">{{ row.error }}</p>
+                                        <button
+                                            v-if="row.isNew"
+                                            type="button"
+                                            class="inline-flex min-h-8 w-fit items-center rounded-md border px-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                                            @click="removeBulkDraft(row)"
+                                        >
+                                            Hapus draft
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <select
+                                        v-if="row.isNew"
+                                        v-model="row.type"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-700"
+                                        @change="onBulkTypeChanged(row)"
+                                    >
+                                        <option v-for="option in typeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                    <div v-else>
+                                        <div class="font-semibold text-slate-900">{{ row.level }}</div>
+                                        <div class="mt-1 text-xs text-muted-foreground">{{ typeOptionMap.get(row.type)?.label }}</div>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-3 text-xs leading-5 text-slate-700">{{ row.parent_label }}</td>
+                                <td class="px-3 py-3">
+                                    <select
+                                        v-if="bulkParentOptions(row).length"
+                                        v-model="row.parent_id"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700"
+                                        @change="scheduleBulkAutosave(row)"
+                                    >
+                                        <option value="">Pilih induk</option>
+                                        <option v-for="option in bulkParentOptions(row)" :key="option.id" :value="option.id">
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                    <span v-else class="text-xs text-muted-foreground">-</span>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <input
+                                        v-model="row.kode"
+                                        :disabled="isBulkTargetRow(row)"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @input="scheduleBulkAutosave(row)"
+                                    />
+                                </td>
+                                <td class="px-3 py-3">
+                                    <textarea
+                                        v-model="row.uraian"
+                                        :disabled="!isBulkTextRow(row)"
+                                        rows="3"
+                                        class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @input="scheduleBulkAutosave(row)"
+                                    />
+                                </td>
+                                <td class="px-3 py-3">
+                                    <textarea
+                                        v-model="row.indikator"
+                                        :disabled="!isBulkIndicatorRow(row)"
+                                        rows="3"
+                                        class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @input="scheduleBulkAutosave(row)"
+                                    />
+                                </td>
+                                <td class="px-3 py-3">
+                                    <select
+                                        v-if="bulkReferenceOptions(row).length"
+                                        v-model="row.reference_value"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700"
+                                        @change="scheduleBulkAutosave(row)"
+                                    >
+                                        <option value="">Tidak dihubungkan</option>
+                                        <option v-for="option in bulkReferenceOptions(row)" :key="option.id" :value="option.id">
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                    <span v-else class="text-xs text-muted-foreground">-</span>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <select
+                                        v-model="row.satuan_indikator_id"
+                                        :disabled="!isBulkIndicatorRow(row)"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @change="scheduleBulkAutosave(row)"
+                                    >
+                                        <option value="">Pilih satuan</option>
+                                        <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                    </select>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <select
+                                        v-model="row.tipe_indikator"
+                                        :disabled="!isBulkIndicatorRow(row)"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @change="scheduleBulkAutosave(row)"
+                                    >
+                                        <option value="positif">Positif</option>
+                                        <option value="negatif">Negatif</option>
+                                    </select>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <textarea
+                                        v-model="row.formula"
+                                        :disabled="!isBulkIndicatorRow(row)"
+                                        rows="3"
+                                        class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @input="scheduleBulkAutosave(row)"
+                                    />
+                                </td>
+                                <td class="px-3 py-3">
+                                    <input
+                                        v-model="row.sumber_data"
+                                        :disabled="!isBulkIndicatorRow(row)"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @input="scheduleBulkAutosave(row)"
+                                    />
+                                </td>
+                                <td class="px-3 py-3">
+                                    <input
+                                        v-model="row.pagu_indikatif"
+                                        :disabled="!hasBulkPaguIndikatif(row)"
+                                        type="number"
+                                        step="0.01"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @input="scheduleBulkAutosave(row)"
+                                    />
+                                </td>
+                                <td class="px-3 py-3">
+                                    <select
+                                        v-model="row.periode_tahun_id"
+                                        :disabled="!isBulkTargetRow(row)"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @change="scheduleBulkAutosave(row)"
+                                    >
+                                        <option value="">Pilih periode</option>
+                                        <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                    </select>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <input
+                                        v-model="row.target"
+                                        :disabled="!isBulkTargetRow(row)"
+                                        type="number"
+                                        step="0.0001"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @input="scheduleBulkAutosave(row)"
+                                    />
+                                </td>
+                                <td class="px-3 py-3">
+                                    <input
+                                        v-model="row.target_text"
+                                        :disabled="!isBulkTargetRow(row)"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @input="scheduleBulkAutosave(row)"
+                                    />
+                                </td>
+                                <td class="px-3 py-3">
+                                    <input
+                                        v-model="row.pagu"
+                                        :disabled="!hasBulkPaguTahunan(row)"
+                                        type="number"
+                                        step="0.01"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @input="scheduleBulkAutosave(row)"
+                                    />
+                                </td>
+                                <td class="px-3 py-3">
+                                    <input
+                                        v-model="row.urutan"
+                                        :disabled="isBulkTargetRow(row)"
+                                        type="number"
+                                        min="1"
+                                        class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
+                                        @input="scheduleBulkAutosave(row)"
+                                    />
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section v-else-if="viewMode === 'table'" class="rounded-lg border bg-card">
+                <div class="flex items-center gap-2 border-b p-4">
+                    <Table2 class="size-5 text-emerald-700" />
+                    <div>
+                        <h2 class="text-base font-semibold">Tabel Cascading Melebar</h2>
+                        <p class="text-sm text-muted-foreground">Setiap baris membawa konteks tujuan sampai sub kegiatan dan status link ke RPJMD.</p>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-[1800px] text-left text-sm">
+                        <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
+                            <tr>
+                                <th class="px-4 py-3">Tujuan OPD</th>
+                                <th class="px-4 py-3">Link Tujuan</th>
+                                <th class="px-4 py-3">Indikator Tujuan</th>
+                                <th class="px-4 py-3">Sasaran OPD</th>
+                                <th class="px-4 py-3">Link Sasaran</th>
+                                <th class="px-4 py-3">Indikator Sasaran</th>
+                                <th class="px-4 py-3">Program</th>
+                                <th class="px-4 py-3">Link Program</th>
+                                <th class="px-4 py-3">Indikator Program</th>
+                                <th class="px-4 py-3">Kegiatan</th>
+                                <th class="px-4 py-3">Sub Kegiatan</th>
+                                <th class="px-4 py-3">Indikator Sub Kegiatan</th>
+                                <th class="px-4 py-3">Target Tahunan</th>
+                                <th class="px-4 py-3">Target Triwulan</th>
+                                <th class="px-4 py-3">Pagu</th>
+                                <th class="px-4 py-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="row in renstraCascadingRows" :key="row.key" class="border-b align-top last:border-0">
+                                <td class="max-w-[260px] px-4 py-3 font-medium">{{ row.tujuan }}</td>
+                                <td class="px-4 py-3">{{ row.tujuan_rpjmd }}</td>
+                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_tujuan }}</td>
+                                <td class="max-w-[260px] px-4 py-3">{{ row.sasaran }}</td>
+                                <td class="px-4 py-3">{{ row.sasaran_rpjmd }}</td>
+                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_sasaran }}</td>
+                                <td class="max-w-[260px] px-4 py-3 font-medium">{{ row.program }}</td>
+                                <td class="px-4 py-3">{{ row.program_rpjmd }}</td>
+                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_program }}</td>
+                                <td class="max-w-[260px] px-4 py-3">{{ row.kegiatan }}</td>
+                                <td class="max-w-[260px] px-4 py-3">{{ row.sub_kegiatan }}</td>
+                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_sub_kegiatan }}</td>
+                                <td class="max-w-[240px] px-4 py-3">{{ row.target_tahunan }}</td>
+                                <td class="max-w-[240px] px-4 py-3">{{ row.target_triwulan }}</td>
+                                <td class="max-w-[240px] px-4 py-3">{{ row.pagu }}</td>
+                                <td class="px-4 py-3">
+                                    <span
+                                        class="inline-flex rounded-full px-2 py-1 text-xs font-medium"
+                                        :class="
+                                            row.status_keterhubungan === 'Terhubung RPJMD'
+                                                ? 'bg-emerald-100 text-emerald-800'
+                                                : 'bg-amber-100 text-amber-800'
+                                        "
+                                    >
+                                        {{ row.status_keterhubungan }}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr v-if="renstraCascadingRows.length === 0">
+                                <td colspan="16" class="px-4 py-10 text-center text-muted-foreground">Belum ada data cascading Renstra OPD.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section v-else class="rounded-lg border bg-card">
+                <div class="flex items-center gap-2 border-b p-4">
+                    <Layers3 class="size-5 text-emerald-700" />
+                    <div>
+                        <h2 class="text-base font-semibold">Tree Cascading OPD</h2>
+                        <p class="text-sm text-muted-foreground">Tujuan, sasaran, program, kegiatan, sub kegiatan, indikator, dan target tahunan.</p>
+                    </div>
+                </div>
+
+                <div class="space-y-4 p-4">
+                    <div v-if="renstra.tujuan.length === 0" class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+                        <Layers3 class="mx-auto size-10 text-muted-foreground" />
+                        <p class="mt-3 font-semibold text-slate-900">Belum ada cascading Renstra OPD</p>
+                        <p class="mt-1">Mulai dengan membuat Tujuan OPD sebagai level pertama pohon kinerja.</p>
+                        <button
+                            v-if="can.manage"
+                            type="button"
+                            class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
+                            @click="selectNodeType('tujuan')"
+                        >
+                            <Plus class="size-4" />
+                            Tambah Tujuan OPD
+                        </button>
+                    </div>
+
+                    <article v-for="tujuan in renstra.tujuan" :key="tujuan.id" class="rounded-md border bg-background">
+                        <div class="flex items-start justify-between gap-3 border-b p-3">
+                            <div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="text-xs font-semibold uppercase text-emerald-700">Tujuan OPD</span>
+                                    <span class="rounded-full px-2 py-1 text-xs font-medium" :class="linkClass(tujuan.linked)">{{
+                                        linkLabel(tujuan.linked)
+                                    }}</span>
+                                </div>
+                                <div class="mt-1 text-sm font-medium">{{ tujuan.kode ? `${tujuan.kode} - ` : '' }}{{ tujuan.tujuan }}</div>
+                            </div>
+                            <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
                                 <button
                                     type="button"
-                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"
-                                    @click="addBulkRow('tujuan')"
-                                >
-                                    <Plus class="size-3.5" />
-                                    Tujuan
-                                </button>
-                                <button
-                                    type="button"
-                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
-                                    @click="addBulkRow('sasaran')"
-                                >
-                                    <Plus class="size-3.5" />
-                                    Sasaran
-                                </button>
-                                <button
-                                    type="button"
-                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
-                                    @click="addBulkRow('program')"
-                                >
-                                    <Plus class="size-3.5" />
-                                    Program
-                                </button>
-                                <button
-                                    type="button"
-                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
-                                    @click="addBulkRow('kegiatan')"
-                                >
-                                    <Plus class="size-3.5" />
-                                    Kegiatan
-                                </button>
-                                <button
-                                    type="button"
-                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
-                                    @click="addBulkRow('indikator_program')"
+                                    class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                    @click="selectNodeType('indikator_tujuan', tujuan.id)"
                                 >
                                     <Plus class="size-3.5" />
                                     Indikator
                                 </button>
                                 <button
                                     type="button"
-                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold text-slate-800 hover:bg-muted"
-                                    @click="addBulkRow('target_program')"
+                                    class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
+                                    @click="selectNodeType('sasaran', tujuan.id)"
                                 >
                                     <Plus class="size-3.5" />
-                                    Target
+                                    Sasaran
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-md p-1 hover:bg-muted"
+                                    title="Edit tujuan"
+                                    @click="editNode('tujuan', tujuan.id, null, tujuan)"
+                                >
+                                    <Pencil class="size-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                    title="Hapus tujuan"
+                                    @click="destroyNode('tujuan', tujuan.id, 'tujuan')"
+                                >
+                                    <Trash2 class="size-4" />
                                 </button>
                             </div>
-                        </aside>
+                        </div>
 
-                        <div class="grid min-w-0 gap-3">
-                            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                                <div class="flex min-w-0 items-start gap-2">
-                                    <Save class="mt-0.5 size-5 shrink-0 text-emerald-700" />
-                                    <div class="min-w-0">
-                                        <h2 class="text-base font-semibold">Bulk Mode Autosave</h2>
-                                        <p class="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
-                                            Input dan edit data cascading dalam tabel lebar. Geser tabel ke kanan untuk mengisi kolom lanjutan.
-                                            Perubahan disimpan otomatis sekitar 1 detik setelah input berhenti.
-                                        </p>
+                        <div class="space-y-3 p-3">
+                            <div v-for="indikator in tujuan.indikator" :key="indikator.id" class="rounded-md border bg-white p-3">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="text-xs font-semibold uppercase text-muted-foreground">Indikator Tujuan</span>
+                                            <span class="rounded-full px-2 py-1 text-xs font-medium" :class="linkClass(indikator.linked)">{{
+                                                linkLabel(indikator.linked)
+                                            }}</span>
+                                        </div>
+                                        <div class="mt-1 text-sm">{{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}</div>
+                                        <div class="mt-1 text-xs text-muted-foreground">
+                                            {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
+                                        </div>
+                                    </div>
+                                    <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                        <button
+                                            type="button"
+                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                            @click="selectNodeType('target_tujuan', indikator.id)"
+                                        >
+                                            <Plus class="size-3.5" />
+                                            Target
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+                                            @click="selectTargetTriwulan('indikator_tujuan_opd', indikator.id)"
+                                        >
+                                            <Plus class="size-3.5" />
+                                            TW
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="rounded-md p-1 hover:bg-muted"
+                                            title="Edit indikator"
+                                            @click="editNode('indikator_tujuan', indikator.id, tujuan.id, indikator)"
+                                        >
+                                            <Pencil class="size-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                            title="Hapus indikator"
+                                            @click="destroyNode('indikator_tujuan', indikator.id, 'indikator tujuan')"
+                                        >
+                                            <Trash2 class="size-4" />
+                                        </button>
                                     </div>
                                 </div>
-                                <div class="shrink-0 rounded-md border bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">
-                                    {{ bulkLastSavedAt ? `Terakhir autosave ${bulkLastSavedAt}` : 'Belum ada perubahan bulk' }}
+                                <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
+                                    <span
+                                        v-for="target in indikator.targets"
+                                        :key="target.id"
+                                        class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                                    >
+                                        {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
+                                        <button
+                                            v-if="can.manage"
+                                            type="button"
+                                            class="font-semibold text-emerald-900 hover:text-slate-900"
+                                            @click="editNode('target_tujuan', target.id, indikator.id, target)"
+                                        >
+                                            Edit
+                                        </button>
+                                    </span>
+                                </div>
+                                <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
+                                    <span
+                                        v-for="target in indikator.target_triwulan"
+                                        :key="target.id"
+                                        class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                                    >
+                                        {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}: {{ targetTriwulanDisplay(target) }} -
+                                        {{ formatCurrency(target.target_anggaran) }}
+                                        <button
+                                            v-if="can.manage"
+                                            type="button"
+                                            class="font-semibold text-blue-900 hover:text-red-700"
+                                            @click="destroyTargetTriwulan(target)"
+                                        >
+                                            x
+                                        </button>
+                                    </span>
                                 </div>
                             </div>
 
-                            <div class="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-3">
-                                <div>
-                                    <p class="text-xs font-semibold uppercase text-muted-foreground">Cara input</p>
-                                    <p class="mt-1 text-sm text-slate-800">Tambah baris dari kiri, pilih induk jika dibutuhkan, isi field utama.</p>
+                            <div v-for="sasaran in tujuan.sasaran" :key="sasaran.id" class="rounded-md border bg-slate-50 p-3">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="text-xs font-semibold uppercase text-muted-foreground">Sasaran OPD</span>
+                                            <span class="rounded-full px-2 py-1 text-xs font-medium" :class="linkClass(sasaran.linked)">{{
+                                                linkLabel(sasaran.linked)
+                                            }}</span>
+                                        </div>
+                                        <div class="mt-1 text-sm font-medium">
+                                            {{ sasaran.kode ? `${sasaran.kode} - ` : '' }}{{ sasaran.sasaran }}
+                                        </div>
+                                    </div>
+                                    <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                        <button
+                                            type="button"
+                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                            @click="selectNodeType('indikator_sasaran', sasaran.id)"
+                                        >
+                                            <Plus class="size-3.5" />
+                                            Indikator
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
+                                            @click="selectNodeType('program', sasaran.id)"
+                                        >
+                                            <Plus class="size-3.5" />
+                                            Program
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="rounded-md p-1 hover:bg-muted"
+                                            title="Edit sasaran"
+                                            @click="editNode('sasaran', sasaran.id, tujuan.id, sasaran)"
+                                        >
+                                            <Pencil class="size-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                            title="Hapus sasaran"
+                                            @click="destroyNode('sasaran', sasaran.id, 'sasaran')"
+                                        >
+                                            <Trash2 class="size-4" />
+                                        </button>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p class="text-xs font-semibold uppercase text-muted-foreground">Autosave</p>
-                                    <p class="mt-1 text-sm text-slate-800">Status simpan tampil di kolom paling kiri setiap baris.</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs font-semibold uppercase text-muted-foreground">Layar lebar</p>
-                                    <p class="mt-1 text-sm text-slate-800">Panel kanan disembunyikan supaya tabel punya ruang maksimal.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div v-if="bulkRows.length === 0" class="p-8 text-center text-sm text-muted-foreground">
-                        <Layers3 class="mx-auto size-10 text-muted-foreground" />
-                        <p class="mt-3 font-semibold text-slate-900">Belum ada data untuk bulk mode</p>
-                        <p class="mt-1">Buat Tujuan OPD sebagai baris pertama, lalu lanjutkan sasaran, program, kegiatan, dan target.</p>
-                        <button
-                            type="button"
-                            class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
-                            @click="addBulkRow('tujuan')"
-                        >
-                            <Plus class="size-4" />
-                            Tambah Baris Tujuan
-                        </button>
-                    </div>
-
-                    <div v-else class="max-w-full overflow-x-auto">
-                        <table class="min-w-[2500px] text-left text-sm">
-                            <thead class="sticky top-0 z-10 border-b bg-muted/80 text-xs uppercase text-muted-foreground backdrop-blur">
-                                <tr>
-                                    <th class="sticky left-0 z-20 min-w-44 border-r bg-muted/95 px-3 py-3 shadow-[8px_0_16px_rgba(15,23,42,0.06)]">
-                                        Status
-                                    </th>
-                                    <th class="min-w-56 px-3 py-3">Jenis Data</th>
-                                    <th class="min-w-72 px-3 py-3">Induk</th>
-                                    <th class="min-w-40 px-3 py-3">Ubah Induk</th>
-                                    <th class="min-w-32 px-3 py-3">Kode</th>
-                                    <th class="min-w-80 px-3 py-3">Uraian/Nama</th>
-                                    <th class="min-w-80 px-3 py-3">Indikator</th>
-                                    <th class="min-w-72 px-3 py-3">Referensi RPJMD</th>
-                                    <th class="min-w-56 px-3 py-3">Satuan</th>
-                                    <th class="min-w-40 px-3 py-3">Tipe</th>
-                                    <th class="min-w-72 px-3 py-3">Formula</th>
-                                    <th class="min-w-60 px-3 py-3">Sumber Data</th>
-                                    <th class="min-w-44 px-3 py-3">Pagu Indikatif</th>
-                                    <th class="min-w-52 px-3 py-3">Periode Target</th>
-                                    <th class="min-w-40 px-3 py-3">Target Angka</th>
-                                    <th class="min-w-56 px-3 py-3">Target Teks</th>
-                                    <th class="min-w-44 px-3 py-3">Pagu Tahunan</th>
-                                    <th class="min-w-28 px-3 py-3">Urutan</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="row in bulkRows" :key="row.key" class="border-b align-top last:border-0 hover:bg-muted/30">
-                                    <td class="sticky left-0 z-10 border-r bg-card px-3 py-3 shadow-[8px_0_16px_rgba(15,23,42,0.05)]">
-                                        <div class="grid gap-2">
-                                            <span class="inline-flex w-fit rounded-full px-2 py-1 text-xs font-semibold" :class="bulkStatusClass(row)">
-                                                {{ bulkStatusLabel(row) }}
+                                <div class="mt-3 space-y-3">
+                                    <div v-for="indikator in sasaran.indikator" :key="indikator.id" class="rounded-md border bg-white p-3">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div>
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <span class="text-xs font-semibold uppercase text-muted-foreground">Indikator Sasaran</span>
+                                                    <span class="rounded-full px-2 py-1 text-xs font-medium" :class="linkClass(indikator.linked)">{{
+                                                        linkLabel(indikator.linked)
+                                                    }}</span>
+                                                </div>
+                                                <div class="mt-1 text-sm">
+                                                    {{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}
+                                                </div>
+                                                <div class="mt-1 text-xs text-muted-foreground">
+                                                    {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
+                                                </div>
+                                            </div>
+                                            <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                                    @click="selectNodeType('target_sasaran', indikator.id)"
+                                                >
+                                                    <Plus class="size-3.5" />
+                                                    Target
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+                                                    @click="selectTargetTriwulan('indikator_sasaran_opd', indikator.id)"
+                                                >
+                                                    <Plus class="size-3.5" />
+                                                    TW
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="rounded-md p-1 hover:bg-muted"
+                                                    title="Edit indikator"
+                                                    @click="editNode('indikator_sasaran', indikator.id, sasaran.id, indikator)"
+                                                >
+                                                    <Pencil class="size-4" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                    title="Hapus indikator"
+                                                    @click="destroyNode('indikator_sasaran', indikator.id, 'indikator sasaran')"
+                                                >
+                                                    <Trash2 class="size-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
+                                            <span
+                                                v-for="target in indikator.targets"
+                                                :key="target.id"
+                                                class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                                            >
+                                                {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
+                                                <button
+                                                    v-if="can.manage"
+                                                    type="button"
+                                                    class="font-semibold text-emerald-900 hover:text-slate-900"
+                                                    @click="editNode('target_sasaran', target.id, indikator.id, target)"
+                                                >
+                                                    Edit
+                                                </button>
                                             </span>
-                                            <p v-if="row.error" class="max-w-40 text-xs leading-5 text-red-700">{{ row.error }}</p>
-                                            <button
-                                                v-if="row.isNew"
-                                                type="button"
-                                                class="inline-flex min-h-8 w-fit items-center rounded-md border px-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                                                @click="removeBulkDraft(row)"
-                                            >
-                                                Hapus draft
-                                            </button>
                                         </div>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-if="row.isNew"
-                                            v-model="row.type"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-700"
-                                            @change="onBulkTypeChanged(row)"
-                                        >
-                                            <option v-for="option in typeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                        </select>
-                                        <div v-else>
-                                            <div class="font-semibold text-slate-900">{{ row.level }}</div>
-                                            <div class="mt-1 text-xs text-muted-foreground">{{ typeOptionMap.get(row.type)?.label }}</div>
-                                        </div>
-                                    </td>
-                                    <td class="px-3 py-3 text-xs leading-5 text-slate-700">{{ row.parent_label }}</td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-if="bulkParentOptions(row).length"
-                                            v-model="row.parent_id"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="">Pilih induk</option>
-                                            <option v-for="option in bulkParentOptions(row)" :key="option.id" :value="option.id">{{ option.label }}</option>
-                                        </select>
-                                        <span v-else class="text-xs text-muted-foreground">-</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.kode"
-                                            :disabled="isBulkTargetRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <textarea
-                                            v-model="row.uraian"
-                                            :disabled="!isBulkTextRow(row)"
-                                            rows="3"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <textarea
-                                            v-model="row.indikator"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            rows="3"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-if="bulkReferenceOptions(row).length"
-                                            v-model="row.reference_value"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="">Tidak dihubungkan</option>
-                                            <option v-for="option in bulkReferenceOptions(row)" :key="option.id" :value="option.id">
-                                                {{ option.label }}
-                                            </option>
-                                        </select>
-                                        <span v-else class="text-xs text-muted-foreground">-</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-model="row.satuan_indikator_id"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="">Pilih satuan</option>
-                                            <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                                        </select>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-model="row.tipe_indikator"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="positif">Positif</option>
-                                            <option value="negatif">Negatif</option>
-                                        </select>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <textarea
-                                            v-model="row.formula"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            rows="3"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.sumber_data"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.pagu_indikatif"
-                                            :disabled="!hasBulkPaguIndikatif(row)"
-                                            type="number"
-                                            step="0.01"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-model="row.periode_tahun_id"
-                                            :disabled="!isBulkTargetRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="">Pilih periode</option>
-                                            <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                                        </select>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.target"
-                                            :disabled="!isBulkTargetRow(row)"
-                                            type="number"
-                                            step="0.0001"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.target_text"
-                                            :disabled="!isBulkTargetRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.pagu"
-                                            :disabled="!hasBulkPaguTahunan(row)"
-                                            type="number"
-                                            step="0.01"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.urutan"
-                                            :disabled="isBulkTargetRow(row)"
-                                            type="number"
-                                            min="1"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-
-                <section v-else-if="viewMode === 'table'" class="rounded-lg border bg-card">
-                    <div class="flex items-center gap-2 border-b p-4">
-                        <Table2 class="size-5 text-emerald-700" />
-                        <div>
-                            <h2 class="text-base font-semibold">Tabel Cascading Melebar</h2>
-                            <p class="text-sm text-muted-foreground">
-                                Setiap baris membawa konteks tujuan sampai sub kegiatan dan status link ke RPJMD.
-                            </p>
-                        </div>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-[1800px] text-left text-sm">
-                            <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
-                                <tr>
-                                    <th class="px-4 py-3">Tujuan OPD</th>
-                                    <th class="px-4 py-3">Link Tujuan</th>
-                                    <th class="px-4 py-3">Indikator Tujuan</th>
-                                    <th class="px-4 py-3">Sasaran OPD</th>
-                                    <th class="px-4 py-3">Link Sasaran</th>
-                                    <th class="px-4 py-3">Indikator Sasaran</th>
-                                    <th class="px-4 py-3">Program</th>
-                                    <th class="px-4 py-3">Link Program</th>
-                                    <th class="px-4 py-3">Indikator Program</th>
-                                    <th class="px-4 py-3">Kegiatan</th>
-                                    <th class="px-4 py-3">Sub Kegiatan</th>
-                                    <th class="px-4 py-3">Indikator Sub Kegiatan</th>
-                                    <th class="px-4 py-3">Target Tahunan</th>
-                                    <th class="px-4 py-3">Target Triwulan</th>
-                                    <th class="px-4 py-3">Pagu</th>
-                                    <th class="px-4 py-3">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="row in renstraCascadingRows" :key="row.key" class="border-b align-top last:border-0">
-                                    <td class="max-w-[260px] px-4 py-3 font-medium">{{ row.tujuan }}</td>
-                                    <td class="px-4 py-3">{{ row.tujuan_rpjmd }}</td>
-                                    <td class="max-w-[280px] px-4 py-3">{{ row.indikator_tujuan }}</td>
-                                    <td class="max-w-[260px] px-4 py-3">{{ row.sasaran }}</td>
-                                    <td class="px-4 py-3">{{ row.sasaran_rpjmd }}</td>
-                                    <td class="max-w-[280px] px-4 py-3">{{ row.indikator_sasaran }}</td>
-                                    <td class="max-w-[260px] px-4 py-3 font-medium">{{ row.program }}</td>
-                                    <td class="px-4 py-3">{{ row.program_rpjmd }}</td>
-                                    <td class="max-w-[280px] px-4 py-3">{{ row.indikator_program }}</td>
-                                    <td class="max-w-[260px] px-4 py-3">{{ row.kegiatan }}</td>
-                                    <td class="max-w-[260px] px-4 py-3">{{ row.sub_kegiatan }}</td>
-                                    <td class="max-w-[280px] px-4 py-3">{{ row.indikator_sub_kegiatan }}</td>
-                                    <td class="max-w-[240px] px-4 py-3">{{ row.target_tahunan }}</td>
-                                    <td class="max-w-[240px] px-4 py-3">{{ row.target_triwulan }}</td>
-                                    <td class="max-w-[240px] px-4 py-3">{{ row.pagu }}</td>
-                                    <td class="px-4 py-3">
-                                        <span
-                                            class="inline-flex rounded-full px-2 py-1 text-xs font-medium"
-                                            :class="
-                                                row.status_keterhubungan === 'Terhubung RPJMD'
-                                                    ? 'bg-emerald-100 text-emerald-800'
-                                                    : 'bg-amber-100 text-amber-800'
-                                            "
-                                        >
-                                            {{ row.status_keterhubungan }}
-                                        </span>
-                                    </td>
-                                </tr>
-                                <tr v-if="renstraCascadingRows.length === 0">
-                                    <td colspan="16" class="px-4 py-10 text-center text-muted-foreground">Belum ada data cascading Renstra OPD.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-
-                <section v-else class="rounded-lg border bg-card">
-                    <div class="flex items-center gap-2 border-b p-4">
-                        <Layers3 class="size-5 text-emerald-700" />
-                        <div>
-                            <h2 class="text-base font-semibold">Tree Cascading OPD</h2>
-                            <p class="text-sm text-muted-foreground">
-                                Tujuan, sasaran, program, kegiatan, sub kegiatan, indikator, dan target tahunan.
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="space-y-4 p-4">
-                        <div v-if="renstra.tujuan.length === 0" class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-                            <Layers3 class="mx-auto size-10 text-muted-foreground" />
-                            <p class="mt-3 font-semibold text-slate-900">Belum ada cascading Renstra OPD</p>
-                            <p class="mt-1">Mulai dengan membuat Tujuan OPD sebagai level pertama pohon kinerja.</p>
-                            <button
-                                v-if="can.manage"
-                                type="button"
-                                class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
-                                @click="selectNodeType('tujuan')"
-                            >
-                                <Plus class="size-4" />
-                                Tambah Tujuan OPD
-                            </button>
-                        </div>
-
-                        <article v-for="tujuan in renstra.tujuan" :key="tujuan.id" class="rounded-md border bg-background">
-                            <div class="flex items-start justify-between gap-3 border-b p-3">
-                                <div>
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <span class="text-xs font-semibold uppercase text-emerald-700">Tujuan OPD</span>
-                                        <span class="rounded-full px-2 py-1 text-xs font-medium" :class="linkClass(tujuan.linked)">{{
-                                            linkLabel(tujuan.linked)
-                                        }}</span>
-                                    </div>
-                                    <div class="mt-1 text-sm font-medium">{{ tujuan.kode ? `${tujuan.kode} - ` : '' }}{{ tujuan.tujuan }}</div>
-                                </div>
-                                <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
-                                    <button
-                                        type="button"
-                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
-                                        @click="selectNodeType('indikator_tujuan', tujuan.id)"
-                                    >
-                                        <Plus class="size-3.5" />
-                                        Indikator
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
-                                        @click="selectNodeType('sasaran', tujuan.id)"
-                                    >
-                                        <Plus class="size-3.5" />
-                                        Sasaran
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="rounded-md p-1 hover:bg-muted"
-                                        title="Edit tujuan"
-                                        @click="editNode('tujuan', tujuan.id, null, tujuan)"
-                                    >
-                                        <Pencil class="size-4" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                        title="Hapus tujuan"
-                                        @click="destroyNode('tujuan', tujuan.id, 'tujuan')"
-                                    >
-                                        <Trash2 class="size-4" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="space-y-3 p-3">
-                                <div v-for="indikator in tujuan.indikator" :key="indikator.id" class="rounded-md border bg-white p-3">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div>
-                                            <div class="flex flex-wrap items-center gap-2">
-                                                <span class="text-xs font-semibold uppercase text-muted-foreground">Indikator Tujuan</span>
-                                                <span class="rounded-full px-2 py-1 text-xs font-medium" :class="linkClass(indikator.linked)">{{
-                                                    linkLabel(indikator.linked)
-                                                }}</span>
-                                            </div>
-                                            <div class="mt-1 text-sm">
-                                                {{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}
-                                            </div>
-                                            <div class="mt-1 text-xs text-muted-foreground">
-                                                {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
-                                            </div>
-                                        </div>
-                                        <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
-                                            <button
-                                                type="button"
-                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
-                                                @click="selectNodeType('target_tujuan', indikator.id)"
+                                        <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
+                                            <span
+                                                v-for="target in indikator.target_triwulan"
+                                                :key="target.id"
+                                                class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
                                             >
-                                                <Plus class="size-3.5" />
-                                                Target
-                                            </button>
-                                            <button
-                                                type="button"
-                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
-                                                @click="selectTargetTriwulan('indikator_tujuan_opd', indikator.id)"
-                                            >
-                                                <Plus class="size-3.5" />
-                                                TW
-                                            </button>
-                                            <button
-                                                type="button"
-                                                class="rounded-md p-1 hover:bg-muted"
-                                                title="Edit indikator"
-                                                @click="editNode('indikator_tujuan', indikator.id, tujuan.id, indikator)"
-                                            >
-                                                <Pencil class="size-4" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                title="Hapus indikator"
-                                                @click="destroyNode('indikator_tujuan', indikator.id, 'indikator tujuan')"
-                                            >
-                                                <Trash2 class="size-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
-                                        <span
-                                            v-for="target in indikator.targets"
-                                            :key="target.id"
-                                            class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
-                                        >
-                                            {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
-                                            <button
-                                                v-if="can.manage"
-                                                type="button"
-                                                class="font-semibold text-emerald-900 hover:text-slate-900"
-                                                @click="editNode('target_tujuan', target.id, indikator.id, target)"
-                                            >
-                                                Edit
-                                            </button>
-                                        </span>
-                                    </div>
-                                    <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
-                                        <span
-                                            v-for="target in indikator.target_triwulan"
-                                            :key="target.id"
-                                            class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
-                                        >
-                                            {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
-                                            {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
-                                            <button
-                                                v-if="can.manage"
-                                                type="button"
-                                                class="font-semibold text-blue-900 hover:text-red-700"
-                                                @click="destroyTargetTriwulan(target)"
-                                            >
-                                                x
-                                            </button>
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div v-for="sasaran in tujuan.sasaran" :key="sasaran.id" class="rounded-md border bg-slate-50 p-3">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div>
-                                            <div class="flex flex-wrap items-center gap-2">
-                                                <span class="text-xs font-semibold uppercase text-muted-foreground">Sasaran OPD</span>
-                                                <span class="rounded-full px-2 py-1 text-xs font-medium" :class="linkClass(sasaran.linked)">{{
-                                                    linkLabel(sasaran.linked)
-                                                }}</span>
-                                            </div>
-                                            <div class="mt-1 text-sm font-medium">
-                                                {{ sasaran.kode ? `${sasaran.kode} - ` : '' }}{{ sasaran.sasaran }}
-                                            </div>
-                                        </div>
-                                        <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
-                                            <button
-                                                type="button"
-                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
-                                                @click="selectNodeType('indikator_sasaran', sasaran.id)"
-                                            >
-                                                <Plus class="size-3.5" />
-                                                Indikator
-                                            </button>
-                                            <button
-                                                type="button"
-                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
-                                                @click="selectNodeType('program', sasaran.id)"
-                                            >
-                                                <Plus class="size-3.5" />
-                                                Program
-                                            </button>
-                                            <button
-                                                type="button"
-                                                class="rounded-md p-1 hover:bg-muted"
-                                                title="Edit sasaran"
-                                                @click="editNode('sasaran', sasaran.id, tujuan.id, sasaran)"
-                                            >
-                                                <Pencil class="size-4" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                title="Hapus sasaran"
-                                                @click="destroyNode('sasaran', sasaran.id, 'sasaran')"
-                                            >
-                                                <Trash2 class="size-4" />
-                                            </button>
+                                                {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
+                                                {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
+                                                <button
+                                                    v-if="can.manage"
+                                                    type="button"
+                                                    class="font-semibold text-blue-900 hover:text-red-700"
+                                                    @click="destroyTargetTriwulan(target)"
+                                                >
+                                                    x
+                                                </button>
+                                            </span>
                                         </div>
                                     </div>
 
-                                    <div class="mt-3 space-y-3">
-                                        <div v-for="indikator in sasaran.indikator" :key="indikator.id" class="rounded-md border bg-white p-3">
-                                            <div class="flex items-start justify-between gap-3">
-                                                <div>
-                                                    <div class="flex flex-wrap items-center gap-2">
-                                                        <span class="text-xs font-semibold uppercase text-muted-foreground">Indikator Sasaran</span>
-                                                        <span
-                                                            class="rounded-full px-2 py-1 text-xs font-medium"
-                                                            :class="linkClass(indikator.linked)"
-                                                            >{{ linkLabel(indikator.linked) }}</span
+                                    <div v-for="program in sasaran.programs" :key="program.id" class="rounded-md border bg-white p-3">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div>
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <span class="text-xs font-semibold uppercase text-muted-foreground">Program OPD</span>
+                                                    <span class="rounded-full px-2 py-1 text-xs font-medium" :class="linkClass(program.linked)">{{
+                                                        linkLabel(program.linked)
+                                                    }}</span>
+                                                </div>
+                                                <div class="mt-1 text-sm font-medium">
+                                                    {{ program.kode ? `${program.kode} - ` : '' }}{{ program.nama }}
+                                                </div>
+                                                <div class="mt-1 text-xs text-muted-foreground">
+                                                    Pagu indikatif: {{ program.pagu_indikatif || '-' }}
+                                                </div>
+                                            </div>
+                                            <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                                    @click="selectNodeType('indikator_program', program.id)"
+                                                >
+                                                    <Plus class="size-3.5" />
+                                                    Indikator
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
+                                                    @click="selectNodeType('kegiatan', program.id)"
+                                                >
+                                                    <Plus class="size-3.5" />
+                                                    Kegiatan
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="rounded-md p-1 hover:bg-muted"
+                                                    title="Edit program"
+                                                    @click="editNode('program', program.id, sasaran.id, program)"
+                                                >
+                                                    <Pencil class="size-4" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                    title="Hapus program"
+                                                    @click="destroyNode('program', program.id, 'program')"
+                                                >
+                                                    <Trash2 class="size-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-3 grid gap-2">
+                                            <div v-for="indikator in program.indikator" :key="indikator.id" class="rounded-md border bg-slate-50 p-3">
+                                                <div class="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <div class="flex flex-wrap items-center gap-2">
+                                                            <span class="text-xs font-semibold uppercase text-muted-foreground"
+                                                                >Indikator Program</span
+                                                            >
+                                                            <span
+                                                                class="rounded-full px-2 py-1 text-xs font-medium"
+                                                                :class="linkClass(indikator.linked)"
+                                                                >{{ linkLabel(indikator.linked) }}</span
+                                                            >
+                                                        </div>
+                                                        <div class="mt-1 text-sm">
+                                                            {{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}
+                                                        </div>
+                                                        <div class="mt-1 text-xs text-muted-foreground">
+                                                            {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
+                                                        </div>
+                                                    </div>
+                                                    <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                                            @click="selectNodeType('target_program', indikator.id)"
                                                         >
-                                                    </div>
-                                                    <div class="mt-1 text-sm">
-                                                        {{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}
-                                                    </div>
-                                                    <div class="mt-1 text-xs text-muted-foreground">
-                                                        {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
-                                                    </div>
-                                                </div>
-                                                <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
-                                                        @click="selectNodeType('target_sasaran', indikator.id)"
-                                                    >
-                                                        <Plus class="size-3.5" />
-                                                        Target
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
-                                                        @click="selectTargetTriwulan('indikator_sasaran_opd', indikator.id)"
-                                                    >
-                                                        <Plus class="size-3.5" />
-                                                        TW
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="rounded-md p-1 hover:bg-muted"
-                                                        title="Edit indikator"
-                                                        @click="editNode('indikator_sasaran', indikator.id, sasaran.id, indikator)"
-                                                    >
-                                                        <Pencil class="size-4" />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                        title="Hapus indikator"
-                                                        @click="destroyNode('indikator_sasaran', indikator.id, 'indikator sasaran')"
-                                                    >
-                                                        <Trash2 class="size-4" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
-                                                <span
-                                                    v-for="target in indikator.targets"
-                                                    :key="target.id"
-                                                    class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
-                                                >
-                                                    {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
-                                                    <button
-                                                        v-if="can.manage"
-                                                        type="button"
-                                                        class="font-semibold text-emerald-900 hover:text-slate-900"
-                                                        @click="editNode('target_sasaran', target.id, indikator.id, target)"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                </span>
-                                            </div>
-                                            <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
-                                                <span
-                                                    v-for="target in indikator.target_triwulan"
-                                                    :key="target.id"
-                                                    class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
-                                                >
-                                                    {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
-                                                    {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
-                                                    <button
-                                                        v-if="can.manage"
-                                                        type="button"
-                                                        class="font-semibold text-blue-900 hover:text-red-700"
-                                                        @click="destroyTargetTriwulan(target)"
-                                                    >
-                                                        x
-                                                    </button>
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div v-for="program in sasaran.programs" :key="program.id" class="rounded-md border bg-white p-3">
-                                            <div class="flex items-start justify-between gap-3">
-                                                <div>
-                                                    <div class="flex flex-wrap items-center gap-2">
-                                                        <span class="text-xs font-semibold uppercase text-muted-foreground">Program OPD</span>
-                                                        <span class="rounded-full px-2 py-1 text-xs font-medium" :class="linkClass(program.linked)">{{
-                                                            linkLabel(program.linked)
-                                                        }}</span>
-                                                    </div>
-                                                    <div class="mt-1 text-sm font-medium">
-                                                        {{ program.kode ? `${program.kode} - ` : '' }}{{ program.nama }}
-                                                    </div>
-                                                    <div class="mt-1 text-xs text-muted-foreground">
-                                                        Pagu indikatif: {{ program.pagu_indikatif || '-' }}
+                                                            <Plus class="size-3.5" />
+                                                            Target
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+                                                            @click="selectTargetTriwulan('indikator_opd_program', indikator.id)"
+                                                        >
+                                                            <Plus class="size-3.5" />
+                                                            TW
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            class="rounded-md p-1 hover:bg-muted"
+                                                            title="Edit indikator"
+                                                            @click="editNode('indikator_program', indikator.id, program.id, indikator)"
+                                                        >
+                                                            <Pencil class="size-4" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                            title="Hapus indikator"
+                                                            @click="destroyNode('indikator_program', indikator.id, 'indikator program')"
+                                                        >
+                                                            <Trash2 class="size-4" />
+                                                        </button>
                                                     </div>
                                                 </div>
-                                                <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
-                                                        @click="selectNodeType('indikator_program', program.id)"
+                                                <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
+                                                    <span
+                                                        v-for="target in indikator.targets"
+                                                        :key="target.id"
+                                                        class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
                                                     >
-                                                        <Plus class="size-3.5" />
-                                                        Indikator
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
-                                                        @click="selectNodeType('kegiatan', program.id)"
+                                                        {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }} - Pagu
+                                                        {{ target.pagu || '-' }}
+                                                        <button
+                                                            v-if="can.manage"
+                                                            type="button"
+                                                            class="font-semibold text-emerald-900 hover:text-slate-900"
+                                                            @click="editNode('target_program', target.id, indikator.id, target)"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                    </span>
+                                                </div>
+                                                <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
+                                                    <span
+                                                        v-for="target in indikator.target_triwulan"
+                                                        :key="target.id"
+                                                        class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
                                                     >
-                                                        <Plus class="size-3.5" />
-                                                        Kegiatan
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="rounded-md p-1 hover:bg-muted"
-                                                        title="Edit program"
-                                                        @click="editNode('program', program.id, sasaran.id, program)"
-                                                    >
-                                                        <Pencil class="size-4" />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                        title="Hapus program"
-                                                        @click="destroyNode('program', program.id, 'program')"
-                                                    >
-                                                        <Trash2 class="size-4" />
-                                                    </button>
+                                                        {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
+                                                        {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
+                                                        <button
+                                                            v-if="can.manage"
+                                                            type="button"
+                                                            class="font-semibold text-blue-900 hover:text-red-700"
+                                                            @click="destroyTargetTriwulan(target)"
+                                                        >
+                                                            x
+                                                        </button>
+                                                    </span>
                                                 </div>
                                             </div>
 
-                                            <div class="mt-3 grid gap-2">
-                                                <div
-                                                    v-for="indikator in program.indikator"
-                                                    :key="indikator.id"
-                                                    class="rounded-md border bg-slate-50 p-3"
-                                                >
+                                            <div v-for="kegiatan in program.kegiatan" :key="kegiatan.id" class="rounded-md border bg-slate-50 p-3">
+                                                <div class="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <div class="text-xs font-semibold uppercase text-muted-foreground">Kegiatan OPD</div>
+                                                        <div class="mt-1 text-sm font-medium">
+                                                            {{ kegiatan.kode ? `${kegiatan.kode} - ` : '' }}{{ kegiatan.nama }}
+                                                        </div>
+                                                    </div>
+                                                    <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
+                                                            @click="selectNodeType('sub_kegiatan', kegiatan.id)"
+                                                        >
+                                                            <Plus class="size-3.5" />
+                                                            Sub Kegiatan
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            class="rounded-md p-1 hover:bg-muted"
+                                                            title="Edit kegiatan"
+                                                            @click="editNode('kegiatan', kegiatan.id, program.id, kegiatan)"
+                                                        >
+                                                            <Pencil class="size-4" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                            title="Hapus kegiatan"
+                                                            @click="destroyNode('kegiatan', kegiatan.id, 'kegiatan')"
+                                                        >
+                                                            <Trash2 class="size-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div v-for="sub in kegiatan.sub_kegiatan" :key="sub.id" class="mt-3 rounded-md border bg-white p-3">
                                                     <div class="flex items-start justify-between gap-3">
                                                         <div>
-                                                            <div class="flex flex-wrap items-center gap-2">
-                                                                <span class="text-xs font-semibold uppercase text-muted-foreground"
-                                                                    >Indikator Program</span
-                                                                >
-                                                                <span
-                                                                    class="rounded-full px-2 py-1 text-xs font-medium"
-                                                                    :class="linkClass(indikator.linked)"
-                                                                    >{{ linkLabel(indikator.linked) }}</span
-                                                                >
-                                                            </div>
-                                                            <div class="mt-1 text-sm">
-                                                                {{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}
-                                                            </div>
-                                                            <div class="mt-1 text-xs text-muted-foreground">
-                                                                {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
+                                                            <div class="text-xs font-semibold uppercase text-muted-foreground">Sub Kegiatan</div>
+                                                            <div class="mt-1 text-sm font-medium">
+                                                                {{ sub.kode ? `${sub.kode} - ` : '' }}{{ sub.nama }}
                                                             </div>
                                                         </div>
                                                         <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
                                                             <button
                                                                 type="button"
                                                                 class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
-                                                                @click="selectNodeType('target_program', indikator.id)"
+                                                                @click="selectNodeType('indikator_sub_kegiatan', sub.id)"
                                                             >
                                                                 <Plus class="size-3.5" />
-                                                                Target
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
-                                                                @click="selectTargetTriwulan('indikator_opd_program', indikator.id)"
-                                                            >
-                                                                <Plus class="size-3.5" />
-                                                                TW
+                                                                Indikator
                                                             </button>
                                                             <button
                                                                 type="button"
                                                                 class="rounded-md p-1 hover:bg-muted"
-                                                                title="Edit indikator"
-                                                                @click="editNode('indikator_program', indikator.id, program.id, indikator)"
+                                                                title="Edit sub kegiatan"
+                                                                @click="editNode('sub_kegiatan', sub.id, kegiatan.id, sub)"
                                                             >
                                                                 <Pencil class="size-4" />
                                                             </button>
                                                             <button
                                                                 type="button"
                                                                 class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                                title="Hapus indikator"
-                                                                @click="destroyNode('indikator_program', indikator.id, 'indikator program')"
+                                                                title="Hapus sub kegiatan"
+                                                                @click="destroyNode('sub_kegiatan', sub.id, 'sub kegiatan')"
                                                             >
                                                                 <Trash2 class="size-4" />
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
-                                                        <span
-                                                            v-for="target in indikator.targets"
-                                                            :key="target.id"
-                                                            class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                                                    <div v-if="sub.indikator.length" class="mt-2 grid gap-2">
+                                                        <div
+                                                            v-for="indikator in sub.indikator"
+                                                            :key="indikator.id"
+                                                            class="rounded-md bg-slate-50 px-3 py-2 text-sm"
                                                         >
-                                                            {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }} - Pagu
-                                                            {{ target.pagu || '-' }}
-                                                            <button
-                                                                v-if="can.manage"
-                                                                type="button"
-                                                                class="font-semibold text-emerald-900 hover:text-slate-900"
-                                                                @click="editNode('target_program', target.id, indikator.id, target)"
-                                                            >
-                                                                Edit
-                                                            </button>
-                                                        </span>
-                                                    </div>
-                                                    <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
-                                                        <span
-                                                            v-for="target in indikator.target_triwulan"
-                                                            :key="target.id"
-                                                            class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
-                                                        >
-                                                            {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
-                                                            {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
-                                                            <button
-                                                                v-if="can.manage"
-                                                                type="button"
-                                                                class="font-semibold text-blue-900 hover:text-red-700"
-                                                                @click="destroyTargetTriwulan(target)"
-                                                            >
-                                                                x
-                                                            </button>
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div
-                                                    v-for="kegiatan in program.kegiatan"
-                                                    :key="kegiatan.id"
-                                                    class="rounded-md border bg-slate-50 p-3"
-                                                >
-                                                    <div class="flex items-start justify-between gap-3">
-                                                        <div>
-                                                            <div class="text-xs font-semibold uppercase text-muted-foreground">Kegiatan OPD</div>
-                                                            <div class="mt-1 text-sm font-medium">
-                                                                {{ kegiatan.kode ? `${kegiatan.kode} - ` : '' }}{{ kegiatan.nama }}
-                                                            </div>
-                                                        </div>
-                                                        <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
-                                                            <button
-                                                                type="button"
-                                                                class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
-                                                                @click="selectNodeType('sub_kegiatan', kegiatan.id)"
-                                                            >
-                                                                <Plus class="size-3.5" />
-                                                                Sub Kegiatan
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                class="rounded-md p-1 hover:bg-muted"
-                                                                title="Edit kegiatan"
-                                                                @click="editNode('kegiatan', kegiatan.id, program.id, kegiatan)"
-                                                            >
-                                                                <Pencil class="size-4" />
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                                title="Hapus kegiatan"
-                                                                @click="destroyNode('kegiatan', kegiatan.id, 'kegiatan')"
-                                                            >
-                                                                <Trash2 class="size-4" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div
-                                                        v-for="sub in kegiatan.sub_kegiatan"
-                                                        :key="sub.id"
-                                                        class="mt-3 rounded-md border bg-white p-3"
-                                                    >
-                                                        <div class="flex items-start justify-between gap-3">
-                                                            <div>
-                                                                <div class="text-xs font-semibold uppercase text-muted-foreground">Sub Kegiatan</div>
-                                                                <div class="mt-1 text-sm font-medium">
-                                                                    {{ sub.kode ? `${sub.kode} - ` : '' }}{{ sub.nama }}
-                                                                </div>
-                                                            </div>
-                                                            <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
-                                                                <button
-                                                                    type="button"
-                                                                    class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
-                                                                    @click="selectNodeType('indikator_sub_kegiatan', sub.id)"
-                                                                >
-                                                                    <Plus class="size-3.5" />
-                                                                    Indikator
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    class="rounded-md p-1 hover:bg-muted"
-                                                                    title="Edit sub kegiatan"
-                                                                    @click="editNode('sub_kegiatan', sub.id, kegiatan.id, sub)"
-                                                                >
-                                                                    <Pencil class="size-4" />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                                    title="Hapus sub kegiatan"
-                                                                    @click="destroyNode('sub_kegiatan', sub.id, 'sub kegiatan')"
-                                                                >
-                                                                    <Trash2 class="size-4" />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                        <div v-if="sub.indikator.length" class="mt-2 grid gap-2">
-                                                            <div
-                                                                v-for="indikator in sub.indikator"
-                                                                :key="indikator.id"
-                                                                class="rounded-md bg-slate-50 px-3 py-2 text-sm"
-                                                            >
-                                                                <div class="flex items-start justify-between gap-3">
+                                                            <div class="flex items-start justify-between gap-3">
+                                                                <div>
                                                                     <div>
-                                                                        <div>
-                                                                            {{ indikator.kode ? `${indikator.kode} - ` : ''
-                                                                            }}{{ indikator.indikator }}
-                                                                        </div>
-                                                                        <div class="mt-1 text-xs text-muted-foreground">
-                                                                            {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
-                                                                        </div>
+                                                                        {{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}
                                                                     </div>
-                                                                    <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
-                                                                        <button
-                                                                            type="button"
-                                                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
-                                                                            @click="selectTargetTriwulan('indikator_sub_kegiatan', indikator.id)"
-                                                                        >
-                                                                            <Plus class="size-3.5" />
-                                                                            TW
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            class="rounded-md p-1 hover:bg-muted"
-                                                                            title="Edit indikator"
-                                                                            @click="
-                                                                                editNode('indikator_sub_kegiatan', indikator.id, sub.id, indikator)
-                                                                            "
-                                                                        >
-                                                                            <Pencil class="size-4" />
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                                            title="Hapus indikator"
-                                                                            @click="
-                                                                                destroyNode(
-                                                                                    'indikator_sub_kegiatan',
-                                                                                    indikator.id,
-                                                                                    'indikator sub kegiatan',
-                                                                                )
-                                                                            "
-                                                                        >
-                                                                            <Trash2 class="size-4" />
-                                                                        </button>
+                                                                    <div class="mt-1 text-xs text-muted-foreground">
+                                                                        {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
                                                                     </div>
                                                                 </div>
-                                                                <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
-                                                                    <span
-                                                                        v-for="target in indikator.target_triwulan"
-                                                                        :key="target.id"
-                                                                        class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                                                                <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                                    <button
+                                                                        type="button"
+                                                                        class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+                                                                        @click="selectTargetTriwulan('indikator_sub_kegiatan', indikator.id)"
                                                                     >
-                                                                        {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
-                                                                        {{ targetTriwulanDisplay(target) }} -
-                                                                        {{ formatCurrency(target.target_anggaran) }}
-                                                                        <button
-                                                                            v-if="can.manage"
-                                                                            type="button"
-                                                                            class="font-semibold text-blue-900 hover:text-red-700"
-                                                                            @click="destroyTargetTriwulan(target)"
-                                                                        >
-                                                                            x
-                                                                        </button>
-                                                                    </span>
+                                                                        <Plus class="size-3.5" />
+                                                                        TW
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        class="rounded-md p-1 hover:bg-muted"
+                                                                        title="Edit indikator"
+                                                                        @click="editNode('indikator_sub_kegiatan', indikator.id, sub.id, indikator)"
+                                                                    >
+                                                                        <Pencil class="size-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                                        title="Hapus indikator"
+                                                                        @click="
+                                                                            destroyNode(
+                                                                                'indikator_sub_kegiatan',
+                                                                                indikator.id,
+                                                                                'indikator sub kegiatan',
+                                                                            )
+                                                                        "
+                                                                    >
+                                                                        <Trash2 class="size-4" />
+                                                                    </button>
                                                                 </div>
+                                                            </div>
+                                                            <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
+                                                                <span
+                                                                    v-for="target in indikator.target_triwulan"
+                                                                    :key="target.id"
+                                                                    class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                                                                >
+                                                                    {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
+                                                                    {{ targetTriwulanDisplay(target) }} -
+                                                                    {{ formatCurrency(target.target_anggaran) }}
+                                                                    <button
+                                                                        v-if="can.manage"
+                                                                        type="button"
+                                                                        class="font-semibold text-blue-900 hover:text-red-700"
+                                                                        @click="destroyTargetTriwulan(target)"
+                                                                    >
+                                                                        x
+                                                                    </button>
+                                                                </span>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2547,129 +2519,132 @@ const triwulanLabel = (triwulan: string) =>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-                        </article>
-                    </div>
-                </section>
-
-                <aside v-if="can.manage && viewMode !== 'bulk'" ref="formPanel" class="grid gap-4 xl:sticky xl:top-4 xl:self-start">
-                    <section class="overflow-hidden rounded-lg border bg-card shadow-sm">
-                        <div class="border-b bg-[linear-gradient(135deg,#f8fafc,#ecfdf5)] p-4">
-                            <div class="flex items-start justify-between gap-3">
-                                <div class="min-w-0">
-                                    <div class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold uppercase text-emerald-800">
-                                        <ClipboardList class="size-3.5" />
-                                        Panel Pengisian
-                                    </div>
-                                    <h2 class="mt-3 text-base font-semibold text-slate-950">
-                                        {{ editingNode ? 'Edit Data Cascading' : 'Tambah Data Cascading' }}
-                                    </h2>
-                                    <p class="mt-1 text-sm leading-6 text-muted-foreground">
-                                        {{ selectedTypeMeta.helper }}
-                                    </p>
-                                </div>
-                                <button
-                                    v-if="editingNode"
-                                    type="button"
-                                    class="inline-flex min-h-9 shrink-0 items-center rounded-md border bg-white px-3 text-xs font-medium hover:bg-muted"
-                                    @click="resetNodeForm"
-                                >
-                                    Batal edit
-                                </button>
-                            </div>
-
-                            <div class="mt-4 grid gap-2">
-                                <div v-for="item in nodeFormChecklist" :key="item.label" class="flex items-center gap-2 text-xs">
-                                    <span
-                                        class="flex size-5 items-center justify-center rounded-full"
-                                        :class="item.complete ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'"
-                                    >
-                                        <CheckCircle2 v-if="item.complete" class="size-3.5" />
-                                        <CircleDot v-else class="size-3" />
-                                    </span>
-                                    <span :class="item.complete ? 'text-slate-700' : 'text-muted-foreground'">{{ item.label }}</span>
                                 </div>
                             </div>
                         </div>
+                    </article>
+                </div>
+            </section>
 
-                        <form class="grid gap-4 p-4" @submit.prevent="submitNode">
+            <aside v-if="can.manage && viewMode !== 'bulk'" ref="formPanel" class="grid gap-4 xl:sticky xl:top-4 xl:self-start">
+                <section class="overflow-hidden rounded-lg border bg-card shadow-sm">
+                    <div class="border-b bg-[linear-gradient(135deg,#f8fafc,#ecfdf5)] p-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <div
+                                    class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold uppercase text-emerald-800"
+                                >
+                                    <ClipboardList class="size-3.5" />
+                                    Panel Pengisian
+                                </div>
+                                <h2 class="mt-3 text-base font-semibold text-slate-950">
+                                    {{ editingNode ? 'Edit Data Cascading' : 'Tambah Data Cascading' }}
+                                </h2>
+                                <p class="mt-1 text-sm leading-6 text-muted-foreground">
+                                    {{ selectedTypeMeta.helper }}
+                                </p>
+                            </div>
+                            <button
+                                v-if="editingNode"
+                                type="button"
+                                class="inline-flex min-h-9 shrink-0 items-center rounded-md border bg-white px-3 text-xs font-medium hover:bg-muted"
+                                @click="resetNodeForm"
+                            >
+                                Batal edit
+                            </button>
+                        </div>
+
+                        <div class="mt-4 grid gap-2">
+                            <div v-for="item in nodeFormChecklist" :key="item.label" class="flex items-center gap-2 text-xs">
+                                <span
+                                    class="flex size-5 items-center justify-center rounded-full"
+                                    :class="item.complete ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'"
+                                >
+                                    <CheckCircle2 v-if="item.complete" class="size-3.5" />
+                                    <CircleDot v-else class="size-3" />
+                                </span>
+                                <span :class="item.complete ? 'text-slate-700' : 'text-muted-foreground'">{{ item.label }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form class="grid gap-4 p-4" @submit.prevent="submitNode">
+                        <div class="grid gap-3">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="text-sm font-semibold text-slate-950">1. Pilih jenis data</h3>
+                                    <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                                        Pilih dari urutan kerja, atau klik tombol tambah langsung dari tree di kiri.
+                                    </p>
+                                </div>
+                                <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                    {{ selectedTypeMeta.stage }}
+                                </span>
+                            </div>
+
                             <div class="grid gap-3">
-                                <div class="flex items-center justify-between gap-3">
-                                    <div>
-                                        <h3 class="text-sm font-semibold text-slate-950">1. Pilih jenis data</h3>
-                                        <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                                            Pilih dari urutan kerja, atau klik tombol tambah langsung dari tree di kiri.
-                                        </p>
-                                    </div>
-                                    <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                                        {{ selectedTypeMeta.stage }}
-                                    </span>
-                                </div>
-
-                                <div class="grid gap-3">
-                                    <div v-for="group in typeGroups" :key="group.label" class="rounded-md border bg-background p-3">
-                                        <div class="mb-2 flex items-start gap-2">
-                                            <component :is="group.icon" class="mt-0.5 size-4 text-emerald-700" />
-                                            <div>
-                                                <p class="text-xs font-semibold uppercase text-slate-800">{{ group.label }}</p>
-                                                <p class="mt-0.5 text-xs leading-5 text-muted-foreground">{{ group.helper }}</p>
-                                            </div>
-                                        </div>
-                                        <div class="grid grid-cols-2 gap-2">
-                                            <button
-                                                v-for="type in group.items"
-                                                :key="type"
-                                                type="button"
-                                                class="min-h-10 rounded-md border px-2 text-left text-xs font-medium transition hover:border-emerald-300 hover:bg-emerald-50"
-                                                :class="
-                                                    form.type === type
-                                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-600'
-                                                        : 'bg-white text-slate-700'
-                                                "
-                                                @click="selectNodeType(type)"
-                                            >
-                                                {{ typeOptionMap.get(type)?.label }}
-                                            </button>
+                                <div v-for="group in typeGroups" :key="group.label" class="rounded-md border bg-background p-3">
+                                    <div class="mb-2 flex items-start gap-2">
+                                        <component :is="group.icon" class="mt-0.5 size-4 text-emerald-700" />
+                                        <div>
+                                            <p class="text-xs font-semibold uppercase text-slate-800">{{ group.label }}</p>
+                                            <p class="mt-0.5 text-xs leading-5 text-muted-foreground">{{ group.helper }}</p>
                                         </div>
                                     </div>
-                                </div>
-
-                                <div class="grid gap-2">
-                                    <label class="text-sm font-medium" for="type">Jenis Data Terpilih</label>
-                                    <select
-                                        id="type"
-                                        v-model="form.type"
-                                        class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                                    >
-                                        <option v-for="option in typeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                    </select>
-                                    <InputError :message="form.errors.type" />
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button
+                                            v-for="type in group.items"
+                                            :key="type"
+                                            type="button"
+                                            class="min-h-10 rounded-md border px-2 text-left text-xs font-medium transition hover:border-emerald-300 hover:bg-emerald-50"
+                                            :class="
+                                                form.type === type
+                                                    ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-600'
+                                                    : 'bg-white text-slate-700'
+                                            "
+                                            @click="selectNodeType(type)"
+                                        >
+                                            {{ typeOptionMap.get(type)?.label }}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="grid gap-3 rounded-md border bg-background p-3">
-                                <div class="flex items-start gap-2">
-                                    <Link2 class="mt-0.5 size-4 text-sky-700" />
-                                    <div>
-                                        <h3 class="text-sm font-semibold text-slate-950">2. Induk dan referensi</h3>
-                                        <p class="mt-1 text-xs leading-5 text-muted-foreground">{{ parentRequirementText }}</p>
-                                    </div>
-                                </div>
+                            <div class="grid gap-2">
+                                <label class="text-sm font-medium" for="type">Jenis Data Terpilih</label>
+                                <select
+                                    id="type"
+                                    v-model="form.type"
+                                    class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                >
+                                    <option v-for="option in typeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                </select>
+                                <InputError :message="form.errors.type" />
+                            </div>
+                        </div>
 
-                                <div v-if="needsParent" class="grid gap-2">
-                                    <label class="text-sm font-medium" for="parent_id">{{ parentLabel }} <span class="text-red-600">*</span></label>
-                                    <select
-                                        id="parent_id"
-                                        v-model="form.parent_id"
-                                        class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                                    >
-                                        <option value="">Pilih {{ parentLabel.toLowerCase() }}</option>
-                                        <option v-for="option in parentOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                                    </select>
-                                    <InputError :message="form.errors.parent_id" />
+                        <div class="grid gap-3 rounded-md border bg-background p-3">
+                            <div class="flex items-start gap-2">
+                                <Link2 class="mt-0.5 size-4 text-sky-700" />
+                                <div>
+                                    <h3 class="text-sm font-semibold text-slate-950">2. Induk dan referensi</h3>
+                                    <p class="mt-1 text-xs leading-5 text-muted-foreground">{{ parentRequirementText }}</p>
                                 </div>
                             </div>
+
+                            <div v-if="needsParent" class="grid gap-2">
+                                <label class="text-sm font-medium" for="parent_id">{{ parentLabel }} <span class="text-red-600">*</span></label>
+                                <select
+                                    id="parent_id"
+                                    v-model="form.parent_id"
+                                    class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                >
+                                    <option value="">Pilih {{ parentLabel.toLowerCase() }}</option>
+                                    <option v-for="option in parentOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                </select>
+                                <InputError :message="form.errors.parent_id" />
+                            </div>
+                        </div>
 
                         <div v-if="form.type === 'tujuan'" class="grid gap-2">
                             <label class="text-sm font-medium" for="tujuan_daerah_id">Referensi Tujuan RPJMD</label>
@@ -2922,20 +2897,19 @@ const triwulanLabel = (triwulan: string) =>
                             {{ editingNode ? 'Perbarui Data Cascading' : 'Simpan Data Cascading' }}
                         </button>
                     </form>
+                </section>
 
-                    </section>
-
-                    <section class="rounded-lg border bg-card p-4 shadow-sm">
-                        <form class="grid gap-4" @submit.prevent="submitTargetTriwulan">
-                            <div class="flex items-start gap-2">
-                                <Target class="mt-0.5 size-5 text-blue-700" />
-                                <div>
-                                    <h3 class="text-base font-semibold text-slate-950">Target Triwulan Indikator</h3>
-                                    <p class="mt-1 text-sm leading-6 text-muted-foreground">
-                                        Isi target kinerja dan target anggaran TW I sampai TW IV tanpa scroll horizontal.
-                                    </p>
-                                </div>
+                <section class="rounded-lg border bg-card p-4 shadow-sm">
+                    <form class="grid gap-4" @submit.prevent="submitTargetTriwulan">
+                        <div class="flex items-start gap-2">
+                            <Target class="mt-0.5 size-5 text-blue-700" />
+                            <div>
+                                <h3 class="text-base font-semibold text-slate-950">Target Triwulan Indikator</h3>
+                                <p class="mt-1 text-sm leading-6 text-muted-foreground">
+                                    Isi target kinerja dan target anggaran TW I sampai TW IV tanpa scroll horizontal.
+                                </p>
                             </div>
+                        </div>
 
                         <div class="grid gap-2">
                             <label class="text-sm font-medium" for="target_triwulan_table">Jenis Indikator</label>
@@ -2980,7 +2954,11 @@ const triwulanLabel = (triwulan: string) =>
                         </div>
 
                         <div class="grid gap-3">
-                            <article v-for="(row, index) in targetTriwulanForm.targets" :key="row.triwulan" class="rounded-md border bg-background p-3">
+                            <article
+                                v-for="(row, index) in targetTriwulanForm.targets"
+                                :key="row.triwulan"
+                                class="rounded-md border bg-background p-3"
+                            >
                                 <div class="mb-3 flex items-center justify-between gap-3">
                                     <h4 class="text-sm font-semibold text-slate-950">{{ targetTriwulanRows[index].label }}</h4>
                                     <span class="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">Triwulan</span>
@@ -3030,10 +3008,9 @@ const triwulanLabel = (triwulan: string) =>
                             <Save class="size-4" />
                             Simpan Target TW I-IV
                         </button>
-                        </form>
-                    </section>
-                </aside>
-            </div>
+                    </form>
+                </section>
+            </aside>
         </div>
-    </AppLayout>
+    </div>
 </template>

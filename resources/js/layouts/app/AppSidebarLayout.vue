@@ -24,11 +24,13 @@ const pageTransitionKey = computed(() => `${page.component}:${page.url.split('?'
         <AppSidebar />
         <AppContent variant="sidebar">
             <AppSidebarHeader :breadcrumbs="breadcrumbs" />
-            <Transition name="page-drop" mode="out-in" appear>
-                <div :key="pageTransitionKey" class="flex min-w-0 flex-1 flex-col">
-                    <slot />
-                </div>
-            </Transition>
+            <div class="relative flex min-w-0 flex-1 flex-col">
+                <Transition name="page-drop" appear>
+                    <div :key="pageTransitionKey" class="flex min-w-0 flex-1 flex-col">
+                        <slot />
+                    </div>
+                </Transition>
+            </div>
         </AppContent>
     </AppShell>
 </template>

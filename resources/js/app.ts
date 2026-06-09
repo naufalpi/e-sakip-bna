@@ -6,6 +6,7 @@ import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import { initializeTheme } from './composables/useAppearance';
+import AppLayout from './layouts/AppLayout.vue';
 
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
@@ -21,10 +22,26 @@ declare module 'vite/client' {
 }
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+type InertiaPageModule = {
+    default: DefineComponent & {
+        layout?: DefineComponent;
+    };
+};
+
+const pages = import.meta.glob<InertiaPageModule>('./pages/**/*.vue');
+const shouldUsePersistentAppLayout = (name: string) => !name.startsWith('auth/') && !name.startsWith('PublicSite/') && name !== 'Welcome';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
-    resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
+    resolve: async (name) => {
+        const page = await resolvePageComponent<InertiaPageModule>(`./pages/${name}.vue`, pages);
+
+        if (shouldUsePersistentAppLayout(name)) {
+            page.default.layout ??= AppLayout;
+        }
+
+        return page;
+    },
     setup({ el, App, props, plugin }) {
         createApp({ render: () => h(App, props) })
             .use(plugin)

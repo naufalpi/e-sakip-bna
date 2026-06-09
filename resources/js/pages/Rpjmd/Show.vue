@@ -2,8 +2,6 @@
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { GitBranch, Network, Pencil, Plus, Table2, Trash2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -165,12 +163,6 @@ const props = defineProps<{
     };
     workflow: Workflow;
 }>();
-
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: '/dashboard' },
-    { title: 'RPJMD Kabupaten', href: '/rpjmd' },
-    { title: `${props.rpjmd.tahun_awal}-${props.rpjmd.tahun_akhir}`, href: '#' },
-];
 
 const typeOptions: Array<{ value: NodeType; label: string }> = [
     { value: 'visi', label: 'Visi' },
@@ -641,691 +633,662 @@ const triwulanLabel = (triwulan: string) =>
 
 <template>
     <Head title="Cascading RPJMD" />
-
-    <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-4 p-4">
-            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <h1 class="text-2xl font-semibold tracking-normal">{{ rpjmd.judul }}</h1>
-                        <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(rpjmd.status)">
-                            {{ statusLabel(rpjmd.status) }}
-                        </span>
-                    </div>
-                    <p class="mt-1 text-sm text-muted-foreground">
-                        {{ rpjmd.tahun_awal }}-{{ rpjmd.tahun_akhir }} - {{ rpjmd.nomor_perda || 'Nomor perda belum diisi' }}
-                    </p>
+    <div class="flex flex-col gap-4 p-4">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <h1 class="text-2xl font-semibold tracking-normal">{{ rpjmd.judul }}</h1>
+                    <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(rpjmd.status)">
+                        {{ statusLabel(rpjmd.status) }}
+                    </span>
                 </div>
-                <div class="flex gap-2">
-                    <Link :href="route('rpjmd.index')" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Kembali</Link>
-                    <Link
-                        v-if="can.manage"
-                        :href="route('rpjmd.edit', rpjmd.id)"
-                        class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
-                    >
-                        <Pencil class="size-4" />
-                        Edit
-                    </Link>
-                    <WorkflowActionButtons
-                        module="rpjmd"
-                        :model-id="rpjmd.id"
-                        :status="rpjmd.status"
-                        :can-manage="can.manage"
-                        :can-review="can.review"
-                        :can-lock="can.lock"
-                        :show-verify="false"
-                    />
+                <p class="mt-1 text-sm text-muted-foreground">
+                    {{ rpjmd.tahun_awal }}-{{ rpjmd.tahun_akhir }} - {{ rpjmd.nomor_perda || 'Nomor perda belum diisi' }}
+                </p>
+            </div>
+            <div class="flex gap-2">
+                <Link :href="route('rpjmd.index')" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Kembali</Link>
+                <Link
+                    v-if="can.manage"
+                    :href="route('rpjmd.edit', rpjmd.id)"
+                    class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                >
+                    <Pencil class="size-4" />
+                    Edit
+                </Link>
+                <WorkflowActionButtons
+                    module="rpjmd"
+                    :model-id="rpjmd.id"
+                    :status="rpjmd.status"
+                    :can-manage="can.manage"
+                    :can-review="can.review"
+                    :can-lock="can.lock"
+                    :show-verify="false"
+                />
+            </div>
+        </div>
+
+        <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-4">
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Periode Referensi</div>
+                <div class="mt-1 text-sm font-medium">{{ rpjmd.periode_tahun?.nama || '-' }}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Jumlah Visi</div>
+                <div class="mt-1 text-sm font-medium">{{ rpjmd.visi.length }}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Status Workflow</div>
+                <div class="mt-1 text-sm font-medium">{{ statusLabel(rpjmd.status) }}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Keterangan</div>
+                <div class="mt-1 text-sm font-medium">{{ rpjmd.keterangan || '-' }}</div>
+            </div>
+        </section>
+
+        <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-lg border bg-card p-4">
+                <div class="text-xs uppercase text-muted-foreground">Node Perencanaan</div>
+                <div class="mt-2 text-2xl font-semibold">{{ rpjmdSummary.misi + rpjmdSummary.tujuan + rpjmdSummary.sasaran }}</div>
+                <div class="mt-1 text-xs text-muted-foreground">
+                    {{ rpjmdSummary.misi }} misi, {{ rpjmdSummary.tujuan }} tujuan, {{ rpjmdSummary.sasaran }} sasaran
                 </div>
             </div>
+            <div class="rounded-lg border bg-card p-4">
+                <div class="text-xs uppercase text-muted-foreground">Indikator dan Target</div>
+                <div class="mt-2 text-2xl font-semibold">{{ rpjmdSummary.indikator }}</div>
+                <div class="mt-1 text-xs text-muted-foreground">
+                    {{ rpjmdSummary.target_tahunan }} target tahunan, {{ rpjmdSummary.target_triwulan }} target triwulan
+                </div>
+            </div>
+            <div class="rounded-lg border bg-card p-4">
+                <div class="text-xs uppercase text-muted-foreground">Program RPJMD</div>
+                <div class="mt-2 text-2xl font-semibold">{{ rpjmdSummary.program }}</div>
+                <div class="mt-1 text-xs text-muted-foreground">
+                    {{ rpjmdSummary.program_terhubung_opd }} sudah punya OPD, {{ rpjmdSummary.program - rpjmdSummary.program_terhubung_opd }} belum
+                </div>
+            </div>
+            <div class="rounded-lg border bg-card p-4">
+                <div class="text-xs uppercase text-muted-foreground">OPD Penanggung Jawab</div>
+                <div class="mt-2 text-2xl font-semibold">{{ rpjmdSummary.opd_penanggung_jawab }}</div>
+                <div class="mt-1 text-xs text-muted-foreground">OPD unik yang terhubung ke program RPJMD</div>
+            </div>
+        </section>
 
-            <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-4">
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Periode Referensi</div>
-                    <div class="mt-1 text-sm font-medium">{{ rpjmd.periode_tahun?.nama || '-' }}</div>
-                </div>
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Jumlah Visi</div>
-                    <div class="mt-1 text-sm font-medium">{{ rpjmd.visi.length }}</div>
-                </div>
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Status Workflow</div>
-                    <div class="mt-1 text-sm font-medium">{{ statusLabel(rpjmd.status) }}</div>
-                </div>
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Keterangan</div>
-                    <div class="mt-1 text-sm font-medium">{{ rpjmd.keterangan || '-' }}</div>
-                </div>
-            </section>
+        <WorkflowHistoryTimeline :workflow="workflow" />
 
-            <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div class="rounded-lg border bg-card p-4">
-                    <div class="text-xs uppercase text-muted-foreground">Node Perencanaan</div>
-                    <div class="mt-2 text-2xl font-semibold">{{ rpjmdSummary.misi + rpjmdSummary.tujuan + rpjmdSummary.sasaran }}</div>
-                    <div class="mt-1 text-xs text-muted-foreground">
-                        {{ rpjmdSummary.misi }} misi, {{ rpjmdSummary.tujuan }} tujuan, {{ rpjmdSummary.sasaran }} sasaran
-                    </div>
+        <section class="flex flex-col gap-3 rounded-lg border bg-card p-3 md:flex-row md:items-center md:justify-between">
+            <div class="flex items-center gap-2">
+                <Network class="size-5 text-emerald-700" />
+                <div>
+                    <h2 class="text-base font-semibold">Cascading RPJMD</h2>
+                    <p class="text-sm text-muted-foreground">Pilih tampilan tree atau tabel melebar sesuai kebutuhan monitoring.</p>
                 </div>
-                <div class="rounded-lg border bg-card p-4">
-                    <div class="text-xs uppercase text-muted-foreground">Indikator dan Target</div>
-                    <div class="mt-2 text-2xl font-semibold">{{ rpjmdSummary.indikator }}</div>
-                    <div class="mt-1 text-xs text-muted-foreground">
-                        {{ rpjmdSummary.target_tahunan }} target tahunan, {{ rpjmdSummary.target_triwulan }} target triwulan
-                    </div>
-                </div>
-                <div class="rounded-lg border bg-card p-4">
-                    <div class="text-xs uppercase text-muted-foreground">Program RPJMD</div>
-                    <div class="mt-2 text-2xl font-semibold">{{ rpjmdSummary.program }}</div>
-                    <div class="mt-1 text-xs text-muted-foreground">
-                        {{ rpjmdSummary.program_terhubung_opd }} sudah punya OPD,
-                        {{ rpjmdSummary.program - rpjmdSummary.program_terhubung_opd }} belum
-                    </div>
-                </div>
-                <div class="rounded-lg border bg-card p-4">
-                    <div class="text-xs uppercase text-muted-foreground">OPD Penanggung Jawab</div>
-                    <div class="mt-2 text-2xl font-semibold">{{ rpjmdSummary.opd_penanggung_jawab }}</div>
-                    <div class="mt-1 text-xs text-muted-foreground">OPD unik yang terhubung ke program RPJMD</div>
-                </div>
-            </section>
+            </div>
+            <div class="inline-flex rounded-md border bg-background p-1">
+                <button
+                    type="button"
+                    class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
+                    :class="viewMode === 'tree' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
+                    @click="viewMode = 'tree'"
+                >
+                    <GitBranch class="size-4" />
+                    Tree
+                </button>
+                <button
+                    type="button"
+                    class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
+                    :class="viewMode === 'table' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
+                    @click="viewMode = 'table'"
+                >
+                    <Table2 class="size-4" />
+                    Tabel
+                </button>
+            </div>
+        </section>
 
-            <WorkflowHistoryTimeline :workflow="workflow" />
-
-            <section class="flex flex-col gap-3 rounded-lg border bg-card p-3 md:flex-row md:items-center md:justify-between">
-                <div class="flex items-center gap-2">
-                    <Network class="size-5 text-emerald-700" />
+        <div class="grid gap-4 xl:grid-cols-[1fr_360px]">
+            <section v-if="viewMode === 'table'" class="rounded-lg border bg-card">
+                <div class="flex items-center gap-2 border-b p-4">
+                    <Table2 class="size-5 text-emerald-700" />
                     <div>
-                        <h2 class="text-base font-semibold">Cascading RPJMD</h2>
-                        <p class="text-sm text-muted-foreground">Pilih tampilan tree atau tabel melebar sesuai kebutuhan monitoring.</p>
+                        <h2 class="text-base font-semibold">Tabel Cascading Melebar</h2>
+                        <p class="text-sm text-muted-foreground">Setiap baris membawa konteks dari visi sampai OPD penanggung jawab.</p>
                     </div>
                 </div>
-                <div class="inline-flex rounded-md border bg-background p-1">
-                    <button
-                        type="button"
-                        class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
-                        :class="viewMode === 'tree' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
-                        @click="viewMode = 'tree'"
-                    >
-                        <GitBranch class="size-4" />
-                        Tree
-                    </button>
-                    <button
-                        type="button"
-                        class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
-                        :class="viewMode === 'table' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
-                        @click="viewMode = 'table'"
-                    >
-                        <Table2 class="size-4" />
-                        Tabel
-                    </button>
+                <div class="overflow-x-auto">
+                    <table class="min-w-[1600px] text-left text-sm">
+                        <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
+                            <tr>
+                                <th class="px-4 py-3">Visi</th>
+                                <th class="px-4 py-3">Misi</th>
+                                <th class="px-4 py-3">Tujuan</th>
+                                <th class="px-4 py-3">Indikator Tujuan</th>
+                                <th class="px-4 py-3">Sasaran</th>
+                                <th class="px-4 py-3">Indikator Sasaran</th>
+                                <th class="px-4 py-3">Strategi</th>
+                                <th class="px-4 py-3">Program</th>
+                                <th class="px-4 py-3">Indikator Program</th>
+                                <th class="px-4 py-3">Target Tahunan</th>
+                                <th class="px-4 py-3">Target Triwulan</th>
+                                <th class="px-4 py-3">OPD</th>
+                                <th class="px-4 py-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="row in rpjmdCascadingRows" :key="row.key" class="border-b align-top last:border-0">
+                                <td class="max-w-[260px] px-4 py-3">{{ row.visi }}</td>
+                                <td class="max-w-[260px] px-4 py-3">{{ row.misi }}</td>
+                                <td class="max-w-[260px] px-4 py-3">{{ row.tujuan }}</td>
+                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_tujuan }}</td>
+                                <td class="max-w-[260px] px-4 py-3">{{ row.sasaran }}</td>
+                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_sasaran }}</td>
+                                <td class="max-w-[260px] px-4 py-3">{{ row.strategi }}</td>
+                                <td class="max-w-[280px] px-4 py-3 font-medium">{{ row.program }}</td>
+                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_program }}</td>
+                                <td class="max-w-[240px] px-4 py-3">{{ row.target_tahunan }}</td>
+                                <td class="max-w-[240px] px-4 py-3">{{ row.target_triwulan }}</td>
+                                <td class="max-w-[220px] px-4 py-3">{{ row.opd_penanggung_jawab }}</td>
+                                <td class="px-4 py-3">
+                                    <span
+                                        class="inline-flex rounded-full px-2 py-1 text-xs font-medium"
+                                        :class="
+                                            row.status_keterhubungan === 'Terhubung OPD'
+                                                ? 'bg-emerald-100 text-emerald-800'
+                                                : 'bg-amber-100 text-amber-800'
+                                        "
+                                    >
+                                        {{ row.status_keterhubungan }}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr v-if="rpjmdCascadingRows.length === 0">
+                                <td colspan="13" class="px-4 py-10 text-center text-muted-foreground">Belum ada data cascading RPJMD.</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
-            <div class="grid gap-4 xl:grid-cols-[1fr_360px]">
-                <section v-if="viewMode === 'table'" class="rounded-lg border bg-card">
-                    <div class="flex items-center gap-2 border-b p-4">
-                        <Table2 class="size-5 text-emerald-700" />
-                        <div>
-                            <h2 class="text-base font-semibold">Tabel Cascading Melebar</h2>
-                            <p class="text-sm text-muted-foreground">Setiap baris membawa konteks dari visi sampai OPD penanggung jawab.</p>
-                        </div>
+            <section v-else class="rounded-lg border bg-card">
+                <div class="flex items-center gap-2 border-b p-4">
+                    <GitBranch class="size-5 text-emerald-700" />
+                    <div>
+                        <h2 class="text-base font-semibold">Tree Cascading RPJMD</h2>
+                        <p class="text-sm text-muted-foreground">
+                            Visi, misi, tujuan, sasaran, strategi, program, indikator, target, dan OPD penanggung jawab.
+                        </p>
                     </div>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-[1600px] text-left text-sm">
-                            <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
-                                <tr>
-                                    <th class="px-4 py-3">Visi</th>
-                                    <th class="px-4 py-3">Misi</th>
-                                    <th class="px-4 py-3">Tujuan</th>
-                                    <th class="px-4 py-3">Indikator Tujuan</th>
-                                    <th class="px-4 py-3">Sasaran</th>
-                                    <th class="px-4 py-3">Indikator Sasaran</th>
-                                    <th class="px-4 py-3">Strategi</th>
-                                    <th class="px-4 py-3">Program</th>
-                                    <th class="px-4 py-3">Indikator Program</th>
-                                    <th class="px-4 py-3">Target Tahunan</th>
-                                    <th class="px-4 py-3">Target Triwulan</th>
-                                    <th class="px-4 py-3">OPD</th>
-                                    <th class="px-4 py-3">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="row in rpjmdCascadingRows" :key="row.key" class="border-b align-top last:border-0">
-                                    <td class="max-w-[260px] px-4 py-3">{{ row.visi }}</td>
-                                    <td class="max-w-[260px] px-4 py-3">{{ row.misi }}</td>
-                                    <td class="max-w-[260px] px-4 py-3">{{ row.tujuan }}</td>
-                                    <td class="max-w-[280px] px-4 py-3">{{ row.indikator_tujuan }}</td>
-                                    <td class="max-w-[260px] px-4 py-3">{{ row.sasaran }}</td>
-                                    <td class="max-w-[280px] px-4 py-3">{{ row.indikator_sasaran }}</td>
-                                    <td class="max-w-[260px] px-4 py-3">{{ row.strategi }}</td>
-                                    <td class="max-w-[280px] px-4 py-3 font-medium">{{ row.program }}</td>
-                                    <td class="max-w-[280px] px-4 py-3">{{ row.indikator_program }}</td>
-                                    <td class="max-w-[240px] px-4 py-3">{{ row.target_tahunan }}</td>
-                                    <td class="max-w-[240px] px-4 py-3">{{ row.target_triwulan }}</td>
-                                    <td class="max-w-[220px] px-4 py-3">{{ row.opd_penanggung_jawab }}</td>
-                                    <td class="px-4 py-3">
-                                        <span
-                                            class="inline-flex rounded-full px-2 py-1 text-xs font-medium"
-                                            :class="
-                                                row.status_keterhubungan === 'Terhubung OPD'
-                                                    ? 'bg-emerald-100 text-emerald-800'
-                                                    : 'bg-amber-100 text-amber-800'
-                                            "
-                                        >
-                                            {{ row.status_keterhubungan }}
-                                        </span>
-                                    </td>
-                                </tr>
-                                <tr v-if="rpjmdCascadingRows.length === 0">
-                                    <td colspan="13" class="px-4 py-10 text-center text-muted-foreground">Belum ada data cascading RPJMD.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+                </div>
 
-                <section v-else class="rounded-lg border bg-card">
-                    <div class="flex items-center gap-2 border-b p-4">
-                        <GitBranch class="size-5 text-emerald-700" />
-                        <div>
-                            <h2 class="text-base font-semibold">Tree Cascading RPJMD</h2>
-                            <p class="text-sm text-muted-foreground">
-                                Visi, misi, tujuan, sasaran, strategi, program, indikator, target, dan OPD penanggung jawab.
-                            </p>
-                        </div>
+                <div class="space-y-4 p-4">
+                    <div v-if="rpjmd.visi.length === 0" class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+                        Belum ada cascading. Mulai dari menambahkan Visi.
                     </div>
 
-                    <div class="space-y-4 p-4">
-                        <div v-if="rpjmd.visi.length === 0" class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-                            Belum ada cascading. Mulai dari menambahkan Visi.
-                        </div>
-
-                        <article v-for="visi in rpjmd.visi" :key="visi.id" class="rounded-md border bg-background">
-                            <div class="flex items-start justify-between gap-3 border-b p-3">
-                                <div>
-                                    <div class="text-xs font-semibold uppercase text-emerald-700">Visi</div>
-                                    <div class="mt-1 text-sm font-medium">{{ visi.visi }}</div>
-                                </div>
-                                <div v-if="can.manage" class="flex items-center gap-1">
-                                    <button
-                                        type="button"
-                                        class="rounded-md p-1 hover:bg-muted"
-                                        title="Edit visi"
-                                        @click="editNode('visi', visi.id, null, visi)"
-                                    >
-                                        <Pencil class="size-4" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                        title="Hapus visi"
-                                        @click="destroyNode('visi', visi.id, 'visi')"
-                                    >
-                                        <Trash2 class="size-4" />
-                                    </button>
-                                </div>
+                    <article v-for="visi in rpjmd.visi" :key="visi.id" class="rounded-md border bg-background">
+                        <div class="flex items-start justify-between gap-3 border-b p-3">
+                            <div>
+                                <div class="text-xs font-semibold uppercase text-emerald-700">Visi</div>
+                                <div class="mt-1 text-sm font-medium">{{ visi.visi }}</div>
                             </div>
+                            <div v-if="can.manage" class="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    class="rounded-md p-1 hover:bg-muted"
+                                    title="Edit visi"
+                                    @click="editNode('visi', visi.id, null, visi)"
+                                >
+                                    <Pencil class="size-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                    title="Hapus visi"
+                                    @click="destroyNode('visi', visi.id, 'visi')"
+                                >
+                                    <Trash2 class="size-4" />
+                                </button>
+                            </div>
+                        </div>
 
-                            <div class="space-y-3 p-3">
-                                <div v-for="misi in visi.misi" :key="misi.id" class="border-l-2 border-emerald-200 pl-3">
-                                    <div class="rounded-md border bg-white p-3">
-                                        <div class="flex items-start justify-between gap-3">
-                                            <div>
-                                                <div class="text-xs font-semibold uppercase text-muted-foreground">Misi</div>
-                                                <div class="mt-1 text-sm font-medium">{{ misi.kode ? `${misi.kode} - ` : '' }}{{ misi.misi }}</div>
-                                            </div>
-                                            <div v-if="can.manage" class="flex items-center gap-1">
-                                                <button
-                                                    type="button"
-                                                    class="rounded-md p-1 hover:bg-muted"
-                                                    title="Edit misi"
-                                                    @click="editNode('misi', misi.id, visi.id, misi)"
-                                                >
-                                                    <Pencil class="size-4" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                    title="Hapus misi"
-                                                    @click="destroyNode('misi', misi.id, 'misi')"
-                                                >
-                                                    <Trash2 class="size-4" />
-                                                </button>
-                                            </div>
+                        <div class="space-y-3 p-3">
+                            <div v-for="misi in visi.misi" :key="misi.id" class="border-l-2 border-emerald-200 pl-3">
+                                <div class="rounded-md border bg-white p-3">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <div class="text-xs font-semibold uppercase text-muted-foreground">Misi</div>
+                                            <div class="mt-1 text-sm font-medium">{{ misi.kode ? `${misi.kode} - ` : '' }}{{ misi.misi }}</div>
                                         </div>
+                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                class="rounded-md p-1 hover:bg-muted"
+                                                title="Edit misi"
+                                                @click="editNode('misi', misi.id, visi.id, misi)"
+                                            >
+                                                <Pencil class="size-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                title="Hapus misi"
+                                                @click="destroyNode('misi', misi.id, 'misi')"
+                                            >
+                                                <Trash2 class="size-4" />
+                                            </button>
+                                        </div>
+                                    </div>
 
-                                        <div class="mt-3 space-y-3">
-                                            <div v-for="tujuan in misi.tujuan" :key="tujuan.id" class="rounded-md border bg-slate-50 p-3">
-                                                <div class="flex items-start justify-between gap-3">
-                                                    <div>
-                                                        <div class="text-xs font-semibold uppercase text-muted-foreground">Tujuan Daerah</div>
-                                                        <div class="mt-1 text-sm font-medium">
-                                                            {{ tujuan.kode ? `${tujuan.kode} - ` : '' }}{{ tujuan.tujuan }}
-                                                        </div>
-                                                    </div>
-                                                    <div v-if="can.manage" class="flex items-center gap-1">
-                                                        <button
-                                                            type="button"
-                                                            class="rounded-md p-1 hover:bg-muted"
-                                                            title="Edit tujuan"
-                                                            @click="editNode('tujuan', tujuan.id, misi.id, tujuan)"
-                                                        >
-                                                            <Pencil class="size-4" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                            title="Hapus tujuan"
-                                                            @click="destroyNode('tujuan', tujuan.id, 'tujuan')"
-                                                        >
-                                                            <Trash2 class="size-4" />
-                                                        </button>
+                                    <div class="mt-3 space-y-3">
+                                        <div v-for="tujuan in misi.tujuan" :key="tujuan.id" class="rounded-md border bg-slate-50 p-3">
+                                            <div class="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <div class="text-xs font-semibold uppercase text-muted-foreground">Tujuan Daerah</div>
+                                                    <div class="mt-1 text-sm font-medium">
+                                                        {{ tujuan.kode ? `${tujuan.kode} - ` : '' }}{{ tujuan.tujuan }}
                                                     </div>
                                                 </div>
-
-                                                <div v-if="tujuan.indikator.length" class="mt-3 grid gap-2">
-                                                    <div
-                                                        v-for="indikator in tujuan.indikator"
-                                                        :key="indikator.id"
-                                                        class="rounded-md border bg-white p-3"
+                                                <div v-if="can.manage" class="flex items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        class="rounded-md p-1 hover:bg-muted"
+                                                        title="Edit tujuan"
+                                                        @click="editNode('tujuan', tujuan.id, misi.id, tujuan)"
                                                     >
-                                                        <div class="flex items-start justify-between gap-3">
-                                                            <div>
-                                                                <div class="text-xs font-semibold uppercase text-muted-foreground">
-                                                                    Indikator Tujuan
-                                                                </div>
-                                                                <div class="mt-1 text-sm">
-                                                                    {{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}
-                                                                </div>
-                                                                <div class="mt-1 text-xs text-muted-foreground">
-                                                                    {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }} -
-                                                                    {{ indikator.sumber_data || 'Sumber data belum diisi' }}
-                                                                </div>
+                                                        <Pencil class="size-4" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                        title="Hapus tujuan"
+                                                        @click="destroyNode('tujuan', tujuan.id, 'tujuan')"
+                                                    >
+                                                        <Trash2 class="size-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div v-if="tujuan.indikator.length" class="mt-3 grid gap-2">
+                                                <div v-for="indikator in tujuan.indikator" :key="indikator.id" class="rounded-md border bg-white p-3">
+                                                    <div class="flex items-start justify-between gap-3">
+                                                        <div>
+                                                            <div class="text-xs font-semibold uppercase text-muted-foreground">Indikator Tujuan</div>
+                                                            <div class="mt-1 text-sm">
+                                                                {{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}
                                                             </div>
-                                                            <div v-if="can.manage" class="flex items-center gap-1">
-                                                                <button
-                                                                    type="button"
-                                                                    class="rounded-md p-1 hover:bg-muted"
-                                                                    title="Edit indikator"
-                                                                    @click="editNode('indikator_tujuan', indikator.id, tujuan.id, indikator)"
-                                                                >
-                                                                    <Pencil class="size-4" />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                                    title="Hapus indikator"
-                                                                    @click="destroyNode('indikator_tujuan', indikator.id, 'indikator tujuan')"
-                                                                >
-                                                                    <Trash2 class="size-4" />
-                                                                </button>
+                                                            <div class="mt-1 text-xs text-muted-foreground">
+                                                                {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }} -
+                                                                {{ indikator.sumber_data || 'Sumber data belum diisi' }}
                                                             </div>
                                                         </div>
-                                                        <div v-if="indikator.targets.length" class="mt-2 flex flex-wrap gap-2">
-                                                            <span
-                                                                v-for="target in indikator.targets"
-                                                                :key="target.id"
-                                                                class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                                            <button
+                                                                type="button"
+                                                                class="rounded-md p-1 hover:bg-muted"
+                                                                title="Edit indikator"
+                                                                @click="editNode('indikator_tujuan', indikator.id, tujuan.id, indikator)"
                                                             >
-                                                                {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
-                                                                <button
-                                                                    v-if="can.manage"
-                                                                    type="button"
-                                                                    class="font-semibold text-emerald-900 hover:text-slate-900"
-                                                                    @click="editNode('target_tujuan', target.id, indikator.id, target)"
-                                                                >
-                                                                    Edit
-                                                                </button>
-                                                            </span>
-                                                        </div>
-                                                        <div v-if="indikator.target_triwulan.length" class="mt-2 flex flex-wrap gap-2">
-                                                            <span
-                                                                v-for="target in indikator.target_triwulan"
-                                                                :key="target.id"
-                                                                class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                                                                <Pencil class="size-4" />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                                title="Hapus indikator"
+                                                                @click="destroyNode('indikator_tujuan', indikator.id, 'indikator tujuan')"
                                                             >
-                                                                {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
-                                                                {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
-                                                                <button
-                                                                    v-if="can.manage"
-                                                                    type="button"
-                                                                    class="font-semibold text-blue-900 hover:text-red-700"
-                                                                    @click="destroyTargetTriwulan(target)"
-                                                                >
-                                                                    x
-                                                                </button>
-                                                            </span>
+                                                                <Trash2 class="size-4" />
+                                                            </button>
                                                         </div>
                                                     </div>
+                                                    <div v-if="indikator.targets.length" class="mt-2 flex flex-wrap gap-2">
+                                                        <span
+                                                            v-for="target in indikator.targets"
+                                                            :key="target.id"
+                                                            class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                                                        >
+                                                            {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
+                                                            <button
+                                                                v-if="can.manage"
+                                                                type="button"
+                                                                class="font-semibold text-emerald-900 hover:text-slate-900"
+                                                                @click="editNode('target_tujuan', target.id, indikator.id, target)"
+                                                            >
+                                                                Edit
+                                                            </button>
+                                                        </span>
+                                                    </div>
+                                                    <div v-if="indikator.target_triwulan.length" class="mt-2 flex flex-wrap gap-2">
+                                                        <span
+                                                            v-for="target in indikator.target_triwulan"
+                                                            :key="target.id"
+                                                            class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                                                        >
+                                                            {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
+                                                            {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
+                                                            <button
+                                                                v-if="can.manage"
+                                                                type="button"
+                                                                class="font-semibold text-blue-900 hover:text-red-700"
+                                                                @click="destroyTargetTriwulan(target)"
+                                                            >
+                                                                x
+                                                            </button>
+                                                        </span>
+                                                    </div>
                                                 </div>
+                                            </div>
 
-                                                <div v-if="tujuan.sasaran.length" class="mt-3 space-y-3">
-                                                    <div v-for="sasaran in tujuan.sasaran" :key="sasaran.id" class="rounded-md border bg-white p-3">
-                                                        <div class="flex items-start justify-between gap-3">
-                                                            <div>
-                                                                <div class="text-xs font-semibold uppercase text-muted-foreground">
-                                                                    Sasaran Daerah
-                                                                </div>
-                                                                <div class="mt-1 text-sm font-medium">
-                                                                    {{ sasaran.kode ? `${sasaran.kode} - ` : '' }}{{ sasaran.sasaran }}
-                                                                </div>
-                                                            </div>
-                                                            <div v-if="can.manage" class="flex items-center gap-1">
-                                                                <button
-                                                                    type="button"
-                                                                    class="rounded-md p-1 hover:bg-muted"
-                                                                    title="Edit sasaran"
-                                                                    @click="editNode('sasaran', sasaran.id, tujuan.id, sasaran)"
-                                                                >
-                                                                    <Pencil class="size-4" />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                                    title="Hapus sasaran"
-                                                                    @click="destroyNode('sasaran', sasaran.id, 'sasaran')"
-                                                                >
-                                                                    <Trash2 class="size-4" />
-                                                                </button>
+                                            <div v-if="tujuan.sasaran.length" class="mt-3 space-y-3">
+                                                <div v-for="sasaran in tujuan.sasaran" :key="sasaran.id" class="rounded-md border bg-white p-3">
+                                                    <div class="flex items-start justify-between gap-3">
+                                                        <div>
+                                                            <div class="text-xs font-semibold uppercase text-muted-foreground">Sasaran Daerah</div>
+                                                            <div class="mt-1 text-sm font-medium">
+                                                                {{ sasaran.kode ? `${sasaran.kode} - ` : '' }}{{ sasaran.sasaran }}
                                                             </div>
                                                         </div>
-
-                                                        <div v-if="sasaran.indikator.length" class="mt-3 grid gap-2">
-                                                            <div
-                                                                v-for="indikator in sasaran.indikator"
-                                                                :key="indikator.id"
-                                                                class="rounded-md border bg-slate-50 p-3"
+                                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                                            <button
+                                                                type="button"
+                                                                class="rounded-md p-1 hover:bg-muted"
+                                                                title="Edit sasaran"
+                                                                @click="editNode('sasaran', sasaran.id, tujuan.id, sasaran)"
                                                             >
-                                                                <div class="flex items-start justify-between gap-3">
-                                                                    <div>
-                                                                        <div class="text-xs font-semibold uppercase text-muted-foreground">
-                                                                            Indikator Sasaran
-                                                                        </div>
-                                                                        <div class="mt-1 text-sm">
-                                                                            {{ indikator.kode ? `${indikator.kode} - ` : ''
-                                                                            }}{{ indikator.indikator }}
-                                                                        </div>
-                                                                        <div class="mt-1 text-xs text-muted-foreground">
-                                                                            {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }} -
-                                                                            {{ indikator.sumber_data || 'Sumber data belum diisi' }}
-                                                                        </div>
+                                                                <Pencil class="size-4" />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                                title="Hapus sasaran"
+                                                                @click="destroyNode('sasaran', sasaran.id, 'sasaran')"
+                                                            >
+                                                                <Trash2 class="size-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div v-if="sasaran.indikator.length" class="mt-3 grid gap-2">
+                                                        <div
+                                                            v-for="indikator in sasaran.indikator"
+                                                            :key="indikator.id"
+                                                            class="rounded-md border bg-slate-50 p-3"
+                                                        >
+                                                            <div class="flex items-start justify-between gap-3">
+                                                                <div>
+                                                                    <div class="text-xs font-semibold uppercase text-muted-foreground">
+                                                                        Indikator Sasaran
                                                                     </div>
-                                                                    <div v-if="can.manage" class="flex items-center gap-1">
-                                                                        <button
-                                                                            type="button"
-                                                                            class="rounded-md p-1 hover:bg-muted"
-                                                                            title="Edit indikator"
-                                                                            @click="
-                                                                                editNode('indikator_sasaran', indikator.id, sasaran.id, indikator)
-                                                                            "
-                                                                        >
-                                                                            <Pencil class="size-4" />
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                                            title="Hapus indikator"
-                                                                            @click="
-                                                                                destroyNode('indikator_sasaran', indikator.id, 'indikator sasaran')
-                                                                            "
-                                                                        >
-                                                                            <Trash2 class="size-4" />
-                                                                        </button>
+                                                                    <div class="mt-1 text-sm">
+                                                                        {{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}
+                                                                    </div>
+                                                                    <div class="mt-1 text-xs text-muted-foreground">
+                                                                        {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }} -
+                                                                        {{ indikator.sumber_data || 'Sumber data belum diisi' }}
                                                                     </div>
                                                                 </div>
-                                                                <div v-if="indikator.targets.length" class="mt-2 flex flex-wrap gap-2">
-                                                                    <span
-                                                                        v-for="target in indikator.targets"
-                                                                        :key="target.id"
-                                                                        class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                                                                <div v-if="can.manage" class="flex items-center gap-1">
+                                                                    <button
+                                                                        type="button"
+                                                                        class="rounded-md p-1 hover:bg-muted"
+                                                                        title="Edit indikator"
+                                                                        @click="editNode('indikator_sasaran', indikator.id, sasaran.id, indikator)"
                                                                     >
-                                                                        {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
-                                                                        <button
-                                                                            v-if="can.manage"
-                                                                            type="button"
-                                                                            class="font-semibold text-emerald-900 hover:text-slate-900"
-                                                                            @click="editNode('target_sasaran', target.id, indikator.id, target)"
-                                                                        >
-                                                                            Edit
-                                                                        </button>
-                                                                    </span>
-                                                                </div>
-                                                                <div v-if="indikator.target_triwulan.length" class="mt-2 flex flex-wrap gap-2">
-                                                                    <span
-                                                                        v-for="target in indikator.target_triwulan"
-                                                                        :key="target.id"
-                                                                        class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                                                                        <Pencil class="size-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                                        title="Hapus indikator"
+                                                                        @click="destroyNode('indikator_sasaran', indikator.id, 'indikator sasaran')"
                                                                     >
-                                                                        {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
-                                                                        {{ targetTriwulanDisplay(target) }} -
-                                                                        {{ formatCurrency(target.target_anggaran) }}
-                                                                        <button
-                                                                            v-if="can.manage"
-                                                                            type="button"
-                                                                            class="font-semibold text-blue-900 hover:text-red-700"
-                                                                            @click="destroyTargetTriwulan(target)"
-                                                                        >
-                                                                            x
-                                                                        </button>
-                                                                    </span>
+                                                                        <Trash2 class="size-4" />
+                                                                    </button>
                                                                 </div>
                                                             </div>
+                                                            <div v-if="indikator.targets.length" class="mt-2 flex flex-wrap gap-2">
+                                                                <span
+                                                                    v-for="target in indikator.targets"
+                                                                    :key="target.id"
+                                                                    class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                                                                >
+                                                                    {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
+                                                                    <button
+                                                                        v-if="can.manage"
+                                                                        type="button"
+                                                                        class="font-semibold text-emerald-900 hover:text-slate-900"
+                                                                        @click="editNode('target_sasaran', target.id, indikator.id, target)"
+                                                                    >
+                                                                        Edit
+                                                                    </button>
+                                                                </span>
+                                                            </div>
+                                                            <div v-if="indikator.target_triwulan.length" class="mt-2 flex flex-wrap gap-2">
+                                                                <span
+                                                                    v-for="target in indikator.target_triwulan"
+                                                                    :key="target.id"
+                                                                    class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                                                                >
+                                                                    {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
+                                                                    {{ targetTriwulanDisplay(target) }} -
+                                                                    {{ formatCurrency(target.target_anggaran) }}
+                                                                    <button
+                                                                        v-if="can.manage"
+                                                                        type="button"
+                                                                        class="font-semibold text-blue-900 hover:text-red-700"
+                                                                        @click="destroyTargetTriwulan(target)"
+                                                                    >
+                                                                        x
+                                                                    </button>
+                                                                </span>
+                                                            </div>
                                                         </div>
+                                                    </div>
 
-                                                        <div v-if="sasaran.strategi.length" class="mt-3 space-y-3">
-                                                            <div
-                                                                v-for="strategi in sasaran.strategi"
-                                                                :key="strategi.id"
-                                                                class="rounded-md border bg-slate-50 p-3"
-                                                            >
-                                                                <div class="flex items-start justify-between gap-3">
-                                                                    <div>
-                                                                        <div class="text-xs font-semibold uppercase text-muted-foreground">
-                                                                            Strategi Daerah
-                                                                        </div>
-                                                                        <div class="mt-1 text-sm font-medium">
-                                                                            {{ strategi.kode ? `${strategi.kode} - ` : '' }}{{ strategi.strategi }}
-                                                                        </div>
-                                                                        <div
-                                                                            v-if="strategi.arah_kebijakan"
-                                                                            class="mt-1 text-xs text-muted-foreground"
-                                                                        >
-                                                                            Arah kebijakan: {{ strategi.arah_kebijakan }}
-                                                                        </div>
+                                                    <div v-if="sasaran.strategi.length" class="mt-3 space-y-3">
+                                                        <div
+                                                            v-for="strategi in sasaran.strategi"
+                                                            :key="strategi.id"
+                                                            class="rounded-md border bg-slate-50 p-3"
+                                                        >
+                                                            <div class="flex items-start justify-between gap-3">
+                                                                <div>
+                                                                    <div class="text-xs font-semibold uppercase text-muted-foreground">
+                                                                        Strategi Daerah
                                                                     </div>
-                                                                    <div v-if="can.manage" class="flex items-center gap-1">
-                                                                        <button
-                                                                            type="button"
-                                                                            class="rounded-md p-1 hover:bg-muted"
-                                                                            title="Edit strategi"
-                                                                            @click="editNode('strategi', strategi.id, sasaran.id, strategi)"
-                                                                        >
-                                                                            <Pencil class="size-4" />
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                                            title="Hapus strategi"
-                                                                            @click="destroyNode('strategi', strategi.id, 'strategi')"
-                                                                        >
-                                                                            <Trash2 class="size-4" />
-                                                                        </button>
+                                                                    <div class="mt-1 text-sm font-medium">
+                                                                        {{ strategi.kode ? `${strategi.kode} - ` : '' }}{{ strategi.strategi }}
+                                                                    </div>
+                                                                    <div v-if="strategi.arah_kebijakan" class="mt-1 text-xs text-muted-foreground">
+                                                                        Arah kebijakan: {{ strategi.arah_kebijakan }}
                                                                     </div>
                                                                 </div>
-
-                                                                <div v-if="strategi.programs.length" class="mt-3 space-y-3">
-                                                                    <div
-                                                                        v-for="program in strategi.programs"
-                                                                        :key="program.id"
-                                                                        class="rounded-md border bg-white p-3"
+                                                                <div v-if="can.manage" class="flex items-center gap-1">
+                                                                    <button
+                                                                        type="button"
+                                                                        class="rounded-md p-1 hover:bg-muted"
+                                                                        title="Edit strategi"
+                                                                        @click="editNode('strategi', strategi.id, sasaran.id, strategi)"
                                                                     >
-                                                                        <div class="flex items-start justify-between gap-3">
-                                                                            <div>
-                                                                                <div class="text-xs font-semibold uppercase text-muted-foreground">
-                                                                                    Program RPJMD
-                                                                                </div>
-                                                                                <div class="mt-1 text-sm font-medium">
-                                                                                    {{ program.kode ? `${program.kode} - ` : '' }}{{ program.nama }}
-                                                                                </div>
-                                                                                <div class="mt-1 text-xs text-muted-foreground">
-                                                                                    {{
-                                                                                        program.urusan_pemerintahan
-                                                                                            ? `${program.urusan_pemerintahan.kode} - ${program.urusan_pemerintahan.nama}`
-                                                                                            : 'Urusan belum diisi'
-                                                                                    }}
-                                                                                    - Pagu {{ formatCurrency(program.pagu_indikatif) }}
-                                                                                </div>
+                                                                        <Pencil class="size-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                                        title="Hapus strategi"
+                                                                        @click="destroyNode('strategi', strategi.id, 'strategi')"
+                                                                    >
+                                                                        <Trash2 class="size-4" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+
+                                                            <div v-if="strategi.programs.length" class="mt-3 space-y-3">
+                                                                <div
+                                                                    v-for="program in strategi.programs"
+                                                                    :key="program.id"
+                                                                    class="rounded-md border bg-white p-3"
+                                                                >
+                                                                    <div class="flex items-start justify-between gap-3">
+                                                                        <div>
+                                                                            <div class="text-xs font-semibold uppercase text-muted-foreground">
+                                                                                Program RPJMD
                                                                             </div>
-                                                                            <div v-if="can.manage" class="flex items-center gap-1">
-                                                                                <button
-                                                                                    type="button"
-                                                                                    class="rounded-md p-1 hover:bg-muted"
-                                                                                    title="Edit program"
-                                                                                    @click="editNode('program', program.id, strategi.id, program)"
-                                                                                >
-                                                                                    <Pencil class="size-4" />
-                                                                                </button>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                                                    title="Hapus program"
-                                                                                    @click="destroyNode('program', program.id, 'program')"
-                                                                                >
-                                                                                    <Trash2 class="size-4" />
-                                                                                </button>
+                                                                            <div class="mt-1 text-sm font-medium">
+                                                                                {{ program.kode ? `${program.kode} - ` : '' }}{{ program.nama }}
+                                                                            </div>
+                                                                            <div class="mt-1 text-xs text-muted-foreground">
+                                                                                {{
+                                                                                    program.urusan_pemerintahan
+                                                                                        ? `${program.urusan_pemerintahan.kode} - ${program.urusan_pemerintahan.nama}`
+                                                                                        : 'Urusan belum diisi'
+                                                                                }}
+                                                                                - Pagu {{ formatCurrency(program.pagu_indikatif) }}
                                                                             </div>
                                                                         </div>
-
-                                                                        <div
-                                                                            v-if="program.opd_penanggung_jawab.length"
-                                                                            class="mt-3 flex flex-wrap gap-2"
-                                                                        >
-                                                                            <span
-                                                                                v-for="opd in program.opd_penanggung_jawab"
-                                                                                :key="`${program.id}-${opd.id}-${opd.peran}`"
-                                                                                class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                                                                        <div v-if="can.manage" class="flex items-center gap-1">
+                                                                            <button
+                                                                                type="button"
+                                                                                class="rounded-md p-1 hover:bg-muted"
+                                                                                title="Edit program"
+                                                                                @click="editNode('program', program.id, strategi.id, program)"
                                                                             >
-                                                                                {{ opd.singkatan || opd.nama }} -
-                                                                                {{ opd.is_utama ? 'Utama' : opd.peran }}
-                                                                                <button
-                                                                                    v-if="can.manage"
-                                                                                    type="button"
-                                                                                    class="font-semibold text-blue-900 hover:text-slate-900"
-                                                                                    @click="editNode('program_opd', opd.pivot_id, program.id, opd)"
-                                                                                >
-                                                                                    Edit
-                                                                                </button>
-                                                                            </span>
+                                                                                <Pencil class="size-4" />
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                                                title="Hapus program"
+                                                                                @click="destroyNode('program', program.id, 'program')"
+                                                                            >
+                                                                                <Trash2 class="size-4" />
+                                                                            </button>
                                                                         </div>
+                                                                    </div>
 
-                                                                        <div v-if="program.indikator.length" class="mt-3 grid gap-2">
+                                                                    <div v-if="program.opd_penanggung_jawab.length" class="mt-3 flex flex-wrap gap-2">
+                                                                        <span
+                                                                            v-for="opd in program.opd_penanggung_jawab"
+                                                                            :key="`${program.id}-${opd.id}-${opd.peran}`"
+                                                                            class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                                                                        >
+                                                                            {{ opd.singkatan || opd.nama }} -
+                                                                            {{ opd.is_utama ? 'Utama' : opd.peran }}
+                                                                            <button
+                                                                                v-if="can.manage"
+                                                                                type="button"
+                                                                                class="font-semibold text-blue-900 hover:text-slate-900"
+                                                                                @click="editNode('program_opd', opd.pivot_id, program.id, opd)"
+                                                                            >
+                                                                                Edit
+                                                                            </button>
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div v-if="program.indikator.length" class="mt-3 grid gap-2">
+                                                                        <div
+                                                                            v-for="indikator in program.indikator"
+                                                                            :key="indikator.id"
+                                                                            class="rounded-md border bg-slate-50 p-3"
+                                                                        >
+                                                                            <div class="flex items-start justify-between gap-3">
+                                                                                <div>
+                                                                                    <div
+                                                                                        class="text-xs font-semibold uppercase text-muted-foreground"
+                                                                                    >
+                                                                                        Indikator Program
+                                                                                    </div>
+                                                                                    <div class="mt-1 text-sm">
+                                                                                        {{ indikator.kode ? `${indikator.kode} - ` : ''
+                                                                                        }}{{ indikator.indikator }}
+                                                                                    </div>
+                                                                                    <div class="mt-1 text-xs text-muted-foreground">
+                                                                                        {{
+                                                                                            indikator.satuan?.simbol || indikator.satuan?.nama || '-'
+                                                                                        }}
+                                                                                        - {{ indikator.sumber_data || 'Sumber data belum diisi' }}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div v-if="can.manage" class="flex items-center gap-1">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        class="rounded-md p-1 hover:bg-muted"
+                                                                                        title="Edit indikator"
+                                                                                        @click="
+                                                                                            editNode(
+                                                                                                'indikator_program',
+                                                                                                indikator.id,
+                                                                                                program.id,
+                                                                                                indikator,
+                                                                                            )
+                                                                                        "
+                                                                                    >
+                                                                                        <Pencil class="size-4" />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                                                        title="Hapus indikator"
+                                                                                        @click="
+                                                                                            destroyNode(
+                                                                                                'indikator_program',
+                                                                                                indikator.id,
+                                                                                                'indikator program',
+                                                                                            )
+                                                                                        "
+                                                                                    >
+                                                                                        <Trash2 class="size-4" />
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div v-if="indikator.targets.length" class="mt-2 flex flex-wrap gap-2">
+                                                                                <span
+                                                                                    v-for="target in indikator.targets"
+                                                                                    :key="target.id"
+                                                                                    class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                                                                                >
+                                                                                    {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }} -
+                                                                                    {{ formatCurrency(target.pagu) }}
+                                                                                    <button
+                                                                                        v-if="can.manage"
+                                                                                        type="button"
+                                                                                        class="font-semibold text-emerald-900 hover:text-slate-900"
+                                                                                        @click="
+                                                                                            editNode(
+                                                                                                'target_program',
+                                                                                                target.id,
+                                                                                                indikator.id,
+                                                                                                target,
+                                                                                            )
+                                                                                        "
+                                                                                    >
+                                                                                        Edit
+                                                                                    </button>
+                                                                                </span>
+                                                                            </div>
                                                                             <div
-                                                                                v-for="indikator in program.indikator"
-                                                                                :key="indikator.id"
-                                                                                class="rounded-md border bg-slate-50 p-3"
+                                                                                v-if="indikator.target_triwulan.length"
+                                                                                class="mt-2 flex flex-wrap gap-2"
                                                                             >
-                                                                                <div class="flex items-start justify-between gap-3">
-                                                                                    <div>
-                                                                                        <div
-                                                                                            class="text-xs font-semibold uppercase text-muted-foreground"
-                                                                                        >
-                                                                                            Indikator Program
-                                                                                        </div>
-                                                                                        <div class="mt-1 text-sm">
-                                                                                            {{ indikator.kode ? `${indikator.kode} - ` : ''
-                                                                                            }}{{ indikator.indikator }}
-                                                                                        </div>
-                                                                                        <div class="mt-1 text-xs text-muted-foreground">
-                                                                                            {{
-                                                                                                indikator.satuan?.simbol ||
-                                                                                                indikator.satuan?.nama ||
-                                                                                                '-'
-                                                                                            }}
-                                                                                            - {{ indikator.sumber_data || 'Sumber data belum diisi' }}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <div v-if="can.manage" class="flex items-center gap-1">
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            class="rounded-md p-1 hover:bg-muted"
-                                                                                            title="Edit indikator"
-                                                                                            @click="
-                                                                                                editNode(
-                                                                                                    'indikator_program',
-                                                                                                    indikator.id,
-                                                                                                    program.id,
-                                                                                                    indikator,
-                                                                                                )
-                                                                                            "
-                                                                                        >
-                                                                                            <Pencil class="size-4" />
-                                                                                        </button>
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            class="rounded-md p-1 text-red-700 hover:bg-red-50"
-                                                                                            title="Hapus indikator"
-                                                                                            @click="
-                                                                                                destroyNode(
-                                                                                                    'indikator_program',
-                                                                                                    indikator.id,
-                                                                                                    'indikator program',
-                                                                                                )
-                                                                                            "
-                                                                                        >
-                                                                                            <Trash2 class="size-4" />
-                                                                                        </button>
-                                                                                    </div>
-                                                                                </div>
-                                                                                <div
-                                                                                    v-if="indikator.targets.length"
-                                                                                    class="mt-2 flex flex-wrap gap-2"
+                                                                                <span
+                                                                                    v-for="target in indikator.target_triwulan"
+                                                                                    :key="target.id"
+                                                                                    class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
                                                                                 >
-                                                                                    <span
-                                                                                        v-for="target in indikator.targets"
-                                                                                        :key="target.id"
-                                                                                        class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                                                                                    {{ target.periode_tahun.tahun }}
+                                                                                    {{ triwulanLabel(target.triwulan) }}:
+                                                                                    {{ targetTriwulanDisplay(target) }} -
+                                                                                    {{ formatCurrency(target.target_anggaran) }}
+                                                                                    <button
+                                                                                        v-if="can.manage"
+                                                                                        type="button"
+                                                                                        class="font-semibold text-blue-900 hover:text-red-700"
+                                                                                        @click="destroyTargetTriwulan(target)"
                                                                                     >
-                                                                                        {{ target.periode_tahun.tahun }}:
-                                                                                        {{ targetDisplay(target) }} -
-                                                                                        {{ formatCurrency(target.pagu) }}
-                                                                                        <button
-                                                                                            v-if="can.manage"
-                                                                                            type="button"
-                                                                                            class="font-semibold text-emerald-900 hover:text-slate-900"
-                                                                                            @click="
-                                                                                                editNode(
-                                                                                                    'target_program',
-                                                                                                    target.id,
-                                                                                                    indikator.id,
-                                                                                                    target,
-                                                                                                )
-                                                                                            "
-                                                                                        >
-                                                                                            Edit
-                                                                                        </button>
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div
-                                                                                    v-if="indikator.target_triwulan.length"
-                                                                                    class="mt-2 flex flex-wrap gap-2"
-                                                                                >
-                                                                                    <span
-                                                                                        v-for="target in indikator.target_triwulan"
-                                                                                        :key="target.id"
-                                                                                        class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
-                                                                                    >
-                                                                                        {{ target.periode_tahun.tahun }}
-                                                                                        {{ triwulanLabel(target.triwulan) }}:
-                                                                                        {{ targetTriwulanDisplay(target) }} -
-                                                                                        {{ formatCurrency(target.target_anggaran) }}
-                                                                                        <button
-                                                                                            v-if="can.manage"
-                                                                                            type="button"
-                                                                                            class="font-semibold text-blue-900 hover:text-red-700"
-                                                                                            @click="destroyTargetTriwulan(target)"
-                                                                                        >
-                                                                                            x
-                                                                                        </button>
-                                                                                    </span>
-                                                                                </div>
+                                                                                        x
+                                                                                    </button>
+                                                                                </span>
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -1339,302 +1302,298 @@ const triwulanLabel = (triwulan: string) =>
                                     </div>
                                 </div>
                             </div>
-                        </article>
-                    </div>
-                </section>
-
-                <aside v-if="can.manage" class="rounded-lg border bg-card p-4 xl:sticky xl:top-4 xl:self-start">
-                    <div class="mb-4 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-2">
-                            <Plus class="size-5 text-emerald-700" />
-                            <div>
-                                <h2 class="text-base font-semibold">{{ editingNode ? 'Edit Data Cascading' : 'Tambah Data Cascading' }}</h2>
-                                <p class="text-sm text-muted-foreground">{{ selectedTypeLabel }}</p>
-                            </div>
                         </div>
-                        <button v-if="editingNode" type="button" class="rounded-md border px-3 py-1.5 text-xs hover:bg-muted" @click="resetNodeForm">
-                            Batal
-                        </button>
-                    </div>
+                    </article>
+                </div>
+            </section>
 
-                    <form class="grid gap-3" @submit.prevent="submitNode">
-                        <div class="grid gap-2">
-                            <label class="text-sm font-medium" for="type">Jenis Data</label>
-                            <select id="type" v-model="form.type" class="h-9 rounded-md border bg-background px-3 text-sm">
-                                <option v-for="option in typeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                            </select>
-                            <InputError :message="form.errors.type" />
-                        </div>
-
-                        <div v-if="needsParent" class="grid gap-2">
-                            <label class="text-sm font-medium" for="parent_id">{{ parentLabel }}</label>
-                            <select id="parent_id" v-model="form.parent_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                                <option value="">Pilih {{ parentLabel.toLowerCase() }}</option>
-                                <option v-for="option in parentOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
-                            <InputError :message="form.errors.parent_id" />
-                        </div>
-
-                        <div v-if="!isTargetType && !isProgramOpdType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="kode">Kode</label>
-                            <input id="kode" v-model="form.kode" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                            <InputError :message="form.errors.kode" />
-                        </div>
-
-                        <div v-if="isTextNodeType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="uraian">{{ isProgramType ? 'Nama Program' : selectedTypeLabel }}</label>
-                            <textarea id="uraian" v-model="form.uraian" rows="3" class="rounded-md border bg-background px-3 py-2 text-sm" />
-                            <InputError :message="form.errors.uraian" />
-                        </div>
-
-                        <div v-if="isIndicatorType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="indikator">Indikator</label>
-                            <textarea id="indikator" v-model="form.indikator" rows="3" class="rounded-md border bg-background px-3 py-2 text-sm" />
-                            <InputError :message="form.errors.indikator" />
-                        </div>
-
-                        <div v-if="isIndicatorType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="satuan_indikator_id">Satuan Indikator</label>
-                            <select
-                                id="satuan_indikator_id"
-                                v-model="form.satuan_indikator_id"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
-                            >
-                                <option value="">Pilih satuan</option>
-                                <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
-                            <InputError :message="form.errors.satuan_indikator_id" />
-                        </div>
-
-                        <div v-if="isIndicatorType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="tipe_indikator">Tipe Indikator</label>
-                            <select id="tipe_indikator" v-model="form.tipe_indikator" class="h-9 rounded-md border bg-background px-3 text-sm">
-                                <option value="positif">Positif</option>
-                                <option value="negatif">Negatif</option>
-                            </select>
-                            <InputError :message="form.errors.tipe_indikator" />
-                        </div>
-
-                        <div v-if="isIndicatorType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="formula">Formula</label>
-                            <textarea id="formula" v-model="form.formula" rows="2" class="rounded-md border bg-background px-3 py-2 text-sm" />
-                            <InputError :message="form.errors.formula" />
-                        </div>
-
-                        <div v-if="isIndicatorType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="sumber_data">Sumber Data</label>
-                            <input id="sumber_data" v-model="form.sumber_data" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                            <InputError :message="form.errors.sumber_data" />
-                        </div>
-
-                        <div v-if="isStrategiType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="arah_kebijakan">Arah Kebijakan</label>
-                            <textarea
-                                id="arah_kebijakan"
-                                v-model="form.arah_kebijakan"
-                                rows="2"
-                                class="rounded-md border bg-background px-3 py-2 text-sm"
-                            />
-                            <InputError :message="form.errors.arah_kebijakan" />
-                        </div>
-
-                        <div v-if="isProgramType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="urusan_pemerintahan_id">Urusan Pemerintahan</label>
-                            <select
-                                id="urusan_pemerintahan_id"
-                                v-model="form.urusan_pemerintahan_id"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
-                            >
-                                <option value="">Pilih urusan</option>
-                                <option v-for="option in urusanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
-                            <InputError :message="form.errors.urusan_pemerintahan_id" />
-                        </div>
-
-                        <div v-if="isProgramType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="pagu_indikatif">Pagu Indikatif</label>
-                            <input
-                                id="pagu_indikatif"
-                                v-model="form.pagu_indikatif"
-                                type="number"
-                                step="0.01"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
-                            />
-                            <InputError :message="form.errors.pagu_indikatif" />
-                        </div>
-
-                        <div v-if="isTargetType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="periode_tahun_id">Periode Target</label>
-                            <select id="periode_tahun_id" v-model="form.periode_tahun_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                                <option value="">Pilih periode</option>
-                                <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
-                            <InputError :message="form.errors.periode_tahun_id" />
-                        </div>
-
-                        <div v-if="isTargetType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="target">Target Angka</label>
-                            <input
-                                id="target"
-                                v-model="form.target"
-                                type="number"
-                                step="0.0001"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
-                            />
-                            <InputError :message="form.errors.target" />
-                        </div>
-
-                        <div v-if="isTargetType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="target_text">Target Teks</label>
-                            <input id="target_text" v-model="form.target_text" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                            <InputError :message="form.errors.target_text" />
-                        </div>
-
-                        <div v-if="form.type === 'target_program'" class="grid gap-2">
-                            <label class="text-sm font-medium" for="pagu">Pagu Tahunan</label>
-                            <input id="pagu" v-model="form.pagu" type="number" step="0.01" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                            <InputError :message="form.errors.pagu" />
-                        </div>
-
-                        <div v-if="isProgramOpdType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="opd_id">OPD Penanggung Jawab</label>
-                            <select id="opd_id" v-model="form.opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                                <option value="">Pilih OPD</option>
-                                <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
-                            <InputError :message="form.errors.opd_id" />
-                        </div>
-
-                        <div v-if="isProgramOpdType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="peran">Peran</label>
-                            <input id="peran" v-model="form.peran" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                            <InputError :message="form.errors.peran" />
-                        </div>
-
-                        <label v-if="isProgramOpdType" class="flex items-center gap-2 text-sm">
-                            <input v-model="form.is_utama" type="checkbox" class="rounded border" />
-                            Penanggung jawab utama
-                        </label>
-
-                        <div v-if="!isTargetType && !isProgramOpdType" class="grid gap-2">
-                            <label class="text-sm font-medium" for="urutan">Urutan</label>
-                            <input id="urutan" v-model="form.urutan" type="number" min="1" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                            <InputError :message="form.errors.urutan" />
-                        </div>
-
-                        <button
-                            type="submit"
-                            :disabled="form.processing"
-                            class="mt-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
-                        >
-                            {{ editingNode ? 'Perbarui Data Cascading' : 'Simpan Data Cascading' }}
-                        </button>
-                    </form>
-
-                    <form class="mt-6 grid gap-3 border-t pt-4" @submit.prevent="submitTargetTriwulan">
+            <aside v-if="can.manage" class="rounded-lg border bg-card p-4 xl:sticky xl:top-4 xl:self-start">
+                <div class="mb-4 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <Plus class="size-5 text-emerald-700" />
                         <div>
-                            <h3 class="text-sm font-semibold">Target Triwulan Indikator</h3>
-                            <p class="mt-1 text-xs text-muted-foreground">
-                                Isi target kinerja dan anggaran per triwulan untuk indikator yang sudah tersedia.
-                            </p>
+                            <h2 class="text-base font-semibold">{{ editingNode ? 'Edit Data Cascading' : 'Tambah Data Cascading' }}</h2>
+                            <p class="text-sm text-muted-foreground">{{ selectedTypeLabel }}</p>
                         </div>
+                    </div>
+                    <button v-if="editingNode" type="button" class="rounded-md border px-3 py-1.5 text-xs hover:bg-muted" @click="resetNodeForm">
+                        Batal
+                    </button>
+                </div>
 
-                        <div class="grid gap-2">
-                            <label class="text-sm font-medium" for="target_triwulan_table">Jenis Indikator</label>
-                            <select
-                                id="target_triwulan_table"
-                                v-model="targetTriwulanForm.related_table"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
-                            >
-                                <option v-for="option in targetTriwulanTypeOptions" :key="option.value" :value="option.value">
-                                    {{ option.label }}
-                                </option>
-                            </select>
-                            <InputError :message="targetTriwulanForm.errors.related_table" />
-                        </div>
+                <form class="grid gap-3" @submit.prevent="submitNode">
+                    <div class="grid gap-2">
+                        <label class="text-sm font-medium" for="type">Jenis Data</label>
+                        <select id="type" v-model="form.type" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option v-for="option in typeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.type" />
+                    </div>
 
-                        <div class="grid gap-2">
-                            <label class="text-sm font-medium" for="target_triwulan_related_id">Indikator</label>
-                            <select
-                                id="target_triwulan_related_id"
-                                v-model="targetTriwulanForm.related_id"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
-                            >
-                                <option value="">Pilih indikator</option>
-                                <option v-for="option in selectedTargetTriwulanOptions" :key="option.id" :value="option.id">
-                                    {{ option.label }}
-                                </option>
-                            </select>
-                            <InputError :message="targetTriwulanForm.errors.related_id" />
-                        </div>
+                    <div v-if="needsParent" class="grid gap-2">
+                        <label class="text-sm font-medium" for="parent_id">{{ parentLabel }}</label>
+                        <select id="parent_id" v-model="form.parent_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Pilih {{ parentLabel.toLowerCase() }}</option>
+                            <option v-for="option in parentOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.parent_id" />
+                    </div>
 
-                        <div class="grid gap-2">
-                            <label class="text-sm font-medium" for="target_triwulan_periode">Periode Tahun</label>
-                            <select
-                                id="target_triwulan_periode"
-                                v-model="targetTriwulanForm.periode_tahun_id"
-                                class="h-9 rounded-md border bg-background px-3 text-sm"
-                            >
-                                <option value="">Pilih periode</option>
-                                <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
-                            <InputError :message="targetTriwulanForm.errors.periode_tahun_id" />
-                        </div>
+                    <div v-if="!isTargetType && !isProgramOpdType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="kode">Kode</label>
+                        <input id="kode" v-model="form.kode" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                        <InputError :message="form.errors.kode" />
+                    </div>
 
-                        <div class="overflow-x-auto rounded-md border">
-                            <table class="min-w-[680px] text-sm">
-                                <thead class="bg-muted/60 text-left text-xs uppercase text-muted-foreground">
-                                    <tr>
-                                        <th class="px-3 py-2">Triwulan</th>
-                                        <th class="px-3 py-2">Target Angka</th>
-                                        <th class="px-3 py-2">Target Teks</th>
-                                        <th class="px-3 py-2">Target Anggaran</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="(row, index) in targetTriwulanForm.targets" :key="row.triwulan" class="border-t">
-                                        <td class="px-3 py-2 font-medium">{{ targetTriwulanRows[index].label }}</td>
-                                        <td class="px-3 py-2">
-                                            <input
-                                                v-model="row.target_angka"
-                                                type="number"
-                                                step="0.0001"
-                                                class="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                                            />
-                                            <InputError :message="targetTriwulanError(index, 'target_angka')" />
-                                        </td>
-                                        <td class="px-3 py-2">
-                                            <input
-                                                v-model="row.target_text"
-                                                class="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                                                placeholder="Opsional"
-                                            />
-                                            <InputError :message="targetTriwulanError(index, 'target_text')" />
-                                        </td>
-                                        <td class="px-3 py-2">
-                                            <input
-                                                v-model="row.target_anggaran"
-                                                type="number"
-                                                step="0.01"
-                                                class="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                                            />
-                                            <InputError :message="targetTriwulanError(index, 'target_anggaran')" />
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                    <div v-if="isTextNodeType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="uraian">{{ isProgramType ? 'Nama Program' : selectedTypeLabel }}</label>
+                        <textarea id="uraian" v-model="form.uraian" rows="3" class="rounded-md border bg-background px-3 py-2 text-sm" />
+                        <InputError :message="form.errors.uraian" />
+                    </div>
 
-                        <button
-                            type="submit"
-                            :disabled="targetTriwulanForm.processing || selectedTargetTriwulanOptions.length === 0"
-                            class="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60"
+                    <div v-if="isIndicatorType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="indikator">Indikator</label>
+                        <textarea id="indikator" v-model="form.indikator" rows="3" class="rounded-md border bg-background px-3 py-2 text-sm" />
+                        <InputError :message="form.errors.indikator" />
+                    </div>
+
+                    <div v-if="isIndicatorType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="satuan_indikator_id">Satuan Indikator</label>
+                        <select id="satuan_indikator_id" v-model="form.satuan_indikator_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Pilih satuan</option>
+                            <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.satuan_indikator_id" />
+                    </div>
+
+                    <div v-if="isIndicatorType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="tipe_indikator">Tipe Indikator</label>
+                        <select id="tipe_indikator" v-model="form.tipe_indikator" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="positif">Positif</option>
+                            <option value="negatif">Negatif</option>
+                        </select>
+                        <InputError :message="form.errors.tipe_indikator" />
+                    </div>
+
+                    <div v-if="isIndicatorType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="formula">Formula</label>
+                        <textarea id="formula" v-model="form.formula" rows="2" class="rounded-md border bg-background px-3 py-2 text-sm" />
+                        <InputError :message="form.errors.formula" />
+                    </div>
+
+                    <div v-if="isIndicatorType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="sumber_data">Sumber Data</label>
+                        <input id="sumber_data" v-model="form.sumber_data" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                        <InputError :message="form.errors.sumber_data" />
+                    </div>
+
+                    <div v-if="isStrategiType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="arah_kebijakan">Arah Kebijakan</label>
+                        <textarea
+                            id="arah_kebijakan"
+                            v-model="form.arah_kebijakan"
+                            rows="2"
+                            class="rounded-md border bg-background px-3 py-2 text-sm"
+                        />
+                        <InputError :message="form.errors.arah_kebijakan" />
+                    </div>
+
+                    <div v-if="isProgramType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="urusan_pemerintahan_id">Urusan Pemerintahan</label>
+                        <select
+                            id="urusan_pemerintahan_id"
+                            v-model="form.urusan_pemerintahan_id"
+                            class="h-9 rounded-md border bg-background px-3 text-sm"
                         >
-                            Simpan Target TW I-IV
-                        </button>
-                    </form>
-                </aside>
-            </div>
+                            <option value="">Pilih urusan</option>
+                            <option v-for="option in urusanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.urusan_pemerintahan_id" />
+                    </div>
+
+                    <div v-if="isProgramType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="pagu_indikatif">Pagu Indikatif</label>
+                        <input
+                            id="pagu_indikatif"
+                            v-model="form.pagu_indikatif"
+                            type="number"
+                            step="0.01"
+                            class="h-9 rounded-md border bg-background px-3 text-sm"
+                        />
+                        <InputError :message="form.errors.pagu_indikatif" />
+                    </div>
+
+                    <div v-if="isTargetType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="periode_tahun_id">Periode Target</label>
+                        <select id="periode_tahun_id" v-model="form.periode_tahun_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Pilih periode</option>
+                            <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.periode_tahun_id" />
+                    </div>
+
+                    <div v-if="isTargetType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="target">Target Angka</label>
+                        <input
+                            id="target"
+                            v-model="form.target"
+                            type="number"
+                            step="0.0001"
+                            class="h-9 rounded-md border bg-background px-3 text-sm"
+                        />
+                        <InputError :message="form.errors.target" />
+                    </div>
+
+                    <div v-if="isTargetType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="target_text">Target Teks</label>
+                        <input id="target_text" v-model="form.target_text" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                        <InputError :message="form.errors.target_text" />
+                    </div>
+
+                    <div v-if="form.type === 'target_program'" class="grid gap-2">
+                        <label class="text-sm font-medium" for="pagu">Pagu Tahunan</label>
+                        <input id="pagu" v-model="form.pagu" type="number" step="0.01" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                        <InputError :message="form.errors.pagu" />
+                    </div>
+
+                    <div v-if="isProgramOpdType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="opd_id">OPD Penanggung Jawab</label>
+                        <select id="opd_id" v-model="form.opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Pilih OPD</option>
+                            <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.opd_id" />
+                    </div>
+
+                    <div v-if="isProgramOpdType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="peran">Peran</label>
+                        <input id="peran" v-model="form.peran" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                        <InputError :message="form.errors.peran" />
+                    </div>
+
+                    <label v-if="isProgramOpdType" class="flex items-center gap-2 text-sm">
+                        <input v-model="form.is_utama" type="checkbox" class="rounded border" />
+                        Penanggung jawab utama
+                    </label>
+
+                    <div v-if="!isTargetType && !isProgramOpdType" class="grid gap-2">
+                        <label class="text-sm font-medium" for="urutan">Urutan</label>
+                        <input id="urutan" v-model="form.urutan" type="number" min="1" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                        <InputError :message="form.errors.urutan" />
+                    </div>
+
+                    <button
+                        type="submit"
+                        :disabled="form.processing"
+                        class="mt-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+                    >
+                        {{ editingNode ? 'Perbarui Data Cascading' : 'Simpan Data Cascading' }}
+                    </button>
+                </form>
+
+                <form class="mt-6 grid gap-3 border-t pt-4" @submit.prevent="submitTargetTriwulan">
+                    <div>
+                        <h3 class="text-sm font-semibold">Target Triwulan Indikator</h3>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Isi target kinerja dan anggaran per triwulan untuk indikator yang sudah tersedia.
+                        </p>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <label class="text-sm font-medium" for="target_triwulan_table">Jenis Indikator</label>
+                        <select
+                            id="target_triwulan_table"
+                            v-model="targetTriwulanForm.related_table"
+                            class="h-9 rounded-md border bg-background px-3 text-sm"
+                        >
+                            <option v-for="option in targetTriwulanTypeOptions" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
+                        </select>
+                        <InputError :message="targetTriwulanForm.errors.related_table" />
+                    </div>
+
+                    <div class="grid gap-2">
+                        <label class="text-sm font-medium" for="target_triwulan_related_id">Indikator</label>
+                        <select
+                            id="target_triwulan_related_id"
+                            v-model="targetTriwulanForm.related_id"
+                            class="h-9 rounded-md border bg-background px-3 text-sm"
+                        >
+                            <option value="">Pilih indikator</option>
+                            <option v-for="option in selectedTargetTriwulanOptions" :key="option.id" :value="option.id">
+                                {{ option.label }}
+                            </option>
+                        </select>
+                        <InputError :message="targetTriwulanForm.errors.related_id" />
+                    </div>
+
+                    <div class="grid gap-2">
+                        <label class="text-sm font-medium" for="target_triwulan_periode">Periode Tahun</label>
+                        <select
+                            id="target_triwulan_periode"
+                            v-model="targetTriwulanForm.periode_tahun_id"
+                            class="h-9 rounded-md border bg-background px-3 text-sm"
+                        >
+                            <option value="">Pilih periode</option>
+                            <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="targetTriwulanForm.errors.periode_tahun_id" />
+                    </div>
+
+                    <div class="overflow-x-auto rounded-md border">
+                        <table class="min-w-[680px] text-sm">
+                            <thead class="bg-muted/60 text-left text-xs uppercase text-muted-foreground">
+                                <tr>
+                                    <th class="px-3 py-2">Triwulan</th>
+                                    <th class="px-3 py-2">Target Angka</th>
+                                    <th class="px-3 py-2">Target Teks</th>
+                                    <th class="px-3 py-2">Target Anggaran</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(row, index) in targetTriwulanForm.targets" :key="row.triwulan" class="border-t">
+                                    <td class="px-3 py-2 font-medium">{{ targetTriwulanRows[index].label }}</td>
+                                    <td class="px-3 py-2">
+                                        <input
+                                            v-model="row.target_angka"
+                                            type="number"
+                                            step="0.0001"
+                                            class="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                                        />
+                                        <InputError :message="targetTriwulanError(index, 'target_angka')" />
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input
+                                            v-model="row.target_text"
+                                            class="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                                            placeholder="Opsional"
+                                        />
+                                        <InputError :message="targetTriwulanError(index, 'target_text')" />
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input
+                                            v-model="row.target_anggaran"
+                                            type="number"
+                                            step="0.01"
+                                            class="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                                        />
+                                        <InputError :message="targetTriwulanError(index, 'target_anggaran')" />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <button
+                        type="submit"
+                        :disabled="targetTriwulanForm.processing || selectedTargetTriwulanOptions.length === 0"
+                        class="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60"
+                    >
+                        Simpan Target TW I-IV
+                    </button>
+                </form>
+            </aside>
         </div>
-    </AppLayout>
+    </div>
 </template>

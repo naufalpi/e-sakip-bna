@@ -2,8 +2,6 @@
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -25,7 +23,15 @@ type ItemRow = {
 };
 type Workflow = {
     status: string;
-    histories: Array<{ id: number; action: string; from_status?: string | null; to_status: string; notes?: string | null; created_at: string; actor?: { name: string } | null }>;
+    histories: Array<{
+        id: number;
+        action: string;
+        from_status?: string | null;
+        to_status: string;
+        notes?: string | null;
+        created_at: string;
+        actor?: { name: string } | null;
+    }>;
 } | null;
 
 const props = defineProps<{
@@ -50,12 +56,6 @@ const props = defineProps<{
     workflow: Workflow;
     can: { manage: boolean; review: boolean; lock: boolean; export: boolean };
 }>();
-
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Perjanjian Kinerja', href: '/perjanjian-kinerja' },
-    { title: props.item.judul, href: '#' },
-];
 
 const form = useForm({
     sasaran_opd_id: '',
@@ -141,141 +141,180 @@ const statusClass = (status: string) =>
 
 <template>
     <Head :title="item.judul" />
-
-    <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-4 p-4">
-            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                    <h1 class="text-2xl font-semibold tracking-normal">{{ item.judul }}</h1>
-                    <div class="mt-2 flex flex-wrap gap-2 text-sm text-muted-foreground">
-                        <span>{{ item.opd?.singkatan || item.opd?.nama || '-' }}</span>
-                        <span>-</span>
-                        <span>{{ item.tahun }}</span>
-                        <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="statusClass(item.status)">{{ statusLabel(item.status) }}</span>
-                    </div>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <button v-if="can.export" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportReport('pdf')">Export PDF</button>
-                    <button v-if="can.export" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportReport('word')">Export Word</button>
-                    <Link v-if="can.manage" :href="route('perjanjian-kinerja.edit', item.id)" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Edit</Link>
-                    <WorkflowActionButtons
-                        module="perjanjian_kinerja"
-                        :model-id="item.id"
-                        :status="item.status"
-                        :can-manage="can.manage"
-                        :can-review="can.review"
-                        :can-lock="can.lock"
-                    />
+    <div class="flex flex-col gap-4 p-4">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold tracking-normal">{{ item.judul }}</h1>
+                <div class="mt-2 flex flex-wrap gap-2 text-sm text-muted-foreground">
+                    <span>{{ item.opd?.singkatan || item.opd?.nama || '-' }}</span>
+                    <span>-</span>
+                    <span>{{ item.tahun }}</span>
+                    <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="statusClass(item.status)">{{ statusLabel(item.status) }}</span>
                 </div>
             </div>
-
-            <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Nomor Dokumen</div>
-                    <div class="mt-1 font-medium">{{ item.nomor_dokumen || '-' }}</div>
-                </div>
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Periode</div>
-                    <div class="mt-1 font-medium">{{ item.periode_tahun?.nama || item.tahun }}</div>
-                </div>
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Renstra</div>
-                    <div class="mt-1 font-medium">{{ item.renstra_opd?.judul || '-' }}</div>
-                </div>
-            </section>
-
-            <section v-if="can.manage" class="rounded-lg border bg-card p-4">
-                <div class="flex items-center justify-between gap-3">
-                    <h2 class="text-sm font-semibold">{{ editingItemId ? 'Edit Item Sasaran dan Indikator' : 'Tambah Item Sasaran dan Indikator' }}</h2>
-                    <button v-if="editingItemId" type="button" class="rounded-md border px-3 py-1.5 text-xs hover:bg-muted" @click="resetItemForm">Batal edit</button>
-                </div>
-                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitItem">
-                    <div class="grid gap-1">
-                        <select v-model="form.sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                            <option value="">Referensi sasaran OPD</option>
-                            <option v-for="option in nodeOptions.sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
-                        </select>
-                        <InputError :message="form.errors.sasaran_opd_id" />
-                    </div>
-                    <div class="grid gap-1">
-                        <select v-model="form.indikator_sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                            <option value="">Referensi indikator sasaran</option>
-                            <option v-for="option in nodeOptions.indikator_sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
-                        </select>
-                        <InputError :message="form.errors.indikator_sasaran_opd_id" />
-                    </div>
-                    <div class="grid gap-1">
-                        <select v-model="form.opd_program_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                            <option value="">Referensi program OPD</option>
-                            <option v-for="option in nodeOptions.opd_program" :key="option.id" :value="option.id">{{ option.label }}</option>
-                        </select>
-                        <InputError :message="form.errors.opd_program_id" />
-                    </div>
-                    <div class="grid gap-1">
-                        <select v-model="form.satuan_indikator_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                            <option value="">Satuan indikator</option>
-                            <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                        </select>
-                        <InputError :message="form.errors.satuan_indikator_id" />
-                    </div>
-                    <input v-model="form.kode" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Kode" />
-                    <input v-model="form.urutan" type="number" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Urutan" />
-                    <div class="grid gap-1 md:col-span-2">
-                        <textarea v-model="form.sasaran" rows="2" class="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Sasaran kinerja" />
-                        <InputError :message="form.errors.sasaran" />
-                    </div>
-                    <div class="grid gap-1 md:col-span-2">
-                        <textarea v-model="form.indikator" rows="2" class="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Indikator kinerja" />
-                        <InputError :message="form.errors.indikator" />
-                    </div>
-                    <input v-model="form.target" type="number" step="0.0001" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Target angka" />
-                    <input v-model="form.target_text" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Target teks" />
-                    <div class="md:col-span-2">
-                        <button type="submit" :disabled="form.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
-                            {{ editingItemId ? 'Perbarui Item' : 'Simpan Item' }}
-                        </button>
-                    </div>
-                </form>
-            </section>
-
-            <section class="overflow-hidden rounded-lg border bg-card">
-                <div class="border-b px-4 py-3">
-                    <h2 class="text-sm font-semibold">Item Perjanjian Kinerja</h2>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
-                            <tr>
-                                <th class="px-4 py-3">Sasaran</th>
-                                <th class="px-4 py-3">Indikator</th>
-                                <th class="px-4 py-3">Target</th>
-                                <th class="px-4 py-3">Program</th>
-                                <th class="px-4 py-3 text-right">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="row in item.items" :key="row.id" class="border-b last:border-0">
-                                <td class="px-4 py-3">
-                                    <div class="font-medium">{{ row.sasaran }}</div>
-                                    <div class="text-xs text-muted-foreground">{{ row.kode || '-' }}</div>
-                                </td>
-                                <td class="px-4 py-3">{{ row.indikator }}</td>
-                                <td class="px-4 py-3">{{ row.target_text || row.target || '-' }} {{ row.satuan?.simbol || '' }}</td>
-                                <td class="px-4 py-3 text-muted-foreground">{{ row.opd_program?.nama || '-' }}</td>
-                                <td class="px-4 py-3 text-right">
-                                    <button v-if="can.manage" type="button" class="mr-2 rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editItem(row)">Edit</button>
-                                    <button v-if="can.manage" type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="destroyItem(row)">Hapus</button>
-                                </td>
-                            </tr>
-                            <tr v-if="item.items.length === 0">
-                                <td colspan="5" class="px-4 py-8 text-center text-muted-foreground">Belum ada item Perjanjian Kinerja.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <WorkflowHistoryTimeline :workflow="workflow" />
+            <div class="flex flex-wrap gap-2">
+                <button v-if="can.export" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportReport('pdf')">
+                    Export PDF
+                </button>
+                <button v-if="can.export" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportReport('word')">
+                    Export Word
+                </button>
+                <Link v-if="can.manage" :href="route('perjanjian-kinerja.edit', item.id)" class="rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                    >Edit</Link
+                >
+                <WorkflowActionButtons
+                    module="perjanjian_kinerja"
+                    :model-id="item.id"
+                    :status="item.status"
+                    :can-manage="can.manage"
+                    :can-review="can.review"
+                    :can-lock="can.lock"
+                />
+            </div>
         </div>
-    </AppLayout>
+
+        <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Nomor Dokumen</div>
+                <div class="mt-1 font-medium">{{ item.nomor_dokumen || '-' }}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Periode</div>
+                <div class="mt-1 font-medium">{{ item.periode_tahun?.nama || item.tahun }}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Renstra</div>
+                <div class="mt-1 font-medium">{{ item.renstra_opd?.judul || '-' }}</div>
+            </div>
+        </section>
+
+        <section v-if="can.manage" class="rounded-lg border bg-card p-4">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-sm font-semibold">{{ editingItemId ? 'Edit Item Sasaran dan Indikator' : 'Tambah Item Sasaran dan Indikator' }}</h2>
+                <button v-if="editingItemId" type="button" class="rounded-md border px-3 py-1.5 text-xs hover:bg-muted" @click="resetItemForm">
+                    Batal edit
+                </button>
+            </div>
+            <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitItem">
+                <div class="grid gap-1">
+                    <select v-model="form.sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                        <option value="">Referensi sasaran OPD</option>
+                        <option v-for="option in nodeOptions.sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
+                    </select>
+                    <InputError :message="form.errors.sasaran_opd_id" />
+                </div>
+                <div class="grid gap-1">
+                    <select v-model="form.indikator_sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                        <option value="">Referensi indikator sasaran</option>
+                        <option v-for="option in nodeOptions.indikator_sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
+                    </select>
+                    <InputError :message="form.errors.indikator_sasaran_opd_id" />
+                </div>
+                <div class="grid gap-1">
+                    <select v-model="form.opd_program_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                        <option value="">Referensi program OPD</option>
+                        <option v-for="option in nodeOptions.opd_program" :key="option.id" :value="option.id">{{ option.label }}</option>
+                    </select>
+                    <InputError :message="form.errors.opd_program_id" />
+                </div>
+                <div class="grid gap-1">
+                    <select v-model="form.satuan_indikator_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                        <option value="">Satuan indikator</option>
+                        <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                    </select>
+                    <InputError :message="form.errors.satuan_indikator_id" />
+                </div>
+                <input v-model="form.kode" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Kode" />
+                <input v-model="form.urutan" type="number" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Urutan" />
+                <div class="grid gap-1 md:col-span-2">
+                    <textarea
+                        v-model="form.sasaran"
+                        rows="2"
+                        class="rounded-md border bg-background px-3 py-2 text-sm"
+                        placeholder="Sasaran kinerja"
+                    />
+                    <InputError :message="form.errors.sasaran" />
+                </div>
+                <div class="grid gap-1 md:col-span-2">
+                    <textarea
+                        v-model="form.indikator"
+                        rows="2"
+                        class="rounded-md border bg-background px-3 py-2 text-sm"
+                        placeholder="Indikator kinerja"
+                    />
+                    <InputError :message="form.errors.indikator" />
+                </div>
+                <input
+                    v-model="form.target"
+                    type="number"
+                    step="0.0001"
+                    class="h-9 rounded-md border bg-background px-3 text-sm"
+                    placeholder="Target angka"
+                />
+                <input v-model="form.target_text" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Target teks" />
+                <div class="md:col-span-2">
+                    <button
+                        type="submit"
+                        :disabled="form.processing"
+                        class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+                    >
+                        {{ editingItemId ? 'Perbarui Item' : 'Simpan Item' }}
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="overflow-hidden rounded-lg border bg-card">
+            <div class="border-b px-4 py-3">
+                <h2 class="text-sm font-semibold">Item Perjanjian Kinerja</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
+                        <tr>
+                            <th class="px-4 py-3">Sasaran</th>
+                            <th class="px-4 py-3">Indikator</th>
+                            <th class="px-4 py-3">Target</th>
+                            <th class="px-4 py-3">Program</th>
+                            <th class="px-4 py-3 text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="row in item.items" :key="row.id" class="border-b last:border-0">
+                            <td class="px-4 py-3">
+                                <div class="font-medium">{{ row.sasaran }}</div>
+                                <div class="text-xs text-muted-foreground">{{ row.kode || '-' }}</div>
+                            </td>
+                            <td class="px-4 py-3">{{ row.indikator }}</td>
+                            <td class="px-4 py-3">{{ row.target_text || row.target || '-' }} {{ row.satuan?.simbol || '' }}</td>
+                            <td class="px-4 py-3 text-muted-foreground">{{ row.opd_program?.nama || '-' }}</td>
+                            <td class="px-4 py-3 text-right">
+                                <button
+                                    v-if="can.manage"
+                                    type="button"
+                                    class="mr-2 rounded-md border px-2 py-1 text-xs hover:bg-muted"
+                                    @click="editItem(row)"
+                                >
+                                    Edit
+                                </button>
+                                <button
+                                    v-if="can.manage"
+                                    type="button"
+                                    class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                                    @click="destroyItem(row)"
+                                >
+                                    Hapus
+                                </button>
+                            </td>
+                        </tr>
+                        <tr v-if="item.items.length === 0">
+                            <td colspan="5" class="px-4 py-8 text-center text-muted-foreground">Belum ada item Perjanjian Kinerja.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <WorkflowHistoryTimeline :workflow="workflow" />
+    </div>
 </template>

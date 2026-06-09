@@ -6,13 +6,54 @@ import { Link, usePage } from '@inertiajs/vue3';
 import { Bell } from 'lucide-vue-next';
 import { computed } from 'vue';
 
-defineProps<{
-    breadcrumbs?: BreadcrumbItemType[];
-}>();
+const props = withDefaults(
+    defineProps<{
+        breadcrumbs?: BreadcrumbItemType[];
+    }>(),
+    {
+        breadcrumbs: () => [],
+    },
+);
 
 const page = usePage<SharedData>();
 const notificationUnreadCount = computed(() => page.props.notifications?.unread_count ?? 0);
 const notificationBadge = computed(() => (notificationUnreadCount.value > 99 ? '99+' : notificationUnreadCount.value || undefined));
+const breadcrumbTitleByPrefix: Array<[string, string]> = [
+    ['/dashboard', 'Dashboard'],
+    ['/workflow/inbox', 'Inbox Workflow'],
+    ['/notifications', 'Notifikasi'],
+    ['/master/opd-units', 'Unit OPD'],
+    ['/master/opd', 'Master OPD'],
+    ['/master/periode-tahun', 'Periode Tahun'],
+    ['/master/satuan-indikator', 'Satuan Indikator'],
+    ['/master/urusan-pemerintahan', 'Urusan Pemerintahan'],
+    ['/master/users', 'Master User'],
+    ['/master/role-permission', 'Role Permission'],
+    ['/master/system-settings', 'Pengaturan Sistem'],
+    ['/rpjmd', 'RPJMD Kabupaten'],
+    ['/renstra-opd', 'Renstra OPD'],
+    ['/pohon-kinerja', 'Pohon Kinerja'],
+    ['/perjanjian-kinerja', 'Perjanjian Kinerja'],
+    ['/rencana-aksi', 'Rencana Aksi'],
+    ['/target-revisions', 'Revisi Target'],
+    ['/realisasi-kinerja', 'Realisasi Kinerja'],
+    ['/dokumen', 'Dokumen dan Bukti Dukung'],
+    ['/lkjip', 'LKJIP'],
+    ['/evaluasi-sakip', 'Evaluasi SAKIP'],
+    ['/audit-log', 'Audit Log'],
+    ['/settings/profile', 'Profil'],
+    ['/settings/password', 'Password'],
+    ['/settings/appearance', 'Tampilan'],
+];
+
+const fallbackBreadcrumbs = computed<BreadcrumbItemType[]>(() => {
+    const currentPath = page.url.split('?')[0];
+    const title = breadcrumbTitleByPrefix.find(([prefix]) => currentPath === prefix || currentPath.startsWith(`${prefix}/`))?.[1] ?? 'E-SAKIP';
+
+    return [{ title, href: currentPath }];
+});
+
+const activeBreadcrumbs = computed(() => (props.breadcrumbs.length > 0 ? props.breadcrumbs : fallbackBreadcrumbs.value));
 </script>
 
 <template>
@@ -21,12 +62,12 @@ const notificationBadge = computed(() => (notificationUnreadCount.value > 99 ? '
     >
         <div class="flex min-w-0 flex-1 items-center gap-2">
             <SidebarTrigger class="-ml-1" />
-            <template v-if="breadcrumbs.length > 0">
+            <template v-if="activeBreadcrumbs.length > 0">
                 <Breadcrumb>
                     <BreadcrumbList>
-                        <template v-for="(item, index) in breadcrumbs" :key="index">
+                        <template v-for="(item, index) in activeBreadcrumbs" :key="index">
                             <BreadcrumbItem>
-                                <template v-if="index === breadcrumbs.length - 1">
+                                <template v-if="index === activeBreadcrumbs.length - 1 || !item.href">
                                     <BreadcrumbPage>{{ item.title }}</BreadcrumbPage>
                                 </template>
                                 <template v-else>
@@ -35,7 +76,7 @@ const notificationBadge = computed(() => (notificationUnreadCount.value > 99 ? '
                                     </BreadcrumbLink>
                                 </template>
                             </BreadcrumbItem>
-                            <BreadcrumbSeparator v-if="index !== breadcrumbs.length - 1" />
+                            <BreadcrumbSeparator v-if="index !== activeBreadcrumbs.length - 1" />
                         </template>
                     </BreadcrumbList>
                 </Breadcrumb>

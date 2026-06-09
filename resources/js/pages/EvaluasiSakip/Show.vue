@@ -4,8 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -55,7 +53,15 @@ type Rekomendasi = {
 };
 type Workflow = {
     status: string;
-    histories: Array<{ id: number; action: string; from_status?: string | null; to_status: string; notes?: string | null; created_at: string; actor?: { name: string } | null }>;
+    histories: Array<{
+        id: number;
+        action: string;
+        from_status?: string | null;
+        to_status: string;
+        notes?: string | null;
+        created_at: string;
+        actor?: { name: string } | null;
+    }>;
 } | null;
 type LheDocument = {
     id: number;
@@ -100,12 +106,6 @@ const props = defineProps<{
     can: { manage: boolean; export_lhe: boolean; tindak_lanjut: boolean; verify_tindak_lanjut: boolean; review: boolean; lock: boolean };
     workflow: Workflow;
 }>();
-
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Evaluasi SAKIP', href: '/evaluasi-sakip' },
-    { title: `${props.evaluasi.opd?.singkatan || props.evaluasi.opd?.nama || 'OPD'} ${props.evaluasi.tahun}`, href: '#' },
-];
 
 const itemForm = useForm({
     kriteria_evaluasi_id: '',
@@ -211,10 +211,13 @@ const editRekomendasi = (rekomendasi: Rekomendasi) => {
 
 const storeRekomendasi = () => {
     if (editingRekomendasiId.value) {
-        rekomendasiForm.put(route('evaluasi-sakip.rekomendasi.update', { evaluasi_sakip: props.evaluasi.id, rekomendasi: editingRekomendasiId.value }), {
-            preserveScroll: true,
-            onSuccess: () => resetRekomendasiForm(),
-        });
+        rekomendasiForm.put(
+            route('evaluasi-sakip.rekomendasi.update', { evaluasi_sakip: props.evaluasi.id, rekomendasi: editingRekomendasiId.value }),
+            {
+                preserveScroll: true,
+                onSuccess: () => resetRekomendasiForm(),
+            },
+        );
 
         return;
     }
@@ -227,7 +230,9 @@ const storeRekomendasi = () => {
 
 const destroyRekomendasi = (rekomendasi: Rekomendasi) => {
     if (confirm('Hapus rekomendasi ini?')) {
-        router.delete(route('evaluasi-sakip.rekomendasi.destroy', { evaluasi_sakip: props.evaluasi.id, rekomendasi: rekomendasi.id }), { preserveScroll: true });
+        router.delete(route('evaluasi-sakip.rekomendasi.destroy', { evaluasi_sakip: props.evaluasi.id, rekomendasi: rekomendasi.id }), {
+            preserveScroll: true,
+        });
     }
 };
 
@@ -297,13 +302,16 @@ const canEditTindakLanjut = (tindakLanjut: TindakLanjut) => {
     return props.can.tindak_lanjut && !(tindakLanjut.status_tindak_lanjut === 'selesai' && tindakLanjut.diverifikasi_oleh);
 };
 
-const statusLabel = (status: string) => props.statusOptions.find((option) => option.value === status)?.label ?? ({
-    belum: 'Belum',
-    proses: 'Proses',
-    selesai: 'Selesai',
-    ditolak: 'Ditolak',
-    perlu_perbaikan: 'Perlu Perbaikan',
-}[status] ?? status);
+const statusLabel = (status: string) =>
+    props.statusOptions.find((option) => option.value === status)?.label ??
+    {
+        belum: 'Belum',
+        proses: 'Proses',
+        selesai: 'Selesai',
+        ditolak: 'Ditolak',
+        perlu_perbaikan: 'Perlu Perbaikan',
+    }[status] ??
+    status;
 
 const statusClass = (status: string) =>
     ({
@@ -332,304 +340,454 @@ const formatFileSize = (bytes: number) => {
 
 <template>
     <Head :title="`Evaluasi SAKIP ${evaluasi.tahun}`" />
-
-    <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-4 p-4">
-            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                    <h1 class="text-2xl font-semibold tracking-normal">Evaluasi SAKIP {{ evaluasi.tahun }}</h1>
-                    <div class="mt-2 flex flex-wrap gap-2 text-sm text-muted-foreground">
-                        <span>{{ evaluasi.opd?.singkatan || evaluasi.opd?.nama || '-' }}</span>
-                        <span>-</span>
-                        <span>{{ evaluasi.periode_tahun?.nama || evaluasi.tahun }}</span>
-                        <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="statusClass(evaluasi.status)">{{ statusLabel(evaluasi.status) }}</span>
-                    </div>
+    <div class="flex flex-col gap-4 p-4">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold tracking-normal">Evaluasi SAKIP {{ evaluasi.tahun }}</h1>
+                <div class="mt-2 flex flex-wrap gap-2 text-sm text-muted-foreground">
+                    <span>{{ evaluasi.opd?.singkatan || evaluasi.opd?.nama || '-' }}</span>
+                    <span>-</span>
+                    <span>{{ evaluasi.periode_tahun?.nama || evaluasi.tahun }}</span>
+                    <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="statusClass(evaluasi.status)">{{
+                        statusLabel(evaluasi.status)
+                    }}</span>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                    <button v-if="can.export_lhe" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('pdf')">Export LHE PDF</button>
-                    <button v-if="can.export_lhe" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('word')">Export LHE Word</button>
-                    <Link v-if="can.manage" :href="route('evaluasi-sakip.edit', evaluasi.id)" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Edit</Link>
-                    <WorkflowActionButtons
-                        module="evaluasi_sakip"
-                        :model-id="evaluasi.id"
-                        :status="evaluasi.status"
-                        :can-manage="can.manage"
-                        :can-review="can.review"
-                        :can-lock="can.lock"
-                        :show-verify="false"
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button v-if="can.export_lhe" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('pdf')">
+                    Export LHE PDF
+                </button>
+                <button v-if="can.export_lhe" type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('word')">
+                    Export LHE Word
+                </button>
+                <Link v-if="can.manage" :href="route('evaluasi-sakip.edit', evaluasi.id)" class="rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                    >Edit</Link
+                >
+                <WorkflowActionButtons
+                    module="evaluasi_sakip"
+                    :model-id="evaluasi.id"
+                    :status="evaluasi.status"
+                    :can-manage="can.manage"
+                    :can-review="can.review"
+                    :can-lock="can.lock"
+                    :show-verify="false"
+                />
+                <Link :href="route('evaluasi-sakip.index')" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Kembali</Link>
+            </div>
+        </div>
+
+        <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-4">
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Nilai Akhir</div>
+                <div class="mt-1 text-2xl font-semibold">{{ evaluasi.nilai_akhir }}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Predikat</div>
+                <div class="mt-1 text-2xl font-semibold">{{ evaluasi.predikat || '-' }}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Evaluator</div>
+                <div class="mt-1 font-medium">{{ evaluasi.evaluator?.name || '-' }}</div>
+            </div>
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Tanggal Evaluasi</div>
+                <div class="mt-1 font-medium">{{ evaluasi.tanggal_evaluasi || '-' }}</div>
+            </div>
+        </section>
+
+        <WorkflowHistoryTimeline :workflow="workflow" />
+
+        <section v-if="can.manage" class="rounded-lg border bg-card p-4">
+            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <h2 class="text-sm font-semibold">{{ editingItemId ? 'Edit Nilai Kriteria' : 'Input Nilai Kriteria' }}</h2>
+                <button v-if="editingItemId" type="button" class="w-fit rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="resetItemForm">
+                    Batal Edit
+                </button>
+            </div>
+            <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="storeItem">
+                <div class="grid gap-1 md:col-span-2">
+                    <select v-model="itemForm.kriteria_evaluasi_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                        <option value="">Pilih kriteria</option>
+                        <option v-for="option in kriteriaOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                    </select>
+                    <InputError :message="itemForm.errors.kriteria_evaluasi_id" />
+                </div>
+                <div class="grid gap-1">
+                    <input
+                        v-model="itemForm.nilai"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        class="h-9 rounded-md border bg-background px-3 text-sm"
+                        placeholder="Nilai 0-100"
                     />
-                    <Link :href="route('evaluasi-sakip.index')" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Kembali</Link>
+                    <InputError :message="itemForm.errors.nilai" />
+                </div>
+                <input
+                    v-model="itemForm.rekomendasi_text"
+                    class="h-9 rounded-md border bg-background px-3 text-sm"
+                    placeholder="Catatan rekomendasi ringkas"
+                />
+                <textarea
+                    v-model="itemForm.catatan"
+                    rows="3"
+                    class="rounded-md border bg-background px-3 py-2 text-sm md:col-span-2"
+                    placeholder="Catatan evaluator"
+                />
+                <div class="md:col-span-2">
+                    <button
+                        type="submit"
+                        :disabled="itemForm.processing"
+                        class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+                    >
+                        {{ editingItemId ? 'Update Nilai' : 'Simpan Nilai' }}
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="overflow-hidden rounded-lg border bg-card">
+            <div class="border-b px-4 py-3">
+                <h2 class="text-sm font-semibold">Nilai per Kriteria</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
+                        <tr>
+                            <th class="px-4 py-3">Kriteria</th>
+                            <th class="px-4 py-3">Nilai</th>
+                            <th class="px-4 py-3">Skor</th>
+                            <th class="px-4 py-3">Catatan</th>
+                            <th class="px-4 py-3 text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="item in evaluasi.items" :key="item.id" class="border-b last:border-0">
+                            <td class="px-4 py-3">
+                                <div class="font-medium">{{ item.kriteria?.kode }} - {{ item.kriteria?.nama }}</div>
+                                <div class="text-xs text-muted-foreground">
+                                    {{ item.kriteria?.sub_komponen?.komponen?.nama }} / {{ item.kriteria?.sub_komponen?.nama }}
+                                </div>
+                            </td>
+                            <td class="px-4 py-3">{{ item.nilai }}</td>
+                            <td class="px-4 py-3">{{ item.skor }}</td>
+                            <td class="px-4 py-3 text-muted-foreground">{{ item.catatan || '-' }}</td>
+                            <td class="px-4 py-3 text-right">
+                                <div v-if="can.manage" class="flex justify-end gap-2">
+                                    <button type="button" class="rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editItem(item)">
+                                        Edit
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                                        @click="destroyItem(item)"
+                                    >
+                                        Hapus
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr v-if="evaluasi.items.length === 0">
+                            <td colspan="5" class="px-4 py-8 text-center text-muted-foreground">Belum ada nilai kriteria.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="grid gap-4 xl:grid-cols-2">
+            <div class="rounded-lg border bg-card p-4">
+                <h2 class="text-sm font-semibold">Laporan Hasil Evaluasi</h2>
+                <form v-if="can.manage" class="mt-4 grid gap-3" @submit.prevent="storeLhe">
+                    <input v-model="lheForm.nomor_lhe" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Nomor LHE" />
+                    <input v-model="lheForm.tanggal_lhe" type="date" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                    <select v-model="lheForm.status" class="h-9 rounded-md border bg-background px-3 text-sm">
+                        <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                    </select>
+                    <textarea
+                        v-model="lheForm.ringkasan"
+                        rows="4"
+                        class="rounded-md border bg-background px-3 py-2 text-sm"
+                        placeholder="Ringkasan LHE"
+                    />
+                    <button
+                        type="submit"
+                        :disabled="lheForm.processing"
+                        class="w-fit rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+                    >
+                        Simpan LHE
+                    </button>
+                </form>
+                <div v-else class="mt-3 text-sm text-muted-foreground">{{ evaluasi.lhe?.ringkasan || 'LHE belum tersedia.' }}</div>
+
+                <div class="mt-5 border-t pt-4">
+                    <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <h3 class="text-sm font-semibold">Dokumen LHE Otomatis</h3>
+                        <div v-if="can.export_lhe" class="flex flex-wrap gap-2">
+                            <button type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('pdf')">PDF</button>
+                            <button type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('word')">Word</button>
+                        </div>
+                    </div>
+                    <div v-if="lheDocuments.length" class="mt-3 divide-y rounded-md border text-sm">
+                        <article
+                            v-for="document in lheDocuments"
+                            :key="document.id"
+                            class="flex flex-col gap-3 p-3 md:flex-row md:items-center md:justify-between"
+                        >
+                            <div>
+                                <div class="font-medium">{{ document.judul }}</div>
+                                <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                    <span>{{ document.original_filename }}</span>
+                                    <span>-</span>
+                                    <span>{{ formatFileSize(document.file_size) }}</span>
+                                    <span>-</span>
+                                    <span>{{ document.created_at || '-' }}</span>
+                                </div>
+                            </div>
+                            <a
+                                v-if="document.can_download && document.download_url"
+                                :href="document.download_url"
+                                class="rounded-md border px-3 py-2 text-center text-sm hover:bg-muted"
+                                >Unduh</a
+                            >
+                            <span v-else class="text-xs text-muted-foreground">Tidak ada akses unduh</span>
+                        </article>
+                    </div>
+                    <div v-else class="mt-3 rounded-md border px-3 py-6 text-center text-sm text-muted-foreground">
+                        Belum ada dokumen LHE otomatis.
+                    </div>
                 </div>
             </div>
 
-            <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-4">
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Nilai Akhir</div>
-                    <div class="mt-1 text-2xl font-semibold">{{ evaluasi.nilai_akhir }}</div>
-                </div>
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Predikat</div>
-                    <div class="mt-1 text-2xl font-semibold">{{ evaluasi.predikat || '-' }}</div>
-                </div>
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Evaluator</div>
-                    <div class="mt-1 font-medium">{{ evaluasi.evaluator?.name || '-' }}</div>
-                </div>
-                <div>
-                    <div class="text-xs uppercase text-muted-foreground">Tanggal Evaluasi</div>
-                    <div class="mt-1 font-medium">{{ evaluasi.tanggal_evaluasi || '-' }}</div>
-                </div>
-            </section>
-
-            <WorkflowHistoryTimeline :workflow="workflow" />
-
-            <section v-if="can.manage" class="rounded-lg border bg-card p-4">
+            <div v-if="can.manage" class="rounded-lg border bg-card p-4">
                 <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <h2 class="text-sm font-semibold">{{ editingItemId ? 'Edit Nilai Kriteria' : 'Input Nilai Kriteria' }}</h2>
-                    <button v-if="editingItemId" type="button" class="w-fit rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="resetItemForm">Batal Edit</button>
+                    <h2 class="text-sm font-semibold">{{ editingRekomendasiId ? 'Edit Rekomendasi' : 'Tambah Rekomendasi' }}</h2>
+                    <button
+                        v-if="editingRekomendasiId"
+                        type="button"
+                        class="w-fit rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                        @click="resetRekomendasiForm"
+                    >
+                        Batal Edit
+                    </button>
                 </div>
-                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="storeItem">
-                    <div class="grid gap-1 md:col-span-2">
-                        <select v-model="itemForm.kriteria_evaluasi_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                            <option value="">Pilih kriteria</option>
-                            <option v-for="option in kriteriaOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                <form class="mt-4 grid gap-3" @submit.prevent="storeRekomendasi">
+                    <select v-model="rekomendasiForm.evaluasi_sakip_item_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                        <option value="">Tidak terkait kriteria tertentu</option>
+                        <option v-for="option in itemOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                    </select>
+                    <div class="grid gap-3 md:grid-cols-3">
+                        <input v-model="rekomendasiForm.nomor" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Nomor" />
+                        <select v-model="rekomendasiForm.prioritas" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="rendah">Rendah</option>
+                            <option value="sedang">Sedang</option>
+                            <option value="tinggi">Tinggi</option>
                         </select>
-                        <InputError :message="itemForm.errors.kriteria_evaluasi_id" />
+                        <input v-model="rekomendasiForm.target_tanggal" type="date" class="h-9 rounded-md border bg-background px-3 text-sm" />
                     </div>
                     <div class="grid gap-1">
-                        <input v-model="itemForm.nilai" type="number" step="0.01" min="0" max="100" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Nilai 0-100" />
-                        <InputError :message="itemForm.errors.nilai" />
+                        <textarea
+                            v-model="rekomendasiForm.rekomendasi"
+                            rows="4"
+                            class="rounded-md border bg-background px-3 py-2 text-sm"
+                            placeholder="Uraian rekomendasi"
+                        />
+                        <InputError :message="rekomendasiForm.errors.rekomendasi" />
                     </div>
-                    <input v-model="itemForm.rekomendasi_text" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Catatan rekomendasi ringkas" />
-                    <textarea v-model="itemForm.catatan" rows="3" class="rounded-md border bg-background px-3 py-2 text-sm md:col-span-2" placeholder="Catatan evaluator" />
-                    <div class="md:col-span-2">
-                        <button type="submit" :disabled="itemForm.processing" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
-                            {{ editingItemId ? 'Update Nilai' : 'Simpan Nilai' }}
-                        </button>
-                    </div>
-                </form>
-            </section>
-
-            <section class="overflow-hidden rounded-lg border bg-card">
-                <div class="border-b px-4 py-3">
-                    <h2 class="text-sm font-semibold">Nilai per Kriteria</h2>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
-                            <tr>
-                                <th class="px-4 py-3">Kriteria</th>
-                                <th class="px-4 py-3">Nilai</th>
-                                <th class="px-4 py-3">Skor</th>
-                                <th class="px-4 py-3">Catatan</th>
-                                <th class="px-4 py-3 text-right">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="item in evaluasi.items" :key="item.id" class="border-b last:border-0">
-                                <td class="px-4 py-3">
-                                    <div class="font-medium">{{ item.kriteria?.kode }} - {{ item.kriteria?.nama }}</div>
-                                    <div class="text-xs text-muted-foreground">{{ item.kriteria?.sub_komponen?.komponen?.nama }} / {{ item.kriteria?.sub_komponen?.nama }}</div>
-                                </td>
-                                <td class="px-4 py-3">{{ item.nilai }}</td>
-                                <td class="px-4 py-3">{{ item.skor }}</td>
-                                <td class="px-4 py-3 text-muted-foreground">{{ item.catatan || '-' }}</td>
-                                <td class="px-4 py-3 text-right">
-                                    <div v-if="can.manage" class="flex justify-end gap-2">
-                                        <button type="button" class="rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editItem(item)">Edit</button>
-                                        <button type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="destroyItem(item)">Hapus</button>
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr v-if="evaluasi.items.length === 0">
-                                <td colspan="5" class="px-4 py-8 text-center text-muted-foreground">Belum ada nilai kriteria.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section class="grid gap-4 xl:grid-cols-2">
-                <div class="rounded-lg border bg-card p-4">
-                    <h2 class="text-sm font-semibold">Laporan Hasil Evaluasi</h2>
-                    <form v-if="can.manage" class="mt-4 grid gap-3" @submit.prevent="storeLhe">
-                        <input v-model="lheForm.nomor_lhe" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Nomor LHE" />
-                        <input v-model="lheForm.tanggal_lhe" type="date" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                        <select v-model="lheForm.status" class="h-9 rounded-md border bg-background px-3 text-sm">
-                            <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                        </select>
-                        <textarea v-model="lheForm.ringkasan" rows="4" class="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Ringkasan LHE" />
-                        <button type="submit" :disabled="lheForm.processing" class="w-fit rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">Simpan LHE</button>
-                    </form>
-                    <div v-else class="mt-3 text-sm text-muted-foreground">{{ evaluasi.lhe?.ringkasan || 'LHE belum tersedia.' }}</div>
-
-                    <div class="mt-5 border-t pt-4">
-                        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                            <h3 class="text-sm font-semibold">Dokumen LHE Otomatis</h3>
-                            <div v-if="can.export_lhe" class="flex flex-wrap gap-2">
-                                <button type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('pdf')">PDF</button>
-                                <button type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="exportLhe('word')">Word</button>
-                            </div>
-                        </div>
-                        <div v-if="lheDocuments.length" class="mt-3 divide-y rounded-md border text-sm">
-                            <article v-for="document in lheDocuments" :key="document.id" class="flex flex-col gap-3 p-3 md:flex-row md:items-center md:justify-between">
-                                <div>
-                                    <div class="font-medium">{{ document.judul }}</div>
-                                    <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                        <span>{{ document.original_filename }}</span>
-                                        <span>-</span>
-                                        <span>{{ formatFileSize(document.file_size) }}</span>
-                                        <span>-</span>
-                                        <span>{{ document.created_at || '-' }}</span>
-                                    </div>
-                                </div>
-                                <a v-if="document.can_download && document.download_url" :href="document.download_url" class="rounded-md border px-3 py-2 text-center text-sm hover:bg-muted">Unduh</a>
-                                <span v-else class="text-xs text-muted-foreground">Tidak ada akses unduh</span>
-                            </article>
-                        </div>
-                        <div v-else class="mt-3 rounded-md border px-3 py-6 text-center text-sm text-muted-foreground">Belum ada dokumen LHE otomatis.</div>
-                    </div>
-                </div>
-
-                <div v-if="can.manage" class="rounded-lg border bg-card p-4">
-                    <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                        <h2 class="text-sm font-semibold">{{ editingRekomendasiId ? 'Edit Rekomendasi' : 'Tambah Rekomendasi' }}</h2>
-                        <button v-if="editingRekomendasiId" type="button" class="w-fit rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="resetRekomendasiForm">Batal Edit</button>
-                    </div>
-                    <form class="mt-4 grid gap-3" @submit.prevent="storeRekomendasi">
-                        <select v-model="rekomendasiForm.evaluasi_sakip_item_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                            <option value="">Tidak terkait kriteria tertentu</option>
-                            <option v-for="option in itemOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                        </select>
-                        <div class="grid gap-3 md:grid-cols-3">
-                            <input v-model="rekomendasiForm.nomor" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Nomor" />
-                            <select v-model="rekomendasiForm.prioritas" class="h-9 rounded-md border bg-background px-3 text-sm">
-                                <option value="rendah">Rendah</option>
-                                <option value="sedang">Sedang</option>
-                                <option value="tinggi">Tinggi</option>
-                            </select>
-                            <input v-model="rekomendasiForm.target_tanggal" type="date" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                        </div>
-                        <div class="grid gap-1">
-                            <textarea v-model="rekomendasiForm.rekomendasi" rows="4" class="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Uraian rekomendasi" />
-                            <InputError :message="rekomendasiForm.errors.rekomendasi" />
-                        </div>
-                        <button type="submit" :disabled="rekomendasiForm.processing" class="w-fit rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
-                            {{ editingRekomendasiId ? 'Update Rekomendasi' : 'Simpan Rekomendasi' }}
-                        </button>
-                    </form>
-                </div>
-            </section>
-
-            <section v-if="can.tindak_lanjut" class="rounded-lg border bg-card p-4">
-                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <h2 class="text-sm font-semibold">{{ editingTindakLanjutId ? 'Edit Tindak Lanjut Rekomendasi' : 'Tindak Lanjut Rekomendasi' }}</h2>
-                    <button v-if="editingTindakLanjutId" type="button" class="w-fit rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="resetTindakLanjutForm">Batal Edit</button>
-                </div>
-                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="storeTindakLanjut">
-                    <div class="grid gap-1 md:col-span-2">
-                        <select v-model="tindakLanjutForm.rekomendasi_id" :disabled="Boolean(editingTindakLanjutId)" class="h-9 rounded-md border bg-background px-3 text-sm disabled:opacity-70">
-                            <option value="">Pilih rekomendasi</option>
-                            <option v-for="rekomendasi in evaluasi.rekomendasi" :key="rekomendasi.id" :value="rekomendasi.id">
-                                {{ rekomendasi.nomor || `Rekomendasi #${rekomendasi.id}` }} - {{ rekomendasi.rekomendasi }}
-                            </option>
-                        </select>
-                    </div>
-                    <select v-model="tindakLanjutForm.status_tindak_lanjut" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="proses">Proses</option>
-                        <option value="selesai">Selesai</option>
-                    </select>
-                    <input v-model="tindakLanjutForm.tanggal_tindak_lanjut" type="date" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                    <div class="grid gap-1 md:col-span-2">
-                        <textarea v-model="tindakLanjutForm.uraian_tindak_lanjut" rows="4" class="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Uraian tindak lanjut" />
-                        <InputError :message="tindakLanjutForm.errors.uraian_tindak_lanjut" />
-                    </div>
-                    <textarea v-model="tindakLanjutForm.catatan_opd" rows="3" class="rounded-md border bg-background px-3 py-2 text-sm md:col-span-2" placeholder="Catatan OPD" />
-                    <button type="submit" :disabled="tindakLanjutForm.processing" class="w-fit rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
-                        {{ editingTindakLanjutId ? 'Update Tindak Lanjut' : 'Kirim Tindak Lanjut' }}
+                    <button
+                        type="submit"
+                        :disabled="rekomendasiForm.processing"
+                        class="w-fit rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+                    >
+                        {{ editingRekomendasiId ? 'Update Rekomendasi' : 'Simpan Rekomendasi' }}
                     </button>
                 </form>
-            </section>
+            </div>
+        </section>
 
-            <section class="rounded-lg border bg-card p-4">
-                <h2 class="text-sm font-semibold">Rekomendasi dan Tindak Lanjut</h2>
-                <div v-if="evaluasi.rekomendasi.length" class="mt-3 space-y-3">
-                    <article v-for="rekomendasi in evaluasi.rekomendasi" :key="rekomendasi.id" class="rounded-md border bg-background p-3">
-                        <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                            <div>
-                                <div class="font-medium">{{ rekomendasi.nomor || `Rekomendasi #${rekomendasi.id}` }}</div>
-                                <p class="mt-1 text-sm text-muted-foreground">{{ rekomendasi.rekomendasi }}</p>
-                                <div class="mt-2 flex flex-wrap gap-2 text-xs">
-                                    <span class="rounded-full bg-slate-100 px-2 py-1 text-slate-700">Prioritas {{ rekomendasi.prioritas }}</span>
-                                    <span class="rounded-full px-2 py-1 font-medium" :class="statusClass(rekomendasi.status_tindak_lanjut)">{{ statusLabel(rekomendasi.status_tindak_lanjut) }}</span>
-                                </div>
-                            </div>
-                            <div v-if="can.manage" class="flex gap-2">
-                                <button type="button" class="rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editRekomendasi(rekomendasi)">Edit</button>
-                                <button type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="destroyRekomendasi(rekomendasi)">Hapus</button>
-                            </div>
-                        </div>
-                        <div v-if="rekomendasi.tindak_lanjut.length" class="mt-3 divide-y rounded-md border bg-card text-sm">
-                            <div v-for="tl in rekomendasi.tindak_lanjut" :key="tl.id" class="p-3">
-                                <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                                    <div>
-                                        <div class="font-medium">{{ tl.uraian_tindak_lanjut }}</div>
-                                        <div class="mt-1 text-xs text-muted-foreground">{{ tl.created_by?.name || '-' }} - {{ tl.tanggal_tindak_lanjut || '-' }}</div>
-                                        <div v-if="tl.catatan_opd" class="mt-2 text-xs text-muted-foreground">Catatan OPD: {{ tl.catatan_opd }}</div>
-                                        <div v-if="tl.catatan_verifikator" class="mt-2 text-xs text-muted-foreground">Catatan verifikator: {{ tl.catatan_verifikator }}</div>
-                                        <div v-if="tl.diverifikasi_oleh" class="mt-2 text-xs text-muted-foreground">
-                                            Diverifikasi oleh {{ tl.diverifikasi_oleh.name }} pada {{ tl.diverifikasi_at || '-' }}
-                                        </div>
-                                    </div>
-                                    <div class="flex flex-wrap gap-2">
-                                        <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(tl.status_tindak_lanjut)">{{ statusLabel(tl.status_tindak_lanjut) }}</span>
-                                        <button v-if="canEditTindakLanjut(tl)" type="button" class="rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editTindakLanjut(rekomendasi, tl)">Edit</button>
-                                        <button v-if="can.verify_tindak_lanjut" type="button" class="rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="openVerifyTindakLanjut(tl, 'selesai')">Verifikasi</button>
-                                        <button v-if="can.verify_tindak_lanjut" type="button" class="rounded-md border px-2 py-1 text-xs text-amber-700 hover:bg-amber-50" @click="openVerifyTindakLanjut(tl, 'perlu_perbaikan')">Perbaikan</button>
-                                        <button v-if="can.verify_tindak_lanjut" type="button" class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50" @click="openVerifyTindakLanjut(tl, 'ditolak')">Tolak</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
+        <section v-if="can.tindak_lanjut" class="rounded-lg border bg-card p-4">
+            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <h2 class="text-sm font-semibold">{{ editingTindakLanjutId ? 'Edit Tindak Lanjut Rekomendasi' : 'Tindak Lanjut Rekomendasi' }}</h2>
+                <button
+                    v-if="editingTindakLanjutId"
+                    type="button"
+                    class="w-fit rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                    @click="resetTindakLanjutForm"
+                >
+                    Batal Edit
+                </button>
+            </div>
+            <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="storeTindakLanjut">
+                <div class="grid gap-1 md:col-span-2">
+                    <select
+                        v-model="tindakLanjutForm.rekomendasi_id"
+                        :disabled="Boolean(editingTindakLanjutId)"
+                        class="h-9 rounded-md border bg-background px-3 text-sm disabled:opacity-70"
+                    >
+                        <option value="">Pilih rekomendasi</option>
+                        <option v-for="rekomendasi in evaluasi.rekomendasi" :key="rekomendasi.id" :value="rekomendasi.id">
+                            {{ rekomendasi.nomor || `Rekomendasi #${rekomendasi.id}` }} - {{ rekomendasi.rekomendasi }}
+                        </option>
+                    </select>
                 </div>
-                <div v-else class="mt-3 text-sm text-muted-foreground">Belum ada rekomendasi evaluasi.</div>
-            </section>
+                <select v-model="tindakLanjutForm.status_tindak_lanjut" class="h-9 rounded-md border bg-background px-3 text-sm">
+                    <option value="proses">Proses</option>
+                    <option value="selesai">Selesai</option>
+                </select>
+                <input v-model="tindakLanjutForm.tanggal_tindak_lanjut" type="date" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                <div class="grid gap-1 md:col-span-2">
+                    <textarea
+                        v-model="tindakLanjutForm.uraian_tindak_lanjut"
+                        rows="4"
+                        class="rounded-md border bg-background px-3 py-2 text-sm"
+                        placeholder="Uraian tindak lanjut"
+                    />
+                    <InputError :message="tindakLanjutForm.errors.uraian_tindak_lanjut" />
+                </div>
+                <textarea
+                    v-model="tindakLanjutForm.catatan_opd"
+                    rows="3"
+                    class="rounded-md border bg-background px-3 py-2 text-sm md:col-span-2"
+                    placeholder="Catatan OPD"
+                />
+                <button
+                    type="submit"
+                    :disabled="tindakLanjutForm.processing"
+                    class="w-fit rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+                >
+                    {{ editingTindakLanjutId ? 'Update Tindak Lanjut' : 'Kirim Tindak Lanjut' }}
+                </button>
+            </form>
+        </section>
 
-            <Dialog v-model:open="isVerifyDialogOpen">
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Verifikasi Tindak Lanjut</DialogTitle>
-                        <DialogDescription>
-                            Status akan diubah menjadi {{ statusLabel(verifyTindakLanjutForm.status_tindak_lanjut) }} dan catatan verifikator disimpan pada riwayat tindak lanjut.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <form class="space-y-3" @submit.prevent="submitVerifyTindakLanjut">
-                        <div class="space-y-1.5">
-                            <label class="text-sm font-medium" for="catatan-verifikator">
-                                Catatan verifikator
-                                <span v-if="['ditolak', 'perlu_perbaikan'].includes(verifyTindakLanjutForm.status_tindak_lanjut)" class="text-red-700">*</span>
-                            </label>
-                            <textarea
-                                id="catatan-verifikator"
-                                v-model="verifyTindakLanjutForm.catatan_verifikator"
-                                rows="4"
-                                class="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                                placeholder="Tuliskan catatan hasil verifikasi tindak lanjut."
-                            />
-                            <InputError :message="verifyTindakLanjutForm.errors.catatan_verifikator" />
+        <section class="rounded-lg border bg-card p-4">
+            <h2 class="text-sm font-semibold">Rekomendasi dan Tindak Lanjut</h2>
+            <div v-if="evaluasi.rekomendasi.length" class="mt-3 space-y-3">
+                <article v-for="rekomendasi in evaluasi.rekomendasi" :key="rekomendasi.id" class="rounded-md border bg-background p-3">
+                    <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div>
+                            <div class="font-medium">{{ rekomendasi.nomor || `Rekomendasi #${rekomendasi.id}` }}</div>
+                            <p class="mt-1 text-sm text-muted-foreground">{{ rekomendasi.rekomendasi }}</p>
+                            <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                                <span class="rounded-full bg-slate-100 px-2 py-1 text-slate-700">Prioritas {{ rekomendasi.prioritas }}</span>
+                                <span class="rounded-full px-2 py-1 font-medium" :class="statusClass(rekomendasi.status_tindak_lanjut)">{{
+                                    statusLabel(rekomendasi.status_tindak_lanjut)
+                                }}</span>
+                            </div>
                         </div>
+                        <div v-if="can.manage" class="flex gap-2">
+                            <button type="button" class="rounded-md border px-2 py-1 text-xs hover:bg-muted" @click="editRekomendasi(rekomendasi)">
+                                Edit
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                                @click="destroyRekomendasi(rekomendasi)"
+                            >
+                                Hapus
+                            </button>
+                        </div>
+                    </div>
+                    <div v-if="rekomendasi.tindak_lanjut.length" class="mt-3 divide-y rounded-md border bg-card text-sm">
+                        <div v-for="tl in rekomendasi.tindak_lanjut" :key="tl.id" class="p-3">
+                            <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                <div>
+                                    <div class="font-medium">{{ tl.uraian_tindak_lanjut }}</div>
+                                    <div class="mt-1 text-xs text-muted-foreground">
+                                        {{ tl.created_by?.name || '-' }} - {{ tl.tanggal_tindak_lanjut || '-' }}
+                                    </div>
+                                    <div v-if="tl.catatan_opd" class="mt-2 text-xs text-muted-foreground">Catatan OPD: {{ tl.catatan_opd }}</div>
+                                    <div v-if="tl.catatan_verifikator" class="mt-2 text-xs text-muted-foreground">
+                                        Catatan verifikator: {{ tl.catatan_verifikator }}
+                                    </div>
+                                    <div v-if="tl.diverifikasi_oleh" class="mt-2 text-xs text-muted-foreground">
+                                        Diverifikasi oleh {{ tl.diverifikasi_oleh.name }} pada {{ tl.diverifikasi_at || '-' }}
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(tl.status_tindak_lanjut)">{{
+                                        statusLabel(tl.status_tindak_lanjut)
+                                    }}</span>
+                                    <button
+                                        v-if="canEditTindakLanjut(tl)"
+                                        type="button"
+                                        class="rounded-md border px-2 py-1 text-xs hover:bg-muted"
+                                        @click="editTindakLanjut(rekomendasi, tl)"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button
+                                        v-if="can.verify_tindak_lanjut"
+                                        type="button"
+                                        class="rounded-md border px-2 py-1 text-xs hover:bg-muted"
+                                        @click="openVerifyTindakLanjut(tl, 'selesai')"
+                                    >
+                                        Verifikasi
+                                    </button>
+                                    <button
+                                        v-if="can.verify_tindak_lanjut"
+                                        type="button"
+                                        class="rounded-md border px-2 py-1 text-xs text-amber-700 hover:bg-amber-50"
+                                        @click="openVerifyTindakLanjut(tl, 'perlu_perbaikan')"
+                                    >
+                                        Perbaikan
+                                    </button>
+                                    <button
+                                        v-if="can.verify_tindak_lanjut"
+                                        type="button"
+                                        class="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                                        @click="openVerifyTindakLanjut(tl, 'ditolak')"
+                                    >
+                                        Tolak
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+            <div v-else class="mt-3 text-sm text-muted-foreground">Belum ada rekomendasi evaluasi.</div>
+        </section>
 
-                        <DialogFooter class="gap-2">
-                            <Button type="button" variant="outline" :disabled="verifyTindakLanjutForm.processing" @click="isVerifyDialogOpen = false">Batal</Button>
-                            <Button type="submit" :disabled="verifyTindakLanjutForm.processing" class="bg-emerald-700 text-white hover:bg-emerald-800">
-                                {{ verifyTindakLanjutForm.processing ? 'Memproses...' : 'Simpan Verifikasi' }}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
-        </div>
-    </AppLayout>
+        <Dialog v-model:open="isVerifyDialogOpen">
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Verifikasi Tindak Lanjut</DialogTitle>
+                    <DialogDescription>
+                        Status akan diubah menjadi {{ statusLabel(verifyTindakLanjutForm.status_tindak_lanjut) }} dan catatan verifikator disimpan
+                        pada riwayat tindak lanjut.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <form class="space-y-3" @submit.prevent="submitVerifyTindakLanjut">
+                    <div class="space-y-1.5">
+                        <label class="text-sm font-medium" for="catatan-verifikator">
+                            Catatan verifikator
+                            <span v-if="['ditolak', 'perlu_perbaikan'].includes(verifyTindakLanjutForm.status_tindak_lanjut)" class="text-red-700"
+                                >*</span
+                            >
+                        </label>
+                        <textarea
+                            id="catatan-verifikator"
+                            v-model="verifyTindakLanjutForm.catatan_verifikator"
+                            rows="4"
+                            class="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                            placeholder="Tuliskan catatan hasil verifikasi tindak lanjut."
+                        />
+                        <InputError :message="verifyTindakLanjutForm.errors.catatan_verifikator" />
+                    </div>
+
+                    <DialogFooter class="gap-2">
+                        <Button type="button" variant="outline" :disabled="verifyTindakLanjutForm.processing" @click="isVerifyDialogOpen = false"
+                            >Batal</Button
+                        >
+                        <Button type="submit" :disabled="verifyTindakLanjutForm.processing" class="bg-emerald-700 text-white hover:bg-emerald-800">
+                            {{ verifyTindakLanjutForm.processing ? 'Memproses...' : 'Simpan Verifikasi' }}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    </div>
 </template>
