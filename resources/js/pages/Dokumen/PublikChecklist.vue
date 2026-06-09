@@ -12,7 +12,7 @@ import Eye from 'lucide-vue-next/dist/esm/icons/eye.js';
 import FileUp from 'lucide-vue-next/dist/esm/icons/file-up.js';
 import FolderCheck from 'lucide-vue-next/dist/esm/icons/folder-check.js';
 import Globe2 from 'lucide-vue-next/dist/esm/icons/globe.js';
-import { reactive } from 'vue';
+import { computed, reactive } from 'vue';
 
 type Option = { id: number; label: string };
 type Summary = {
@@ -67,6 +67,15 @@ type ChecklistSection = {
     summary: Summary;
     items: ChecklistItem[];
 };
+type ChecklistRow = {
+    id: string;
+    sectionKey: string;
+    sectionLabel: string;
+    sectionDescription: string;
+    item: ChecklistItem;
+    detail: Detail | null;
+    state: string;
+};
 
 const props = defineProps<{
     filters: { tahun: number; opd_id?: number | null };
@@ -112,15 +121,6 @@ const stateClass = (state: string) =>
         missing: 'border-red-200 bg-red-50 text-red-800',
     })[state] ?? 'border-slate-200 bg-slate-50 text-slate-700';
 
-const itemBorderClass = (state: string) =>
-    ({
-        complete: 'border-emerald-200/80 bg-emerald-50/35',
-        pending: 'border-sky-200/80 bg-sky-50/40',
-        draft: 'border-slate-200 bg-slate-50/50',
-        needs_upload: 'border-amber-200/90 bg-amber-50/45',
-        missing: 'border-red-200/80 bg-red-50/35',
-    })[state] ?? 'border-slate-200 bg-card';
-
 const StateIcon = (state: string) =>
     ({
         complete: CheckCircle2,
@@ -133,10 +133,27 @@ const StateIcon = (state: string) =>
 const progressStyle = (summary: Summary) => ({ width: `${Math.min(100, Math.max(0, summary.percent))}%` });
 const progressClass = (summary: Summary) => (summary.percent >= 90 ? 'bg-emerald-600' : summary.percent >= 50 ? 'bg-amber-500' : 'bg-red-500');
 const firstDetail = (item: ChecklistItem) => item.details[0] ?? null;
+const checklistRows = computed<ChecklistRow[]>(() =>
+    props.sections.flatMap((section) =>
+        section.items.map((item) => {
+            const detail = firstDetail(item);
+
+            return {
+                id: `${section.key}-${item.key}`,
+                sectionKey: section.key,
+                sectionLabel: section.label,
+                sectionDescription: section.description,
+                item,
+                detail,
+                state: props.isAggregate ? item.state : detail?.state || item.state,
+            };
+        }),
+    ),
+);
 </script>
 
 <template>
-    <Head title="Kelengkapan Dokumen Publik" />
+    <Head title="Kelengkapan Dokumen" />
 
     <div class="flex flex-col gap-5 p-4 lg:p-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -145,7 +162,7 @@ const firstDetail = (item: ChecklistItem) => item.details[0] ?? null;
                     <Globe2 class="size-3.5 text-emerald-700" />
                     Portal publik E-SAKIP
                 </div>
-                <h1 class="mt-3 text-2xl font-semibold tracking-normal text-foreground">Kelengkapan Dokumen Publik</h1>
+                <h1 class="mt-3 text-2xl font-semibold tracking-normal text-foreground">Kelengkapan Dokumen</h1>
                 <p class="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
                     Cek dokumen dan data OPD yang akan tampil pada halaman publik: perencanaan, pengukuran, pelaporan, dan evaluasi.
                 </p>
@@ -259,120 +276,145 @@ const firstDetail = (item: ChecklistItem) => item.details[0] ?? null;
             diunggah dan tombol aksi langsung.
         </div>
 
-        <section class="grid gap-4 2xl:grid-cols-2">
-            <article v-for="section in sections" :key="section.key" class="rounded-lg border bg-card shadow-sm">
-                <div class="border-b p-4">
-                    <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div>
-                            <h2 class="text-base font-semibold">{{ section.label }}</h2>
-                            <p class="mt-1 text-sm text-muted-foreground">{{ section.description }}</p>
-                        </div>
-                        <div class="min-w-32 text-left md:text-right">
-                            <div class="text-xl font-semibold">{{ section.summary.percent }}%</div>
-                            <div class="text-xs text-muted-foreground">{{ section.summary.complete }}/{{ section.summary.total }} lengkap</div>
-                        </div>
-                    </div>
-                    <div class="mt-4 h-2 overflow-hidden rounded-full bg-muted">
-                        <div
-                            class="h-full rounded-full transition-all duration-500"
-                            :class="progressClass(section.summary)"
-                            :style="progressStyle(section.summary)"
-                        />
-                    </div>
-                </div>
+        <section class="overflow-hidden rounded-lg border bg-card shadow-sm">
+            <div class="border-b p-4">
+                <h2 class="text-base font-semibold">Daftar Kelengkapan</h2>
+                <p class="mt-1 text-sm text-muted-foreground">
+                    Tabel ini mengelompokkan komponen dokumen menurut siklus SAKIP agar kekurangan cepat terlihat.
+                </p>
+            </div>
 
-                <div class="grid gap-3 p-4">
-                    <div
-                        v-for="item in section.items"
-                        :key="item.key"
-                        class="rounded-lg border p-3 transition"
-                        :class="itemBorderClass(isAggregate ? item.state : firstDetail(item)?.state || item.state)"
-                    >
-                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <component
-                                        :is="StateIcon(isAggregate ? item.state : firstDetail(item)?.state || item.state)"
-                                        class="size-4 shrink-0"
-                                    />
-                                    <h3 class="font-medium text-foreground">{{ item.label }}</h3>
-                                    <span
-                                        class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium"
-                                        :class="stateClass(isAggregate ? item.state : firstDetail(item)?.state || item.state)"
-                                    >
-                                        {{ stateLabel(isAggregate ? item.state : firstDetail(item)?.state || item.state) }}
-                                    </span>
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[980px] text-left text-sm">
+                    <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
+                        <tr>
+                            <th class="w-[220px] px-4 py-3">Siklus</th>
+                            <th class="w-[220px] px-4 py-3">Komponen</th>
+                            <th class="w-[150px] px-4 py-3">Status</th>
+                            <th class="px-4 py-3">{{ isAggregate ? 'Progress OPD' : 'Keterangan' }}</th>
+                            <th class="w-[180px] px-4 py-3">{{ isAggregate ? 'Rekap' : 'Dokumen Terakhir' }}</th>
+                            <th class="w-[190px] px-4 py-3 text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="row in checklistRows" :key="row.id" class="border-b last:border-0">
+                            <td class="px-4 py-4 align-top">
+                                <div class="font-medium text-foreground">{{ row.sectionLabel }}</div>
+                                <div class="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{{ row.sectionDescription }}</div>
+                            </td>
+                            <td class="px-4 py-4 align-top">
+                                <div class="flex items-center gap-2 font-medium text-foreground">
+                                    <component :is="StateIcon(row.state)" class="size-4 shrink-0" />
+                                    {{ row.item.label }}
                                 </div>
-
-                                <p v-if="isAggregate" class="mt-2 text-sm text-muted-foreground">
-                                    {{ item.summary.complete }} dari {{ item.summary.total }} OPD siap publik.
-                                </p>
-                                <p v-else-if="firstDetail(item)" class="mt-2 text-sm leading-6 text-muted-foreground">
-                                    {{ firstDetail(item)?.description }}
-                                    <span v-if="firstDetail(item)?.internal_document">
-                                        Dokumen terakhir: {{ firstDetail(item)?.internal_document?.status_label }}.
-                                    </span>
-                                </p>
-                            </div>
-
-                            <div v-if="!isAggregate && firstDetail(item)" class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
-                                <template v-if="firstDetail(item)?.public_document">
-                                    <a
-                                        :href="firstDetail(item)?.public_document?.view_url"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        class="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm hover:bg-muted"
-                                        title="Lihat dokumen publik"
-                                    >
-                                        <Eye class="size-4" />
-                                    </a>
-                                    <a
-                                        :href="firstDetail(item)?.public_document?.download_url"
-                                        class="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm hover:bg-muted"
-                                        title="Download dokumen publik"
-                                    >
-                                        <Download class="size-4" />
-                                    </a>
+                                <div class="mt-1 text-xs uppercase tracking-wide text-muted-foreground">
+                                    {{ row.item.type === 'document' ? 'Dokumen' : row.item.type === 'score' ? 'Nilai' : 'Data' }}
+                                </div>
+                            </td>
+                            <td class="px-4 py-4 align-top">
+                                <span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-medium" :class="stateClass(row.state)">
+                                    {{ stateLabel(row.state) }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-4 align-top">
+                                <template v-if="isAggregate">
+                                    <div class="flex items-center justify-between gap-3">
+                                        <span class="text-sm text-muted-foreground">
+                                            {{ row.item.summary.complete }} dari {{ row.item.summary.total }} OPD siap publik
+                                        </span>
+                                        <span class="font-medium">{{ row.item.summary.percent }}%</span>
+                                    </div>
+                                    <div class="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                                        <div
+                                            class="h-full rounded-full transition-all duration-500"
+                                            :class="progressClass(row.item.summary)"
+                                            :style="progressStyle(row.item.summary)"
+                                        />
+                                    </div>
                                 </template>
+                                <template v-else>
+                                    <p class="text-sm leading-6 text-muted-foreground">
+                                        {{ row.detail?.description || 'Belum ada informasi kelengkapan.' }}
+                                    </p>
+                                    <p v-if="row.detail?.source_label" class="mt-1 text-xs text-muted-foreground">
+                                        Status sumber: {{ row.detail.source_label }}
+                                    </p>
+                                </template>
+                            </td>
+                            <td class="px-4 py-4 align-top">
+                                <template v-if="isAggregate">
+                                    <div class="grid grid-cols-2 gap-1 text-xs">
+                                        <span class="rounded bg-emerald-50 px-2 py-1 text-emerald-800">Siap {{ row.item.summary.complete }}</span>
+                                        <span class="rounded bg-sky-50 px-2 py-1 text-sky-800">Tunggu {{ row.item.summary.pending }}</span>
+                                        <span class="rounded bg-amber-50 px-2 py-1 text-amber-900">Unggah {{ row.item.summary.needs_upload }}</span>
+                                        <span class="rounded bg-red-50 px-2 py-1 text-red-800">Kosong {{ row.item.summary.missing }}</span>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div v-if="row.detail?.public_document" class="max-w-44">
+                                        <div class="truncate font-medium">{{ row.detail.public_document.judul }}</div>
+                                        <div class="truncate text-xs text-muted-foreground">{{ row.detail.public_document.filename }}</div>
+                                    </div>
+                                    <div v-else-if="row.detail?.internal_document" class="max-w-44">
+                                        <div class="truncate font-medium">{{ row.detail.internal_document.judul }}</div>
+                                        <div class="text-xs text-muted-foreground">{{ row.detail.internal_document.status_label }}</div>
+                                    </div>
+                                    <span v-else class="text-sm text-muted-foreground">-</span>
+                                </template>
+                            </td>
+                            <td class="px-4 py-4 text-right align-top">
+                                <span v-if="isAggregate" class="text-sm text-muted-foreground">Pilih OPD untuk aksi</span>
+                                <div v-else-if="row.detail" class="inline-flex flex-wrap justify-end gap-2">
+                                    <template v-if="row.detail.public_document">
+                                        <a
+                                            :href="row.detail.public_document.view_url"
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            class="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm hover:bg-muted"
+                                            title="Lihat dokumen publik"
+                                        >
+                                            <Eye class="size-4" />
+                                        </a>
+                                        <a
+                                            :href="row.detail.public_document.download_url"
+                                            class="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm hover:bg-muted"
+                                            title="Download dokumen publik"
+                                        >
+                                            <Download class="size-4" />
+                                        </a>
+                                    </template>
 
-                                <template v-else-if="firstDetail(item)?.internal_document">
+                                    <template v-else-if="row.detail.internal_document">
+                                        <Link
+                                            :href="row.detail.internal_document.show_url || '#'"
+                                            class="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm hover:bg-muted"
+                                            title="Buka dokumen internal"
+                                        >
+                                            <Eye class="size-4" />
+                                        </Link>
+                                        <a
+                                            :href="row.detail.internal_document.download_url"
+                                            class="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm hover:bg-muted"
+                                            title="Download dokumen internal"
+                                        >
+                                            <Download class="size-4" />
+                                        </a>
+                                    </template>
+
                                     <Link
-                                        :href="firstDetail(item)?.internal_document?.show_url || '#'"
-                                        class="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm hover:bg-muted"
-                                        title="Buka dokumen internal"
+                                        v-if="row.detail.upload_url && row.detail.state !== 'complete'"
+                                        :href="row.detail.upload_url || '#'"
+                                        class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800"
                                     >
-                                        <Eye class="size-4" />
+                                        <FileUp class="size-4" />
+                                        Unggah
                                     </Link>
-                                    <a
-                                        :href="firstDetail(item)?.internal_document?.download_url"
-                                        class="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm hover:bg-muted"
-                                        title="Download dokumen internal"
-                                    >
-                                        <Download class="size-4" />
-                                    </a>
-                                </template>
-
-                                <Link
-                                    v-if="firstDetail(item)?.upload_url && firstDetail(item)?.state !== 'complete'"
-                                    :href="firstDetail(item)?.upload_url || '#'"
-                                    class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800"
-                                >
-                                    <FileUp class="size-4" />
-                                    Unggah
-                                </Link>
-                            </div>
-                        </div>
-
-                        <div v-if="isAggregate" class="mt-3 h-2 overflow-hidden rounded-full bg-background/80">
-                            <div
-                                class="h-full rounded-full transition-all duration-500"
-                                :class="progressClass(item.summary)"
-                                :style="progressStyle(item.summary)"
-                            />
-                        </div>
-                    </div>
-                </div>
-            </article>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </section>
     </div>
 </template>

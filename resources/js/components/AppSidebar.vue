@@ -169,7 +169,7 @@ const navigationGroups = computed<NavGroup[]>(() =>
             label: 'Dokumen Publik',
             items: visibleItems([
                 hasAnyPermission(['dokumen.view', 'dokumen.manage', 'manage_dokumen']) && {
-                    title: 'Kelengkapan Publik',
+                    title: 'Kelengkapan Dokumen',
                     href: '/dokumen-publik',
                     icon: ClipboardList,
                 },

@@ -115,7 +115,7 @@ const statusClass = (status: string) =>
                         <ClipboardList class="size-5" />
                     </div>
                     <div class="min-w-0">
-                        <h2 class="font-semibold">Cek dokumen yang tampil ke masyarakat</h2>
+                        <h2 class="font-semibold">Cek kelengkapan dokumen</h2>
                         <p class="mt-1 text-sm leading-6 text-emerald-900/80">
                             Lihat daftar Perencanaan, Pengukuran, Pelaporan, dan Evaluasi yang sudah siap publik atau masih perlu diunggah.
                         </p>
@@ -127,7 +127,7 @@ const statusClass = (status: string) =>
                     prefetch="hover"
                     cache-for="2m"
                 >
-                    Buka Checklist
+                    Buka Kelengkapan
                     <ArrowRight class="size-4" />
                 </Link>
             </div>
