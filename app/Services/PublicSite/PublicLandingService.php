@@ -48,6 +48,22 @@ class PublicLandingService
      */
     public function payload(?string $section = null, ?int $requestedYear = null): array
     {
+        return $this->buildPayload($section, $requestedYear, false);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function fullPayload(?int $requestedYear = null): array
+    {
+        return $this->buildPayload(null, $requestedYear, true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildPayload(?string $section = null, ?int $requestedYear = null, bool $includeAllTables = false): array
+    {
         $activeSection = in_array($section, self::PUBLIC_SECTIONS, true) ? $section : null;
         $periode = $this->periodeForYear($requestedYear);
         $tahun = $requestedYear ?: ($periode?->tahun ?? (int) now()->year);
@@ -83,20 +99,22 @@ class PublicLandingService
             ->filter(fn (EvaluasiSakip $evaluasi) => $evaluasi->nilai_akhir !== null)
             ->map(fn (EvaluasiSakip $evaluasi) => (float) $evaluasi->nilai_akhir);
 
-        $tables = [
+        $allTables = [
+            'perencanaan' => $perencanaan,
+            'pengukuran' => $pengukuran,
+            'pelaporan' => $pelaporan,
+            'evaluasi' => $evaluasi,
+        ];
+
+        $tables = $includeAllTables ? $allTables : [
             'perencanaan' => [],
             'pengukuran' => [],
             'pelaporan' => [],
             'evaluasi' => [],
         ];
 
-        if ($activeSection) {
-            $tables[$activeSection] = [
-                'perencanaan' => $perencanaan,
-                'pengukuran' => $pengukuran,
-                'pelaporan' => $pelaporan,
-                'evaluasi' => $evaluasi,
-            ][$activeSection];
+        if (! $includeAllTables && $activeSection) {
+            $tables[$activeSection] = $allTables[$activeSection];
         }
 
         return [

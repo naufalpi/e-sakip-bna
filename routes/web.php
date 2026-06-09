@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Dokumen\DokumenController;
+use App\Http\Controllers\Dokumen\DokumenPublikChecklistController;
 use App\Http\Controllers\Evaluasi\EvaluasiSakipController;
 use App\Http\Controllers\Evaluasi\EvaluasiSakipItemController;
 use App\Http\Controllers\Evaluasi\KriteriaEvaluasiController;
@@ -117,6 +118,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('workflow/inbox', WorkflowInboxController::class)->name('workflow.inbox');
     Route::post('workflow/{module}/{id}/transition', [WorkflowController::class, 'transition'])->name('workflow.transition');
 
+    Route::get('dokumen-publik', DokumenPublikChecklistController::class)->name('dokumen-publik.index');
     Route::get('dokumen/{dokumen}/download', [DokumenController::class, 'download'])->name('dokumen.download');
     Route::resource('dokumen', DokumenController::class)->parameters(['dokumen' => 'dokumen']);
 

@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { CheckCircle2, FileText, Link2, UploadCloud, X } from 'lucide-vue-next';
+import CheckCircle2 from 'lucide-vue-next/dist/esm/icons/circle-check.js';
+import UploadCloud from 'lucide-vue-next/dist/esm/icons/cloud-upload.js';
+import FileText from 'lucide-vue-next/dist/esm/icons/file-text.js';
+import Link2 from 'lucide-vue-next/dist/esm/icons/link-2.js';
+import X from 'lucide-vue-next/dist/esm/icons/x.js';
 import { computed } from 'vue';
 
 type Option = { id?: number; value?: string; label: string };
@@ -27,13 +31,14 @@ const props = defineProps<{
     opdOptions: Option[];
     periodeOptions: Option[];
     relationOptions: RelationOptions;
+    initial?: Partial<Pick<FormData, 'opd_id' | 'periode_tahun_id' | 'jenis' | 'judul'>>;
 }>();
 
 const form = useForm<FormData>({
-    opd_id: props.dokumen?.opd_id ?? (props.opdOptions.length === 1 ? props.opdOptions[0].id || '' : ''),
-    periode_tahun_id: props.dokumen?.periode_tahun_id ?? '',
-    jenis: props.dokumen?.jenis ?? 'bukti_dukung',
-    judul: props.dokumen?.judul ?? '',
+    opd_id: props.dokumen?.opd_id ?? props.initial?.opd_id ?? (props.opdOptions.length === 1 ? props.opdOptions[0].id || '' : ''),
+    periode_tahun_id: props.dokumen?.periode_tahun_id ?? props.initial?.periode_tahun_id ?? '',
+    jenis: props.dokumen?.jenis ?? props.initial?.jenis ?? 'bukti_dukung',
+    judul: props.dokumen?.judul ?? props.initial?.judul ?? '',
     nomor_dokumen: props.dokumen?.nomor_dokumen ?? '',
     deskripsi: props.dokumen?.deskripsi ?? '',
     status: props.dokumen?.status ?? 'draft',

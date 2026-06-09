@@ -76,15 +76,18 @@ class DokumenController extends Controller
     public function create(Request $request): Response
     {
         $this->authorize('create', Dokumen::class);
+        $opdOptions = $this->opdOptions($request->user());
+        $periodeOptions = $this->periodeOptions();
 
         return Inertia::render('Dokumen/Form', [
             'mode' => 'create',
             'dokumen' => null,
             'jenisOptions' => $this->jenisOptions(),
             'statusOptions' => $this->statusOptions(),
-            'opdOptions' => $this->opdOptions($request->user()),
-            'periodeOptions' => $this->periodeOptions(),
+            'opdOptions' => $opdOptions,
+            'periodeOptions' => $periodeOptions,
             'relationOptions' => $this->relationOptions($request->user()),
+            'initial' => $this->initialFormValues($request, $opdOptions, $periodeOptions),
         ]);
     }
 
@@ -144,6 +147,7 @@ class DokumenController extends Controller
             'opdOptions' => $this->opdOptions($request->user()),
             'periodeOptions' => $this->periodeOptions(),
             'relationOptions' => [],
+            'initial' => [],
         ]);
     }
 
@@ -299,6 +303,25 @@ class DokumenController extends Controller
                 'label' => "{$periode->tahun} - {$periode->nama}",
             ])
             ->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $opdOptions
+     * @param  array<int, array<string, mixed>>  $periodeOptions
+     * @return array<string, mixed>
+     */
+    private function initialFormValues(Request $request, array $opdOptions, array $periodeOptions): array
+    {
+        $jenisValues = collect($this->jenisOptions())->pluck('value')->all();
+        $opdIds = collect($opdOptions)->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $periodeIds = collect($periodeOptions)->pluck('id')->map(fn ($id) => (string) $id)->all();
+
+        return [
+            'jenis' => in_array($request->query('jenis'), $jenisValues, true) ? $request->query('jenis') : null,
+            'opd_id' => in_array((string) $request->query('opd_id'), $opdIds, true) ? $request->query('opd_id') : null,
+            'periode_tahun_id' => in_array((string) $request->query('periode_tahun_id'), $periodeIds, true) ? $request->query('periode_tahun_id') : null,
+            'judul' => $request->query('judul') ? str($request->query('judul'))->limit(180, '')->toString() : null,
+        ];
     }
 
     /**

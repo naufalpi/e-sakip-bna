@@ -128,6 +128,30 @@ class DokumenTest extends TestCase
             );
     }
 
+    public function test_admin_opd_can_check_public_document_completeness_for_own_opd(): void
+    {
+        Storage::fake('local');
+        $this->seed();
+
+        [$opd, , $periode, $adminOpd] = $this->basicActors();
+        $this->createDokumen($opd, $periode, $adminOpd, 'Pohon Kinerja Publik', [
+            'jenis' => 'pohon_kinerja',
+            'status' => 'verified',
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->get(route('dokumen-publik.index', ['tahun' => $periode->tahun]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Dokumen/PublikChecklist')
+                ->where('filters.opd_id', $opd->id)
+                ->where('isAggregate', false)
+                ->where('sections.0.key', 'perencanaan')
+                ->where('sections.0.items.0.key', 'pohon_kinerja')
+                ->where('sections.0.items.0.details.0.state', 'complete')
+            );
+    }
+
     public function test_pimpinan_without_document_permission_cannot_access_documents(): void
     {
         $this->seed();
@@ -152,12 +176,12 @@ class DokumenTest extends TestCase
         return [$opd, $otherOpd, $periode, $adminOpd];
     }
 
-    private function createDokumen(Opd $opd, PeriodeTahun $periode, User $uploadedBy, string $judul): Dokumen
+    private function createDokumen(Opd $opd, PeriodeTahun $periode, User $uploadedBy, string $judul, array $overrides = []): Dokumen
     {
         $path = 'dokumen/bukti_dukung/'.str($judul)->slug().'.txt';
         Storage::disk('local')->put($path, $judul);
 
-        return Dokumen::create([
+        return Dokumen::create(array_merge([
             'opd_id' => $opd->id,
             'periode_tahun_id' => $periode->id,
             'jenis' => 'bukti_dukung',
@@ -170,6 +194,6 @@ class DokumenTest extends TestCase
             'storage_disk' => 'local',
             'storage_path' => $path,
             'uploaded_by' => $uploadedBy->id,
-        ]);
+        ], $overrides));
     }
 }

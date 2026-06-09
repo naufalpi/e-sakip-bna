@@ -10,12 +10,13 @@ import SidebarMenuItem from '@/components/ui/sidebar/SidebarMenuItem.vue';
 import { useNavigationPrefetch } from '@/composables/useNavigationPrefetch';
 import { type NavGroup, type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import BarChart3 from 'lucide-vue-next/dist/esm/icons/chart-column.js';
 import Bell from 'lucide-vue-next/dist/esm/icons/bell.js';
 import BookOpenCheck from 'lucide-vue-next/dist/esm/icons/book-open-check.js';
 import Building2 from 'lucide-vue-next/dist/esm/icons/building-2.js';
 import CalendarDays from 'lucide-vue-next/dist/esm/icons/calendar-days.js';
+import BarChart3 from 'lucide-vue-next/dist/esm/icons/chart-column.js';
 import ClipboardCheck from 'lucide-vue-next/dist/esm/icons/clipboard-check.js';
+import ClipboardList from 'lucide-vue-next/dist/esm/icons/clipboard-list.js';
 import FileCheck2 from 'lucide-vue-next/dist/esm/icons/file-check-2.js';
 import FileText from 'lucide-vue-next/dist/esm/icons/file-text.js';
 import GitBranch from 'lucide-vue-next/dist/esm/icons/git-branch.js';
@@ -55,7 +56,19 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     href: '/dashboard',
                     icon: LayoutDashboard,
                 },
-                hasAnyPermission(['kinerja.manage', 'rpjmd.manage', 'renstra.manage', 'evaluasi.manage', 'lkjip.manage', 'verify_realisasi', 'manage_evaluasi', 'manage_rpjmd', 'manage_renstra_opd', 'view_dashboard_kabupaten', 'view_dashboard_opd']) && {
+                hasAnyPermission([
+                    'kinerja.manage',
+                    'rpjmd.manage',
+                    'renstra.manage',
+                    'evaluasi.manage',
+                    'lkjip.manage',
+                    'verify_realisasi',
+                    'manage_evaluasi',
+                    'manage_rpjmd',
+                    'manage_renstra_opd',
+                    'view_dashboard_kabupaten',
+                    'view_dashboard_opd',
+                ]) && {
                     title: 'Inbox Workflow',
                     href: '/workflow/inbox',
                     icon: Inbox,
@@ -126,7 +139,16 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     href: '/rencana-aksi',
                     icon: ListChecks,
                 },
-                hasAnyPermission(['rpjmd.view', 'view_rpjmd', 'rpjmd.manage', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'renstra.manage', 'manage_renstra_opd']) && {
+                hasAnyPermission([
+                    'rpjmd.view',
+                    'view_rpjmd',
+                    'rpjmd.manage',
+                    'manage_rpjmd',
+                    'renstra.view',
+                    'view_renstra_opd',
+                    'renstra.manage',
+                    'manage_renstra_opd',
+                ]) && {
                     title: 'Revisi Target',
                     href: '/target-revisions',
                     icon: History,
@@ -141,8 +163,18 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     href: '/realisasi-kinerja',
                     icon: BarChart3,
                 },
+            ]),
+        },
+        {
+            label: 'Dokumen Publik',
+            items: visibleItems([
                 hasAnyPermission(['dokumen.view', 'dokumen.manage', 'manage_dokumen']) && {
-                    title: 'Bukti Dukung',
+                    title: 'Kelengkapan Publik',
+                    href: '/dokumen-publik',
+                    icon: ClipboardList,
+                },
+                hasAnyPermission(['dokumen.view', 'dokumen.manage', 'manage_dokumen']) && {
+                    title: 'Arsip & Bukti Dukung',
                     href: '/dokumen',
                     icon: FileText,
                 },
@@ -198,7 +230,6 @@ const navigationGroups = computed<NavGroup[]>(() =>
 
 const navigationHrefs = computed(() => navigationGroups.value.flatMap((group) => group.items.map((item) => item.href)));
 useNavigationPrefetch(navigationHrefs);
-
 </script>
 
 <template>

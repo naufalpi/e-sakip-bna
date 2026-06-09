@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { Plus, Search } from 'lucide-vue-next';
+import ArrowRight from 'lucide-vue-next/dist/esm/icons/arrow-right.js';
+import ClipboardList from 'lucide-vue-next/dist/esm/icons/clipboard-list.js';
+import Plus from 'lucide-vue-next/dist/esm/icons/plus.js';
+import Search from 'lucide-vue-next/dist/esm/icons/search.js';
 import { reactive } from 'vue';
 
 type Option = { id?: number; value?: string; label: string };
@@ -104,6 +107,31 @@ const statusClass = (status: string) =>
                 Unggah Dokumen
             </Link>
         </div>
+
+        <section class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div class="flex min-w-0 items-start gap-3">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-emerald-800 shadow-sm">
+                        <ClipboardList class="size-5" />
+                    </div>
+                    <div class="min-w-0">
+                        <h2 class="font-semibold">Cek dokumen yang tampil ke masyarakat</h2>
+                        <p class="mt-1 text-sm leading-6 text-emerald-900/80">
+                            Lihat daftar Perencanaan, Pengukuran, Pelaporan, dan Evaluasi yang sudah siap publik atau masih perlu diunggah.
+                        </p>
+                    </div>
+                </div>
+                <Link
+                    :href="route('dokumen-publik.index')"
+                    class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800"
+                    prefetch="hover"
+                    cache-for="2m"
+                >
+                    Buka Checklist
+                    <ArrowRight class="size-4" />
+                </Link>
+            </div>
+        </section>
 
         <form class="grid gap-3 rounded-lg border bg-card p-3 lg:grid-cols-[1fr_180px_170px_220px_190px_auto]" @submit.prevent="applyFiltersNow">
             <div class="relative">
