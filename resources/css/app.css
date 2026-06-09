@@ -151,6 +151,45 @@ html {
         transform: translate3d(0, 0, 0) scale(1);
     }
 
+    .sidebar-thin-scrollbar {
+        scrollbar-color: hsl(var(--sidebar-foreground) / 0.24) transparent;
+        scrollbar-gutter: stable;
+        scrollbar-width: thin;
+    }
+
+    .sidebar-thin-scrollbar:hover {
+        scrollbar-color: hsl(var(--sidebar-foreground) / 0.38) transparent;
+    }
+
+    .sidebar-thin-scrollbar::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
+    }
+
+    [data-collapsible='icon'] [data-sidebar='content'].sidebar-thin-scrollbar::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .sidebar-thin-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .sidebar-thin-scrollbar::-webkit-scrollbar-thumb {
+        min-height: 2.5rem;
+        border-radius: 999px;
+        background-color: hsl(var(--sidebar-foreground) / 0.24);
+    }
+
+    .sidebar-thin-scrollbar:hover::-webkit-scrollbar-thumb {
+        background-color: hsl(var(--sidebar-foreground) / 0.38);
+    }
+
+    .sidebar-thin-scrollbar::-webkit-scrollbar-button,
+    .sidebar-thin-scrollbar::-webkit-scrollbar-corner {
+        display: none;
+        background: transparent;
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .page-drop-enter-active,
         .page-drop-leave-active,
