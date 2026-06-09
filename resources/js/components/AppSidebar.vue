@@ -176,7 +176,7 @@ const footerNavItems: NavItem[] = [];
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child>
-                        <Link :href="route('dashboard')">
+                        <Link :href="route('dashboard')" prefetch="hover" cache-for="45s">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>

@@ -43,6 +43,8 @@ const notificationBadge = computed(() => (notificationUnreadCount.value > 99 ? '
         </div>
         <Link
             :href="route('notifications.index')"
+            prefetch="hover"
+            cache-for="45s"
             class="relative inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Notifikasi"
         >
