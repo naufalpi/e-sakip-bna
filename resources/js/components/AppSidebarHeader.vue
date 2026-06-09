@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue';
+import BreadcrumbItem from '@/components/ui/breadcrumb/BreadcrumbItem.vue';
+import BreadcrumbLink from '@/components/ui/breadcrumb/BreadcrumbLink.vue';
+import BreadcrumbList from '@/components/ui/breadcrumb/BreadcrumbList.vue';
+import BreadcrumbPage from '@/components/ui/breadcrumb/BreadcrumbPage.vue';
+import BreadcrumbSeparator from '@/components/ui/breadcrumb/BreadcrumbSeparator.vue';
+import SidebarTrigger from '@/components/ui/sidebar/SidebarTrigger.vue';
 import type { BreadcrumbItemType, SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { Bell } from 'lucide-vue-next';
+import Bell from 'lucide-vue-next/dist/esm/icons/bell.js';
 import { computed } from 'vue';
 
 const props = withDefaults(

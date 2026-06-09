@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import UserInfo from '@/components/UserInfo.vue';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import DropdownMenu from '@/components/ui/dropdown-menu/DropdownMenu.vue';
+import DropdownMenuContent from '@/components/ui/dropdown-menu/DropdownMenuContent.vue';
+import DropdownMenuTrigger from '@/components/ui/dropdown-menu/DropdownMenuTrigger.vue';
+import SidebarMenu from '@/components/ui/sidebar/SidebarMenu.vue';
+import SidebarMenuButton from '@/components/ui/sidebar/SidebarMenuButton.vue';
+import SidebarMenuItem from '@/components/ui/sidebar/SidebarMenuItem.vue';
 import { type SharedData, type User } from '@/types';
 import { usePage } from '@inertiajs/vue3';
-import { ChevronsUpDown } from 'lucide-vue-next';
+import ChevronsUpDown from 'lucide-vue-next/dist/esm/icons/chevrons-up-down.js';
 import UserMenuContent from './UserMenuContent.vue';
 
 const page = usePage<SharedData>();

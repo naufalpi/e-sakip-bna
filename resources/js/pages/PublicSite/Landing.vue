@@ -1,21 +1,19 @@
 <script setup lang="ts">
 import type { SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import {
-    CalendarDays,
-    CheckCircle2,
-    ChevronRight,
-    Download,
-    Eye,
-    FileText,
-    Gauge,
-    LogIn,
-    Menu,
-    Network,
-    Search,
-    ShieldCheck,
-    X,
-} from 'lucide-vue-next';
+import CalendarDays from 'lucide-vue-next/dist/esm/icons/calendar-days.js';
+import CheckCircle2 from 'lucide-vue-next/dist/esm/icons/circle-check.js';
+import ChevronRight from 'lucide-vue-next/dist/esm/icons/chevron-right.js';
+import Download from 'lucide-vue-next/dist/esm/icons/download.js';
+import Eye from 'lucide-vue-next/dist/esm/icons/eye.js';
+import FileText from 'lucide-vue-next/dist/esm/icons/file-text.js';
+import Gauge from 'lucide-vue-next/dist/esm/icons/gauge.js';
+import LogIn from 'lucide-vue-next/dist/esm/icons/log-in.js';
+import Menu from 'lucide-vue-next/dist/esm/icons/menu.js';
+import Network from 'lucide-vue-next/dist/esm/icons/network.js';
+import Search from 'lucide-vue-next/dist/esm/icons/search.js';
+import ShieldCheck from 'lucide-vue-next/dist/esm/icons/shield-check.js';
+import X from 'lucide-vue-next/dist/esm/icons/x.js';
 import { computed, ref } from 'vue';
 
 type PublicDocument = {
@@ -819,7 +817,7 @@ function closeMobileMenu(): void {
     --civic-gold: #d6a326;
     --civic-blue: #0f5f7d;
     scroll-behavior: smooth;
-    font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .public-site :is(h1, h2) {

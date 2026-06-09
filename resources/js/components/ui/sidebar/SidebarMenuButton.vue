@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import Tooltip from '@/components/ui/tooltip/Tooltip.vue';
-import TooltipContent from '@/components/ui/tooltip/TooltipContent.vue';
-import TooltipTrigger from '@/components/ui/tooltip/TooltipTrigger.vue';
-import { computed, type Component } from 'vue';
+import { computed, defineAsyncComponent, type Component } from 'vue';
 import SidebarMenuButtonChild, { type SidebarMenuButtonProps } from './SidebarMenuButtonChild.vue';
 import { useSidebar } from './utils';
+
+const Tooltip = defineAsyncComponent(() => import('@/components/ui/tooltip/Tooltip.vue'));
+const TooltipContent = defineAsyncComponent(() => import('@/components/ui/tooltip/TooltipContent.vue'));
+const TooltipTrigger = defineAsyncComponent(() => import('@/components/ui/tooltip/TooltipTrigger.vue'));
 
 defineOptions({
     inheritAttrs: false,

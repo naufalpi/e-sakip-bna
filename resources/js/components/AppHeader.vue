@@ -17,7 +17,11 @@ import UserMenuContent from '@/components/UserMenuContent.vue';
 import { getInitials } from '@/composables/useInitials';
 import type { BreadcrumbItem, NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-vue-next';
+import BookOpen from 'lucide-vue-next/dist/esm/icons/book-open.js';
+import Folder from 'lucide-vue-next/dist/esm/icons/folder.js';
+import LayoutGrid from 'lucide-vue-next/dist/esm/icons/layout-grid.js';
+import Menu from 'lucide-vue-next/dist/esm/icons/menu.js';
+import Search from 'lucide-vue-next/dist/esm/icons/search.js';
 import { computed } from 'vue';
 
 interface Props {

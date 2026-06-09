@@ -4,14 +4,12 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        <meta name="description" content="E-SAKIP Kabupaten Banjarnegara untuk transparansi perencanaan, pengukuran, pelaporan, dan evaluasi kinerja perangkat daerah.">
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
-        <link rel="icon" type="image/svg+xml" href="/images/logo-banjarnegara.svg?v=20260609">
-        <link rel="apple-touch-icon" href="/images/logo-banjarnegara.png?v=20260609">
-
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
+        <link rel="icon" sizes="any" href="/favicon.ico?v=20260609">
+        <link rel="apple-touch-icon" href="/images/logo-banjarnegara-180.png?v=20260609">
 
         @routes
         @vite(['resources/js/app.ts'])

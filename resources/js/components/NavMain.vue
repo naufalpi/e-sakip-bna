@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import SidebarGroup from '@/components/ui/sidebar/SidebarGroup.vue';
+import SidebarGroupLabel from '@/components/ui/sidebar/SidebarGroupLabel.vue';
+import SidebarMenu from '@/components/ui/sidebar/SidebarMenu.vue';
+import SidebarMenuButton from '@/components/ui/sidebar/SidebarMenuButton.vue';
+import SidebarMenuItem from '@/components/ui/sidebar/SidebarMenuItem.vue';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 

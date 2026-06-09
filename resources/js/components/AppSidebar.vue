@@ -1,16 +1,41 @@
 <script setup lang="ts">
-import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
-import NavUser from '@/components/NavUser.vue';
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import Sidebar from '@/components/ui/sidebar/Sidebar.vue';
+import SidebarContent from '@/components/ui/sidebar/SidebarContent.vue';
+import SidebarFooter from '@/components/ui/sidebar/SidebarFooter.vue';
+import SidebarHeader from '@/components/ui/sidebar/SidebarHeader.vue';
+import SidebarMenu from '@/components/ui/sidebar/SidebarMenu.vue';
+import SidebarMenuButton from '@/components/ui/sidebar/SidebarMenuButton.vue';
+import SidebarMenuItem from '@/components/ui/sidebar/SidebarMenuItem.vue';
 import { useNavigationPrefetch } from '@/composables/useNavigationPrefetch';
 import { type NavGroup, type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BarChart3, Bell, BookOpenCheck, Building2, CalendarDays, ClipboardCheck, FileCheck2, FileText, GitBranch, History, Inbox, Landmark, Layers3, LayoutDashboard, ListChecks, Network, Ruler, ScrollText, Settings, ShieldCheck, Users } from 'lucide-vue-next';
-import { computed } from 'vue';
+import BarChart3 from 'lucide-vue-next/dist/esm/icons/chart-column.js';
+import Bell from 'lucide-vue-next/dist/esm/icons/bell.js';
+import BookOpenCheck from 'lucide-vue-next/dist/esm/icons/book-open-check.js';
+import Building2 from 'lucide-vue-next/dist/esm/icons/building-2.js';
+import CalendarDays from 'lucide-vue-next/dist/esm/icons/calendar-days.js';
+import ClipboardCheck from 'lucide-vue-next/dist/esm/icons/clipboard-check.js';
+import FileCheck2 from 'lucide-vue-next/dist/esm/icons/file-check-2.js';
+import FileText from 'lucide-vue-next/dist/esm/icons/file-text.js';
+import GitBranch from 'lucide-vue-next/dist/esm/icons/git-branch.js';
+import History from 'lucide-vue-next/dist/esm/icons/history.js';
+import Inbox from 'lucide-vue-next/dist/esm/icons/inbox.js';
+import Landmark from 'lucide-vue-next/dist/esm/icons/landmark.js';
+import Layers3 from 'lucide-vue-next/dist/esm/icons/layers.js';
+import LayoutDashboard from 'lucide-vue-next/dist/esm/icons/layout-dashboard.js';
+import ListChecks from 'lucide-vue-next/dist/esm/icons/list-checks.js';
+import Network from 'lucide-vue-next/dist/esm/icons/network.js';
+import Ruler from 'lucide-vue-next/dist/esm/icons/ruler.js';
+import ScrollText from 'lucide-vue-next/dist/esm/icons/scroll-text.js';
+import Settings from 'lucide-vue-next/dist/esm/icons/settings.js';
+import ShieldCheck from 'lucide-vue-next/dist/esm/icons/shield-check.js';
+import Users from 'lucide-vue-next/dist/esm/icons/users.js';
+import { computed, defineAsyncComponent } from 'vue';
 import AppLogo from './AppLogo.vue';
 
 const page = usePage<SharedData>();
+const NavUser = defineAsyncComponent(() => import('@/components/NavUser.vue'));
 const hasPermission = (permission: string) => page.props.auth.user?.permissions?.includes(permission) ?? false;
 const hasAnyPermission = (permissions: string[]) => permissions.some((permission) => hasPermission(permission));
 const hasRole = (role: string) => page.props.auth.user?.roles?.some((item) => item.name === role) ?? false;
@@ -174,7 +199,6 @@ const navigationGroups = computed<NavGroup[]>(() =>
 const navigationHrefs = computed(() => navigationGroups.value.flatMap((group) => group.items.map((item) => item.href)));
 useNavigationPrefetch(navigationHrefs);
 
-const footerNavItems: NavItem[] = [];
 </script>
 
 <template>
@@ -196,7 +220,6 @@ const footerNavItems: NavItem[] = [];
         </SidebarContent>
 
         <SidebarFooter>
-            <NavFooter v-if="footerNavItems.length" :items="footerNavItems" />
             <NavUser />
         </SidebarFooter>
     </Sidebar>
