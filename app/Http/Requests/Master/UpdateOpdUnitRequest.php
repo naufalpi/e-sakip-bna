@@ -9,7 +9,9 @@ class UpdateOpdUnitRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->hasPermission('opd.manage');
+        return $this->user()->hasPermission('opd.manage')
+            || $this->user()->hasPermission('opd_units.manage')
+            || ($this->user()->hasRole('admin_opd') && filled($this->user()->opd_id));
     }
 
     public function rules(): array

@@ -164,14 +164,14 @@ class MasterUmumTest extends TestCase
         $opd = Opd::create(['kode' => '1.01.01', 'nama' => 'OPD Sendiri', 'status' => 'active']);
         $otherOpd = Opd::create(['kode' => '1.01.02', 'nama' => 'OPD Lain', 'status' => 'active']);
 
-        OpdUnit::create([
+        $ownUnit = OpdUnit::create([
             'opd_id' => $opd->id,
             'kode' => 'OWN',
             'nama' => 'Unit Sendiri',
             'jenis_unit' => 'bidang',
             'status' => 'active',
         ]);
-        OpdUnit::create([
+        $otherUnit = OpdUnit::create([
             'opd_id' => $otherOpd->id,
             'kode' => 'OTHER',
             'nama' => 'Unit Lain',
@@ -189,7 +189,7 @@ class MasterUmumTest extends TestCase
                 ->component('Master/OpdUnit/Index')
                 ->has('items.data', 1)
                 ->where('items.data.0.kode', 'OWN')
-                ->where('can.manage', false)
+                ->where('can.manage', true)
             );
 
         $this->actingAs($adminOpd)
@@ -199,6 +199,42 @@ class MasterUmumTest extends TestCase
                 'nama' => 'Unit Baru',
                 'status' => 'active',
             ])
+            ->assertRedirect(route('master.opd-units.index'));
+
+        $this->assertDatabaseHas('opd_units', [
+            'opd_id' => $opd->id,
+            'kode' => 'OWN-NEW',
+            'nama' => 'Unit Baru',
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->post(route('master.opd-units.store'), [
+                'opd_id' => $otherOpd->id,
+                'kode' => 'OTHER-NEW',
+                'nama' => 'Unit OPD Lain',
+                'status' => 'active',
+            ])
+            ->assertSessionHasErrors('opd_id');
+
+        $this->actingAs($adminOpd)
+            ->get(route('master.opd-units.edit', $ownUnit))
+            ->assertOk();
+
+        $this->actingAs($adminOpd)
+            ->get(route('master.opd-units.edit', $otherUnit))
+            ->assertForbidden();
+
+        $this->actingAs($adminOpd)
+            ->put(route('master.opd-units.update', $otherUnit), [
+                'opd_id' => $opd->id,
+                'kode' => 'OWN-HIJACK',
+                'nama' => 'Unit Lain Diubah',
+                'status' => 'active',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($adminOpd)
+            ->delete(route('master.opd-units.destroy', $otherUnit))
             ->assertForbidden();
     }
 

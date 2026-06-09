@@ -51,14 +51,14 @@ class OpdUnitController extends Controller
             'opdOptions' => $this->opdOptions($user),
             'jenisOptions' => $this->jenisOptions(),
             'can' => [
-                'manage' => $user->hasPermission('opd.manage'),
+                'manage' => $this->canManageOpdUnits($user),
             ],
         ]);
     }
 
     public function create(Request $request): Response
     {
-        abort_unless($request->user()->hasPermission('opd.manage'), 403);
+        abort_unless($this->canManageOpdUnits($request->user()), 403);
 
         return Inertia::render('Master/OpdUnit/Form', [
             'mode' => 'create',
@@ -82,7 +82,8 @@ class OpdUnitController extends Controller
 
     public function edit(Request $request, OpdUnit $opdUnit): Response
     {
-        abort_unless($request->user()->hasPermission('opd.manage'), 403);
+        abort_unless($this->canManageOpdUnits($request->user()), 403);
+        $this->abortUnlessAllowedOpd($request->user(), (int) $opdUnit->opd_id);
 
         return Inertia::render('Master/OpdUnit/Form', [
             'mode' => 'edit',
@@ -96,6 +97,7 @@ class OpdUnitController extends Controller
     public function update(UpdateOpdUnitRequest $request, OpdUnit $opdUnit): RedirectResponse
     {
         $data = $request->validated();
+        $this->abortUnlessAllowedOpd($request->user(), (int) $opdUnit->opd_id);
         $this->assertAllowedOpd($request->user(), (int) $data['opd_id']);
         $this->assertParentValid($data['parent_id'] ?? null, (int) $data['opd_id'], $opdUnit);
 
@@ -106,7 +108,8 @@ class OpdUnitController extends Controller
 
     public function destroy(Request $request, OpdUnit $opdUnit): RedirectResponse
     {
-        abort_unless($request->user()->hasPermission('opd.manage'), 403);
+        abort_unless($this->canManageOpdUnits($request->user()), 403);
+        $this->abortUnlessAllowedOpd($request->user(), (int) $opdUnit->opd_id);
 
         $opdUnit->delete();
 
@@ -125,10 +128,24 @@ class OpdUnitController extends Controller
             ]);
     }
 
+    private function canManageOpdUnits(User $user): bool
+    {
+        return $user->hasPermission('opd.manage')
+            || $user->hasPermission('opd_units.manage')
+            || ($user->hasRole('admin_opd') && filled($user->opd_id));
+    }
+
     private function assertAllowedOpd(User $user, int $opdId): void
     {
         if ($this->shouldLimitToUserOpd($user) && (int) $user->opd_id !== $opdId) {
             throw ValidationException::withMessages(['opd_id' => 'OPD tidak sesuai dengan cakupan user.']);
+        }
+    }
+
+    private function abortUnlessAllowedOpd(User $user, int $opdId): void
+    {
+        if ($this->shouldLimitToUserOpd($user) && (int) $user->opd_id !== $opdId) {
+            abort(403);
         }
     }
 

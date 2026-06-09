@@ -21,8 +21,10 @@ const props = defineProps<{
     jenisOptions: Array<{ value: string; label: string }>;
 }>();
 
+const defaultOpdId = props.item?.opd_id ?? (props.opdOptions.length === 1 ? props.opdOptions[0].id : '');
+
 const form = useForm<UnitForm>({
-    opd_id: props.item?.opd_id ?? '',
+    opd_id: defaultOpdId,
     parent_id: props.item?.parent_id ?? '',
     kode: props.item?.kode ?? '',
     nama: props.item?.nama ?? '',
@@ -57,7 +59,12 @@ const submit = () => {
             <div class="mt-4 grid gap-4 md:grid-cols-2">
                 <div class="grid gap-2 md:col-span-2">
                     <label class="text-sm font-medium" for="opd_id">OPD</label>
-                    <select id="opd_id" v-model="form.opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                    <select
+                        id="opd_id"
+                        v-model="form.opd_id"
+                        :disabled="opdOptions.length === 1"
+                        class="h-9 rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                    >
                         <option value="">Pilih OPD</option>
                         <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                     </select>
