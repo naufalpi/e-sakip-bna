@@ -19,7 +19,7 @@ const isActive = (href: string) => page.url === href || page.url.startsWith(`${h
         <SidebarMenu>
             <SidebarMenuItem v-for="item in items" :key="item.title">
                 <SidebarMenuButton as-child :is-active="isActive(item.href)">
-                    <Link :href="item.href" prefetch="hover" cache-for="45s">
+                    <Link :href="item.href" prefetch="hover" cache-for="2m">
                         <component :is="item.icon" />
                         <span>{{ item.title }}</span>
                         <span

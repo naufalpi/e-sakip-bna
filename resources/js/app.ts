@@ -30,6 +30,29 @@ type InertiaPageModule = {
 
 const pages = import.meta.glob<InertiaPageModule>('./pages/**/*.vue');
 const shouldUsePersistentAppLayout = (name: string) => !name.startsWith('auth/') && !name.startsWith('PublicSite/') && name !== 'Welcome';
+const warmedPageComponents = new Set<string>();
+
+const warmPageComponent = (name: string | undefined) => {
+    if (!name || warmedPageComponents.has(name)) {
+        return;
+    }
+
+    const importer = pages[`./pages/${name}.vue`];
+
+    if (!importer) {
+        return;
+    }
+
+    warmedPageComponents.add(name);
+    void importer().catch(() => warmedPageComponents.delete(name));
+};
+
+if (typeof document !== 'undefined') {
+    document.addEventListener('inertia:prefetched', (event) => {
+        const page = (event as CustomEvent<{ response?: { component?: string } }>).detail.response;
+        warmPageComponent(page?.component);
+    });
+}
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
@@ -49,7 +72,9 @@ createInertiaApp({
             .mount(el);
     },
     progress: {
-        color: '#4B5563',
+        delay: 120,
+        color: '#047857',
+        showSpinner: false,
     },
 });
 

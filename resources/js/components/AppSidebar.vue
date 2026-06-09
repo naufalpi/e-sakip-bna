@@ -4,9 +4,9 @@ import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavGroup, type NavItem, type SharedData } from '@/types';
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { BarChart3, Bell, BookOpenCheck, Building2, CalendarDays, ClipboardCheck, FileCheck2, FileText, GitBranch, History, Inbox, Landmark, Layers3, LayoutDashboard, ListChecks, Network, Ruler, ScrollText, Settings, ShieldCheck, Users } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import AppLogo from './AppLogo.vue';
 
 const page = usePage<SharedData>();
@@ -167,6 +167,94 @@ const navigationGroups = computed<NavGroup[]>(() =>
     ].filter((group) => group.items.length > 0),
 );
 
+const navigationHrefs = computed(() => navigationGroups.value.flatMap((group) => group.items.map((item) => item.href)));
+const prefetchedNavigationHrefs = new Map<string, number>();
+const prefetchTimers: ReturnType<typeof window.setTimeout>[] = [];
+const prefetchVisitOptions = {
+    method: 'get' as const,
+    preserveScroll: true,
+    preserveState: false,
+    showProgress: false,
+};
+const prefetchCacheFor = '2m';
+const prefetchFreshMs = 110_000;
+
+const normalizedInternalHref = (href: string): string | null => {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    const url = new URL(href, window.location.origin);
+
+    if (url.origin !== window.location.origin) {
+        return null;
+    }
+
+    return `${url.pathname}${url.search}`;
+};
+
+const clearPrefetchTimers = () => {
+    while (prefetchTimers.length > 0) {
+        const timer = prefetchTimers.pop();
+
+        if (timer) {
+            window.clearTimeout(timer);
+        }
+    }
+};
+
+const prefetchNavigationHref = (href: string) => {
+    const normalizedHref = normalizedInternalHref(href);
+
+    if (!normalizedHref || normalizedHref === `${window.location.pathname}${window.location.search}`) {
+        return;
+    }
+
+    const lastPrefetchedAt = prefetchedNavigationHrefs.get(normalizedHref);
+
+    if (lastPrefetchedAt && Date.now() - lastPrefetchedAt < prefetchFreshMs) {
+        return;
+    }
+
+    if (router.getCached(normalizedHref, prefetchVisitOptions) || router.getPrefetching(normalizedHref, prefetchVisitOptions)) {
+        prefetchedNavigationHrefs.set(normalizedHref, Date.now());
+        return;
+    }
+
+    router.prefetch(normalizedHref, prefetchVisitOptions, { cacheFor: prefetchCacheFor });
+    prefetchedNavigationHrefs.set(normalizedHref, Date.now());
+};
+
+const scheduleNavigationPrefetch = () => {
+    if (typeof window === 'undefined' || document.visibilityState === 'hidden') {
+        return;
+    }
+
+    clearPrefetchTimers();
+
+    const uniqueHrefs = [...new Set(navigationHrefs.value)]
+        .map((href) => normalizedInternalHref(href))
+        .filter((href): href is string => Boolean(href) && href !== `${window.location.pathname}${window.location.search}`);
+
+    uniqueHrefs.forEach((href, index) => {
+        prefetchTimers.push(window.setTimeout(() => prefetchNavigationHref(href), 650 + index * 180));
+    });
+};
+
+let stopNavigateListener: VoidFunction | undefined;
+
+onMounted(() => {
+    scheduleNavigationPrefetch();
+    stopNavigateListener = router.on('navigate', () => scheduleNavigationPrefetch());
+});
+
+onBeforeUnmount(() => {
+    clearPrefetchTimers();
+    stopNavigateListener?.();
+});
+
+watch(navigationHrefs, () => scheduleNavigationPrefetch());
+
 const footerNavItems: NavItem[] = [];
 </script>
 
@@ -176,7 +264,7 @@ const footerNavItems: NavItem[] = [];
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child>
-                        <Link :href="route('dashboard')" prefetch="hover" cache-for="45s">
+                        <Link :href="route('dashboard')" prefetch="hover" cache-for="2m">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>
