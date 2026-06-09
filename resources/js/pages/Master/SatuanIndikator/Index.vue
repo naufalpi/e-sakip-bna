@@ -37,7 +37,7 @@ const filterForm = reactive({
     jenis: props.filters.jenis ?? '',
 });
 
-const applyFilters = () => router.get(route('master.satuan-indikator.index'), filterForm, { preserveState: true, replace: true });
+const applyFilters = () => router.get(route('master.satuan-indikator.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 const resetFilters = () => {
     filterForm.search = '';

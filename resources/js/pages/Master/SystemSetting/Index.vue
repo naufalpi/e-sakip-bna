@@ -40,7 +40,7 @@ const filterForm = reactive({
     is_public: props.filters.is_public ?? '',
 });
 
-const applyFilters = () => router.get(route('master.system-settings.index'), filterForm, { preserveState: true, replace: true });
+const applyFilters = () => router.get(route('master.system-settings.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 const resetFilters = () => {
     filterForm.search = '';

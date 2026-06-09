@@ -261,7 +261,7 @@ const planningSummary = computed(() => [
 const achievementDistributionTotal = computed(() => props.achievementStatusDistribution.reduce((sum, row) => sum + row.count, 0));
 
 const applyFilters = () => {
-    router.get(route('dashboard'), filterForm, { preserveState: true, replace: true });
+    router.get(route('dashboard'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
 };
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 

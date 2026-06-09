@@ -45,7 +45,7 @@ const noteForm = useForm({ note: '' });
 const activeAction = ref<{ id: number; action: 'approve' | 'reject' } | null>(null);
 
 const applyFilters = () => {
-    router.get(route('target-revisions.index'), filterForm, { preserveState: true, replace: true });
+    router.get(route('target-revisions.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
 };
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 

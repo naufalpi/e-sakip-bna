@@ -74,6 +74,7 @@ const filterForm = reactive({
 const applyFilters = () => {
     router.get(route('renstra-opd.index'), filterForm, {
         preserveState: true,
+        preserveScroll: true,
         replace: true,
     });
 };

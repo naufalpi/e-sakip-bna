@@ -48,7 +48,7 @@ const filterForm = reactive({
     predikat: props.filters.predikat ?? '',
 });
 
-const applyFilters = () => router.get(route('evaluasi-sakip.index'), filterForm, { preserveState: true, replace: true });
+const applyFilters = () => router.get(route('evaluasi-sakip.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 const resetFilters = () => {
     filterForm.search = '';

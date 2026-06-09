@@ -55,7 +55,7 @@ const filterForm = reactive({
     triwulan: props.filters.triwulan ?? '',
 });
 
-const applyFilters = () => router.get(route('realisasi-kinerja.index'), filterForm, { preserveState: true, replace: true });
+const applyFilters = () => router.get(route('realisasi-kinerja.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 const resetFilters = () => {
     filterForm.search = '';

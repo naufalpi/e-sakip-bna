@@ -41,7 +41,7 @@ const filterForm = reactive({
     tahun: props.filters.tahun ?? '',
 });
 
-const applyFilters = () => router.get(route('rencana-aksi.index'), filterForm, { preserveState: true, replace: true });
+const applyFilters = () => router.get(route('rencana-aksi.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 const resetFilters = () => {
     filterForm.search = '';

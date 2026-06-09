@@ -46,6 +46,7 @@ const filterForm = reactive({
 const applyFilters = () => {
     router.get(route('master.opd.index'), filterForm, {
         preserveState: true,
+        preserveScroll: true,
         replace: true,
     });
 };

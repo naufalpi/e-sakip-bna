@@ -55,6 +55,7 @@ const filterForm = reactive({
 const applyFilters = () => {
     router.get(route('rpjmd.index'), filterForm, {
         preserveState: true,
+        preserveScroll: true,
         replace: true,
     });
 };

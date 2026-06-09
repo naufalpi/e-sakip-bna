@@ -41,7 +41,7 @@ const filterForm = reactive({
     model_type: props.filters.model_type ?? '',
 });
 
-const applyFilters = () => router.get(route('audit-log.index'), filterForm, { preserveState: true, replace: true });
+const applyFilters = () => router.get(route('audit-log.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 const resetFilters = () => {
     filterForm.search = '';
