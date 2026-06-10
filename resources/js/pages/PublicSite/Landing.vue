@@ -348,10 +348,10 @@ function closeMobileMenu(): void {
                         v-for="item in navItems"
                         :key="item.id"
                         :href="item.href"
-                        class="rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+                        class="relative rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
                         :class="
                             item.isActive
-                                ? 'bg-blue-700 text-white shadow-sm shadow-blue-950/20'
+                                ? 'text-blue-700 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-blue-700'
                                 : 'text-slate-700 hover:bg-blue-50 hover:text-blue-800'
                         "
                     >
@@ -387,7 +387,7 @@ function closeMobileMenu(): void {
                         :key="item.id"
                         :href="item.href"
                         class="min-h-11 rounded-md px-3 py-3 text-sm font-semibold"
-                        :class="item.isActive ? 'bg-blue-700 text-white' : 'text-slate-700 hover:bg-blue-50'"
+                        :class="item.isActive ? 'text-blue-700' : 'text-slate-700 hover:bg-blue-50'"
                         @click="closeMobileMenu"
                     >
                         {{ item.label }}
