@@ -404,59 +404,71 @@ function closeMobileMenu(): void {
         </header>
 
         <main>
-            <section v-if="!currentSection" id="beranda" class="hero-section relative isolate flex min-h-[74dvh] items-end overflow-hidden pt-28">
-                <img
-                    src="/images/hero-dieng-banjarnegara.webp"
-                    alt="Lanskap Dieng Banjarnegara dengan danau, candi, dan dataran tinggi berkabut"
-                    class="hero-photo absolute inset-0 -z-30 h-full w-full object-cover"
-                />
-                <div class="hero-vignette absolute inset-0 -z-20"></div>
+            <section v-if="!currentSection" id="beranda" class="hero-section relative isolate overflow-hidden pt-28">
+                <div class="mx-auto max-w-7xl px-4 pb-10 pt-8 sm:px-6 sm:pt-10 lg:px-8 lg:pb-12">
+                    <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,31rem)] lg:items-stretch">
+                        <div class="hero-content rounded-2xl border border-blue-100 bg-white p-6 shadow-sm shadow-blue-950/5 sm:p-8 lg:p-10">
+                            <p
+                                class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-normal text-blue-800"
+                            >
+                                <ShieldCheck class="h-3.5 w-3.5" />
+                                Portal Publik Akuntabilitas Kinerja
+                            </p>
+                            <h1 class="hero-title mt-5 max-w-4xl text-4xl font-bold leading-tight text-blue-950 sm:text-5xl">
+                                Transparansi Kinerja Pemerintah Kabupaten Banjarnegara
+                            </h1>
+                            <p class="mt-5 max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
+                                Selamat datang di E-SAKIP Kabupaten Banjarnegara. Masyarakat dapat menelusuri dokumen perencanaan, pengukuran,
+                                pelaporan, dan evaluasi kinerja perangkat daerah berdasarkan tahun berjalan.
+                            </p>
 
-                <div class="mx-auto w-full max-w-7xl px-4 pb-10 pt-14 sm:px-6 lg:px-8">
-                    <div class="hero-content max-w-5xl">
-                        <p class="hero-kicker text-sm font-semibold uppercase tracking-normal text-blue-100">Portal Publik Akuntabilitas Kinerja</p>
-                        <h1 class="hero-title mt-4 max-w-5xl text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
-                            E-SAKIP Kabupaten Banjarnegara
-                        </h1>
-                        <p class="mt-5 max-w-3xl text-base leading-8 text-slate-100 sm:text-lg">
-                            Selamat datang di kanal informasi kinerja perangkat daerah. Masyarakat dapat melihat dokumen perencanaan, capaian,
-                            pelaporan, dan evaluasi SAKIP berdasarkan periode berjalan.
-                        </p>
+                            <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+                                <Link
+                                    :href="props.section_urls.perencanaan"
+                                    class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-950/15 transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+                                >
+                                    Lihat Data Publik
+                                    <ChevronRight class="h-4 w-4" />
+                                </Link>
+                                <Link
+                                    :href="entryUrl"
+                                    class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-blue-100 bg-white px-5 py-3 text-sm font-semibold text-blue-800 transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+                                >
+                                    <LogIn class="h-4 w-4" />
+                                    {{ entryLabel }}
+                                </Link>
+                            </div>
 
-                        <div
-                            class="hero-proofline mt-7 grid max-w-3xl gap-x-8 gap-y-3 text-sm font-semibold text-white sm:grid-cols-2 lg:grid-cols-4"
-                        >
-                            <span><CheckCircle2 class="h-4 w-4" /> Perencanaan</span>
-                            <span><CheckCircle2 class="h-4 w-4" /> Pengukuran</span>
-                            <span><CheckCircle2 class="h-4 w-4" /> Pelaporan</span>
-                            <span><CheckCircle2 class="h-4 w-4" /> Evaluasi</span>
+                            <div class="hero-proofline mt-8 grid gap-3 text-sm font-semibold text-slate-700 sm:grid-cols-2 xl:grid-cols-4">
+                                <span><CheckCircle2 class="h-4 w-4" /> Perencanaan</span>
+                                <span><CheckCircle2 class="h-4 w-4" /> Pengukuran</span>
+                                <span><CheckCircle2 class="h-4 w-4" /> Pelaporan</span>
+                                <span><CheckCircle2 class="h-4 w-4" /> Evaluasi</span>
+                            </div>
                         </div>
 
-                        <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-                            <Link
-                                :href="props.section_urls.perencanaan"
-                                class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-blue-900 shadow-lg shadow-blue-950/15 transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-900"
-                            >
-                                Lihat Data Publik
-                                <ChevronRight class="h-4 w-4" />
-                            </Link>
-                            <Link
-                                :href="entryUrl"
-                                class="hover:bg-white/18 inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-900"
-                            >
-                                <LogIn class="h-4 w-4" />
-                                {{ entryLabel }}
-                            </Link>
-                        </div>
+                        <aside class="hero-media rounded-2xl border border-blue-100 bg-white p-3 shadow-sm shadow-blue-950/5">
+                            <figure class="overflow-hidden rounded-xl border border-blue-50 bg-blue-50">
+                                <img
+                                    src="/images/hero-dieng-banjarnegara.webp"
+                                    alt="Lanskap Dieng Banjarnegara dengan danau, candi, dan dataran tinggi berkabut"
+                                    class="hero-photo aspect-[4/3] w-full object-cover"
+                                />
+                                <figcaption class="flex items-center justify-between gap-3 bg-white px-4 py-3 text-sm text-slate-600">
+                                    <span class="font-semibold text-blue-950">Dieng, Banjarnegara</span>
+                                    <span>{{ selectedYearLabel }}</span>
+                                </figcaption>
+                            </figure>
+
+                            <dl class="mt-3 grid grid-cols-2 gap-3">
+                                <div v-for="stat in statCards" :key="stat.label" class="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
+                                    <dt class="text-xs font-semibold uppercase tracking-normal text-slate-500">{{ stat.label }}</dt>
+                                    <dd class="mt-2 text-2xl font-bold leading-none text-blue-950">{{ stat.value }}</dd>
+                                    <p class="mt-1 text-xs text-slate-600">{{ stat.note }}</p>
+                                </div>
+                            </dl>
+                        </aside>
                     </div>
-
-                    <dl class="hero-data-strip mt-10 grid border-y border-white/20 py-4 text-white sm:grid-cols-2 lg:grid-cols-4">
-                        <div v-for="stat in statCards" :key="stat.label" class="border-white/15 py-3 sm:px-4 lg:border-l lg:first:border-l-0">
-                            <dt class="text-xs font-semibold uppercase tracking-normal text-blue-100">{{ stat.label }}</dt>
-                            <dd class="mt-2 text-2xl font-bold leading-none">{{ stat.value }}</dd>
-                            <p class="mt-1 text-sm text-slate-200">{{ stat.note }}</p>
-                        </div>
-                    </dl>
                 </div>
             </section>
 
@@ -837,41 +849,43 @@ function closeMobileMenu(): void {
 }
 
 .hero-section {
-    background-color: #0b3f86;
+    background: radial-gradient(circle at 8% 12%, rgba(37, 99, 235, 0.12), transparent 24rem), linear-gradient(180deg, #eff6ff 0%, #ffffff 88%);
 }
 
 .hero-photo {
-    transform: scale(1.04);
     transform-origin: center;
     object-position: center 42%;
 }
 
-.hero-vignette {
-    background:
-        linear-gradient(90deg, rgba(3, 39, 93, 0.96) 0%, rgba(7, 71, 166, 0.82) 44%, rgba(14, 116, 210, 0.3) 74%, rgba(14, 116, 210, 0.16) 100%),
-        linear-gradient(180deg, rgba(2, 6, 23, 0.16) 0%, rgba(2, 6, 23, 0.06) 48%, rgba(3, 39, 93, 0.74) 100%);
-}
-
 .hero-section::after {
     position: absolute;
-    inset: auto 0 0 0;
-    height: 8rem;
+    inset: 0;
+    z-index: -1;
     content: '';
-    background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.94));
+    background-image:
+        linear-gradient(rgba(37, 99, 235, 0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(37, 99, 235, 0.045) 1px, transparent 1px);
+    background-size: 3rem 3rem;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.75), transparent 76%);
 }
 
 .hero-title {
     text-wrap: balance;
-    text-shadow: 0 1.5rem 3rem rgba(2, 6, 23, 0.42);
 }
 
 .hero-content {
-    border-left: 0.28rem solid #93c5fd;
-    padding-left: clamp(1rem, 2vw, 1.5rem);
+    position: relative;
+    overflow: hidden;
 }
 
-.hero-kicker {
-    text-shadow: 0 0.8rem 1.6rem rgba(2, 6, 23, 0.46);
+.hero-content::after {
+    position: absolute;
+    inset: auto -7rem -7rem auto;
+    width: 15rem;
+    height: 15rem;
+    content: '';
+    border-radius: 9999px;
+    background: rgba(37, 99, 235, 0.08);
+    pointer-events: none;
 }
 
 .hero-proofline span {
@@ -882,11 +896,11 @@ function closeMobileMenu(): void {
 }
 
 .hero-proofline svg {
-    color: #bfdbfe;
+    color: #2563eb;
 }
 
-.hero-data-strip {
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.12), rgba(219, 234, 254, 0.08));
+.hero-media {
+    align-self: stretch;
 }
 
 .cycle-band {
