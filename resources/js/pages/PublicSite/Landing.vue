@@ -2,8 +2,8 @@
 import type { SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import CalendarDays from 'lucide-vue-next/dist/esm/icons/calendar-days.js';
-import CheckCircle2 from 'lucide-vue-next/dist/esm/icons/circle-check.js';
 import ChevronRight from 'lucide-vue-next/dist/esm/icons/chevron-right.js';
+import CheckCircle2 from 'lucide-vue-next/dist/esm/icons/circle-check.js';
 import Download from 'lucide-vue-next/dist/esm/icons/download.js';
 import Eye from 'lucide-vue-next/dist/esm/icons/eye.js';
 import FileText from 'lucide-vue-next/dist/esm/icons/file-text.js';
@@ -225,20 +225,20 @@ function formatDecimal(value: number): string {
 
 function cellClass(cell?: PublicCell): string {
     return {
-        available: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+        available: 'border-blue-200 bg-blue-50 text-blue-800',
         excellent: 'border-sky-200 bg-sky-50 text-sky-800',
-        data: 'border-blue-200 bg-blue-50 text-blue-800',
-        warning: 'border-amber-200 bg-amber-50 text-amber-800',
+        data: 'border-cyan-200 bg-cyan-50 text-cyan-800',
+        warning: 'border-indigo-200 bg-indigo-50 text-indigo-800',
         missing: 'border-slate-200 bg-slate-50 text-slate-500',
     }[cell?.state ?? 'missing'];
 }
 
 function dotClass(cell?: PublicCell): string {
     return {
-        available: 'bg-emerald-500',
+        available: 'bg-blue-600',
         excellent: 'bg-sky-500',
-        data: 'bg-blue-500',
-        warning: 'bg-amber-500',
+        data: 'bg-cyan-500',
+        warning: 'bg-indigo-500',
         missing: 'bg-slate-300',
     }[cell?.state ?? 'missing'];
 }
@@ -323,22 +323,22 @@ function closeMobileMenu(): void {
 <template>
     <Head :title="currentSection ? currentSection.title : 'Beranda Publik'" />
 
-    <div class="public-site min-h-dvh bg-[#f6f8fb] text-slate-900">
-        <header class="fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 bg-slate-50">
-                <div class="mx-auto flex min-h-9 max-w-7xl items-center gap-2 px-4 text-xs font-medium text-slate-600 sm:px-6 lg:px-8">
-                    <ShieldCheck class="h-3.5 w-3.5 text-emerald-800" />
+    <div class="public-site min-h-dvh bg-white text-slate-900">
+        <header class="fixed inset-x-0 top-0 z-50 border-b border-blue-100 bg-white shadow-sm shadow-blue-950/5">
+            <div class="bg-blue-900">
+                <div class="mx-auto flex min-h-9 max-w-7xl items-center gap-2 px-4 text-xs font-medium text-blue-50 sm:px-6 lg:px-8">
+                    <ShieldCheck class="h-3.5 w-3.5 text-blue-200" />
                     Portal publik akuntabilitas kinerja Pemerintah Kabupaten Banjarnegara
                 </div>
             </div>
             <div class="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                 <Link
                     :href="props.section_urls.home"
-                    class="flex min-h-11 items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
+                    class="flex min-h-11 items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
                 >
                     <img src="/images/logo-banjarnegara.svg" alt="Lambang Kabupaten Banjarnegara" class="h-11 w-11 object-contain" />
                     <div class="leading-tight">
-                        <p class="text-sm font-bold uppercase text-emerald-900">E-SAKIP</p>
+                        <p class="text-sm font-bold uppercase text-blue-900">E-SAKIP</p>
                         <p class="text-sm font-medium text-slate-700">Kabupaten Banjarnegara</p>
                     </div>
                 </Link>
@@ -348,11 +348,11 @@ function closeMobileMenu(): void {
                         v-for="item in navItems"
                         :key="item.id"
                         :href="item.href"
-                        class="rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
+                        class="rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
                         :class="
                             item.isActive
-                                ? 'bg-emerald-800 text-white shadow-sm shadow-emerald-950/20'
-                                : 'text-slate-700 hover:bg-emerald-50 hover:text-emerald-800'
+                                ? 'bg-blue-700 text-white shadow-sm shadow-blue-950/20'
+                                : 'text-slate-700 hover:bg-blue-50 hover:text-blue-800'
                         "
                     >
                         {{ item.label }}
@@ -362,7 +362,7 @@ function closeMobileMenu(): void {
                 <div class="hidden items-center gap-3 lg:flex">
                     <Link
                         :href="entryUrl"
-                        class="inline-flex min-h-11 items-center gap-2 rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
+                        class="inline-flex min-h-11 items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/15 transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
                     >
                         <LogIn class="h-4 w-4" />
                         {{ entryLabel }}
@@ -387,14 +387,14 @@ function closeMobileMenu(): void {
                         :key="item.id"
                         :href="item.href"
                         class="min-h-11 rounded-md px-3 py-3 text-sm font-semibold"
-                        :class="item.isActive ? 'bg-emerald-800 text-white' : 'text-slate-700 hover:bg-emerald-50'"
+                        :class="item.isActive ? 'bg-blue-700 text-white' : 'text-slate-700 hover:bg-blue-50'"
                         @click="closeMobileMenu"
                     >
                         {{ item.label }}
                     </Link>
                     <Link
                         :href="entryUrl"
-                        class="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+                        class="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white"
                     >
                         <LogIn class="h-4 w-4" />
                         {{ entryLabel }}
@@ -414,9 +414,7 @@ function closeMobileMenu(): void {
 
                 <div class="mx-auto w-full max-w-7xl px-4 pb-10 pt-14 sm:px-6 lg:px-8">
                     <div class="hero-content max-w-5xl">
-                        <p class="hero-kicker text-sm font-semibold uppercase tracking-normal text-amber-200">
-                            Portal Publik Akuntabilitas Kinerja
-                        </p>
+                        <p class="hero-kicker text-sm font-semibold uppercase tracking-normal text-blue-100">Portal Publik Akuntabilitas Kinerja</p>
                         <h1 class="hero-title mt-4 max-w-5xl text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
                             E-SAKIP Kabupaten Banjarnegara
                         </h1>
@@ -425,7 +423,9 @@ function closeMobileMenu(): void {
                             pelaporan, dan evaluasi SAKIP berdasarkan periode berjalan.
                         </p>
 
-                        <div class="hero-proofline mt-7 grid max-w-3xl gap-x-8 gap-y-3 text-sm font-semibold text-white sm:grid-cols-2 lg:grid-cols-4">
+                        <div
+                            class="hero-proofline mt-7 grid max-w-3xl gap-x-8 gap-y-3 text-sm font-semibold text-white sm:grid-cols-2 lg:grid-cols-4"
+                        >
                             <span><CheckCircle2 class="h-4 w-4" /> Perencanaan</span>
                             <span><CheckCircle2 class="h-4 w-4" /> Pengukuran</span>
                             <span><CheckCircle2 class="h-4 w-4" /> Pelaporan</span>
@@ -433,16 +433,16 @@ function closeMobileMenu(): void {
                         </div>
 
                         <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-                            <a
+                            <Link
                                 :href="props.section_urls.perencanaan"
-                                class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-lg shadow-slate-950/15 transition hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
+                                class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-blue-900 shadow-lg shadow-blue-950/15 transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-900"
                             >
                                 Lihat Data Publik
                                 <ChevronRight class="h-4 w-4" />
-                            </a>
+                            </Link>
                             <Link
                                 :href="entryUrl"
-                                class="hover:bg-white/18 inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-900"
+                                class="hover:bg-white/18 inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-900"
                             >
                                 <LogIn class="h-4 w-4" />
                                 {{ entryLabel }}
@@ -451,12 +451,8 @@ function closeMobileMenu(): void {
                     </div>
 
                     <dl class="hero-data-strip mt-10 grid border-y border-white/20 py-4 text-white sm:grid-cols-2 lg:grid-cols-4">
-                        <div
-                            v-for="stat in statCards"
-                            :key="stat.label"
-                            class="border-white/15 py-3 sm:px-4 lg:border-l lg:first:border-l-0"
-                        >
-                            <dt class="text-xs font-semibold uppercase tracking-normal text-emerald-100">{{ stat.label }}</dt>
+                        <div v-for="stat in statCards" :key="stat.label" class="border-white/15 py-3 sm:px-4 lg:border-l lg:first:border-l-0">
+                            <dt class="text-xs font-semibold uppercase tracking-normal text-blue-100">{{ stat.label }}</dt>
                             <dd class="mt-2 text-2xl font-bold leading-none">{{ stat.value }}</dd>
                             <p class="mt-1 text-sm text-slate-200">{{ stat.note }}</p>
                         </div>
@@ -466,14 +462,14 @@ function closeMobileMenu(): void {
 
             <section v-else class="module-header pt-28">
                 <div class="mx-auto max-w-7xl px-4 pb-8 pt-8 sm:px-6 lg:px-8">
-                    <div class="module-header-panel rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                    <div class="module-header-panel rounded-xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-950/5 sm:p-6">
                         <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                             <div class="flex gap-4">
                                 <div class="cycle-icon shrink-0" :class="cycleCardClass(currentSection.id)">
                                     <component :is="currentSection.icon" class="h-5 w-5" />
                                 </div>
                                 <div>
-                                    <p class="text-sm font-semibold uppercase text-emerald-800">{{ currentSection.eyebrow }}</p>
+                                    <p class="text-sm font-semibold uppercase text-blue-700">{{ currentSection.eyebrow }}</p>
                                     <h1 class="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">{{ currentSection.title }}</h1>
                                     <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                                         {{ currentSection.summary }} Gunakan pencarian dan filter tahun untuk melihat data publik yang relevan.
@@ -482,11 +478,11 @@ function closeMobileMenu(): void {
                             </div>
 
                             <div class="grid gap-3 sm:grid-cols-2 lg:min-w-[22rem]">
-                                <div class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="rounded-md border border-blue-100 bg-blue-50/60 px-4 py-3">
                                     <p class="text-xs font-semibold uppercase text-slate-500">Periode</p>
                                     <p class="mt-1 text-sm font-semibold text-slate-950">{{ meta.periode_label }}</p>
                                 </div>
-                                <div class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="rounded-md border border-blue-100 bg-blue-50/60 px-4 py-3">
                                     <p class="text-xs font-semibold uppercase text-slate-500">Baris tampil</p>
                                     <p class="mt-1 text-sm font-semibold text-slate-950">{{ filteredRowsCount }} dari {{ currentRowsCount }}</p>
                                 </div>
@@ -496,7 +492,7 @@ function closeMobileMenu(): void {
                 </div>
             </section>
 
-            <section class="cycle-band border-b border-slate-200 bg-white">
+            <section class="cycle-band border-b border-blue-100 bg-white">
                 <div class="mx-auto grid max-w-7xl gap-4 px-4 py-8 sm:px-6 md:grid-cols-4 lg:px-8">
                     <Link
                         v-for="(module, index) in homeModules"
@@ -516,10 +512,10 @@ function closeMobileMenu(): void {
                 </div>
             </section>
 
-            <section v-if="!currentSection" class="overview-section bg-[#f6f8fb] py-14 sm:py-16">
+            <section v-if="!currentSection" class="overview-section bg-white py-14 sm:py-16">
                 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div class="max-w-3xl">
-                        <p class="text-sm font-semibold uppercase text-emerald-800">Data Publik</p>
+                        <p class="text-sm font-semibold uppercase text-blue-700">Data Publik</p>
                         <h2 class="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">Pilih siklus SAKIP yang ingin dilihat</h2>
                         <p class="mt-3 text-sm leading-6 text-slate-600">
                             Setiap siklus memiliki halaman sendiri supaya tabel perangkat daerah tetap nyaman dibuka saat data dan dokumen semakin
@@ -532,28 +528,34 @@ function closeMobileMenu(): void {
                             v-for="module in homeModules"
                             :key="`overview-${module.id}`"
                             :href="module.href"
-                            class="module-card group rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
+                            class="module-card group rounded-xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-950/5 transition focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
                             :class="cycleCardClass(module.id)"
                         >
                             <div class="flex items-start justify-between gap-4">
-                                <div class="cycle-icon">
+                                <div class="cycle-icon shadow-sm shadow-blue-950/5">
                                     <component :is="module.icon" class="h-5 w-5" />
                                 </div>
-                                <ChevronRight class="mt-1 h-5 w-5 text-slate-400 transition group-hover:translate-x-1 group-hover:text-emerald-800" />
+                                <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+                                    {{ module.eyebrow }}
+                                </span>
                             </div>
                             <h3 class="mt-5 text-lg font-bold text-slate-950">{{ module.title }}</h3>
                             <p class="mt-2 min-h-16 text-sm leading-6 text-slate-600">{{ module.summary }}</p>
-                            <div class="mt-5">
+                            <div class="mt-5 rounded-lg bg-blue-50/70 p-3">
                                 <div class="flex items-center justify-between text-xs font-semibold uppercase text-slate-500">
                                     <span>Kelengkapan</span>
-                                    <span>{{ module.completeness }}</span>
+                                    <span class="text-blue-800">{{ module.completeness }}</span>
                                 </div>
                                 <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
                                     <span
-                                        class="block h-full rounded-full bg-[linear-gradient(90deg,var(--cycle-color),#d6a326)]"
+                                        class="block h-full rounded-full bg-[linear-gradient(90deg,var(--cycle-color),#38bdf8)]"
                                         :style="{ width: module.completeness }"
                                     ></span>
                                 </div>
+                            </div>
+                            <div class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-blue-700">
+                                Buka data
+                                <ChevronRight class="h-4 w-4 transition group-hover:translate-x-1" />
                             </div>
                         </Link>
                     </div>
@@ -564,12 +566,12 @@ function closeMobileMenu(): void {
                 v-for="section in filteredTableSections"
                 :id="section.id"
                 :key="section.id"
-                class="scroll-mt-24 border-b border-slate-200 bg-[#f6f8fb] py-14 sm:py-16"
+                class="scroll-mt-24 border-b border-blue-100 bg-blue-50/30 py-14 sm:py-16"
             >
                 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div class="mb-7 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                         <div class="max-w-3xl">
-                            <p class="inline-flex items-center gap-2 text-sm font-semibold uppercase text-emerald-800">
+                            <p class="inline-flex items-center gap-2 text-sm font-semibold uppercase text-blue-700">
                                 <component :is="section.icon" class="h-4 w-4" />
                                 {{ section.eyebrow }}
                             </p>
@@ -577,7 +579,9 @@ function closeMobileMenu(): void {
                             <p class="mt-2 text-sm leading-6 text-slate-600">{{ section.summary }}</p>
                         </div>
 
-                        <div class="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-[13rem_minmax(16rem,24rem)]">
+                        <div
+                            class="grid gap-3 rounded-xl border border-blue-100 bg-white p-3 shadow-sm shadow-blue-950/5 sm:grid-cols-[13rem_minmax(16rem,24rem)]"
+                        >
                             <label class="block">
                                 <span class="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
                                     <CalendarDays class="h-3.5 w-3.5" />
@@ -585,7 +589,7 @@ function closeMobileMenu(): void {
                                 </span>
                                 <select
                                     :value="props.filters.tahun"
-                                    class="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+                                    class="min-h-11 w-full rounded-md border border-blue-100 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
                                     @change="changeYear"
                                 >
                                     <option v-for="year in props.available_years" :key="year" :value="year">
@@ -602,7 +606,7 @@ function closeMobileMenu(): void {
                                 <input
                                     v-model="searchQuery"
                                     type="search"
-                                    class="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+                                    class="min-h-11 w-full rounded-md border border-blue-100 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
                                     placeholder="Cari OPD, status, dokumen..."
                                 />
                             </label>
@@ -619,17 +623,17 @@ function closeMobileMenu(): void {
                         <button
                             v-if="searchQuery"
                             type="button"
-                            class="inline-flex min-h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-800"
+                            class="inline-flex min-h-10 items-center justify-center rounded-md border border-blue-100 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-800"
                             @click="searchQuery = ''"
                         >
                             Reset pencarian
                         </button>
                     </div>
 
-                    <div class="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm lg:block">
+                    <div class="hidden overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm shadow-blue-950/5 lg:block">
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-slate-200 text-left">
-                                <thead class="bg-slate-50">
+                                <thead class="bg-blue-50/80">
                                     <tr>
                                         <th class="w-16 px-4 py-4 text-xs font-semibold uppercase text-slate-500">No</th>
                                         <th class="min-w-72 px-4 py-4 text-xs font-semibold uppercase text-slate-500">Perangkat Daerah</th>
@@ -657,7 +661,7 @@ function closeMobileMenu(): void {
                                                         rel="noopener"
                                                         title="Lihat dokumen"
                                                         :aria-label="`Lihat ${row.cells[column.key].dokumen?.judul || column.label}`"
-                                                        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-slate-200 bg-white p-2 text-slate-700 transition hover:border-emerald-300 hover:text-emerald-800"
+                                                        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-blue-100 bg-white p-2 text-slate-700 transition hover:border-blue-300 hover:text-blue-800"
                                                     >
                                                         <Eye class="h-4 w-4" />
                                                         <span class="sr-only">Lihat</span>
@@ -666,7 +670,7 @@ function closeMobileMenu(): void {
                                                         :href="row.cells[column.key].dokumen?.download_url"
                                                         title="Download dokumen"
                                                         :aria-label="`Download ${row.cells[column.key].dokumen?.judul || column.label}`"
-                                                        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-slate-200 bg-white p-2 text-slate-700 transition hover:border-emerald-300 hover:text-emerald-800"
+                                                        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-blue-100 bg-white p-2 text-slate-700 transition hover:border-blue-300 hover:text-blue-800"
                                                     >
                                                         <Download class="h-4 w-4" />
                                                         <span class="sr-only">Download</span>
@@ -711,7 +715,7 @@ function closeMobileMenu(): void {
                         <article
                             v-for="row in section.rows"
                             :key="`${section.id}-mobile-${row.opd.id}`"
-                            class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+                            class="rounded-xl border border-blue-100 bg-white p-4 shadow-sm shadow-blue-950/5"
                         >
                             <div class="flex items-start justify-between gap-4">
                                 <div>
@@ -720,11 +724,7 @@ function closeMobileMenu(): void {
                                 </div>
                                 <span
                                     class="shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold"
-                                    :class="
-                                        row.is_ready
-                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                            : 'border-slate-200 bg-slate-50 text-slate-500'
-                                    "
+                                    :class="row.is_ready ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-slate-200 bg-slate-50 text-slate-500'"
                                 >
                                     {{ row.is_ready ? 'Ada data' : 'Belum lengkap' }}
                                 </span>
@@ -794,15 +794,13 @@ function closeMobileMenu(): void {
             </section>
         </main>
 
-        <footer class="bg-slate-950 py-8 text-white">
-            <div
-                class="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm text-slate-300 sm:px-6 lg:px-8"
-            >
+        <footer class="bg-blue-950 py-8 text-white">
+            <div class="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm text-blue-100 sm:px-6 lg:px-8">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <p class="font-semibold text-white">E-SAKIP Kabupaten Banjarnegara</p>
                     <p>Data publik diperbarui dari status dokumen resmi yang sudah diverifikasi.</p>
                 </div>
-                <div class="border-t border-white/10 pt-3 text-xs text-slate-400">
+                <div class="border-t border-white/10 pt-3 text-xs text-blue-200">
                     &copy; {{ currentYear }} Dinas Komunikasi dan Informatika Kabupaten Banjarnegara.
                 </div>
             </div>
@@ -812,21 +810,34 @@ function closeMobileMenu(): void {
 
 <style scoped>
 .public-site {
-    --civic-ink: #071916;
-    --civic-green: #063f35;
-    --civic-gold: #d6a326;
-    --civic-blue: #0f5f7d;
+    --portal-ink: #0f172a;
+    --portal-blue: #0b5ed7;
+    --portal-blue-dark: #063f8f;
+    --portal-blue-soft: #eaf4ff;
+    --portal-cyan: #0ea5e9;
     scroll-behavior: smooth;
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        sans-serif;
 }
 
 .public-site :is(h1, h2) {
-    font-family: Cambria, Georgia, 'Times New Roman', serif;
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        sans-serif;
     letter-spacing: 0;
 }
 
 .hero-section {
-    background-color: #062e2b;
+    background-color: #0b3f86;
 }
 
 .hero-photo {
@@ -837,8 +848,8 @@ function closeMobileMenu(): void {
 
 .hero-vignette {
     background:
-        linear-gradient(90deg, rgba(4, 35, 32, 0.98) 0%, rgba(4, 35, 32, 0.84) 42%, rgba(4, 35, 32, 0.3) 74%, rgba(4, 35, 32, 0.18) 100%),
-        linear-gradient(180deg, rgba(2, 6, 23, 0.2) 0%, rgba(2, 6, 23, 0.08) 48%, rgba(2, 6, 23, 0.72) 100%);
+        linear-gradient(90deg, rgba(3, 39, 93, 0.96) 0%, rgba(7, 71, 166, 0.82) 44%, rgba(14, 116, 210, 0.3) 74%, rgba(14, 116, 210, 0.16) 100%),
+        linear-gradient(180deg, rgba(2, 6, 23, 0.16) 0%, rgba(2, 6, 23, 0.06) 48%, rgba(3, 39, 93, 0.74) 100%);
 }
 
 .hero-section::after {
@@ -846,7 +857,7 @@ function closeMobileMenu(): void {
     inset: auto 0 0 0;
     height: 8rem;
     content: '';
-    background: linear-gradient(to bottom, transparent, rgba(246, 248, 251, 0.92));
+    background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.94));
 }
 
 .hero-title {
@@ -855,7 +866,7 @@ function closeMobileMenu(): void {
 }
 
 .hero-content {
-    border-left: 0.28rem solid var(--civic-gold);
+    border-left: 0.28rem solid #93c5fd;
     padding-left: clamp(1rem, 2vw, 1.5rem);
 }
 
@@ -871,11 +882,11 @@ function closeMobileMenu(): void {
 }
 
 .hero-proofline svg {
-    color: var(--civic-gold);
+    color: #bfdbfe;
 }
 
 .hero-data-strip {
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.12), rgba(219, 234, 254, 0.08));
 }
 
 .cycle-band {
@@ -888,25 +899,25 @@ function closeMobileMenu(): void {
     inset: 0;
     content: '';
     background:
-        linear-gradient(90deg, rgba(6, 63, 53, 0.08), transparent 34%, rgba(214, 163, 38, 0.11)),
-        repeating-linear-gradient(135deg, rgba(15, 23, 42, 0.035) 0 1px, transparent 1px 18px);
+        radial-gradient(circle at 10% 0%, rgba(37, 99, 235, 0.1), transparent 26rem),
+        linear-gradient(90deg, rgba(219, 234, 254, 0.8), transparent 38%, rgba(239, 246, 255, 0.9));
     pointer-events: none;
 }
 
 .cycle-card {
     position: relative;
     display: flex;
-    min-height: 5.5rem;
+    min-height: 6rem;
     align-items: center;
     gap: 0.75rem;
-    border-radius: 0.5rem;
-    border: 1px solid rgb(226 232 240);
+    border-radius: 1rem;
+    border: 1px solid rgb(191 219 254);
     background: white;
     padding: 1rem 1.1rem;
     font-size: 0.875rem;
     font-weight: 700;
     color: rgb(15 23 42);
-    box-shadow: 0 0.5rem 1.4rem rgb(15 23 42 / 0.05);
+    box-shadow: 0 0.6rem 1.6rem rgb(37 99 235 / 0.08);
     isolation: isolate;
     transition:
         border-color 180ms ease,
@@ -916,17 +927,17 @@ function closeMobileMenu(): void {
 .cycle-card::after {
     position: absolute;
     inset: auto 0 0;
-    height: 0.22rem;
+    height: 0.28rem;
     content: '';
-    background: var(--cycle-color, var(--civic-green));
-    transform: scaleX(0.48);
+    background: linear-gradient(90deg, var(--cycle-color, var(--portal-blue)), #7dd3fc);
+    transform: scaleX(0.42);
     transform-origin: left;
     transition: transform 180ms ease;
 }
 
 .cycle-card:hover {
-    border-color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 35%, white);
-    box-shadow: 0 0.7rem 1.8rem rgb(15 23 42 / 0.08);
+    border-color: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 38%, white);
+    box-shadow: 0 1rem 2.2rem rgb(37 99 235 / 0.13);
 }
 
 .cycle-card:hover::after {
@@ -934,8 +945,8 @@ function closeMobileMenu(): void {
 }
 
 .cycle-card-active {
-    border-color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 45%, white);
-    background: linear-gradient(180deg, white, color-mix(in srgb, var(--cycle-color, var(--civic-green)) 8%, white));
+    border-color: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 52%, white);
+    background: linear-gradient(180deg, white, color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 8%, white));
 }
 
 .cycle-card-active::after {
@@ -946,12 +957,12 @@ function closeMobileMenu(): void {
     margin-bottom: 0.15rem;
     font-size: 0.72rem;
     font-weight: 800;
-    color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 88%, black);
+    color: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 88%, black);
 }
 
 .cycle-card span {
     font-size: 1rem;
-    color: var(--civic-ink);
+    color: var(--portal-ink);
 }
 
 .cycle-icon {
@@ -960,35 +971,33 @@ function closeMobileMenu(): void {
     min-height: 3rem;
     align-items: center;
     justify-content: center;
-    border-radius: 0.5rem;
-    background: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 12%, white);
-    color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 86%, black);
+    border-radius: 0.875rem;
+    background: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 12%, white);
+    color: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 86%, black);
 }
 
 .cycle-card-planning {
-    --cycle-color: #047857;
+    --cycle-color: #0b5ed7;
 }
 
 .cycle-card-measurement {
-    --cycle-color: #0f5f7d;
+    --cycle-color: #0284c7;
 }
 
 .cycle-card-reporting {
-    --cycle-color: #d6a326;
+    --cycle-color: #2563eb;
 }
 
 .cycle-card-evaluation {
-    --cycle-color: #b42318;
+    --cycle-color: #1d4ed8;
 }
 
 .overview-section {
-    background: radial-gradient(circle at top left, rgba(4, 120, 87, 0.1), transparent 28rem), linear-gradient(180deg, #f6f8fb, #eef5f2);
+    background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 28rem), linear-gradient(180deg, #ffffff, #eff6ff);
 }
 
 .module-header {
-    background:
-        linear-gradient(135deg, rgba(6, 63, 53, 0.08), transparent 24rem),
-        repeating-linear-gradient(135deg, rgba(15, 23, 42, 0.035) 0 1px, transparent 1px 18px), #f6f8fb;
+    background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 26rem), linear-gradient(180deg, #ffffff, #eff6ff);
 }
 
 .module-header-panel {
@@ -1003,32 +1012,36 @@ function closeMobileMenu(): void {
     height: 16rem;
     content: '';
     border-radius: 9999px;
-    background: color-mix(in srgb, var(--civic-green) 10%, transparent);
+    background: color-mix(in srgb, var(--portal-blue) 10%, transparent);
     pointer-events: none;
 }
 
 .module-card {
     position: relative;
     isolation: isolate;
+    min-height: 18rem;
+    overflow: hidden;
     transition:
+        transform 200ms ease,
         border-color 200ms ease,
         box-shadow 200ms ease;
 }
 
 .module-card::before {
     position: absolute;
-    inset: auto 0 0;
+    inset: auto 1.25rem 1.25rem;
     z-index: -1;
     content: '';
-    height: 0.22rem;
-    border-radius: 0 0 0.5rem 0.5rem;
-    background: var(--cycle-color, var(--civic-green));
-    opacity: 0.72;
+    height: 0.3rem;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, var(--cycle-color, var(--portal-blue)), #7dd3fc);
+    opacity: 0.85;
 }
 
 .module-card:hover {
-    border-color: color-mix(in srgb, var(--cycle-color, var(--civic-green)) 36%, white);
-    box-shadow: 0 0.9rem 2rem rgb(15 23 42 / 0.08);
+    transform: translateY(-0.18rem);
+    border-color: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 42%, white);
+    box-shadow: 0 1.1rem 2.6rem rgb(37 99 235 / 0.14);
 }
 
 @media (prefers-reduced-motion: reduce) {
