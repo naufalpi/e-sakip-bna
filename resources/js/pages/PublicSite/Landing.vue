@@ -193,36 +193,6 @@ const currentRowsCount = computed(() => currentSection.value?.rows.length ?? 0);
 const filteredRowsCount = computed(() => filteredTableSections.value[0]?.rows.length ?? 0);
 const selectedYearLabel = computed(() => `Tahun ${props.filters.tahun}`);
 
-const statCards = computed(() => [
-    {
-        label: 'OPD aktif',
-        value: props.stats.opd_count,
-        note: 'perangkat daerah',
-    },
-    {
-        label: 'Dokumen publik',
-        value: props.stats.public_document_count,
-        note: 'dokumen resmi',
-    },
-    {
-        label: 'Evaluasi SAKIP',
-        value: props.stats.evaluation_count,
-        note: 'OPD dinilai',
-    },
-    {
-        label: 'Rata-rata SAKIP',
-        value: props.stats.average_sakip !== null && props.stats.average_sakip !== undefined ? formatDecimal(props.stats.average_sakip) : '-',
-        note: `tahun ${props.meta.tahun}`,
-    },
-]);
-
-function formatDecimal(value: number): string {
-    return new Intl.NumberFormat('id-ID', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-    }).format(value);
-}
-
 function cellClass(cell?: PublicCell): string {
     return {
         available: 'border-blue-200 bg-blue-50 text-[#00336C]',
@@ -405,24 +375,24 @@ function closeMobileMenu(): void {
 
         <main>
             <section v-if="!currentSection" id="beranda" class="hero-section relative isolate overflow-hidden pt-28">
-                <div class="mx-auto max-w-7xl px-4 pb-10 pt-8 sm:px-6 sm:pt-10 lg:px-8 lg:pb-12">
-                    <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,31rem)] lg:items-stretch">
-                        <div class="hero-content rounded-2xl border border-blue-100 bg-white p-6 shadow-sm shadow-blue-950/5 sm:p-8 lg:p-10">
+                <div class="mx-auto max-w-7xl px-4 pb-6 pt-6 sm:px-6 sm:pt-7 lg:px-8 lg:pb-8">
+                    <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)] lg:items-center">
+                        <div class="hero-content rounded-2xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-950/5 sm:p-6 lg:p-8">
                             <p
                                 class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-normal text-[#00336C]"
                             >
                                 <ShieldCheck class="h-3.5 w-3.5" />
                                 Portal Publik Akuntabilitas Kinerja
                             </p>
-                            <h1 class="hero-title mt-5 max-w-4xl text-4xl font-bold leading-tight text-[#00336C] sm:text-5xl">
+                            <h1 class="hero-title mt-5 max-w-4xl text-3xl font-bold leading-tight text-[#00336C] sm:text-4xl xl:text-5xl">
                                 Transparansi Kinerja Pemerintah Kabupaten Banjarnegara
                             </h1>
-                            <p class="mt-5 max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
+                            <p class="mt-4 max-w-3xl text-base leading-7 text-slate-600">
                                 Selamat datang di E-SAKIP Kabupaten Banjarnegara. Masyarakat dapat menelusuri dokumen perencanaan, pengukuran,
                                 pelaporan, dan evaluasi kinerja perangkat daerah berdasarkan tahun berjalan.
                             </p>
 
-                            <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+                            <div class="mt-6 flex flex-col gap-3 sm:flex-row">
                                 <Link
                                     :href="props.section_urls.perencanaan"
                                     class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-[#00336C] px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-950/15 transition hover:bg-[#002957] focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
@@ -439,7 +409,7 @@ function closeMobileMenu(): void {
                                 </Link>
                             </div>
 
-                            <div class="hero-proofline mt-8 grid gap-3 text-sm font-semibold text-slate-700 sm:grid-cols-2 xl:grid-cols-4">
+                            <div class="hero-proofline mt-6 grid gap-3 text-sm font-semibold text-slate-700 sm:grid-cols-2 xl:grid-cols-4">
                                 <span><CheckCircle2 class="h-4 w-4" /> Perencanaan</span>
                                 <span><CheckCircle2 class="h-4 w-4" /> Pengukuran</span>
                                 <span><CheckCircle2 class="h-4 w-4" /> Pelaporan</span>
@@ -452,21 +422,13 @@ function closeMobileMenu(): void {
                                 <img
                                     src="/images/hero-dieng-banjarnegara.webp"
                                     alt="Lanskap Dieng Banjarnegara dengan danau, candi, dan dataran tinggi berkabut"
-                                    class="hero-photo aspect-[4/3] w-full object-cover"
+                                    class="hero-photo aspect-[16/10] w-full object-cover"
                                 />
                                 <figcaption class="flex items-center justify-between gap-3 bg-white px-4 py-3 text-sm text-slate-600">
                                     <span class="font-semibold text-[#00336C]">Dieng, Banjarnegara</span>
                                     <span>{{ selectedYearLabel }}</span>
                                 </figcaption>
                             </figure>
-
-                            <dl class="mt-3 grid grid-cols-2 gap-3">
-                                <div v-for="stat in statCards" :key="stat.label" class="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
-                                    <dt class="text-xs font-semibold uppercase tracking-normal text-slate-500">{{ stat.label }}</dt>
-                                    <dd class="mt-2 text-2xl font-bold leading-none text-[#00336C]">{{ stat.value }}</dd>
-                                    <p class="mt-1 text-xs text-slate-600">{{ stat.note }}</p>
-                                </div>
-                            </dl>
                         </aside>
                     </div>
                 </div>
@@ -540,7 +502,7 @@ function closeMobileMenu(): void {
                             v-for="module in homeModules"
                             :key="`overview-${module.id}`"
                             :href="module.href"
-                            class="module-card group rounded-xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-950/5 transition focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
+                            class="module-card group flex h-full flex-col rounded-xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-950/5 transition focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
                             :class="cycleCardClass(module.id)"
                         >
                             <div class="flex items-start justify-between gap-4">
@@ -551,9 +513,9 @@ function closeMobileMenu(): void {
                                     {{ module.eyebrow }}
                                 </span>
                             </div>
-                            <h3 class="mt-5 text-lg font-bold text-slate-950">{{ module.title }}</h3>
-                            <p class="mt-2 min-h-16 text-sm leading-6 text-slate-600">{{ module.summary }}</p>
-                            <div class="mt-5 rounded-lg bg-blue-50/70 p-3">
+                            <h3 class="mt-6 text-xl font-bold leading-tight text-slate-950">{{ module.title }}</h3>
+                            <p class="mt-3 min-h-[5rem] text-sm leading-7 text-slate-600">{{ module.summary }}</p>
+                            <div class="mt-auto rounded-lg bg-blue-50/70 p-3">
                                 <div class="flex items-center justify-between text-xs font-semibold uppercase text-slate-500">
                                     <span>Kelengkapan</span>
                                     <span class="text-[#00336C]">{{ module.completeness }}</span>
@@ -902,7 +864,8 @@ function closeMobileMenu(): void {
 }
 
 .hero-media {
-    align-self: stretch;
+    align-self: center;
+    width: 100%;
 }
 
 .cycle-band {
@@ -923,13 +886,14 @@ function closeMobileMenu(): void {
 .cycle-card {
     position: relative;
     display: flex;
-    min-height: 6rem;
+    min-height: 5.75rem;
     align-items: center;
     gap: 0.75rem;
     border-radius: 1rem;
     border: 1px solid rgb(191 219 254);
     background: white;
-    padding: 1rem 1.1rem;
+    overflow: hidden;
+    padding: 1.15rem 1.35rem 1.65rem;
     font-size: 0.875rem;
     font-weight: 700;
     color: rgb(15 23 42);
@@ -942,11 +906,14 @@ function closeMobileMenu(): void {
 
 .cycle-card::after {
     position: absolute;
-    inset: auto 0 0;
-    height: 0.28rem;
+    right: 1.35rem;
+    bottom: 0.95rem;
+    left: 1.35rem;
+    height: 0.22rem;
     content: '';
+    border-radius: 9999px;
     background: linear-gradient(90deg, var(--cycle-color, var(--portal-blue)), #7dd3fc);
-    transform: scaleX(0.42);
+    transform: scaleX(0.38);
     transform-origin: left;
     transition: transform 180ms ease;
 }
@@ -1035,8 +1002,9 @@ function closeMobileMenu(): void {
 .module-card {
     position: relative;
     isolation: isolate;
-    min-height: 18rem;
+    min-height: 22rem;
     overflow: hidden;
+    padding-bottom: 2rem;
     transition:
         transform 200ms ease,
         border-color 200ms ease,
