@@ -19,11 +19,11 @@ const isActive = (href: string) => page.url === href || page.url.startsWith(`${h
 </script>
 
 <template>
-    <SidebarGroup class="px-2 py-0">
-        <SidebarGroupLabel>{{ label ?? 'Platform' }}</SidebarGroupLabel>
-        <SidebarMenu>
-            <SidebarMenuItem v-for="item in items" :key="item.title">
-                <SidebarMenuButton as-child :is-active="isActive(item.href)">
+    <SidebarGroup class="app-sidebar-group">
+        <SidebarGroupLabel class="app-sidebar-group-label">{{ label ?? 'Platform' }}</SidebarGroupLabel>
+        <SidebarMenu class="space-y-1">
+            <SidebarMenuItem v-for="item in items" :key="item.title" class="app-sidebar-menu-item">
+                <SidebarMenuButton as-child :is-active="isActive(item.href)" class="app-sidebar-menu-button">
                     <Link
                         :href="item.href"
                         prefetch="hover"
@@ -35,7 +35,7 @@ const isActive = (href: string) => page.url === href || page.url.startsWith(`${h
                         <span>{{ item.title }}</span>
                         <span
                             v-if="item.badge"
-                            class="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-700 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white"
+                            class="app-sidebar-badge ml-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
                         >
                             {{ item.badge }}
                         </span>

@@ -9,10 +9,11 @@ defineProps<Props>();
 </script>
 
 <template>
-    <div class="flex aspect-square size-10 shrink-0 items-center justify-center rounded-md bg-white p-1 shadow-sm ring-1 ring-emerald-900/10">
+    <div class="app-sidebar-logo-mark flex aspect-square size-10 shrink-0 items-center justify-center rounded-md bg-white p-1 shadow-sm">
         <AppLogoIcon class="size-full" />
     </div>
-    <div class="ml-1 grid flex-1 text-left text-sm">
-        <span class="mb-0.5 truncate font-semibold leading-none">E-SAKIP Banjarnegara</span>
+    <div class="app-sidebar-brand-text ml-1 grid min-w-0 flex-1 text-left">
+        <span class="truncate text-sm font-semibold leading-none">E-SAKIP</span>
+        <span class="mt-1 truncate text-[11px] font-medium leading-none">Kabupaten Banjarnegara</span>
     </div>
 </template>

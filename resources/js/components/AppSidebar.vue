@@ -267,11 +267,11 @@ usePageComponentPreload(navigationPageComponents, {
 </script>
 
 <template>
-    <Sidebar collapsible="icon" variant="inset">
-        <SidebarHeader>
+    <Sidebar collapsible="icon" variant="inset" class="app-sidebar-admin">
+        <SidebarHeader class="app-sidebar-header">
             <SidebarMenu>
                 <SidebarMenuItem>
-                    <SidebarMenuButton size="lg" as-child>
+                    <SidebarMenuButton size="lg" as-child class="app-sidebar-brand">
                         <Link :href="route('dashboard')" prefetch="hover" cache-for="5m">
                             <AppLogo />
                         </Link>
@@ -280,11 +280,11 @@ usePageComponentPreload(navigationPageComponents, {
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent>
+        <SidebarContent class="app-sidebar-content">
             <NavMain v-for="group in navigationGroups" :key="group.label" :label="group.label" :items="group.items" />
         </SidebarContent>
 
-        <SidebarFooter>
+        <SidebarFooter class="app-sidebar-footer">
             <NavUser />
         </SidebarFooter>
     </Sidebar>
