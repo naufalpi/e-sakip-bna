@@ -73,10 +73,10 @@ const activeBreadcrumbs = computed(() => (props.breadcrumbs.length > 0 ? props.b
                         <template v-for="(item, index) in activeBreadcrumbs" :key="index">
                             <BreadcrumbItem>
                                 <template v-if="index === activeBreadcrumbs.length - 1 || !item.href">
-                                    <BreadcrumbPage>{{ item.title }}</BreadcrumbPage>
+                                    <BreadcrumbPage class="admin-breadcrumb-page">{{ item.title }}</BreadcrumbPage>
                                 </template>
                                 <template v-else>
-                                    <BreadcrumbLink :href="item.href">
+                                    <BreadcrumbLink class="admin-breadcrumb-link" :href="item.href">
                                         {{ item.title }}
                                     </BreadcrumbLink>
                                 </template>
@@ -91,7 +91,7 @@ const activeBreadcrumbs = computed(() => (props.breadcrumbs.length > 0 ? props.b
             :href="route('notifications.index')"
             prefetch="hover"
             cache-for="45s"
-            class="relative inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted hover:text-foreground"
+            class="admin-topbar-notification relative inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Notifikasi"
         >
             <Bell class="size-4" />

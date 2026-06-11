@@ -24,12 +24,12 @@ const { isNavigating } = useInertiaNavigationIndicator();
 <template>
     <AppShell variant="sidebar">
         <AppSidebar />
-        <AppContent variant="sidebar">
-            <AppSidebarHeader :breadcrumbs="breadcrumbs" />
+        <AppContent variant="sidebar" class="admin-main-shell">
+            <AppSidebarHeader class="admin-topbar" :breadcrumbs="breadcrumbs" />
             <div class="admin-route-loader" :class="{ 'is-visible': isNavigating }" aria-hidden="true">
                 <span />
             </div>
-            <div class="relative flex min-w-0 flex-1 flex-col">
+            <div class="admin-page-stage relative flex min-w-0 flex-1 flex-col">
                 <Transition name="page-drop" appear>
                     <div :key="pageTransitionKey" class="flex min-w-0 flex-1 flex-col">
                         <slot />
