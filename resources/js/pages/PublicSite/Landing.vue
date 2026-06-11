@@ -225,7 +225,7 @@ function formatDecimal(value: number): string {
 
 function cellClass(cell?: PublicCell): string {
     return {
-        available: 'border-blue-200 bg-blue-50 text-blue-800',
+        available: 'border-blue-200 bg-blue-50 text-[#00336C]',
         excellent: 'border-sky-200 bg-sky-50 text-sky-800',
         data: 'border-cyan-200 bg-cyan-50 text-cyan-800',
         warning: 'border-indigo-200 bg-indigo-50 text-indigo-800',
@@ -325,7 +325,7 @@ function closeMobileMenu(): void {
 
     <div class="public-site min-h-dvh bg-white text-slate-900">
         <header class="fixed inset-x-0 top-0 z-50 border-b border-blue-100 bg-white shadow-sm shadow-blue-950/5">
-            <div class="bg-blue-900">
+            <div class="bg-[#00336C]">
                 <div class="mx-auto flex min-h-9 max-w-7xl items-center gap-2 px-4 text-xs font-medium text-blue-50 sm:px-6 lg:px-8">
                     <ShieldCheck class="h-3.5 w-3.5 text-blue-200" />
                     Portal publik akuntabilitas kinerja Pemerintah Kabupaten Banjarnegara
@@ -334,11 +334,11 @@ function closeMobileMenu(): void {
             <div class="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                 <Link
                     :href="props.section_urls.home"
-                    class="flex min-h-11 items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+                    class="flex min-h-11 items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
                 >
                     <img src="/images/logo-banjarnegara.svg" alt="Lambang Kabupaten Banjarnegara" class="h-11 w-11 object-contain" />
                     <div class="leading-tight">
-                        <p class="text-sm font-bold uppercase text-blue-900">E-SAKIP</p>
+                        <p class="text-sm font-bold uppercase text-[#00336C]">E-SAKIP</p>
                         <p class="text-sm font-medium text-slate-700">Kabupaten Banjarnegara</p>
                     </div>
                 </Link>
@@ -348,11 +348,11 @@ function closeMobileMenu(): void {
                         v-for="item in navItems"
                         :key="item.id"
                         :href="item.href"
-                        class="relative rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+                        class="relative rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
                         :class="
                             item.isActive
-                                ? 'text-blue-700 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-blue-700'
-                                : 'text-slate-700 hover:bg-blue-50 hover:text-blue-800'
+                                ? 'text-[#00336C] after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#00336C]'
+                                : 'text-slate-700 hover:bg-blue-50 hover:text-[#00336C]'
                         "
                     >
                         {{ item.label }}
@@ -362,7 +362,7 @@ function closeMobileMenu(): void {
                 <div class="hidden items-center gap-3 lg:flex">
                     <Link
                         :href="entryUrl"
-                        class="inline-flex min-h-11 items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/15 transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+                        class="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#00336C] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/15 transition hover:bg-[#002957] focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
                     >
                         <LogIn class="h-4 w-4" />
                         {{ entryLabel }}
@@ -387,14 +387,14 @@ function closeMobileMenu(): void {
                         :key="item.id"
                         :href="item.href"
                         class="min-h-11 rounded-md px-3 py-3 text-sm font-semibold"
-                        :class="item.isActive ? 'text-blue-700' : 'text-slate-700 hover:bg-blue-50'"
+                        :class="item.isActive ? 'text-[#00336C]' : 'text-slate-700 hover:bg-blue-50'"
                         @click="closeMobileMenu"
                     >
                         {{ item.label }}
                     </Link>
                     <Link
                         :href="entryUrl"
-                        class="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white"
+                        class="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#00336C] px-4 py-2 text-sm font-semibold text-white"
                     >
                         <LogIn class="h-4 w-4" />
                         {{ entryLabel }}
@@ -409,12 +409,12 @@ function closeMobileMenu(): void {
                     <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,31rem)] lg:items-stretch">
                         <div class="hero-content rounded-2xl border border-blue-100 bg-white p-6 shadow-sm shadow-blue-950/5 sm:p-8 lg:p-10">
                             <p
-                                class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-normal text-blue-800"
+                                class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-normal text-[#00336C]"
                             >
                                 <ShieldCheck class="h-3.5 w-3.5" />
                                 Portal Publik Akuntabilitas Kinerja
                             </p>
-                            <h1 class="hero-title mt-5 max-w-4xl text-4xl font-bold leading-tight text-blue-950 sm:text-5xl">
+                            <h1 class="hero-title mt-5 max-w-4xl text-4xl font-bold leading-tight text-[#00336C] sm:text-5xl">
                                 Transparansi Kinerja Pemerintah Kabupaten Banjarnegara
                             </h1>
                             <p class="mt-5 max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
@@ -425,14 +425,14 @@ function closeMobileMenu(): void {
                             <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                                 <Link
                                     :href="props.section_urls.perencanaan"
-                                    class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-950/15 transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+                                    class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-[#00336C] px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-950/15 transition hover:bg-[#002957] focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
                                 >
                                     Lihat Data Publik
                                     <ChevronRight class="h-4 w-4" />
                                 </Link>
                                 <Link
                                     :href="entryUrl"
-                                    class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-blue-100 bg-white px-5 py-3 text-sm font-semibold text-blue-800 transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+                                    class="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-blue-100 bg-white px-5 py-3 text-sm font-semibold text-[#00336C] transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
                                 >
                                     <LogIn class="h-4 w-4" />
                                     {{ entryLabel }}
@@ -455,7 +455,7 @@ function closeMobileMenu(): void {
                                     class="hero-photo aspect-[4/3] w-full object-cover"
                                 />
                                 <figcaption class="flex items-center justify-between gap-3 bg-white px-4 py-3 text-sm text-slate-600">
-                                    <span class="font-semibold text-blue-950">Dieng, Banjarnegara</span>
+                                    <span class="font-semibold text-[#00336C]">Dieng, Banjarnegara</span>
                                     <span>{{ selectedYearLabel }}</span>
                                 </figcaption>
                             </figure>
@@ -463,7 +463,7 @@ function closeMobileMenu(): void {
                             <dl class="mt-3 grid grid-cols-2 gap-3">
                                 <div v-for="stat in statCards" :key="stat.label" class="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
                                     <dt class="text-xs font-semibold uppercase tracking-normal text-slate-500">{{ stat.label }}</dt>
-                                    <dd class="mt-2 text-2xl font-bold leading-none text-blue-950">{{ stat.value }}</dd>
+                                    <dd class="mt-2 text-2xl font-bold leading-none text-[#00336C]">{{ stat.value }}</dd>
                                     <p class="mt-1 text-xs text-slate-600">{{ stat.note }}</p>
                                 </div>
                             </dl>
@@ -481,7 +481,7 @@ function closeMobileMenu(): void {
                                     <component :is="currentSection.icon" class="h-5 w-5" />
                                 </div>
                                 <div>
-                                    <p class="text-sm font-semibold uppercase text-blue-700">{{ currentSection.eyebrow }}</p>
+                                    <p class="text-sm font-semibold uppercase text-[#00336C]">{{ currentSection.eyebrow }}</p>
                                     <h1 class="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">{{ currentSection.title }}</h1>
                                     <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                                         {{ currentSection.summary }} Gunakan pencarian dan filter tahun untuk melihat data publik yang relevan.
@@ -527,7 +527,7 @@ function closeMobileMenu(): void {
             <section v-if="!currentSection" class="overview-section bg-white py-14 sm:py-16">
                 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div class="max-w-3xl">
-                        <p class="text-sm font-semibold uppercase text-blue-700">Data Publik</p>
+                        <p class="text-sm font-semibold uppercase text-[#00336C]">Data Publik</p>
                         <h2 class="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">Pilih siklus SAKIP yang ingin dilihat</h2>
                         <p class="mt-3 text-sm leading-6 text-slate-600">
                             Setiap siklus memiliki halaman sendiri supaya tabel perangkat daerah tetap nyaman dibuka saat data dan dokumen semakin
@@ -540,14 +540,14 @@ function closeMobileMenu(): void {
                             v-for="module in homeModules"
                             :key="`overview-${module.id}`"
                             :href="module.href"
-                            class="module-card group rounded-xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-950/5 transition focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+                            class="module-card group rounded-xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-950/5 transition focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
                             :class="cycleCardClass(module.id)"
                         >
                             <div class="flex items-start justify-between gap-4">
                                 <div class="cycle-icon shadow-sm shadow-blue-950/5">
                                     <component :is="module.icon" class="h-5 w-5" />
                                 </div>
-                                <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+                                <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#00336C]">
                                     {{ module.eyebrow }}
                                 </span>
                             </div>
@@ -556,7 +556,7 @@ function closeMobileMenu(): void {
                             <div class="mt-5 rounded-lg bg-blue-50/70 p-3">
                                 <div class="flex items-center justify-between text-xs font-semibold uppercase text-slate-500">
                                     <span>Kelengkapan</span>
-                                    <span class="text-blue-800">{{ module.completeness }}</span>
+                                    <span class="text-[#00336C]">{{ module.completeness }}</span>
                                 </div>
                                 <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
                                     <span
@@ -565,7 +565,7 @@ function closeMobileMenu(): void {
                                     ></span>
                                 </div>
                             </div>
-                            <div class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-blue-700">
+                            <div class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#00336C]">
                                 Buka data
                                 <ChevronRight class="h-4 w-4 transition group-hover:translate-x-1" />
                             </div>
@@ -583,7 +583,7 @@ function closeMobileMenu(): void {
                 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div class="mb-7 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                         <div class="max-w-3xl">
-                            <p class="inline-flex items-center gap-2 text-sm font-semibold uppercase text-blue-700">
+                            <p class="inline-flex items-center gap-2 text-sm font-semibold uppercase text-[#00336C]">
                                 <component :is="section.icon" class="h-4 w-4" />
                                 {{ section.eyebrow }}
                             </p>
@@ -601,7 +601,7 @@ function closeMobileMenu(): void {
                                 </span>
                                 <select
                                     :value="props.filters.tahun"
-                                    class="min-h-11 w-full rounded-md border border-blue-100 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
+                                    class="min-h-11 w-full rounded-md border border-blue-100 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm focus:border-[#00336C] focus:outline-none focus:ring-2 focus:ring-[#00336C]/20"
                                     @change="changeYear"
                                 >
                                     <option v-for="year in props.available_years" :key="year" :value="year">
@@ -618,7 +618,7 @@ function closeMobileMenu(): void {
                                 <input
                                     v-model="searchQuery"
                                     type="search"
-                                    class="min-h-11 w-full rounded-md border border-blue-100 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
+                                    class="min-h-11 w-full rounded-md border border-blue-100 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-[#00336C] focus:outline-none focus:ring-2 focus:ring-[#00336C]/20"
                                     placeholder="Cari OPD, status, dokumen..."
                                 />
                             </label>
@@ -635,7 +635,7 @@ function closeMobileMenu(): void {
                         <button
                             v-if="searchQuery"
                             type="button"
-                            class="inline-flex min-h-10 items-center justify-center rounded-md border border-blue-100 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-800"
+                            class="inline-flex min-h-10 items-center justify-center rounded-md border border-blue-100 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-[#00336C]"
                             @click="searchQuery = ''"
                         >
                             Reset pencarian
@@ -673,7 +673,7 @@ function closeMobileMenu(): void {
                                                         rel="noopener"
                                                         title="Lihat dokumen"
                                                         :aria-label="`Lihat ${row.cells[column.key].dokumen?.judul || column.label}`"
-                                                        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-blue-100 bg-white p-2 text-slate-700 transition hover:border-blue-300 hover:text-blue-800"
+                                                        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-blue-100 bg-white p-2 text-slate-700 transition hover:border-blue-300 hover:text-[#00336C]"
                                                     >
                                                         <Eye class="h-4 w-4" />
                                                         <span class="sr-only">Lihat</span>
@@ -682,7 +682,7 @@ function closeMobileMenu(): void {
                                                         :href="row.cells[column.key].dokumen?.download_url"
                                                         title="Download dokumen"
                                                         :aria-label="`Download ${row.cells[column.key].dokumen?.judul || column.label}`"
-                                                        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-blue-100 bg-white p-2 text-slate-700 transition hover:border-blue-300 hover:text-blue-800"
+                                                        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-blue-100 bg-white p-2 text-slate-700 transition hover:border-blue-300 hover:text-[#00336C]"
                                                     >
                                                         <Download class="h-4 w-4" />
                                                         <span class="sr-only">Download</span>
@@ -736,7 +736,9 @@ function closeMobileMenu(): void {
                                 </div>
                                 <span
                                     class="shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold"
-                                    :class="row.is_ready ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-slate-200 bg-slate-50 text-slate-500'"
+                                    :class="
+                                        row.is_ready ? 'border-blue-200 bg-blue-50 text-[#00336C]' : 'border-slate-200 bg-slate-50 text-slate-500'
+                                    "
                                 >
                                     {{ row.is_ready ? 'Ada data' : 'Belum lengkap' }}
                                 </span>
@@ -806,7 +808,7 @@ function closeMobileMenu(): void {
             </section>
         </main>
 
-        <footer class="bg-blue-950 py-8 text-white">
+        <footer class="bg-[#00336C] py-8 text-white">
             <div class="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm text-blue-100 sm:px-6 lg:px-8">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <p class="font-semibold text-white">E-SAKIP Kabupaten Banjarnegara</p>
@@ -823,8 +825,8 @@ function closeMobileMenu(): void {
 <style scoped>
 .public-site {
     --portal-ink: #0f172a;
-    --portal-blue: #0b5ed7;
-    --portal-blue-dark: #063f8f;
+    --portal-blue: #00336c;
+    --portal-blue-dark: #002957;
     --portal-blue-soft: #eaf4ff;
     --portal-cyan: #0ea5e9;
     scroll-behavior: smooth;
@@ -896,7 +898,7 @@ function closeMobileMenu(): void {
 }
 
 .hero-proofline svg {
-    color: #2563eb;
+    color: #00336c;
 }
 
 .hero-media {
@@ -991,19 +993,19 @@ function closeMobileMenu(): void {
 }
 
 .cycle-card-planning {
-    --cycle-color: #0b5ed7;
+    --cycle-color: #00336c;
 }
 
 .cycle-card-measurement {
-    --cycle-color: #0284c7;
+    --cycle-color: #07589f;
 }
 
 .cycle-card-reporting {
-    --cycle-color: #2563eb;
+    --cycle-color: #00336c;
 }
 
 .cycle-card-evaluation {
-    --cycle-color: #1d4ed8;
+    --cycle-color: #002957;
 }
 
 .overview-section {
