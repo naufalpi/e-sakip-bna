@@ -8,6 +8,7 @@ import SidebarMenu from '@/components/ui/sidebar/SidebarMenu.vue';
 import SidebarMenuButton from '@/components/ui/sidebar/SidebarMenuButton.vue';
 import SidebarMenuItem from '@/components/ui/sidebar/SidebarMenuItem.vue';
 import { useNavigationPrefetch } from '@/composables/useNavigationPrefetch';
+import { usePageComponentPreload } from '@/composables/usePageComponentPreload';
 import { type NavGroup, type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import Bell from 'lucide-vue-next/dist/esm/icons/bell.js';
@@ -54,6 +55,7 @@ const navigationGroups = computed<NavGroup[]>(() =>
                 {
                     title: 'Dashboard',
                     href: '/dashboard',
+                    pageComponent: 'Dashboard',
                     icon: LayoutDashboard,
                 },
                 hasAnyPermission([
@@ -71,11 +73,13 @@ const navigationGroups = computed<NavGroup[]>(() =>
                 ]) && {
                     title: 'Inbox Workflow',
                     href: '/workflow/inbox',
+                    pageComponent: 'Workflow/Inbox',
                     icon: Inbox,
                 },
                 {
                     title: 'Notifikasi',
                     href: '/notifications',
+                    pageComponent: 'Notifications/Index',
                     icon: Bell,
                     badge: notificationBadge.value,
                 },
@@ -87,26 +91,31 @@ const navigationGroups = computed<NavGroup[]>(() =>
                 hasPermission('opd.view') && {
                     title: 'Master OPD',
                     href: '/master/opd',
+                    pageComponent: 'Master/Opd/Index',
                     icon: Building2,
                 },
                 hasPermission('opd.view') && {
                     title: 'Unit OPD',
                     href: '/master/opd-units',
+                    pageComponent: 'Master/OpdUnit/Index',
                     icon: Building2,
                 },
                 hasPermission('periode.view') && {
                     title: 'Periode Tahun',
                     href: '/master/periode-tahun',
+                    pageComponent: 'Master/PeriodeTahun/Index',
                     icon: CalendarDays,
                 },
                 hasPermission('satuan.view') && {
                     title: 'Satuan Indikator',
                     href: '/master/satuan-indikator',
+                    pageComponent: 'Master/SatuanIndikator/Index',
                     icon: Ruler,
                 },
                 hasPermission('urusan.view') && {
                     title: 'Urusan Pemerintahan',
                     href: '/master/urusan-pemerintahan',
+                    pageComponent: 'Master/UrusanPemerintahan/Index',
                     icon: Landmark,
                 },
             ]),
@@ -117,26 +126,31 @@ const navigationGroups = computed<NavGroup[]>(() =>
                 hasAnyPermission(['rpjmd.view', 'view_rpjmd', 'rpjmd.manage', 'manage_rpjmd']) && {
                     title: 'RPJMD Kabupaten',
                     href: '/rpjmd',
+                    pageComponent: 'Rpjmd/Index',
                     icon: GitBranch,
                 },
                 hasAnyPermission(['renstra.view', 'view_renstra_opd', 'renstra.manage', 'manage_renstra_opd']) && {
                     title: 'Renstra OPD',
                     href: '/renstra-opd',
+                    pageComponent: 'RenstraOpd/Index',
                     icon: Layers3,
                 },
                 hasAnyPermission(['rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd']) && {
                     title: 'Pohon Kinerja',
                     href: '/pohon-kinerja',
+                    pageComponent: 'Perencanaan/PohonKinerja',
                     icon: Network,
                 },
                 hasAnyPermission(['kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja']) && {
                     title: 'Perjanjian Kinerja',
                     href: '/perjanjian-kinerja',
+                    pageComponent: 'Kinerja/PerjanjianKinerja/Index',
                     icon: ClipboardCheck,
                 },
                 hasAnyPermission(['kinerja.view', 'kinerja.manage', 'manage_rencana_aksi']) && {
                     title: 'Rencana Aksi',
                     href: '/rencana-aksi',
+                    pageComponent: 'Kinerja/RencanaAksi/Index',
                     icon: ListChecks,
                 },
                 hasAnyPermission([
@@ -151,6 +165,7 @@ const navigationGroups = computed<NavGroup[]>(() =>
                 ]) && {
                     title: 'Revisi Target',
                     href: '/target-revisions',
+                    pageComponent: 'Perencanaan/TargetRevision/Index',
                     icon: History,
                 },
             ]),
@@ -161,6 +176,7 @@ const navigationGroups = computed<NavGroup[]>(() =>
                 hasAnyPermission(['kinerja.view', 'kinerja.manage', 'input_realisasi', 'verify_realisasi']) && {
                     title: 'Realisasi Kinerja',
                     href: '/realisasi-kinerja',
+                    pageComponent: 'Kinerja/RealisasiKinerja/Index',
                     icon: BarChart3,
                 },
             ]),
@@ -171,11 +187,13 @@ const navigationGroups = computed<NavGroup[]>(() =>
                 hasAnyPermission(['dokumen.view', 'dokumen.manage', 'manage_dokumen']) && {
                     title: 'Kelengkapan Dokumen',
                     href: '/dokumen-publik',
+                    pageComponent: 'Dokumen/PublikChecklist',
                     icon: ClipboardList,
                 },
                 hasAnyPermission(['dokumen.view', 'dokumen.manage', 'manage_dokumen']) && {
                     title: 'Arsip & Bukti Dukung',
                     href: '/dokumen',
+                    pageComponent: 'Dokumen/Index',
                     icon: FileText,
                 },
             ]),
@@ -186,6 +204,7 @@ const navigationGroups = computed<NavGroup[]>(() =>
                 hasAnyPermission(['lkjip.view', 'lkjip.manage', 'laporan.view']) && {
                     title: 'LKJIP',
                     href: '/lkjip',
+                    pageComponent: 'Lkjip/Index',
                     icon: BookOpenCheck,
                 },
             ]),
@@ -196,6 +215,7 @@ const navigationGroups = computed<NavGroup[]>(() =>
                 hasAnyPermission(['evaluasi.view', 'evaluasi.manage', 'manage_evaluasi']) && {
                     title: 'Evaluasi SAKIP',
                     href: '/evaluasi-sakip',
+                    pageComponent: 'EvaluasiSakip/Index',
                     icon: FileCheck2,
                 },
             ]),
@@ -206,21 +226,25 @@ const navigationGroups = computed<NavGroup[]>(() =>
                 hasPermission('users.view') && {
                     title: 'Master User',
                     href: '/master/users',
+                    pageComponent: 'Master/User/Index',
                     icon: Users,
                 },
                 canAccessRolePermission.value && {
                     title: 'Role Permission',
                     href: '/master/role-permission',
+                    pageComponent: 'Master/RolePermission/Index',
                     icon: ShieldCheck,
                 },
                 hasPermission('activity_logs.view') && {
                     title: 'Audit Log',
                     href: '/audit-log',
+                    pageComponent: 'AuditLog/Index',
                     icon: ScrollText,
                 },
                 hasPermission('settings.view') && {
                     title: 'Pengaturan Sistem',
                     href: '/master/system-settings',
+                    pageComponent: 'Master/SystemSetting/Index',
                     icon: Settings,
                 },
             ]),
@@ -229,7 +253,17 @@ const navigationGroups = computed<NavGroup[]>(() =>
 );
 
 const navigationHrefs = computed(() => navigationGroups.value.flatMap((group) => group.items.map((item) => item.href)));
-useNavigationPrefetch(navigationHrefs);
+const navigationPageComponents = computed(() => navigationGroups.value.flatMap((group) => group.items.map((item) => item.pageComponent)));
+useNavigationPrefetch(navigationHrefs, {
+    cacheFor: '5m',
+    initialDelayMs: 180,
+    staggerMs: 70,
+    freshMs: 270_000,
+});
+usePageComponentPreload(navigationPageComponents, {
+    initialDelayMs: 80,
+    staggerMs: 45,
+});
 </script>
 
 <template>
@@ -238,7 +272,7 @@ useNavigationPrefetch(navigationHrefs);
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child>
-                        <Link :href="route('dashboard')" prefetch="hover" cache-for="2m">
+                        <Link :href="route('dashboard')" prefetch="hover" cache-for="5m">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>

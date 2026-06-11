@@ -12,6 +12,7 @@ export interface BreadcrumbItem {
 export interface NavItem {
     title: string;
     href: string;
+    pageComponent?: string;
     icon?: LucideIcon;
     isActive?: boolean;
     badge?: string | number;
@@ -23,6 +24,7 @@ export interface NavGroup {
 }
 
 export interface SharedData {
+    [key: string]: unknown;
     name: string;
     quote: { message: string; author: string };
     auth: Auth;

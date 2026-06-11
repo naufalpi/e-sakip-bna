@@ -4,6 +4,7 @@ import SidebarGroupLabel from '@/components/ui/sidebar/SidebarGroupLabel.vue';
 import SidebarMenu from '@/components/ui/sidebar/SidebarMenu.vue';
 import SidebarMenuButton from '@/components/ui/sidebar/SidebarMenuButton.vue';
 import SidebarMenuItem from '@/components/ui/sidebar/SidebarMenuItem.vue';
+import { warmAppPageComponent } from '@/lib/inertiaPages';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 
@@ -23,7 +24,13 @@ const isActive = (href: string) => page.url === href || page.url.startsWith(`${h
         <SidebarMenu>
             <SidebarMenuItem v-for="item in items" :key="item.title">
                 <SidebarMenuButton as-child :is-active="isActive(item.href)">
-                    <Link :href="item.href" prefetch="hover" cache-for="2m">
+                    <Link
+                        :href="item.href"
+                        prefetch="hover"
+                        cache-for="5m"
+                        @focus="warmAppPageComponent(item.pageComponent)"
+                        @pointerenter="warmAppPageComponent(item.pageComponent)"
+                    >
                         <component :is="item.icon" />
                         <span>{{ item.title }}</span>
                         <span

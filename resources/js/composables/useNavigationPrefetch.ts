@@ -19,7 +19,7 @@ export function useNavigationPrefetch(hrefs: HrefSource, options: NavigationPref
     const freshMs = options.freshMs ?? 110_000;
     const prefetchVisitOptions = {
         method: 'get' as const,
-        preserveScroll: true,
+        preserveScroll: false,
         preserveState: false,
         showProgress: false,
     };
