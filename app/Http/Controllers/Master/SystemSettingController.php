@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Master\StoreSystemSettingRequest;
 use App\Http\Requests\Master\UpdateSystemSettingRequest;
 use App\Models\SystemSetting;
+use App\Support\SystemSettingCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,6 +43,7 @@ class SystemSettingController extends Controller
         return Inertia::render('Master/SystemSetting/Index', [
             'items' => $items,
             'filters' => $filters,
+            'groupSummaries' => $this->groupSummaries(),
             'groupOptions' => $this->groupOptions(),
             'typeOptions' => $this->typeOptions(),
             'can' => [
@@ -59,6 +61,7 @@ class SystemSettingController extends Controller
             'item' => null,
             'groupOptions' => $this->groupOptions(),
             'typeOptions' => $this->typeOptions(),
+            'settingCatalog' => $this->settingCatalog(),
         ]);
     }
 
@@ -79,6 +82,7 @@ class SystemSettingController extends Controller
             'item' => $this->serialize($systemSetting),
             'groupOptions' => $this->groupOptions(),
             'typeOptions' => $this->typeOptions(),
+            'settingCatalog' => $this->settingCatalog(),
         ]);
     }
 
@@ -100,15 +104,22 @@ class SystemSettingController extends Controller
 
     private function serialize(SystemSetting $setting): array
     {
+        $group = SystemSettingCatalog::group($setting->group);
+        $catalog = SystemSettingCatalog::setting($setting->key);
+
         return [
             'id' => $setting->id,
             'group' => $setting->group,
+            'group_label' => $group['label'] ?? str($setting->group)->replace('_', ' ')->title()->toString(),
+            'group_description' => $group['description'] ?? null,
             'key' => $setting->key,
             'label' => $setting->label,
             'type' => $setting->type,
             'value' => $this->valueToString($setting->value),
             'raw_value' => $setting->value,
             'is_public' => $setting->is_public,
+            'description' => $catalog['description'] ?? null,
+            'placeholder' => $catalog['placeholder'] ?? null,
         ];
     }
 
@@ -167,25 +178,66 @@ class SystemSettingController extends Controller
 
     private function groupOptions(): array
     {
-        return SystemSetting::query()
+        $catalogOptions = collect(SystemSettingCatalog::groupOptions());
+
+        $databaseOptions = SystemSetting::query()
             ->select('group')
             ->distinct()
             ->orderBy('group')
             ->pluck('group')
             ->filter()
             ->map(fn (string $group) => ['value' => $group, 'label' => str($group)->replace('_', ' ')->title()->toString()])
+            ->values();
+
+        return $catalogOptions
+            ->merge($databaseOptions)
+            ->unique('value')
             ->values()
             ->all();
     }
 
     private function typeOptions(): array
     {
+        return SystemSettingCatalog::typeOptions();
+    }
+
+    private function groupSummaries(): array
+    {
+        $counts = SystemSetting::query()
+            ->select('group')
+            ->selectRaw('count(*) as aggregate')
+            ->groupBy('group')
+            ->pluck('aggregate', 'group');
+
+        $catalogGroups = collect(SystemSettingCatalog::groups())
+            ->map(fn (array $group, string $key) => [
+                'key' => $key,
+                'label' => $group['label'],
+                'description' => $group['description'],
+                'count' => (int) ($counts[$key] ?? 0),
+            ]);
+
+        $customGroups = $counts
+            ->keys()
+            ->reject(fn (string $group) => SystemSettingCatalog::group($group) !== null)
+            ->map(fn (string $group) => [
+                'key' => $group,
+                'label' => str($group)->replace('_', ' ')->title()->toString(),
+                'description' => 'Grup pengaturan tambahan.',
+                'count' => (int) $counts[$group],
+            ]);
+
+        return $catalogGroups
+            ->merge($customGroups)
+            ->values()
+            ->all();
+    }
+
+    private function settingCatalog(): array
+    {
         return [
-            ['value' => 'string', 'label' => 'String'],
-            ['value' => 'text', 'label' => 'Teks'],
-            ['value' => 'integer', 'label' => 'Integer'],
-            ['value' => 'boolean', 'label' => 'Boolean'],
-            ['value' => 'json', 'label' => 'JSON'],
+            'groups' => SystemSettingCatalog::groups(),
+            'settings' => SystemSettingCatalog::settings(),
         ];
     }
 }

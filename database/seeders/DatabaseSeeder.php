@@ -11,6 +11,7 @@ use App\Models\SatuanIndikator;
 use App\Models\SystemSetting;
 use App\Models\UrusanPemerintahan;
 use App\Models\User;
+use App\Support\SystemSettingCatalog;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -189,16 +190,18 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
-        SystemSetting::updateOrCreate(
-            ['key' => 'app.name'],
-            [
-                'group' => 'umum',
-                'label' => 'Nama Aplikasi',
-                'type' => 'string',
-                'value' => config('app.name'),
-                'is_public' => true,
-            ],
-        );
+        foreach (SystemSettingCatalog::settings() as $key => $setting) {
+            SystemSetting::updateOrCreate(
+                ['key' => $key],
+                [
+                    'group' => $setting['group'],
+                    'label' => $setting['label'],
+                    'type' => $setting['type'],
+                    'value' => $setting['value'],
+                    'is_public' => $setting['is_public'],
+                ],
+            );
+        }
 
         foreach ([
             ['kode' => 'AA', 'nama' => 'Sangat Memuaskan', 'nilai_min' => 90.01, 'nilai_max' => 100, 'warna' => 'emerald'],
