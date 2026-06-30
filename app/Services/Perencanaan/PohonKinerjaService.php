@@ -31,17 +31,18 @@ class PohonKinerjaService
     {
         $rpjmd->loadMissing([
             'periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.indikator.satuanIndikator:id,nama,simbol',
-            'visi.misi.tujuan.indikator.targets.periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
-            'visi.misi.tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.sasaran.strategi.programs.urusanPemerintahan:id,kode,nama',
-            'visi.misi.tujuan.sasaran.strategi.programs.opdPenanggungJawab:id,kode,nama,singkatan',
-            'visi.misi.tujuan.sasaran.strategi.programs.indikator.satuanIndikator:id,nama,simbol',
-            'visi.misi.tujuan.sasaran.strategi.programs.indikator.targets.periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.sasaran.strategi.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'visi.misi',
+            'visi.tujuan.indikator.satuanIndikator:id,nama,simbol',
+            'visi.tujuan.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.tujuan.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
+            'visi.tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.strategi.programs.urusanPemerintahan:id,kode,nama',
+            'visi.tujuan.sasaran.strategi.programs.opdPenanggungJawab:id,kode,nama,singkatan',
+            'visi.tujuan.sasaran.strategi.programs.indikator.satuanIndikator:id,nama,simbol',
+            'visi.tujuan.sasaran.strategi.programs.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.strategi.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
         ]);
 
         return $this->node(
@@ -169,11 +170,19 @@ class PohonKinerjaService
      */
     private function visiNode(RpjmdVisi $visi, ?int $visibleOpdId): ?array
     {
-        $children = $visi->misi
+        $misiChildren = $visi->misi
             ->map(fn (RpjmdMisi $misi) => $this->misiNode($misi, $visibleOpdId))
             ->filter()
             ->values()
             ->all();
+
+        $tujuanChildren = $visi->tujuan
+            ->map(fn (TujuanDaerah $tujuan) => $this->tujuanDaerahNode($tujuan, $visibleOpdId))
+            ->filter()
+            ->values()
+            ->all();
+
+        $children = [...$misiChildren, ...$tujuanChildren];
 
         if ($visibleOpdId && count($children) === 0) {
             return null;
@@ -187,17 +196,16 @@ class PohonKinerjaService
      */
     private function misiNode(RpjmdMisi $misi, ?int $visibleOpdId): ?array
     {
-        $children = $misi->tujuan
-            ->map(fn (TujuanDaerah $tujuan) => $this->tujuanDaerahNode($tujuan, $visibleOpdId))
-            ->filter()
-            ->values()
-            ->all();
-
-        if ($visibleOpdId && count($children) === 0) {
+        if ($visibleOpdId) {
             return null;
         }
 
-        return $this->node('misi', $misi->id, $this->label($misi->kode, $misi->misi), children: $children);
+        return $this->node(
+            type: 'misi',
+            id: $misi->id,
+            label: $this->label($misi->kode, $misi->misi),
+            meta: ['catatan' => 'Misi RPJMD dicatat sebagai pernyataan arah kebijakan tanpa turunan langsung.'],
+        );
     }
 
     /**
@@ -552,7 +560,7 @@ class PohonKinerjaService
             return $this->incomplete('Node OPD belum terhubung ke referensi RPJMD.');
         }
 
-        if (in_array($type, ['visi', 'misi', 'tujuan_daerah', 'sasaran_daerah', 'strategi_daerah', 'tujuan_opd', 'sasaran_opd', 'opd_program', 'opd_kegiatan', 'opd_sub_kegiatan'], true) && $children === []) {
+        if (in_array($type, ['visi', 'tujuan_daerah', 'sasaran_daerah', 'strategi_daerah', 'tujuan_opd', 'sasaran_opd', 'opd_program', 'opd_kegiatan', 'opd_sub_kegiatan'], true) && $children === []) {
             return $this->incomplete('Node belum memiliki turunan cascading.');
         }
 

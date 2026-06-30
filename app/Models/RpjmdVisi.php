@@ -26,4 +26,9 @@ class RpjmdVisi extends Model
     {
         return $this->hasMany(RpjmdMisi::class)->orderBy('urutan');
     }
+
+    public function tujuan(): HasMany
+    {
+        return $this->hasMany(TujuanDaerah::class, 'rpjmd_visi_id')->orderBy('urutan');
+    }
 }

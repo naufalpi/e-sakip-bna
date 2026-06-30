@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -179,8 +180,8 @@ const storeItem = () => {
     });
 };
 
-const destroyItem = (item: EvaluasiItem) => {
-    if (confirm('Hapus nilai kriteria ini?')) {
+const destroyItem = async (item: EvaluasiItem) => {
+    if (await confirmDelete('Hapus nilai kriteria ini?')) {
         router.delete(route('evaluasi-sakip.items.destroy', { evaluasi_sakip: props.evaluasi.id, item: item.id }), { preserveScroll: true });
     }
 };
@@ -228,8 +229,8 @@ const storeRekomendasi = () => {
     });
 };
 
-const destroyRekomendasi = (rekomendasi: Rekomendasi) => {
-    if (confirm('Hapus rekomendasi ini?')) {
+const destroyRekomendasi = async (rekomendasi: Rekomendasi) => {
+    if (await confirmDelete('Hapus rekomendasi ini?')) {
         router.delete(route('evaluasi-sakip.rekomendasi.destroy', { evaluasi_sakip: props.evaluasi.id, rekomendasi: rekomendasi.id }), {
             preserveScroll: true,
         });

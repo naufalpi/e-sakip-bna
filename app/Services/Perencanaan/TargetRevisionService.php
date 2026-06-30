@@ -20,6 +20,7 @@ use App\Models\TargetIndikatorTujuanDaerah;
 use App\Models\TargetIndikatorTujuanOpd;
 use App\Models\TargetRevision;
 use App\Models\TargetTriwulanIndikator;
+use App\Models\TujuanDaerah;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -263,10 +264,11 @@ class TargetRevisionService
     private function ownerModel(Model $target, string $table): Model
     {
         return match ($table) {
-            'target_indikator_tujuan_daerah' => $target->indikator->tujuan->misi->rpjmd,
-            'target_indikator_sasaran_daerah' => $target->indikator->sasaran->tujuan->misi->rpjmd,
-            'target_indikator_program_rpjmd' => $target->indikator->program->strategi?->sasaran?->tujuan?->misi?->rpjmd
-                ?? $target->indikator->program->sasaran->tujuan->misi->rpjmd,
+            'target_indikator_tujuan_daerah' => $this->rpjmdFromTujuan($target->indikator->tujuan),
+            'target_indikator_sasaran_daerah' => $this->rpjmdFromTujuan($target->indikator->sasaran->tujuan),
+            'target_indikator_program_rpjmd' => $this->rpjmdFromTujuan(
+                $target->indikator->program->strategi?->sasaran?->tujuan ?? $target->indikator->program->sasaran->tujuan
+            ),
             'target_indikator_tujuan_opd' => $target->indikator->tujuan->renstra,
             'target_indikator_sasaran_opd' => $target->indikator->sasaran->tujuan->renstra,
             'target_indikator_opd_program' => $target->indikator->program->renstra,
@@ -289,15 +291,29 @@ class TargetRevisionService
         };
 
         return match ($target->related_table) {
-            'indikator_tujuan_daerah' => $related->tujuan->misi->rpjmd,
-            'indikator_sasaran_daerah' => $related->sasaran->tujuan->misi->rpjmd,
-            'indikator_program_rpjmd' => $related->program->strategi?->sasaran?->tujuan?->misi?->rpjmd
-                ?? $related->program->sasaran->tujuan->misi->rpjmd,
+            'indikator_tujuan_daerah' => $this->rpjmdFromTujuan($related->tujuan),
+            'indikator_sasaran_daerah' => $this->rpjmdFromTujuan($related->sasaran->tujuan),
+            'indikator_program_rpjmd' => $this->rpjmdFromTujuan(
+                $related->program->strategi?->sasaran?->tujuan ?? $related->program->sasaran->tujuan
+            ),
             'indikator_tujuan_opd' => $related->tujuan->renstra,
             'indikator_sasaran_opd' => $related->sasaran->tujuan->renstra,
             'indikator_opd_program' => $related->program->renstra,
             'indikator_sub_kegiatan' => $related->subKegiatan->kegiatan->program->renstra,
         };
+    }
+
+    private function rpjmdFromTujuan(?TujuanDaerah $tujuan): Rpjmd
+    {
+        $rpjmd = $tujuan?->parentRpjmd();
+
+        if (! $rpjmd) {
+            throw ValidationException::withMessages([
+                'target_id' => 'Target RPJMD tidak memiliki relasi visi/misi yang valid.',
+            ]);
+        }
+
+        return $rpjmd;
     }
 
     /**

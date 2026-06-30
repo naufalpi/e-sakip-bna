@@ -171,7 +171,14 @@ const actions = computed(() => {
 </script>
 
 <template>
-    <button v-for="item in actions" :key="item.action" type="button" class="rounded-md px-3 py-2 text-sm font-medium" :class="item.className" @click="openTransitionDialog(item)">
+    <button
+        v-for="item in actions"
+        :key="item.action"
+        type="button"
+        class="rounded-md px-3 py-2 text-sm font-medium"
+        :class="item.className"
+        @click="openTransitionDialog(item)"
+    >
         {{ item.label }}
     </button>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import {
     ArrowRight,
@@ -89,8 +90,8 @@ const resetFilters = () => {
     applyFiltersNow();
 };
 
-const destroy = (renstra: RenstraRow) => {
-    if (confirm(`Hapus Renstra ${renstra.opd?.singkatan || renstra.opd?.nama || ''} ${renstra.tahun_awal}-${renstra.tahun_akhir}?`)) {
+const destroy = async (renstra: RenstraRow) => {
+    if (await confirmDelete(`Hapus Renstra ${renstra.opd?.singkatan || renstra.opd?.nama || ''} ${renstra.tahun_awal}-${renstra.tahun_akhir}?`)) {
         router.delete(route('renstra-opd.destroy', renstra.id));
     }
 };

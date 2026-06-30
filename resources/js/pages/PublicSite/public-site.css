@@ -1,0 +1,402 @@
+.public-site {
+    --portal-ink: #0f172a;
+    --portal-blue: #00336c;
+    --portal-blue-dark: #002957;
+    --portal-blue-soft: #eaf4ff;
+    --portal-cyan: #0ea5e9;
+    scroll-behavior: smooth;
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        sans-serif;
+}
+
+.public-site :is(h1, h2) {
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        sans-serif;
+    letter-spacing: 0;
+}
+
+.hero-section {
+    min-height: 100dvh;
+    background:
+        linear-gradient(90deg, rgba(0, 18, 48, 0.94) 0%, rgba(0, 51, 108, 0.78) 44%, rgba(0, 51, 108, 0.2) 100%),
+        radial-gradient(circle at 78% 28%, rgba(125, 211, 252, 0.14), transparent 28rem), #00336c;
+}
+
+.hero-section::before,
+.hero-section::after {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    content: '';
+    pointer-events: none;
+}
+
+.hero-section::before {
+    background:
+        linear-gradient(90deg, rgba(0, 20, 52, 0.84), rgba(0, 51, 108, 0.3) 48%, rgba(0, 51, 108, 0.04)),
+        radial-gradient(circle at 18% 50%, rgba(14, 165, 233, 0.16), transparent 20rem),
+        linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 23, 55, 0.28));
+}
+
+.hero-section::after {
+    background-image:
+        linear-gradient(rgba(125, 211, 252, 0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(125, 211, 252, 0.045) 1px, transparent 1px),
+        linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+    background-position: 0 0;
+    background-size:
+        4rem 4rem,
+        4rem 4rem,
+        12rem 12rem,
+        12rem 12rem;
+    mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.78) 20%, rgba(0, 0, 0, 0.95) 100%);
+}
+
+.hero-title {
+    text-wrap: balance;
+    text-shadow: 0 1rem 3rem rgba(0, 15, 45, 0.34);
+}
+
+.hero-shell {
+    position: relative;
+    z-index: 1;
+}
+
+.hero-kicker {
+    border: 1px solid rgba(191, 219, 254, 0.26);
+    background: rgba(2, 132, 199, 0.18);
+    color: #dbeafe;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(0.75rem);
+}
+
+.hero-motion {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+    contain: paint;
+    background:
+        radial-gradient(circle at 80% 18%, rgba(125, 211, 252, 0.16), transparent 28rem),
+        radial-gradient(circle at 40% 72%, rgba(14, 165, 233, 0.09), transparent 24rem),
+        linear-gradient(135deg, #001b45 0%, #00336c 46%, #001739 100%);
+}
+
+.hero-motion::before {
+    position: absolute;
+    inset: -18% -20%;
+    content: '';
+    background:
+        linear-gradient(115deg, transparent 0 32%, rgba(14, 165, 233, 0.08) 42%, transparent 52% 100%),
+        linear-gradient(62deg, transparent 0 60%, rgba(125, 211, 252, 0.07) 68%, transparent 76% 100%);
+    filter: blur(0.35rem);
+    opacity: 0.52;
+}
+
+.hero-motion::after {
+    position: absolute;
+    inset: 0;
+    content: '';
+    background-image:
+        radial-gradient(circle, rgba(125, 211, 252, 0.28) 0 1px, transparent 1.8px),
+        radial-gradient(circle, rgba(255, 255, 255, 0.14) 0 1px, transparent 1.8px),
+        radial-gradient(circle, rgba(56, 189, 248, 0.18) 0 1.3px, transparent 2.2px);
+    background-position:
+        0 0,
+        2rem 2rem,
+        4rem 1rem;
+    background-size:
+        7.5rem 7.5rem,
+        10rem 10rem,
+        14rem 14rem;
+    opacity: 0.2;
+}
+
+.hero-aurora {
+    position: absolute;
+    width: 38rem;
+    height: 38rem;
+    border-radius: 9999px;
+    filter: blur(4rem);
+    opacity: 0.18;
+    transform: translate3d(0, 0, 0);
+}
+
+.hero-aurora-a {
+    top: -13rem;
+    right: 9%;
+    background: #0ea5e9;
+}
+
+.hero-aurora-b {
+    right: -9rem;
+    bottom: -16rem;
+    background: #2563eb;
+}
+
+.hero-aurora-c {
+    top: 18%;
+    left: 46%;
+    width: 28rem;
+    height: 28rem;
+    background: #22d3ee;
+    opacity: 0.2;
+}
+
+.hero-scanline,
+.hero-orbit {
+    display: none;
+}
+
+.hero-network-texture {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.42;
+    background-image:
+        linear-gradient(
+            118deg,
+            transparent 0 16%,
+            rgba(125, 211, 252, 0.12) 16.15%,
+            transparent 16.35% 42%,
+            rgba(56, 189, 248, 0.1) 42.2%,
+            transparent 42.4%
+        ),
+        linear-gradient(
+            42deg,
+            transparent 0 24%,
+            rgba(186, 230, 253, 0.1) 24.15%,
+            transparent 24.35% 58%,
+            rgba(56, 189, 248, 0.08) 58.2%,
+            transparent 58.4%
+        ),
+        radial-gradient(circle at 18% 36%, rgba(186, 230, 253, 0.42) 0 1.5px, transparent 2px),
+        radial-gradient(circle at 45% 22%, rgba(125, 211, 252, 0.28) 0 1.4px, transparent 2px),
+        radial-gradient(circle at 72% 45%, rgba(186, 230, 253, 0.32) 0 1.6px, transparent 2.1px),
+        radial-gradient(circle at 84% 68%, rgba(125, 211, 252, 0.24) 0 1.4px, transparent 2px);
+    background-size:
+        28rem 18rem,
+        26rem 20rem,
+        18rem 14rem,
+        22rem 16rem,
+        24rem 18rem,
+        20rem 16rem;
+    mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.88) 18%, rgba(0, 0, 0, 0.96) 100%);
+}
+
+.hero-mesh-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0.98;
+    contain: strict;
+}
+
+.hero-proofline span {
+    display: flex;
+    min-height: 1.75rem;
+    align-items: center;
+    gap: 0.45rem;
+    color: rgba(239, 246, 255, 0.92);
+}
+
+.hero-proofline svg {
+    color: #7dd3fc;
+}
+
+.cycle-band {
+    position: relative;
+    overflow: hidden;
+}
+
+.cycle-band::before {
+    position: absolute;
+    inset: 0;
+    content: '';
+    background:
+        radial-gradient(circle at 10% 0%, rgba(37, 99, 235, 0.1), transparent 26rem),
+        linear-gradient(90deg, rgba(219, 234, 254, 0.8), transparent 38%, rgba(239, 246, 255, 0.9));
+    pointer-events: none;
+}
+
+.cycle-card {
+    position: relative;
+    display: flex;
+    min-height: 5.75rem;
+    align-items: center;
+    gap: 0.75rem;
+    overflow: hidden;
+    padding: 1.15rem 1.35rem 1.65rem;
+    border: 1px solid rgb(191 219 254);
+    border-radius: 1rem;
+    background: white;
+    box-shadow: 0 0.6rem 1.6rem rgb(37 99 235 / 0.08);
+    color: rgb(15 23 42);
+    font-size: 0.875rem;
+    font-weight: 700;
+    isolation: isolate;
+    transition:
+        border-color 180ms ease,
+        box-shadow 180ms ease;
+}
+
+.cycle-card::after {
+    position: absolute;
+    right: 1.35rem;
+    bottom: 0.95rem;
+    left: 1.35rem;
+    height: 0.22rem;
+    content: '';
+    border-radius: 9999px;
+    background: linear-gradient(90deg, var(--cycle-color, var(--portal-blue)), #7dd3fc);
+    transform: scaleX(0.38);
+    transform-origin: left;
+    transition: transform 180ms ease;
+}
+
+.cycle-card:hover {
+    border-color: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 38%, white);
+    box-shadow: 0 1rem 2.2rem rgb(37 99 235 / 0.13);
+}
+
+.cycle-card:hover::after,
+.cycle-card-active::after {
+    transform: scaleX(1);
+}
+
+.cycle-card-active {
+    border-color: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 52%, white);
+    background: linear-gradient(180deg, white, color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 8%, white));
+}
+
+.cycle-card p {
+    margin-bottom: 0.15rem;
+    color: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 88%, black);
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.cycle-card span {
+    color: var(--portal-ink);
+    font-size: 1rem;
+}
+
+.cycle-icon {
+    display: inline-flex;
+    min-width: 3rem;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.875rem;
+    background: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 12%, white);
+    color: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 86%, black);
+}
+
+.cycle-card-planning {
+    --cycle-color: #00336c;
+}
+
+.cycle-card-measurement {
+    --cycle-color: #07589f;
+}
+
+.cycle-card-reporting {
+    --cycle-color: #00336c;
+}
+
+.cycle-card-evaluation {
+    --cycle-color: #002957;
+}
+
+.overview-section {
+    background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 28rem), linear-gradient(180deg, #ffffff, #eff6ff);
+}
+
+.module-header {
+    background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 26rem), linear-gradient(180deg, #ffffff, #eff6ff);
+}
+
+.module-header-panel {
+    position: relative;
+    overflow: hidden;
+}
+
+.module-header-panel::after {
+    position: absolute;
+    right: -8rem;
+    bottom: -7rem;
+    width: 16rem;
+    height: 16rem;
+    content: '';
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--portal-blue) 10%, transparent);
+    pointer-events: none;
+}
+
+.module-card {
+    position: relative;
+    min-height: 22rem;
+    overflow: hidden;
+    padding-bottom: 2rem;
+    isolation: isolate;
+    transition:
+        transform 200ms ease,
+        border-color 200ms ease,
+        box-shadow 200ms ease;
+}
+
+.module-card::before {
+    position: absolute;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    left: 1.25rem;
+    z-index: -1;
+    height: 0.3rem;
+    content: '';
+    border-radius: 9999px;
+    background: linear-gradient(90deg, var(--cycle-color, var(--portal-blue)), #7dd3fc);
+    opacity: 0.85;
+}
+
+.module-card:hover {
+    border-color: color-mix(in srgb, var(--cycle-color, var(--portal-blue)) 42%, white);
+    box-shadow: 0 1.1rem 2.6rem rgb(37 99 235 / 0.14);
+    transform: translateY(-0.18rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .public-site {
+        scroll-behavior: auto;
+    }
+
+    .hero-motion,
+    .hero-motion *,
+    .hero-motion::before,
+    .hero-motion::after,
+    .hero-section::after {
+        animation: none;
+    }
+
+    .hero-scanline {
+        display: none;
+    }
+
+    .public-site * {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}

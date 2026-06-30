@@ -2,6 +2,7 @@
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -107,8 +108,8 @@ const storeBab = () => {
     });
 };
 
-const destroyBab = (bab: Bab) => {
-    if (confirm(`Hapus ${bab.kode} - ${bab.judul}?`)) {
+const destroyBab = async (bab: Bab) => {
+    if (await confirmDelete(`Hapus ${bab.kode} - ${bab.judul}?`)) {
         router.delete(route('lkjip.bab.destroy', { lkjip: props.item.id, bab: bab.id }), { preserveScroll: true });
     }
 };

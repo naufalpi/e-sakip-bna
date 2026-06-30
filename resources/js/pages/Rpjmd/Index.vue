@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { FileSpreadsheet, Plus, Search } from 'lucide-vue-next';
 import { reactive } from 'vue';
@@ -67,8 +68,8 @@ const resetFilters = () => {
     applyFiltersNow();
 };
 
-const destroy = (rpjmd: RpjmdRow) => {
-    if (confirm(`Hapus RPJMD ${rpjmd.tahun_awal}-${rpjmd.tahun_akhir}?`)) {
+const destroy = async (rpjmd: RpjmdRow) => {
+    if (await confirmDelete(`Hapus RPJMD ${rpjmd.tahun_awal}-${rpjmd.tahun_akhir}?`)) {
         router.delete(route('rpjmd.destroy', rpjmd.id));
     }
 };

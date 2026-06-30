@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { Head, Link, router } from '@inertiajs/vue3';
-import AlertTriangle from 'lucide-vue-next/dist/esm/icons/triangle-alert.js';
 import ArrowRight from 'lucide-vue-next/dist/esm/icons/arrow-right.js';
-import BarChart3 from 'lucide-vue-next/dist/esm/icons/chart-column.js';
 import Building2 from 'lucide-vue-next/dist/esm/icons/building-2.js';
+import BarChart3 from 'lucide-vue-next/dist/esm/icons/chart-column.js';
 import CheckCircle2 from 'lucide-vue-next/dist/esm/icons/circle-check.js';
 import ClipboardCheck from 'lucide-vue-next/dist/esm/icons/clipboard-check.js';
 import FileCheck2 from 'lucide-vue-next/dist/esm/icons/file-check-2.js';
 import Gauge from 'lucide-vue-next/dist/esm/icons/gauge.js';
 import ListChecks from 'lucide-vue-next/dist/esm/icons/list-checks.js';
 import TrendingUp from 'lucide-vue-next/dist/esm/icons/trending-up.js';
+import AlertTriangle from 'lucide-vue-next/dist/esm/icons/triangle-alert.js';
 import Trophy from 'lucide-vue-next/dist/esm/icons/trophy.js';
 import { computed, reactive } from 'vue';
 

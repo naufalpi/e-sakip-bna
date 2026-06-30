@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Plus, Search } from 'lucide-vue-next';
 import { reactive } from 'vue';
@@ -60,8 +61,8 @@ const resetFilters = () => {
     applyFiltersNow();
 };
 
-const destroy = (row: Row) => {
-    if (confirm(`Hapus evaluasi SAKIP ${row.opd?.singkatan || row.opd?.nama || ''} tahun ${row.tahun}?`)) {
+const destroy = async (row: Row) => {
+    if (await confirmDelete(`Hapus evaluasi SAKIP ${row.opd?.singkatan || row.opd?.nama || ''} tahun ${row.tahun}?`)) {
         router.delete(route('evaluasi-sakip.destroy', row.id));
     }
 };

@@ -533,32 +533,32 @@ class RenstraImportApplyService
 
     private function resolveTujuanDaerah(array $mapped, RenstraOpd $renstra): ?TujuanDaerah
     {
-        return $this->referenceByIdOrKode(TujuanDaerah::query()->whereHas('misi', fn ($query) => $query->where('rpjmd_id', $renstra->rpjmd_id)), $mapped, ['tujuan_daerah_id'], ['tujuan_daerah_kode', 'kode_tujuan_daerah']);
+        return $this->referenceByIdOrKode(TujuanDaerah::query()->forRpjmd($renstra->rpjmd_id), $mapped, ['tujuan_daerah_id'], ['tujuan_daerah_kode', 'kode_tujuan_daerah']);
     }
 
     private function resolveIndikatorTujuanDaerah(array $mapped, RenstraOpd $renstra): ?IndikatorTujuanDaerah
     {
-        return $this->referenceByIdOrKode(IndikatorTujuanDaerah::query()->whereHas('tujuan.misi', fn ($query) => $query->where('rpjmd_id', $renstra->rpjmd_id)), $mapped, ['indikator_tujuan_daerah_id'], ['indikator_tujuan_daerah_kode']);
+        return $this->referenceByIdOrKode(IndikatorTujuanDaerah::query()->whereHas('tujuan', fn ($query) => $query->forRpjmd($renstra->rpjmd_id)), $mapped, ['indikator_tujuan_daerah_id'], ['indikator_tujuan_daerah_kode']);
     }
 
     private function resolveSasaranDaerah(array $mapped, RenstraOpd $renstra): ?SasaranDaerah
     {
-        return $this->referenceByIdOrKode(SasaranDaerah::query()->whereHas('tujuan.misi', fn ($query) => $query->where('rpjmd_id', $renstra->rpjmd_id)), $mapped, ['sasaran_daerah_id'], ['sasaran_daerah_kode', 'kode_sasaran_daerah']);
+        return $this->referenceByIdOrKode(SasaranDaerah::query()->whereHas('tujuan', fn ($query) => $query->forRpjmd($renstra->rpjmd_id)), $mapped, ['sasaran_daerah_id'], ['sasaran_daerah_kode', 'kode_sasaran_daerah']);
     }
 
     private function resolveIndikatorSasaranDaerah(array $mapped, RenstraOpd $renstra): ?IndikatorSasaranDaerah
     {
-        return $this->referenceByIdOrKode(IndikatorSasaranDaerah::query()->whereHas('sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $renstra->rpjmd_id)), $mapped, ['indikator_sasaran_daerah_id'], ['indikator_sasaran_daerah_kode']);
+        return $this->referenceByIdOrKode(IndikatorSasaranDaerah::query()->whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($renstra->rpjmd_id)), $mapped, ['indikator_sasaran_daerah_id'], ['indikator_sasaran_daerah_kode']);
     }
 
     private function resolveProgramRpjmd(array $mapped, RenstraOpd $renstra): ?ProgramRpjmd
     {
-        return $this->referenceByIdOrKode(ProgramRpjmd::query()->whereHas('strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $renstra->rpjmd_id)), $mapped, ['program_rpjmd_id'], ['program_rpjmd_kode', 'kode_program_rpjmd']);
+        return $this->referenceByIdOrKode(ProgramRpjmd::query()->whereHas('strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($renstra->rpjmd_id)), $mapped, ['program_rpjmd_id'], ['program_rpjmd_kode', 'kode_program_rpjmd']);
     }
 
     private function resolveIndikatorProgramRpjmd(array $mapped, RenstraOpd $renstra): ?IndikatorProgramRpjmd
     {
-        return $this->referenceByIdOrKode(IndikatorProgramRpjmd::query()->whereHas('program.strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $renstra->rpjmd_id)), $mapped, ['indikator_program_rpjmd_id'], ['indikator_program_rpjmd_kode']);
+        return $this->referenceByIdOrKode(IndikatorProgramRpjmd::query()->whereHas('program.strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($renstra->rpjmd_id)), $mapped, ['indikator_program_rpjmd_id'], ['indikator_program_rpjmd_kode']);
     }
 
     /**

@@ -121,7 +121,7 @@ class PohonKinerjaTest extends TestCase
         $rpjmd = Rpjmd::create(['periode_tahun_id' => $periode->id, 'judul' => 'RPJMD Pohon Kinerja', 'tahun_awal' => 2026, 'tahun_akhir' => 2031, 'status' => 'approved']);
         $visi = RpjmdVisi::create(['rpjmd_id' => $rpjmd->id, 'visi' => 'Visi Kabupaten', 'urutan' => 1]);
         $misi = RpjmdMisi::create(['rpjmd_id' => $rpjmd->id, 'rpjmd_visi_id' => $visi->id, 'misi' => 'Misi Kabupaten', 'urutan' => 1]);
-        $tujuan = TujuanDaerah::create(['rpjmd_misi_id' => $misi->id, 'tujuan' => 'Tujuan Daerah', 'urutan' => 1]);
+        $tujuan = TujuanDaerah::create(['rpjmd_visi_id' => $visi->id, 'rpjmd_misi_id' => null, 'tujuan' => 'Tujuan Daerah', 'urutan' => 1]);
         $sasaran = SasaranDaerah::create(['tujuan_daerah_id' => $tujuan->id, 'sasaran' => 'Sasaran Daerah', 'urutan' => 1]);
         $strategi = StrategiDaerah::create(['sasaran_daerah_id' => $sasaran->id, 'strategi' => 'Strategi Daerah', 'urutan' => 1]);
         $program = ProgramRpjmd::create([

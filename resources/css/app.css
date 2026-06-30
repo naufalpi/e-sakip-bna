@@ -597,10 +597,143 @@ html {
         background: transparent;
     }
 
+    .esakip-swal-popup {
+        width: min(28rem, calc(100vw - 2rem));
+        border: 1px solid rgb(203 213 225 / 0.9);
+        border-radius: 1rem;
+        padding: 1.25rem 1.25rem 1.35rem;
+        background: linear-gradient(180deg, #ffffff, #f8fbff);
+        box-shadow:
+            0 1.4rem 3.5rem rgb(15 23 42 / 0.18),
+            inset 0 1px 0 rgb(255 255 255);
+        color: rgb(15 23 42);
+    }
+
+    .esakip-swal-title {
+        padding: 0;
+        color: rgb(15 23 42);
+        font-size: 1.125rem;
+        font-weight: 750;
+        line-height: 1.35;
+        letter-spacing: 0;
+    }
+
+    .esakip-swal-text {
+        margin: 0.75rem 0 0;
+        color: rgb(71 85 105);
+        font-size: 0.925rem;
+        line-height: 1.65;
+    }
+
+    .esakip-swal-actions {
+        gap: 0.65rem;
+        margin-top: 1.35rem;
+    }
+
+    .esakip-swal-button {
+        display: inline-flex !important;
+        min-height: 2.55rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.7rem;
+        padding: 0.62rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 700;
+        line-height: 1;
+        transition:
+            background-color 160ms ease,
+            border-color 160ms ease,
+            box-shadow 160ms ease,
+            color 160ms ease,
+            transform 160ms ease;
+    }
+
+    .esakip-swal-button:focus-visible {
+        outline: 2px solid rgb(0 51 108 / 0.35);
+        outline-offset: 2px;
+    }
+
+    .esakip-swal-button:hover {
+        transform: translateY(-1px);
+    }
+
+    .esakip-swal-confirm {
+        border: 1px solid #00336c;
+        background: #00336c;
+        color: white;
+        box-shadow: 0 0.65rem 1.3rem rgb(0 51 108 / 0.22);
+    }
+
+    .esakip-swal-confirm:hover {
+        background: #002957;
+        border-color: #002957;
+    }
+
+    .esakip-swal-cancel {
+        border: 1px solid rgb(203 213 225);
+        background: white;
+        color: rgb(51 65 85);
+    }
+
+    .esakip-swal-cancel:hover {
+        border-color: rgb(147 197 253);
+        background: #eef6ff;
+        color: #00336c;
+    }
+
+    .esakip-swal-deny {
+        border: 1px solid rgb(220 38 38);
+        background: rgb(220 38 38);
+        color: white;
+    }
+
+    .esakip-swal-toast {
+        border: 1px solid rgb(203 213 225 / 0.9);
+        border-radius: 0.85rem;
+        padding: 0.75rem 0.9rem;
+        background: white;
+        box-shadow: 0 1rem 2.5rem rgb(15 23 42 / 0.16);
+        color: rgb(15 23 42);
+    }
+
+    .esakip-swal-enter {
+        animation: esakip-swal-enter 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .esakip-swal-leave {
+        animation: esakip-swal-leave 110ms ease-in forwards;
+    }
+
+    @keyframes esakip-swal-enter {
+        from {
+            opacity: 0;
+            transform: translate3d(0, -8px, 0) scale(0.98);
+        }
+
+        to {
+            opacity: 1;
+            transform: translate3d(0, 0, 0) scale(1);
+        }
+    }
+
+    @keyframes esakip-swal-leave {
+        from {
+            opacity: 1;
+            transform: translate3d(0, 0, 0) scale(1);
+        }
+
+        to {
+            opacity: 0;
+            transform: translate3d(0, 4px, 0) scale(0.99);
+        }
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .page-drop-enter-active,
         .page-drop-leave-active,
-        .admin-route-loader span {
+        .admin-route-loader span,
+        .esakip-swal-enter,
+        .esakip-swal-leave {
             transition: none;
             animation: none;
         }

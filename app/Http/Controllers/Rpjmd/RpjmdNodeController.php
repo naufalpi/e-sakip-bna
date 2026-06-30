@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Rpjmd;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Rpjmd\StoreRpjmdNodeBulkRequest;
 use App\Http\Requests\Rpjmd\StoreRpjmdNodeRequest;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
@@ -18,6 +19,7 @@ use App\Models\TargetIndikatorProgramRpjmd;
 use App\Models\TargetIndikatorSasaranDaerah;
 use App\Models\TargetIndikatorTujuanDaerah;
 use App\Models\TujuanDaerah;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -35,7 +37,28 @@ class RpjmdNodeController extends Controller
         return back()->with('success', 'Data cascading RPJMD berhasil disimpan.');
     }
 
-    public function update(StoreRpjmdNodeRequest $request, Rpjmd $rpjmd, string $type, int $id): RedirectResponse
+    public function bulkStore(StoreRpjmdNodeBulkRequest $request, Rpjmd $rpjmd): RedirectResponse
+    {
+        $this->authorize('update', $rpjmd);
+
+        $data = $request->validated();
+        $rows = collect($data['rows'] ?? [])
+            ->map(fn (array $row, int $index) => $this->normalizeBulkRow($data, $row, $index))
+            ->filter(fn (array $row) => $this->bulkRowHasContent($row))
+            ->values();
+
+        if ($rows->isEmpty()) {
+            throw ValidationException::withMessages(['rows' => 'Minimal satu baris bulk harus diisi.']);
+        }
+
+        DB::transaction(function () use ($rpjmd, $rows): void {
+            $rows->each(fn (array $row) => $this->storeNode($rpjmd, $row));
+        });
+
+        return back()->with('success', "{$rows->count()} data cascading RPJMD berhasil disimpan.");
+    }
+
+    public function update(StoreRpjmdNodeRequest $request, Rpjmd $rpjmd, string $type, int $id): RedirectResponse|JsonResponse
     {
         $this->authorize('update', $rpjmd);
 
@@ -46,6 +69,14 @@ class RpjmdNodeController extends Controller
         }
 
         DB::transaction(fn () => $this->updateNode($rpjmd, $type, $id, $data));
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'id' => $id,
+                'type' => $type,
+                'message' => 'Data cascading RPJMD berhasil diperbarui.',
+            ]);
+        }
 
         return back()->with('success', 'Data cascading RPJMD berhasil diperbarui.');
     }
@@ -79,7 +110,8 @@ class RpjmdNodeController extends Controller
                 'urutan' => $data['urutan'] ?? 1,
             ]),
             'tujuan' => TujuanDaerah::create([
-                'rpjmd_misi_id' => $this->misi($rpjmd, $data['parent_id'] ?? null)->id,
+                'rpjmd_visi_id' => $this->visi($rpjmd, $data['parent_id'] ?? null)->id,
+                'rpjmd_misi_id' => null,
                 'kode' => $data['kode'] ?? null,
                 'tujuan' => $this->requiredText($data, 'uraian', 'Tujuan daerah wajib diisi.'),
                 'urutan' => $data['urutan'] ?? 1,
@@ -172,6 +204,57 @@ class RpjmdNodeController extends Controller
     }
 
     /**
+     * @param  array<string, mixed>  $bulk
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function normalizeBulkRow(array $bulk, array $row, int $index): array
+    {
+        $inheritKeys = [
+            'parent_id',
+            'periode_tahun_id',
+            'satuan_indikator_id',
+            'urusan_pemerintahan_id',
+            'peran',
+            'is_utama',
+        ];
+
+        foreach ($inheritKeys as $key) {
+            if ($key === 'is_utama') {
+                if (! array_key_exists($key, $row) && array_key_exists($key, $bulk)) {
+                    $row[$key] = $bulk[$key];
+                }
+
+                continue;
+            }
+
+            if (blank($row[$key] ?? null) && array_key_exists($key, $bulk)) {
+                $row[$key] = $bulk[$key];
+            }
+        }
+
+        $row['type'] = $bulk['type'];
+        $row['urutan'] = filled($row['urutan'] ?? null) ? $row['urutan'] : $index + 1;
+
+        return $row;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function bulkRowHasContent(array $row): bool
+    {
+        return match ($row['type']) {
+            'indikator_tujuan', 'indikator_sasaran', 'indikator_program' => filled($row['indikator'] ?? null),
+            'target_tujuan', 'target_sasaran', 'target_program' => filled($row['target'] ?? null)
+                || filled($row['target_text'] ?? null)
+                || filled($row['pagu'] ?? null),
+            'program_opd' => filled($row['opd_id'] ?? null),
+            default => filled($row['uraian'] ?? null),
+        };
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      */
     private function updateNode(Rpjmd $rpjmd, string $type, int $id, array $data): void
@@ -191,7 +274,8 @@ class RpjmdNodeController extends Controller
             }),
             'tujuan' => tap($this->tujuan($rpjmd, $id), function (TujuanDaerah $tujuan) use ($rpjmd, $data) {
                 $tujuan->update([
-                    'rpjmd_misi_id' => filled($data['parent_id'] ?? null) ? $this->misi($rpjmd, $data['parent_id'])->id : $tujuan->rpjmd_misi_id,
+                    'rpjmd_visi_id' => filled($data['parent_id'] ?? null) ? $this->visi($rpjmd, $data['parent_id'])->id : $tujuan->rpjmd_visi_id,
+                    'rpjmd_misi_id' => filled($data['parent_id'] ?? null) ? null : $tujuan->rpjmd_misi_id,
                     'kode' => $data['kode'] ?? null,
                     'tujuan' => $this->requiredText($data, 'uraian', 'Tujuan daerah wajib diisi.'),
                     'urutan' => $data['urutan'] ?? 1,
@@ -327,37 +411,37 @@ class RpjmdNodeController extends Controller
 
     private function tujuan(Rpjmd $rpjmd, mixed $id): TujuanDaerah
     {
-        return TujuanDaerah::whereHas('misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->findOrFail($id);
+        return TujuanDaerah::forRpjmd($rpjmd->id)->findOrFail($id);
     }
 
     private function indikatorTujuan(Rpjmd $rpjmd, mixed $id): IndikatorTujuanDaerah
     {
-        return IndikatorTujuanDaerah::whereHas('tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->findOrFail($id);
+        return IndikatorTujuanDaerah::whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id);
     }
 
     private function sasaran(Rpjmd $rpjmd, mixed $id): SasaranDaerah
     {
-        return SasaranDaerah::whereHas('tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->findOrFail($id);
+        return SasaranDaerah::whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id);
     }
 
     private function indikatorSasaran(Rpjmd $rpjmd, mixed $id): IndikatorSasaranDaerah
     {
-        return IndikatorSasaranDaerah::whereHas('sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->findOrFail($id);
+        return IndikatorSasaranDaerah::whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id);
     }
 
     private function strategi(Rpjmd $rpjmd, mixed $id): StrategiDaerah
     {
-        return StrategiDaerah::whereHas('sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->findOrFail($id);
+        return StrategiDaerah::whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id);
     }
 
     private function program(Rpjmd $rpjmd, mixed $id): ProgramRpjmd
     {
-        return ProgramRpjmd::whereHas('strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->findOrFail($id);
+        return ProgramRpjmd::whereHas('strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id);
     }
 
     private function indikatorProgram(Rpjmd $rpjmd, mixed $id): IndikatorProgramRpjmd
     {
-        return IndikatorProgramRpjmd::whereHas('program.strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->findOrFail($id);
+        return IndikatorProgramRpjmd::whereHas('program.strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id);
     }
 
     private function findNode(Rpjmd $rpjmd, string $type, int $id): object
@@ -372,10 +456,10 @@ class RpjmdNodeController extends Controller
             'strategi' => $this->strategi($rpjmd, $id),
             'program' => $this->program($rpjmd, $id),
             'indikator_program' => $this->indikatorProgram($rpjmd, $id),
-            'target_tujuan' => TargetIndikatorTujuanDaerah::whereHas('indikator.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->findOrFail($id),
-            'target_sasaran' => TargetIndikatorSasaranDaerah::whereHas('indikator.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->findOrFail($id),
-            'target_program' => TargetIndikatorProgramRpjmd::whereHas('indikator.program.strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->findOrFail($id),
-            'program_opd' => ProgramRpjmdOpdPenanggungJawab::whereHas('program.strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->findOrFail($id),
+            'target_tujuan' => TargetIndikatorTujuanDaerah::whereHas('indikator.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
+            'target_sasaran' => TargetIndikatorSasaranDaerah::whereHas('indikator.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
+            'target_program' => TargetIndikatorProgramRpjmd::whereHas('indikator.program.strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
+            'program_opd' => ProgramRpjmdOpdPenanggungJawab::whereHas('program.strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
             default => abort(404),
         };
     }

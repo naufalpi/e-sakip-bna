@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Plus, Search } from 'lucide-vue-next';
 import { reactive } from 'vue';
@@ -37,7 +38,8 @@ const filterForm = reactive({
     jenis: props.filters.jenis ?? '',
 });
 
-const applyFilters = () => router.get(route('master.satuan-indikator.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
+const applyFilters = () =>
+    router.get(route('master.satuan-indikator.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 const resetFilters = () => {
     filterForm.search = '';
@@ -45,8 +47,8 @@ const resetFilters = () => {
     filterForm.jenis = '';
     applyFiltersNow();
 };
-const destroy = (item: Satuan) => {
-    if (confirm(`Hapus satuan ${item.nama}?`)) {
+const destroy = async (item: Satuan) => {
+    if (await confirmDelete(`Hapus satuan ${item.nama}?`)) {
         router.delete(route('master.satuan-indikator.destroy', item.id));
     }
 };

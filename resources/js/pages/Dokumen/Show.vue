@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Download } from 'lucide-vue-next';
 
@@ -34,8 +35,8 @@ const props = defineProps<{
     can: { manage: boolean; download: boolean };
 }>();
 
-const destroy = () => {
-    if (confirm(`Hapus dokumen ${props.dokumen.judul}?`)) {
+const destroy = async () => {
+    if (await confirmDelete(`Hapus dokumen ${props.dokumen.judul}?`)) {
         router.delete(route('dokumen.destroy', props.dokumen.id));
     }
 };

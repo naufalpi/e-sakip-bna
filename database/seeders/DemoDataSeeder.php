@@ -300,8 +300,12 @@ class DemoDataSeeder extends Seeder
         );
 
         $tujuan = TujuanDaerah::query()->updateOrCreate(
-            ['rpjmd_misi_id' => $misi->id, 'kode' => 'T-1'],
-            ['tujuan' => 'Meningkatnya kesejahteraan masyarakat dan kualitas layanan publik.', 'urutan' => 1],
+            ['rpjmd_visi_id' => $visi->id, 'kode' => 'T-1'],
+            [
+                'rpjmd_misi_id' => null,
+                'tujuan' => 'Meningkatnya kesejahteraan masyarakat dan kualitas layanan publik.',
+                'urutan' => 1,
+            ],
         );
 
         $indikatorTujuan = IndikatorTujuanDaerah::query()->updateOrCreate(

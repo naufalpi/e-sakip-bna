@@ -23,11 +23,21 @@ export interface NavGroup {
     items: NavItem[];
 }
 
+export interface FlashMessage {
+    success?: string | null;
+    error?: string | null;
+    warning?: string | null;
+    info?: string | null;
+    status?: string | null;
+    message?: string | null;
+}
+
 export interface SharedData {
     [key: string]: unknown;
     name: string;
     quote: { message: string; author: string };
     auth: Auth;
+    flash: FlashMessage;
     notifications: {
         unread_count: number;
     };

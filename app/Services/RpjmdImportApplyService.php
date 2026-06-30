@@ -185,12 +185,13 @@ class RpjmdImportApplyService
      */
     private function applyTujuan(array $mapped): array
     {
-        $misi = $this->requiredContext('misi', 'Tujuan daerah harus berada setelah baris misi.');
+        $visi = $this->requiredContext('visi', 'Tujuan daerah harus berada setelah baris visi.');
         $text = $this->requiredText($mapped, ['tujuan', 'uraian', 'nama'], 'Tujuan daerah');
         $kode = $this->text($mapped, ['kode', 'kode_tujuan']);
-        $identity = $kode ? ['rpjmd_misi_id' => $misi->id, 'kode' => $kode] : ['rpjmd_misi_id' => $misi->id, 'tujuan' => $text];
+        $identity = $kode ? ['rpjmd_visi_id' => $visi->id, 'kode' => $kode] : ['rpjmd_visi_id' => $visi->id, 'tujuan' => $text];
 
         $tujuan = TujuanDaerah::updateOrCreate($identity, [
+            'rpjmd_misi_id' => null,
             'tujuan' => $text,
             'urutan' => $this->order($mapped),
         ]);

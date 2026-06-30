@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Plus, Search } from 'lucide-vue-next';
 import { reactive } from 'vue';
@@ -58,8 +59,8 @@ const resetFilters = () => {
     applyFiltersNow();
 };
 
-const destroy = (opd: Opd) => {
-    if (confirm(`Hapus OPD ${opd.nama}?`)) {
+const destroy = async (opd: Opd) => {
+    if (await confirmDelete(`Hapus OPD ${opd.nama}?`)) {
         router.delete(route('master.opd.destroy', opd.id));
     }
 };

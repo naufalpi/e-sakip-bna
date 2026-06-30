@@ -2,6 +2,7 @@
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -110,8 +111,8 @@ const submitItem = () => {
     form.post(route('rencana-aksi.items.store', { rencana_aksi: props.item.id }), options);
 };
 
-const destroyItem = (row: ItemRow) => {
-    if (confirm('Hapus item Rencana Aksi ini?')) {
+const destroyItem = async (row: ItemRow) => {
+    if (await confirmDelete('Hapus item Rencana Aksi ini?')) {
         router.delete(route('rencana-aksi.items.destroy', { rencana_aksi: props.item.id, item: row.id }), { preserveScroll: true });
     }
 };

@@ -182,7 +182,11 @@ const saveSelectedRole = () => {
                     >
                         <span
                             class="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border"
-                            :class="role.id === selectedRoleId ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-muted-foreground/30 text-transparent'"
+                            :class="
+                                role.id === selectedRoleId
+                                    ? 'border-emerald-700 bg-emerald-700 text-white'
+                                    : 'border-muted-foreground/30 text-transparent'
+                            "
                         >
                             <Check class="size-3" />
                         </span>
@@ -207,11 +211,16 @@ const saveSelectedRole = () => {
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h2 class="text-lg font-semibold">{{ selectedRole.label }}</h2>
-                                <span v-if="!selectedRole.can_edit" class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                                <span
+                                    v-if="!selectedRole.can_edit"
+                                    class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                                >
                                     <LockKeyhole class="size-3" />
                                     Sistem
                                 </span>
-                                <span v-if="isDirty" class="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">Belum disimpan</span>
+                                <span v-if="isDirty" class="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800"
+                                    >Belum disimpan</span
+                                >
                             </div>
                             <p class="mt-1 text-xs text-muted-foreground">{{ selectedRole.name }}</p>
                             <p v-if="selectedRole.description" class="mt-2 max-w-3xl text-sm text-muted-foreground">{{ selectedRole.description }}</p>
@@ -264,7 +273,9 @@ const saveSelectedRole = () => {
                                 <span class="min-w-0">
                                     <span class="block font-medium">{{ permission.label }}</span>
                                     <span class="block break-all text-xs text-muted-foreground">{{ permission.name }}</span>
-                                    <span v-if="permission.description" class="mt-1 block text-xs text-muted-foreground">{{ permission.description }}</span>
+                                    <span v-if="permission.description" class="mt-1 block text-xs text-muted-foreground">{{
+                                        permission.description
+                                    }}</span>
                                 </span>
                             </label>
                         </div>

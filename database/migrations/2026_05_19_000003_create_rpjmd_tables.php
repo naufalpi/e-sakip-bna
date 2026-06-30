@@ -52,13 +52,15 @@ return new class extends Migration
 
         Schema::create('tujuan_daerah', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('rpjmd_misi_id')->constrained('rpjmd_misi')->cascadeOnDelete();
+            $table->foreignId('rpjmd_visi_id')->nullable()->constrained('rpjmd_visi')->cascadeOnDelete();
+            $table->foreignId('rpjmd_misi_id')->nullable()->constrained('rpjmd_misi')->nullOnDelete();
             $table->string('kode', 50)->nullable();
             $table->text('tujuan');
             $table->unsignedSmallInteger('urutan')->default(1);
             $table->timestamps();
             $table->softDeletes();
 
+            $table->index(['rpjmd_visi_id', 'urutan']);
             $table->index(['rpjmd_misi_id', 'urutan']);
         });
 

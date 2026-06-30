@@ -30,34 +30,35 @@ const isOpen = ref(props.level < 3);
 const children = computed(() => props.node.children ?? []);
 const hasChildren = computed(() => children.value.length > 0);
 
-const typeLabel = computed(() =>
-    ({
-        rpjmd: 'RPJMD',
-        visi: 'Visi',
-        misi: 'Misi',
-        tujuan_daerah: 'Tujuan Daerah',
-        sasaran_daerah: 'Sasaran Daerah',
-        strategi_daerah: 'Strategi Daerah',
-        program_rpjmd: 'Program RPJMD',
-        indikator_tujuan_daerah: 'Indikator Tujuan',
-        indikator_sasaran_daerah: 'Indikator Sasaran',
-        indikator_program_rpjmd: 'Indikator Program',
-        opd_penanggung_jawab: 'OPD PJ',
-        renstra_opd: 'Renstra OPD',
-        tujuan_opd: 'Tujuan OPD',
-        sasaran_opd: 'Sasaran OPD',
-        opd_program: 'Program OPD',
-        opd_kegiatan: 'Kegiatan',
-        opd_sub_kegiatan: 'Sub Kegiatan',
-        indikator_tujuan_opd: 'Indikator Tujuan OPD',
-        indikator_sasaran_opd: 'Indikator Sasaran OPD',
-        indikator_opd_program: 'Indikator Program OPD',
-        indikator_sub_kegiatan: 'Indikator Sub Kegiatan',
-        target_tahunan: 'Target Tahunan',
-        target_triwulan: 'Target Triwulan',
-        cascading_opd_rpjmd: 'Cascading',
-        empty: 'Data',
-    })[props.node.type] ?? props.node.type.replaceAll('_', ' '),
+const typeLabel = computed(
+    () =>
+        ({
+            rpjmd: 'RPJMD',
+            visi: 'Visi',
+            misi: 'Misi',
+            tujuan_daerah: 'Tujuan Daerah',
+            sasaran_daerah: 'Sasaran Daerah',
+            strategi_daerah: 'Strategi Daerah',
+            program_rpjmd: 'Program RPJMD',
+            indikator_tujuan_daerah: 'Indikator Tujuan',
+            indikator_sasaran_daerah: 'Indikator Sasaran',
+            indikator_program_rpjmd: 'Indikator Program',
+            opd_penanggung_jawab: 'OPD PJ',
+            renstra_opd: 'Renstra OPD',
+            tujuan_opd: 'Tujuan OPD',
+            sasaran_opd: 'Sasaran OPD',
+            opd_program: 'Program OPD',
+            opd_kegiatan: 'Kegiatan',
+            opd_sub_kegiatan: 'Sub Kegiatan',
+            indikator_tujuan_opd: 'Indikator Tujuan OPD',
+            indikator_sasaran_opd: 'Indikator Sasaran OPD',
+            indikator_opd_program: 'Indikator Program OPD',
+            indikator_sub_kegiatan: 'Indikator Sub Kegiatan',
+            target_tahunan: 'Target Tahunan',
+            target_triwulan: 'Target Triwulan',
+            cascading_opd_rpjmd: 'Cascading',
+            empty: 'Data',
+        })[props.node.type] ?? props.node.type.replaceAll('_', ' '),
 );
 
 const badgeClass = computed(() => {
@@ -95,7 +96,9 @@ const completionStatus = computed(() => String(props.node.meta?.kelengkapan_stat
 const completionNote = computed(() => String(props.node.meta?.kelengkapan_catatan ?? 'Struktur minimal tersedia.'));
 const isIncomplete = computed(() => completionStatus.value === 'perlu_dilengkapi');
 const completionLabel = computed(() => (isIncomplete.value ? 'Perlu dilengkapi' : 'Lengkap'));
-const completionClass = computed(() => (isIncomplete.value ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200' : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'));
+const completionClass = computed(() =>
+    isIncomplete.value ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200' : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200',
+);
 const nodeClass = computed(() =>
     isIncomplete.value
         ? 'border-amber-200 bg-amber-50/35 shadow-[inset_3px_0_0_#d97706]'
@@ -142,11 +145,18 @@ const formatValue = (key: string, value: unknown) => {
                         <div class="flex flex-wrap items-center gap-2">
                             <span class="rounded-full px-2 py-0.5 text-[11px] font-medium uppercase" :class="badgeClass">{{ typeLabel }}</span>
                             <span v-if="hasChildren" class="text-[11px] text-muted-foreground">{{ children.length }} turunan</span>
-                            <span v-if="node.linked_to" class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                            <span
+                                v-if="node.linked_to"
+                                class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800"
+                            >
                                 <Link2 class="size-3" />
                                 Terhubung
                             </span>
-                            <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium" :class="completionClass" :title="completionNote">
+                            <span
+                                class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                :class="completionClass"
+                                :title="completionNote"
+                            >
                                 <AlertTriangle v-if="isIncomplete" class="size-3" />
                                 <CheckCircle2 v-else class="size-3" />
                                 {{ completionLabel }}
@@ -157,7 +167,11 @@ const formatValue = (key: string, value: unknown) => {
                         <div v-if="isIncomplete" class="mt-1 text-xs text-amber-800">{{ completionNote }}</div>
 
                         <div v-if="metaEntries.length" class="mt-2 flex flex-wrap gap-1.5">
-                            <span v-for="entry in metaEntries" :key="entry.key" class="rounded border bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700">
+                            <span
+                                v-for="entry in metaEntries"
+                                :key="entry.key"
+                                class="rounded border bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700"
+                            >
                                 {{ entry.label }}: {{ entry.value }}
                             </span>
                         </div>

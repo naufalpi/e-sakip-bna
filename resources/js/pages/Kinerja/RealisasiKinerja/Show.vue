@@ -2,6 +2,7 @@
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -120,8 +121,8 @@ const submitProgram = () => {
     form.post(route('realisasi-kinerja.programs.store', { realisasi_kinerja: props.item.id }), options);
 };
 
-const destroyProgram = (row: ProgramRow) => {
-    if (confirm('Hapus realisasi indikator ini?')) {
+const destroyProgram = async (row: ProgramRow) => {
+    if (await confirmDelete('Hapus realisasi indikator ini?')) {
         router.delete(route('realisasi-kinerja.programs.destroy', { realisasi_kinerja: props.item.id, program: row.id }), { preserveScroll: true });
     }
 };

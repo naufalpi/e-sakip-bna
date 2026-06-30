@@ -103,17 +103,18 @@ class RpjmdController extends Controller
 
         $rpjmd->load([
             'periodeTahun:id,tahun,nama,status',
-            'visi.misi.tujuan.indikator.satuanIndikator:id,nama,simbol',
-            'visi.misi.tujuan.indikator.targets.periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
-            'visi.misi.tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.sasaran.strategi.programs.urusanPemerintahan:id,kode,nama',
-            'visi.misi.tujuan.sasaran.strategi.programs.indikator.satuanIndikator:id,nama,simbol',
-            'visi.misi.tujuan.sasaran.strategi.programs.indikator.targets.periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.sasaran.strategi.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
-            'visi.misi.tujuan.sasaran.strategi.programs.opdPenanggungJawab' => fn ($query) => $query->select('opds.id', 'opds.nama', 'opds.singkatan'),
+            'visi.misi',
+            'visi.tujuan.indikator.satuanIndikator:id,nama,simbol',
+            'visi.tujuan.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.tujuan.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
+            'visi.tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.strategi.programs.urusanPemerintahan:id,kode,nama',
+            'visi.tujuan.sasaran.strategi.programs.indikator.satuanIndikator:id,nama,simbol',
+            'visi.tujuan.sasaran.strategi.programs.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.strategi.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.strategi.programs.opdPenanggungJawab' => fn ($query) => $query->select('opds.id', 'opds.nama', 'opds.singkatan'),
         ]);
 
         return Inertia::render('Rpjmd/Show', [
@@ -240,13 +241,13 @@ class RpjmdController extends Controller
         return [
             'visi' => RpjmdVisi::query()->where('rpjmd_id', $rpjmd->id)->orderBy('urutan')->get(['id', 'visi'])->map(fn ($item) => ['id' => $item->id, 'label' => str($item->visi)->limit(90)->toString()])->values()->all(),
             'misi' => RpjmdMisi::query()->where('rpjmd_id', $rpjmd->id)->orderBy('urutan')->get(['id', 'kode', 'misi'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->misi)])->values()->all(),
-            'tujuan' => TujuanDaerah::query()->whereHas('misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'tujuan'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->tujuan)])->values()->all(),
-            'indikator_tujuan' => IndikatorTujuanDaerah::query()->whereHas('tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'sasaran' => SasaranDaerah::query()->whereHas('tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'sasaran'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all(),
-            'indikator_sasaran' => IndikatorSasaranDaerah::query()->whereHas('sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'strategi' => StrategiDaerah::query()->whereHas('sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'strategi'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->strategi)])->values()->all(),
-            'program' => ProgramRpjmd::query()->whereHas('strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'nama'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->nama)])->values()->all(),
-            'indikator_program' => IndikatorProgramRpjmd::query()->whereHas('program.strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
+            'tujuan' => TujuanDaerah::query()->forRpjmd($rpjmd->id)->orderBy('urutan')->get(['id', 'kode', 'tujuan'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->tujuan)])->values()->all(),
+            'indikator_tujuan' => IndikatorTujuanDaerah::query()->whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
+            'sasaran' => SasaranDaerah::query()->whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'sasaran'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all(),
+            'indikator_sasaran' => IndikatorSasaranDaerah::query()->whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
+            'strategi' => StrategiDaerah::query()->whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'strategi'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->strategi)])->values()->all(),
+            'program' => ProgramRpjmd::query()->whereHas('strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'nama'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->nama)])->values()->all(),
+            'indikator_program' => IndikatorProgramRpjmd::query()->whereHas('program.strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
         ];
     }
 
@@ -257,21 +258,21 @@ class RpjmdController extends Controller
     {
         return [
             'indikator_tujuan_daerah' => IndikatorTujuanDaerah::query()
-                ->whereHas('tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))
+                ->whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))
                 ->orderBy('urutan')
                 ->get(['id', 'kode', 'indikator'])
                 ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
                 ->values()
                 ->all(),
             'indikator_sasaran_daerah' => IndikatorSasaranDaerah::query()
-                ->whereHas('sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))
+                ->whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))
                 ->orderBy('urutan')
                 ->get(['id', 'kode', 'indikator'])
                 ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
                 ->values()
                 ->all(),
             'indikator_program_rpjmd' => IndikatorProgramRpjmd::query()
-                ->whereHas('program.strategi.sasaran.tujuan.misi', fn ($query) => $query->where('rpjmd_id', $rpjmd->id))
+                ->whereHas('program.strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))
                 ->orderBy('urutan')
                 ->get(['id', 'kode', 'indikator'])
                 ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
@@ -282,7 +283,9 @@ class RpjmdController extends Controller
 
     private function nodeLabel(?string $kode, ?string $label): string
     {
-        return trim(($kode ? "{$kode} - " : '').str($label ?? '')->limit(90)->toString());
+        unset($kode);
+
+        return trim(str($label ?? '')->limit(90)->toString());
     }
 
     private function shouldLimitToUserOpd(User $user): bool
@@ -310,7 +313,7 @@ class RpjmdController extends Controller
 
     private function limitToUserOpd(Builder $query, User $user): void
     {
-        $query->whereHas('visi.misi.tujuan.sasaran.strategi.programs.opdPenanggungJawab', function ($query) use ($user) {
+        $query->whereHas('visi.tujuan.sasaran.strategi.programs.opdPenanggungJawab', function ($query) use ($user) {
             $query->where('opds.id', $user->opd_id ?? 0);
         });
     }
@@ -365,16 +368,16 @@ class RpjmdController extends Controller
                     'kode' => $misi->kode,
                     'misi' => $misi->misi,
                     'urutan' => $misi->urutan,
-                    'tujuan' => $misi->tujuan->map(fn (TujuanDaerah $tujuan) => [
-                        'id' => $tujuan->id,
-                        'kode' => $tujuan->kode,
-                        'tujuan' => $tujuan->tujuan,
-                        'urutan' => $tujuan->urutan,
-                        'indikator' => $tujuan->indikator->map(fn (IndikatorTujuanDaerah $indikator) => $this->serializeIndikator($indikator)),
-                        'sasaran' => $tujuan->sasaran->map(fn (SasaranDaerah $sasaran) => $this->serializeSasaran($sasaran, $visibleOpdId))->filter()->values(),
-                    ])->filter(fn (array $tujuan) => ! $visibleOpdId || $tujuan['sasaran']->isNotEmpty())->values(),
-                ])->filter(fn (array $misi) => ! $visibleOpdId || $misi['tujuan']->isNotEmpty())->values(),
-            ])->filter(fn (array $visi) => ! $visibleOpdId || $visi['misi']->isNotEmpty())->values(),
+                ])->values(),
+                'tujuan' => $visi->tujuan->map(fn (TujuanDaerah $tujuan) => [
+                    'id' => $tujuan->id,
+                    'kode' => $tujuan->kode,
+                    'tujuan' => $tujuan->tujuan,
+                    'urutan' => $tujuan->urutan,
+                    'indikator' => $tujuan->indikator->map(fn (IndikatorTujuanDaerah $indikator) => $this->serializeIndikator($indikator)),
+                    'sasaran' => $tujuan->sasaran->map(fn (SasaranDaerah $sasaran) => $this->serializeSasaran($sasaran, $visibleOpdId))->filter()->values(),
+                ])->filter(fn (array $tujuan) => ! $visibleOpdId || $tujuan['sasaran']->isNotEmpty())->values(),
+            ])->filter(fn (array $visi) => ! $visibleOpdId || $visi['tujuan']->isNotEmpty())->values(),
         ];
     }
 

@@ -13,6 +13,7 @@ use App\Models\IndikatorSubKegiatan;
 use App\Models\IndikatorTujuanDaerah;
 use App\Models\IndikatorTujuanOpd;
 use App\Models\TargetTriwulanIndikator;
+use App\Models\TujuanDaerah;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -101,16 +102,22 @@ class TargetTriwulanIndikatorController extends Controller
     private function ownerModel(Model $related, string $table): Model
     {
         return match ($table) {
-            'indikator_tujuan_daerah' => $related->tujuan->misi->rpjmd,
-            'indikator_sasaran_daerah' => $related->sasaran->tujuan->misi->rpjmd,
-            'indikator_program_rpjmd' => $related->program->strategi?->sasaran?->tujuan?->misi?->rpjmd
-                ?? $related->program->sasaran->tujuan->misi->rpjmd,
+            'indikator_tujuan_daerah' => $this->rpjmdFromTujuan($related->tujuan),
+            'indikator_sasaran_daerah' => $this->rpjmdFromTujuan($related->sasaran->tujuan),
+            'indikator_program_rpjmd' => $this->rpjmdFromTujuan(
+                $related->program->strategi?->sasaran?->tujuan ?? $related->program->sasaran->tujuan
+            ),
             'indikator_tujuan_opd' => $related->tujuan->renstra,
             'indikator_sasaran_opd' => $related->sasaran->tujuan->renstra,
             'indikator_opd_program' => $related->program->renstra,
             'indikator_sub_kegiatan' => $related->subKegiatan->kegiatan->program->renstra,
             default => abort(404),
         };
+    }
+
+    private function rpjmdFromTujuan(?TujuanDaerah $tujuan): Model
+    {
+        return $tujuan?->parentRpjmd() ?? abort(404);
     }
 
     /**

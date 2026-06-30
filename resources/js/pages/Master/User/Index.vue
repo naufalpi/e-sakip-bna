@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { Plus, Search } from 'lucide-vue-next';
@@ -66,8 +67,8 @@ const resetFilters = () => {
     applyFiltersNow();
 };
 
-const destroy = (user: UserRow) => {
-    if (confirm(`Hapus user ${user.name}?`)) {
+const destroy = async (user: UserRow) => {
+    if (await confirmDelete(`Hapus user ${user.name}?`)) {
         router.delete(route('master.users.destroy', user.id));
     }
 };

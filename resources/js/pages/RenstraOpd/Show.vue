@@ -2,6 +2,7 @@
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     ArrowLeft,
@@ -1331,8 +1332,8 @@ const submitNode = () => {
     form.post(route('renstra-opd.nodes.store', props.renstra.id), options);
 };
 
-const destroyNode = (type: NodeType, id: number, label: string) => {
-    if (confirm(`Hapus ${label}? Data turunan juga dapat terpengaruh.`)) {
+const destroyNode = async (type: NodeType, id: number, label: string) => {
+    if (await confirmDelete(`Hapus ${label}? Data turunan juga dapat terpengaruh.`)) {
         router.delete(route('renstra-opd.nodes.destroy', [props.renstra.id, type, id]), {
             preserveScroll: true,
         });
@@ -1349,8 +1350,8 @@ const submitTargetTriwulan = () => {
     });
 };
 
-const destroyTargetTriwulan = (target: TargetTriwulan) => {
-    if (confirm('Hapus target triwulan indikator ini?')) {
+const destroyTargetTriwulan = async (target: TargetTriwulan) => {
+    if (await confirmDelete('Hapus target triwulan indikator ini?')) {
         router.delete(route('target-triwulan-indikator.destroy', target.id), { preserveScroll: true });
     }
 };

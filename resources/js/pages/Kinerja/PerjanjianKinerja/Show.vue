@@ -2,6 +2,7 @@
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -106,8 +107,8 @@ const submitItem = () => {
     form.post(route('perjanjian-kinerja.items.store', { perjanjian_kinerja: props.item.id }), options);
 };
 
-const destroyItem = (row: ItemRow) => {
-    if (confirm('Hapus item Perjanjian Kinerja ini?')) {
+const destroyItem = async (row: ItemRow) => {
+    if (await confirmDelete('Hapus item Perjanjian Kinerja ini?')) {
         router.delete(route('perjanjian-kinerja.items.destroy', { perjanjian_kinerja: props.item.id, item: row.id }), { preserveScroll: true });
     }
 };

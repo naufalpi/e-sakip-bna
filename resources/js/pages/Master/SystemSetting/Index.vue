@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import Bell from 'lucide-vue-next/dist/esm/icons/bell.js';
 import BarChart3 from 'lucide-vue-next/dist/esm/icons/chart-column.js';
@@ -82,8 +83,8 @@ const selectGroup = (group: string) => {
     applyFiltersNow();
 };
 
-const destroy = (item: Setting) => {
-    if (confirm(`Hapus pengaturan ${item.key}?`)) {
+const destroy = async (item: Setting) => {
+    if (await confirmDelete(`Hapus pengaturan ${item.key}?`)) {
         router.delete(route('master.system-settings.destroy', item.id));
     }
 };

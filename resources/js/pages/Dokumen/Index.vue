@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
+import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import ArrowRight from 'lucide-vue-next/dist/esm/icons/arrow-right.js';
 import ClipboardList from 'lucide-vue-next/dist/esm/icons/clipboard-list.js';
@@ -64,8 +65,8 @@ const resetFilters = () => {
     applyFiltersNow();
 };
 
-const destroy = (row: Row) => {
-    if (confirm(`Hapus dokumen ${row.judul}?`)) {
+const destroy = async (row: Row) => {
+    if (await confirmDelete(`Hapus dokumen ${row.judul}?`)) {
         router.delete(route('dokumen.destroy', row.id));
     }
 };

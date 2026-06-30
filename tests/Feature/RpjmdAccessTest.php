@@ -58,6 +58,53 @@ class RpjmdAccessTest extends TestCase
         ]);
     }
 
+    public function test_bapperida_can_bulk_create_rpjmd_nodes(): void
+    {
+        $this->seed();
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $rpjmd = Rpjmd::create([
+            'judul' => 'RPJMD Bulk Input',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'draft',
+        ]);
+        $visi = RpjmdVisi::create([
+            'rpjmd_id' => $rpjmd->id,
+            'visi' => 'Visi Bulk RPJMD',
+            'urutan' => 1,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.bulk-store', $rpjmd), [
+                'type' => 'tujuan',
+                'parent_id' => $visi->id,
+                'rows' => [
+                    ['kode' => 'T.1', 'uraian' => 'Tujuan bulk pertama', 'urutan' => 1],
+                    ['kode' => 'T.2', 'uraian' => 'Tujuan bulk kedua', 'urutan' => 2],
+                    ['kode' => '', 'uraian' => '', 'urutan' => 3],
+                ],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('tujuan_daerah', [
+            'rpjmd_visi_id' => $visi->id,
+            'kode' => 'T.1',
+            'tujuan' => 'Tujuan bulk pertama',
+        ]);
+        $this->assertDatabaseHas('tujuan_daerah', [
+            'rpjmd_visi_id' => $visi->id,
+            'kode' => 'T.2',
+            'tujuan' => 'Tujuan bulk kedua',
+        ]);
+        $this->assertDatabaseMissing('tujuan_daerah', [
+            'rpjmd_visi_id' => $visi->id,
+            'urutan' => 3,
+        ]);
+    }
+
     public function test_bagian_organisasi_can_view_but_cannot_manage_rpjmd(): void
     {
         $this->seed();
@@ -259,6 +306,41 @@ class RpjmdAccessTest extends TestCase
         $this->assertDatabaseHas('program_rpjmd_opd_penanggung_jawab', [
             'id' => $pivot->id,
             'peran' => 'koordinator',
+        ]);
+    }
+
+    public function test_bapperida_can_autosave_rpjmd_node_as_json(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '2.05', 'nama' => 'Dinas Autosave', 'status' => 'active']);
+        $rpjmd = $this->createRpjmdWithProgramForOpd($opd, 'RPJMD Autosave Node');
+        $visi = RpjmdVisi::where('rpjmd_id', $rpjmd->id)->firstOrFail();
+        $misi = RpjmdMisi::where('rpjmd_id', $rpjmd->id)->firstOrFail();
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $this->actingAs($user)
+            ->putJson(route('rpjmd.nodes.update', [$rpjmd, 'misi', $misi->id]), [
+                'type' => 'misi',
+                'parent_id' => $visi->id,
+                'kode' => 'M.AUTO',
+                'uraian' => 'Misi tersimpan lewat autosave',
+                'urutan' => 3,
+            ])
+            ->assertOk()
+            ->assertJson([
+                'id' => $misi->id,
+                'type' => 'misi',
+                'message' => 'Data cascading RPJMD berhasil diperbarui.',
+            ]);
+
+        $this->assertDatabaseHas('rpjmd_misi', [
+            'id' => $misi->id,
+            'kode' => 'M.AUTO',
+            'misi' => 'Misi tersimpan lewat autosave',
+            'urutan' => 3,
         ]);
     }
 
@@ -490,7 +572,8 @@ class RpjmdAccessTest extends TestCase
         ]);
 
         $tujuan = TujuanDaerah::create([
-            'rpjmd_misi_id' => $misi->id,
+            'rpjmd_visi_id' => $visi->id,
+            'rpjmd_misi_id' => null,
             'tujuan' => "Tujuan {$judul}",
             'urutan' => 1,
         ]);
