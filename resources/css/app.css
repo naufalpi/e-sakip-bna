@@ -47,37 +47,37 @@ html {
     }
 
     .dark {
-        --background: 0 0% 3.9%;
-        --foreground: 0 0% 98%;
-        --card: 0 0% 3.9%;
-        --card-foreground: 0 0% 98%;
-        --popover: 0 0% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
-        --secondary: 0 0% 14.9%;
-        --secondary-foreground: 0 0% 98%;
-        --muted: 0 0% 6.9%;
-        --muted-foreground: 0 0% 63.9%;
-        --accent: 0 0% 14.9%;
-        --accent-foreground: 0 0% 98%;
+        --background: 222 47% 7%;
+        --foreground: 214 32% 91%;
+        --card: 222 38% 10%;
+        --card-foreground: 210 40% 96%;
+        --popover: 222 38% 9%;
+        --popover-foreground: 210 40% 96%;
+        --primary: 210 40% 96%;
+        --primary-foreground: 222 47% 8%;
+        --secondary: 217 32% 15%;
+        --secondary-foreground: 210 40% 96%;
+        --muted: 217 32% 14%;
+        --muted-foreground: 215 20% 72%;
+        --accent: 216 34% 16%;
+        --accent-foreground: 210 40% 96%;
         --destructive: 0 84% 60%;
         --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 14.9%;
-        --input: 0 0% 14.9%;
-        --ring: 0 0% 83.1%;
+        --border: 217 25% 20%;
+        --input: 217 25% 20%;
+        --ring: 210 40% 82%;
         --chart-1: 220 70% 50%;
         --chart-2: 160 60% 45%;
         --chart-3: 30 80% 55%;
         --chart-4: 280 65% 60%;
         --chart-5: 340 75% 55%;
-        --sidebar-background: 0 0% 7%;
-        --sidebar-foreground: 0 0% 95.9%;
-        --sidebar-primary: 360, 100%, 100%;
-        --sidebar-primary-foreground: 0 0% 100%;
-        --sidebar-accent: 0 0% 15.9%;
-        --sidebar-accent-foreground: 240 4.8% 95.9%;
-        --sidebar-border: 0 0% 15.9%;
+        --sidebar-background: 216 35% 9%;
+        --sidebar-foreground: 214 30% 88%;
+        --sidebar-primary: 210 40% 96%;
+        --sidebar-primary-foreground: 222 47% 8%;
+        --sidebar-accent: 216 32% 15%;
+        --sidebar-accent-foreground: 210 40% 96%;
+        --sidebar-border: 216 28% 20%;
         --sidebar-ring: 217.2 91.2% 59.8%;
     }
 }
@@ -790,4 +790,238 @@ html {
             transform: none;
         }
     }
+}
+
+.dark .app-sidebar-admin {
+    --sidebar-background: 216 35% 9%;
+    --sidebar-foreground: 214 30% 88%;
+    --sidebar-accent: 216 32% 15%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 216 28% 20%;
+    --sidebar-ring: 199 89% 48%;
+}
+
+.dark .app-sidebar-admin [data-sidebar='sidebar'],
+.dark .app-sidebar-admin[data-sidebar='sidebar'] {
+    border-color: rgb(51 65 85 / 0.72);
+    background: linear-gradient(180deg, rgb(15 23 42 / 0.94) 0%, rgb(11 18 32 / 0.96) 48%, rgb(8 13 24 / 0.98) 100%), hsl(var(--sidebar-background));
+    box-shadow:
+        0 1.1rem 2.4rem rgb(0 0 0 / 0.28),
+        inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+.dark .app-sidebar-admin [data-sidebar='sidebar']::before,
+.dark .app-sidebar-admin[data-sidebar='sidebar']::before {
+    background-image:
+        linear-gradient(180deg, rgb(56 189 248 / 0.08), transparent 30%),
+        repeating-linear-gradient(135deg, rgb(148 163 184 / 0.035) 0 1px, transparent 1px 11px);
+}
+
+.dark .app-sidebar-header,
+.dark .app-sidebar-footer,
+.dark .app-sidebar-group + .app-sidebar-group {
+    border-color: rgb(51 65 85 / 0.78);
+}
+
+.dark .app-sidebar-brand {
+    border-color: rgb(59 130 246 / 0.32);
+    background: linear-gradient(180deg, rgb(15 23 42 / 0.95), rgb(15 23 42 / 0.72));
+    color: rgb(219 234 254);
+    box-shadow:
+        0 0.45rem 1.1rem rgb(0 0 0 / 0.2),
+        inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+.dark .app-sidebar-brand:hover,
+.dark .app-sidebar-brand:focus-visible {
+    background: linear-gradient(180deg, rgb(30 41 59 / 0.96), rgb(15 23 42 / 0.82));
+    color: rgb(239 246 255);
+}
+
+.dark .app-sidebar-logo-mark {
+    border-color: rgb(96 165 250 / 0.38);
+    background: rgb(248 250 252);
+    box-shadow:
+        0 0.45rem 1rem rgb(0 0 0 / 0.28),
+        inset 0 0 0 1px rgb(255 255 255 / 0.28);
+}
+
+.dark .app-sidebar-brand-text span:first-child {
+    color: rgb(219 234 254);
+}
+
+.dark .app-sidebar-brand-text span:last-child,
+.dark .app-sidebar-group-label,
+.dark .app-sidebar-menu-button > svg,
+.dark .app-sidebar-user-chevron {
+    color: rgb(148 163 184);
+}
+
+.dark .app-sidebar-menu-button {
+    color: rgb(203 213 225);
+}
+
+.dark .app-sidebar-menu-button:hover {
+    border-color: rgb(96 165 250 / 0.34);
+    background: rgb(30 41 59 / 0.72);
+    color: rgb(239 246 255);
+}
+
+.dark .app-sidebar-menu-button[data-active='true'] {
+    border-color: rgb(96 165 250 / 0.48);
+    background: linear-gradient(90deg, rgb(30 64 175 / 0.32), rgb(15 23 42 / 0.72));
+    color: rgb(239 246 255);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.06),
+        0 0.55rem 1.2rem rgb(0 0 0 / 0.18);
+}
+
+.dark .app-sidebar-menu-button[data-active='true'] > svg {
+    color: rgb(125 211 252);
+}
+
+.dark .app-sidebar-user-button {
+    border-color: rgb(51 65 85 / 0.86);
+    background: rgb(15 23 42 / 0.78);
+    color: rgb(226 232 240);
+    box-shadow:
+        0 0.45rem 1rem rgb(0 0 0 / 0.18),
+        inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.dark .app-sidebar-user-button:hover,
+.dark .app-sidebar-user-button[data-state='open'] {
+    background: rgb(30 41 59 / 0.88) !important;
+    color: rgb(239 246 255);
+}
+
+.dark .app-sidebar-user-button .text-muted-foreground {
+    color: rgb(148 163 184);
+}
+
+.dark .admin-main-shell {
+    border-color: rgb(51 65 85 / 0.72) !important;
+    background:
+        radial-gradient(circle at 8% 0%, rgb(14 165 233 / 0.14), transparent 21rem),
+        radial-gradient(circle at 92% 7%, rgb(37 99 235 / 0.14), transparent 24rem), linear-gradient(180deg, #0f172a 0%, #0b1220 46%, #08111f 100%);
+    box-shadow:
+        0 1.25rem 3rem rgb(0 0 0 / 0.32),
+        inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+.dark .admin-main-shell::before {
+    background-image:
+        linear-gradient(rgb(148 163 184 / 0.045) 1px, transparent 1px), linear-gradient(90deg, rgb(148 163 184 / 0.045) 1px, transparent 1px);
+    mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.45), transparent 52rem);
+}
+
+.dark .admin-topbar {
+    border-color: rgb(51 65 85 / 0.78) !important;
+    background: rgb(15 23 42 / 0.82);
+    box-shadow: 0 0.75rem 1.8rem rgb(0 0 0 / 0.22);
+}
+
+.dark .admin-topbar [data-sidebar='trigger'],
+.dark .admin-topbar-notification {
+    border-color: rgb(71 85 105 / 0.88) !important;
+    background: rgb(15 23 42 / 0.7);
+    color: rgb(219 234 254);
+    box-shadow: 0 0.35rem 0.9rem rgb(0 0 0 / 0.18);
+}
+
+.dark .admin-topbar [data-sidebar='trigger']:hover,
+.dark .admin-topbar-notification:hover {
+    background: rgb(30 41 59 / 0.84) !important;
+    color: rgb(239 246 255) !important;
+}
+
+.dark .admin-breadcrumb-page {
+    color: rgb(226 232 240);
+}
+
+.dark .admin-breadcrumb-link {
+    color: rgb(148 163 184);
+}
+
+.dark .admin-breadcrumb-link:hover {
+    color: rgb(125 211 252);
+}
+
+.dark .admin-main-shell table {
+    background: rgb(15 23 42 / 0.55);
+}
+
+.dark .admin-main-shell :is(input, select, textarea) {
+    border-color: rgb(71 85 105 / 0.85);
+    background-color: rgb(15 23 42 / 0.86);
+    color: rgb(226 232 240);
+}
+
+.dark .admin-main-shell :is(input, select, textarea)::placeholder {
+    color: rgb(100 116 139);
+}
+
+.dark .admin-main-shell :is(input, select, textarea):focus {
+    border-color: rgb(56 189 248 / 0.7);
+    --tw-ring-color: rgb(56 189 248 / 0.18);
+}
+
+.dark .admin-main-shell :is(.bg-white, .bg-slate-50, .bg-slate-100) {
+    background-color: rgb(15 23 42 / 0.84) !important;
+}
+
+.dark .admin-main-shell :is(.bg-background, .bg-card) {
+    background-color: hsl(var(--card)) !important;
+}
+
+.dark .admin-main-shell :is(.border-slate-100, .border-slate-200, .border-slate-300) {
+    border-color: rgb(51 65 85 / 0.84) !important;
+}
+
+.dark .admin-main-shell :is(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700) {
+    color: rgb(226 232 240) !important;
+}
+
+.dark .admin-main-shell :is(.text-slate-600, .text-slate-500, .text-slate-400) {
+    color: rgb(148 163 184) !important;
+}
+
+.dark .admin-main-shell :is(.text-emerald-800, .text-emerald-700) {
+    color: rgb(110 231 183) !important;
+}
+
+.dark .admin-main-shell :is(.text-blue-800, .text-blue-700, .text-\[\#00336C\]) {
+    color: rgb(125 211 252) !important;
+}
+
+.dark .admin-main-shell :is(.text-amber-800, .text-amber-700) {
+    color: rgb(252 211 77) !important;
+}
+
+.dark .admin-main-shell :is(.text-red-800, .text-red-700) {
+    color: rgb(252 165 165) !important;
+}
+
+.dark .admin-main-shell :is(.bg-emerald-50, .bg-emerald-100) {
+    background-color: rgb(6 78 59 / 0.42) !important;
+}
+
+.dark .admin-main-shell :is(.bg-blue-50, .bg-blue-100) {
+    background-color: rgb(30 64 175 / 0.34) !important;
+}
+
+.dark .admin-main-shell :is(.bg-amber-50, .bg-amber-100) {
+    background-color: rgb(146 64 14 / 0.34) !important;
+}
+
+.dark .admin-main-shell :is(.bg-red-50, .bg-red-100) {
+    background-color: rgb(127 29 29 / 0.34) !important;
+}
+
+.dark .admin-main-shell :is(.hover\:bg-white:hover, .hover\:bg-slate-50:hover, .hover\:bg-slate-50\/80:hover, .hover\:bg-slate-50\/60:hover) {
+    background-color: rgb(30 41 59 / 0.88) !important;
+}
+
+.dark .admin-main-shell :is(.shadow-sm, .shadow-md, .shadow-lg) {
+    --tw-shadow-color: rgb(0 0 0 / 0.3);
 }

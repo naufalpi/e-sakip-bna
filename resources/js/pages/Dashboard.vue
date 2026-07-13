@@ -323,50 +323,50 @@ function statusLabel(status?: string | null) {
 function statusClass(status?: string | null) {
     return (
         {
-            draft: 'bg-slate-100 text-slate-700',
-            submitted: 'bg-blue-100 text-blue-800',
-            revision: 'bg-amber-100 text-amber-800',
-            verified: 'bg-cyan-100 text-cyan-800',
-            approved: 'bg-emerald-100 text-emerald-800',
-            rejected: 'bg-red-100 text-red-800',
-            locked: 'bg-zinc-200 text-zinc-800',
-            belum: 'bg-slate-100 text-slate-700',
-            proses: 'bg-blue-100 text-blue-800',
-            selesai: 'bg-emerald-100 text-emerald-800',
-            ditolak: 'bg-red-100 text-red-800',
-            perlu_perbaikan: 'bg-amber-100 text-amber-800',
-            merah: 'bg-red-100 text-red-800',
-            kuning: 'bg-amber-100 text-amber-800',
-            hijau: 'bg-emerald-100 text-emerald-800',
-            efisien: 'bg-emerald-100 text-emerald-800',
-            cukup_efisien: 'bg-blue-100 text-blue-800',
-            tidak_efisien: 'bg-red-100 text-red-800',
-            tinggi: 'bg-red-100 text-red-800',
-            sedang: 'bg-amber-100 text-amber-800',
-            rendah: 'bg-slate-100 text-slate-700',
-        }[status ?? ''] ?? 'bg-slate-100 text-slate-700'
+            draft: 'bg-slate-100 text-slate-700 dark:bg-slate-800/80 dark:text-slate-200',
+            submitted: 'bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-200',
+            revision: 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-200',
+            verified: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/70 dark:text-cyan-200',
+            approved: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-200',
+            rejected: 'bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-200',
+            locked: 'bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200',
+            belum: 'bg-slate-100 text-slate-700 dark:bg-slate-800/80 dark:text-slate-200',
+            proses: 'bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-200',
+            selesai: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-200',
+            ditolak: 'bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-200',
+            perlu_perbaikan: 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-200',
+            merah: 'bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-200',
+            kuning: 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-200',
+            hijau: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-200',
+            efisien: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-200',
+            cukup_efisien: 'bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-200',
+            tidak_efisien: 'bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-200',
+            tinggi: 'bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-200',
+            sedang: 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-200',
+            rendah: 'bg-slate-100 text-slate-700 dark:bg-slate-800/80 dark:text-slate-200',
+        }[status ?? ''] ?? 'bg-slate-100 text-slate-700 dark:bg-slate-800/80 dark:text-slate-200'
     );
 }
 
 function priorityClass(tone: string) {
     return (
         {
-            red: 'border-red-200 bg-red-50 text-red-950',
-            amber: 'border-amber-200 bg-amber-50 text-amber-950',
-            blue: 'border-blue-200 bg-blue-50 text-blue-950',
-            green: 'border-emerald-200 bg-emerald-50 text-emerald-950',
-        }[tone] ?? 'border-slate-200 bg-card'
+            red: 'border-red-200 bg-red-50 text-red-950 dark:border-red-900/70 dark:bg-red-950/35 dark:text-red-100',
+            amber: 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/70 dark:bg-amber-950/35 dark:text-amber-100',
+            blue: 'border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-900/70 dark:bg-blue-950/35 dark:text-blue-100',
+            green: 'border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900/70 dark:bg-emerald-950/35 dark:text-emerald-100',
+        }[tone] ?? 'border-slate-200 bg-card dark:border-slate-700'
     );
 }
 
 function priorityIconClass(tone: string) {
     return (
         {
-            red: 'text-red-700',
-            amber: 'text-amber-700',
-            blue: 'text-blue-700',
-            green: 'text-emerald-700',
-        }[tone] ?? 'text-slate-700'
+            red: 'text-red-700 dark:text-red-300',
+            amber: 'text-amber-700 dark:text-amber-300',
+            blue: 'text-blue-700 dark:text-blue-300',
+            green: 'text-emerald-700 dark:text-emerald-300',
+        }[tone] ?? 'text-slate-700 dark:text-slate-300'
     );
 }
 
@@ -387,7 +387,9 @@ function completionClass(value: number) {
 }
 
 function booleanClass(value: boolean) {
-    return value ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-500';
+    return value
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/35 dark:text-emerald-200'
+        : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400';
 }
 </script>
 
