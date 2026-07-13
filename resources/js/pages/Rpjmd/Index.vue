@@ -2,7 +2,7 @@
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { FileSpreadsheet, Plus, Search } from 'lucide-vue-next';
+import { Plus, Search } from 'lucide-vue-next';
 import { reactive } from 'vue';
 
 type RpjmdRow = {
@@ -26,15 +26,6 @@ type Paginator<T> = {
     next_page_url: string | null;
 };
 
-type ImportBatchRow = {
-    id: number;
-    status: string;
-    original_filename: string;
-    total_rows: number;
-    created_at?: string | null;
-    uploaded_by?: string | null;
-};
-
 const props = defineProps<{
     rpjmds: Paginator<RpjmdRow>;
     filters: {
@@ -43,9 +34,7 @@ const props = defineProps<{
     };
     can: {
         manage: boolean;
-        import: boolean;
     };
-    recentImports: ImportBatchRow[];
 }>();
 
 const filterForm = reactive({
@@ -96,13 +85,6 @@ const statusClass = (status: string) =>
         locked: 'bg-zinc-200 text-zinc-800',
     })[status] ?? 'bg-slate-100 text-slate-700';
 
-const importStatusClass = (status: string) =>
-    ({
-        previewed: 'bg-emerald-100 text-emerald-800',
-        processing: 'bg-blue-100 text-blue-800',
-        failed: 'bg-red-100 text-red-800',
-        uploaded: 'bg-slate-100 text-slate-700',
-    })[status] ?? 'bg-slate-100 text-slate-700';
 </script>
 
 <template>
@@ -122,48 +104,6 @@ const importStatusClass = (status: string) =>
                 Tambah RPJMD
             </Link>
         </div>
-
-        <section v-if="can.import" class="grid gap-3 rounded-lg border bg-card p-3 lg:grid-cols-[1fr_360px]">
-            <div class="flex flex-col justify-center">
-                <h2 class="text-sm font-semibold">Import Excel Cascading RPJMD</h2>
-                <p class="mt-1 text-sm text-muted-foreground">
-                    Upload file `.xlsx` atau `.csv` untuk membaca preview baris. Sistem menyimpan batch dan raw rows tanpa langsung membuat data
-                    cascading.
-                </p>
-            </div>
-            <Link
-                :href="route('rpjmd.import.create')"
-                class="inline-flex h-9 items-center justify-center gap-2 self-end rounded-md border px-3 text-sm font-medium hover:bg-muted"
-            >
-                <FileSpreadsheet class="size-4" />
-                Buka Halaman Import
-            </Link>
-        </section>
-
-        <section v-if="can.import && recentImports.length" class="rounded-lg border bg-card">
-            <div class="border-b px-4 py-3">
-                <h2 class="text-sm font-semibold">Import Terakhir</h2>
-            </div>
-            <div class="divide-y">
-                <Link
-                    v-for="item in recentImports"
-                    :key="item.id"
-                    :href="route('rpjmd.import.show', item.id)"
-                    class="grid gap-2 px-4 py-3 text-sm hover:bg-muted md:grid-cols-[1fr_140px_120px]"
-                >
-                    <div>
-                        <div class="font-medium">{{ item.original_filename }}</div>
-                        <div class="text-xs text-muted-foreground">{{ item.uploaded_by || '-' }} - {{ item.created_at || '-' }}</div>
-                    </div>
-                    <div class="text-muted-foreground">{{ item.total_rows }} baris</div>
-                    <div>
-                        <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="importStatusClass(item.status)">
-                            {{ item.status }}
-                        </span>
-                    </div>
-                </Link>
-            </div>
-        </section>
 
         <form class="grid gap-3 rounded-lg border bg-card p-3 md:grid-cols-[1fr_220px_auto]" @submit.prevent="applyFiltersNow">
             <div class="relative">

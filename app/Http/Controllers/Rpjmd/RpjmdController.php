@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Rpjmd;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Rpjmd\StoreRpjmdRequest;
 use App\Http\Requests\Rpjmd\UpdateRpjmdRequest;
-use App\Models\ImportBatch;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
@@ -70,9 +69,7 @@ class RpjmdController extends Controller
             'filters' => $filters,
             'can' => [
                 'manage' => $request->user()->can('create', Rpjmd::class),
-                'import' => $request->user()->can('create', Rpjmd::class),
             ],
-            'recentImports' => $request->user()->can('create', Rpjmd::class) ? $this->recentImports() : [],
         ]);
     }
 
@@ -473,29 +470,6 @@ class RpjmdController extends Controller
         $query->whereHas('visi.tujuan.sasaran.indikator.programs.opdPenanggungJawab', function ($query) use ($user) {
             $query->where('opds.id', $user->opd_id ?? 0);
         });
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function recentImports(): array
-    {
-        return ImportBatch::query()
-            ->with('uploadedBy:id,name')
-            ->where('module', 'rpjmd')
-            ->latest()
-            ->limit(5)
-            ->get()
-            ->map(fn (ImportBatch $batch) => [
-                'id' => $batch->id,
-                'status' => $batch->status,
-                'original_filename' => $batch->original_filename,
-                'total_rows' => $batch->total_rows,
-                'preview_rows' => $batch->preview_rows,
-                'created_at' => $batch->created_at?->toISOString(),
-                'uploaded_by' => $batch->uploadedBy?->name,
-            ])
-            ->all();
     }
 
     /**
