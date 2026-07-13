@@ -51,11 +51,11 @@ return new class extends Migration
         if (Schema::getConnection()->getDriverName() === 'pgsql') {
             DB::statement(
                 "ALTER TABLE {$tableName} ALTER COLUMN target TYPE NUMERIC(18, 4) USING ".
-                "CASE ".
+                'CASE '.
                 "WHEN target IS NULL OR btrim(target) = '' THEN NULL ".
                 "WHEN replace(target, ',', '.') ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN replace(target, ',', '.')::numeric ".
-                "ELSE NULL ".
-                "END"
+                'ELSE NULL '.
+                'END'
             );
 
             return;

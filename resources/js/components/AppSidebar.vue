@@ -29,10 +29,10 @@ import LayoutDashboard from 'lucide-vue-next/dist/esm/icons/layout-dashboard.js'
 import ListChecks from 'lucide-vue-next/dist/esm/icons/list-checks.js';
 import Network from 'lucide-vue-next/dist/esm/icons/network.js';
 import Ruler from 'lucide-vue-next/dist/esm/icons/ruler.js';
-import Signpost from 'lucide-vue-next/dist/esm/icons/signpost.js';
 import ScrollText from 'lucide-vue-next/dist/esm/icons/scroll-text.js';
 import Settings from 'lucide-vue-next/dist/esm/icons/settings.js';
 import ShieldCheck from 'lucide-vue-next/dist/esm/icons/shield-check.js';
+import Signpost from 'lucide-vue-next/dist/esm/icons/signpost.js';
 import Users from 'lucide-vue-next/dist/esm/icons/users.js';
 import { computed, defineAsyncComponent } from 'vue';
 import AppLogo from './AppLogo.vue';

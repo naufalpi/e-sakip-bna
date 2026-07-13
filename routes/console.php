@@ -1,8 +1,8 @@
 <?php
 
+use App\Services\Notifications\RekomendasiDeadlineReminderService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
-use App\Services\Notifications\RekomendasiDeadlineReminderService;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

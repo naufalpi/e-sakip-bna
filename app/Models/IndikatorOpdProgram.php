@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\LogsActivity;
 use App\Models\Concerns\HasTargetTriwulan;
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,8 +11,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class IndikatorOpdProgram extends Model
 {
-    use LogsActivity;
     use HasTargetTriwulan;
+    use LogsActivity;
     use SoftDeletes;
 
     protected $table = 'indikator_opd_program';

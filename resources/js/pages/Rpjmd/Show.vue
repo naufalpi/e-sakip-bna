@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
 import RpjmdNodeTypePicker from '@/components/RpjmdNodeTypePicker.vue';
+import RpjmdPerformanceTreeDiagram from '@/components/RpjmdPerformanceTreeDiagram.vue';
 import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
-import RpjmdPerformanceTreeDiagram from '@/components/RpjmdPerformanceTreeDiagram.vue';
 import { confirmDelete, toast } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { CheckCircle2, Eye, EyeOff, GitBranch, LoaderCircle, Network, Pencil, Plus, Rows3, Save, Table2, Trash2 } from 'lucide-vue-next';
@@ -434,8 +434,7 @@ const targetTriwulanRows = [
     { triwulan: 'tw4', label: 'TW IV' },
 ];
 
-const emptyTargetTriwulanRows = () =>
-    targetTriwulanRows.map((row) => ({ triwulan: row.triwulan, target_text: '', target_angka: '' }));
+const emptyTargetTriwulanRows = () => targetTriwulanRows.map((row) => ({ triwulan: row.triwulan, target_text: '', target_angka: '' }));
 
 const targetTriwulanForm = useForm({
     related_table: 'indikator_tujuan_daerah',
@@ -516,7 +515,9 @@ const bulkCanSubmit = computed(
         bulkFilledRows.value > 0,
 );
 const bulkTableCounterLabel = computed(() =>
-    bulkIsTargetType.value ? `${props.periodeOptions.length} tahun target` : `${bulkVisibleExistingRows.value.length} tersimpan - ${bulkFilledRows.value} baru`,
+    bulkIsTargetType.value
+        ? `${props.periodeOptions.length} tahun target`
+        : `${bulkVisibleExistingRows.value.length} tersimpan - ${bulkFilledRows.value} baru`,
 );
 const bulkColumnCount = computed(() => {
     let count = bulkIsTargetType.value ? 1 : 2; // No + aksi bila bukan target
@@ -613,9 +614,7 @@ const targetTriwulanCountByTable = computed<Record<string, Map<number, number>>>
                 sasaran.indikator.forEach((indikator) => counts.indikator_sasaran_daerah.set(indikator.id, indikator.target_triwulan.length));
                 sasaran.indikator.forEach((indikatorSasaran) => {
                     indikatorSasaran.programs.forEach((program) => {
-                        program.indikator.forEach((indikator) =>
-                            counts.indikator_program_rpjmd.set(indikator.id, indikator.target_triwulan.length),
-                        );
+                        program.indikator.forEach((indikator) => counts.indikator_program_rpjmd.set(indikator.id, indikator.target_triwulan.length));
                     });
                 });
             });
@@ -660,9 +659,7 @@ const decorateParentOptions = (type: NodeType, options: Option[]): RichSelectOpt
             label: option.label,
             group: option.group,
             description:
-                filledTargets > 0
-                    ? `Sudah terisi ${filledTargets} ${targetTypeLabels[type]} tahunan`
-                    : `Belum ada ${targetTypeLabels[type]} tahunan`,
+                filledTargets > 0 ? `Sudah terisi ${filledTargets} ${targetTypeLabels[type]} tahunan` : `Belum ada ${targetTypeLabels[type]} tahunan`,
             badge: totalPeriods > 0 ? `${filledTargets}/${totalPeriods}` : String(filledTargets),
         };
     });
@@ -696,16 +693,6 @@ const toSelectedNumber = (value: number | string | null | undefined) => {
 };
 
 const rpjmdStrukturTujuanLabel = computed(() => (props.rpjmd.struktur_tujuan_mode === 'tujuan_per_misi' ? 'Tujuan per misi' : 'Tujuan lintas misi'));
-const rpjmdStrukturSasaranLabel = computed(
-    () =>
-        (
-            ({
-                sasaran_langsung_tujuan: 'Sasaran langsung ke tujuan',
-                sasaran_melalui_indikator_tujuan: 'Sasaran melalui indikator tujuan',
-                campuran: 'Campuran',
-            }) as Record<string, string>
-        )[props.rpjmd.struktur_sasaran_mode] ?? 'Sasaran langsung ke tujuan',
-);
 const loadCompleteRpjmdData = (openPreview: boolean) => {
     if (props.previewLoaded) {
         if (openPreview) {
@@ -1297,9 +1284,7 @@ const buildTargetBulkRowsFromPeriods = () => {
         const periodeId = toSelectedNumber(periode.id);
         const existing =
             selectedParentId && periodeId
-                ? (bulkExistingRows.value.find(
-                      (item) => item.parent_id === selectedParentId && item.periode_tahun_id === periodeId,
-                  ) ?? null)
+                ? (bulkExistingRows.value.find((item) => item.parent_id === selectedParentId && item.periode_tahun_id === periodeId) ?? null)
                 : null;
 
         row.existing_target_id = existing?.id ?? null;
@@ -1401,9 +1386,7 @@ const targetRowHasUnsavedChanges = (row: BulkRow) => {
     return !row.existing_target_id && trimText(valueText(row.target)).length > 0;
 };
 const hasUnsavedBulkRowsForType = (type: NodeType) =>
-    isAnnualTargetType(type)
-        ? bulkForm.rows.some(targetRowHasUnsavedChanges)
-        : bulkForm.rows.some((row) => bulkRowHasInput(row, type));
+    isAnnualTargetType(type) ? bulkForm.rows.some(targetRowHasUnsavedChanges) : bulkForm.rows.some((row) => bulkRowHasInput(row, type));
 const hasUnsavedNewBulkRows = computed(() => hasUnsavedBulkRowsForType(bulkForm.type));
 const unsavedNewBulkRowsMessage = 'Ada perubahan yang belum disimpan. Jika lanjut, perubahan tersebut akan hilang.';
 let allowUnsavedNewBulkVisit = false;
@@ -1559,13 +1542,10 @@ const hasUnsavedSavedBulkRowsForType = (type: NodeType) =>
 
             return baseline !== undefined && editable !== undefined && savedBulkSnapshot(editable) !== baseline;
         });
-const hasUnsavedBulkChangesForType = (type: NodeType) =>
-    hasUnsavedBulkRowsForType(type) || hasUnsavedSavedBulkRowsForType(type);
+const hasUnsavedBulkChangesForType = (type: NodeType) => hasUnsavedBulkRowsForType(type) || hasUnsavedSavedBulkRowsForType(type);
 const shouldGuardUnsavedNewBulkRows = (type: NodeType = bulkForm.type) =>
     props.can.manage &&
-    (type === bulkForm.type
-        ? hasUnsavedNewBulkRows.value || hasUnsavedSavedBulkRowsForType(type)
-        : hasUnsavedBulkChangesForType(type));
+    (type === bulkForm.type ? hasUnsavedNewBulkRows.value || hasUnsavedSavedBulkRowsForType(type) : hasUnsavedBulkChangesForType(type));
 const confirmDiscardNewBulkRows = (type: NodeType = bulkForm.type) =>
     !shouldGuardUnsavedNewBulkRows(type) || window.confirm(unsavedNewBulkRowsMessage);
 const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -1711,10 +1691,7 @@ watch(
 );
 
 watch(
-    [
-        () => bulkForm.type,
-        () => bulkParentOptions.value.map((option) => option.id).join(','),
-    ],
+    [() => bulkForm.type, () => bulkParentOptions.value.map((option) => option.id).join(',')],
     () => {
         if (bulkHidesParentSelector.value) {
             bulkForm.parent_id = bulkParentOptions.value[0]?.id ?? '';
@@ -1762,20 +1739,6 @@ const normalizedBulkRowsForStore = (rows: BulkRow[]) =>
             urutan: bulkVisibleExistingRows.value.length + (currentIndex >= 0 ? currentIndex : rowIndex) + 1,
         };
     });
-
-const bulkStorePayload = (rows: BulkRow[]) => ({
-    type: bulkForm.type,
-    parent_id: bulkForm.parent_id,
-    misi_ids: bulkForm.misi_ids,
-    indikator_tujuan_ids: bulkForm.indikator_tujuan_ids,
-    periode_tahun_id: bulkForm.periode_tahun_id,
-    satuan_indikator_id: bulkForm.satuan_indikator_id,
-    urusan_pemerintahan_id: bulkForm.urusan_pemerintahan_id,
-    strategi_daerah_id: bulkForm.strategi_daerah_id,
-    peran: bulkForm.peran,
-    is_utama: bulkForm.is_utama,
-    rows: normalizedBulkRowsForStore(rows),
-});
 
 const submitBulkNodes = () => {
     bulkForm.rows = normalizedBulkRowsForStore(bulkForm.rows);
@@ -3178,7 +3141,11 @@ const triwulanLabel = (triwulan: string) =>
 
                             <div v-if="isIndicatorType" class="grid gap-2">
                                 <label class="text-sm font-medium" for="tipe_perhitungan">Tipe Perhitungan</label>
-                                <select id="tipe_perhitungan" v-model="form.tipe_perhitungan" class="h-10 rounded-md border bg-background px-3 text-sm">
+                                <select
+                                    id="tipe_perhitungan"
+                                    v-model="form.tipe_perhitungan"
+                                    class="h-10 rounded-md border bg-background px-3 text-sm"
+                                >
                                     <option value="non_kumulatif">Non-kumulatif</option>
                                     <option value="kumulatif">Kumulatif</option>
                                 </select>
@@ -3676,11 +3643,7 @@ const triwulanLabel = (triwulan: string) =>
                                                         @change="markSavedBulkChanged(saved)"
                                                     >
                                                         <option value="">Tidak diset</option>
-                                                        <option
-                                                            v-for="option in strategiOptions"
-                                                            :key="option.id"
-                                                            :value="option.id"
-                                                        >
+                                                        <option v-for="option in strategiOptions" :key="option.id" :value="option.id">
                                                             {{ option.label }}
                                                         </option>
                                                     </select>
@@ -3698,7 +3661,9 @@ const triwulanLabel = (triwulan: string) =>
                                                     </select>
                                                 </td>
                                                 <td v-if="bulkIsTargetType" class="px-3 py-2 align-top">
-                                                    <div class="inline-flex h-10 items-center rounded-md border bg-slate-50 px-3 text-sm font-semibold text-slate-700">
+                                                    <div
+                                                        class="inline-flex h-10 items-center rounded-md border bg-slate-50 px-3 text-sm font-semibold text-slate-700"
+                                                    >
                                                         {{ bulkPeriodLabel(saved.periode_tahun_id) }}
                                                     </div>
                                                 </td>
@@ -3892,11 +3857,7 @@ const triwulanLabel = (triwulan: string) =>
                                                         @change="markNewBulkChanged(row)"
                                                     >
                                                         <option value="">Ikuti default</option>
-                                                        <option
-                                                            v-for="option in strategiOptions"
-                                                            :key="option.id"
-                                                            :value="option.id"
-                                                        >
+                                                        <option v-for="option in strategiOptions" :key="option.id" :value="option.id">
                                                             {{ option.label }}
                                                         </option>
                                                     </select>
@@ -3914,7 +3875,9 @@ const triwulanLabel = (triwulan: string) =>
                                                     </select>
                                                 </td>
                                                 <td v-if="bulkIsTargetType" class="px-3 py-2">
-                                                    <div class="inline-flex h-10 items-center rounded-md border bg-slate-50 px-3 text-sm font-semibold text-slate-700">
+                                                    <div
+                                                        class="inline-flex h-10 items-center rounded-md border bg-slate-50 px-3 text-sm font-semibold text-slate-700"
+                                                    >
                                                         {{ bulkPeriodLabel(row.periode_tahun_id) }}
                                                     </div>
                                                 </td>
@@ -3996,7 +3959,11 @@ const triwulanLabel = (triwulan: string) =>
 
                             <div class="sticky bottom-0 z-10 flex items-center justify-between gap-3 rounded-lg border bg-card/95 p-3 backdrop-blur">
                                 <div class="text-xs text-muted-foreground">
-                                    {{ bulkIsTargetType ? `${bulkFilledRows} tahun berisi target.` : `${bulkFilledRows} baris akan disimpan sebagai ${bulkTypeLabel}.` }}
+                                    {{
+                                        bulkIsTargetType
+                                            ? `${bulkFilledRows} tahun berisi target.`
+                                            : `${bulkFilledRows} baris akan disimpan sebagai ${bulkTypeLabel}.`
+                                    }}
                                 </div>
                                 <button
                                     type="submit"

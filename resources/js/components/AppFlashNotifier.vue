@@ -24,4 +24,6 @@ watch(
 );
 </script>
 
-<template></template>
+<template>
+    <span class="hidden" aria-hidden="true"></span>
+</template>

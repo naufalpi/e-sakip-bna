@@ -593,8 +593,7 @@ class RpjmdController extends Controller
         IndikatorTujuanDaerah|IndikatorSasaranDaerah|IndikatorProgramRpjmd $indikator,
         bool $withTargets = true,
         ?int $visibleOpdId = null,
-    ): array
-    {
+    ): array {
         $programs = $indikator instanceof IndikatorSasaranDaerah
             ? $indikator->programs
                 ->when($visibleOpdId, fn ($programs) => $programs->filter(

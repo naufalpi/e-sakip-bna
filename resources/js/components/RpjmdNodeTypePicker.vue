@@ -130,9 +130,7 @@ onBeforeUnmount(() => {
                         type="button"
                         class="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition"
                         :class="
-                            option.value === modelValue
-                                ? 'bg-[#00336C] text-white shadow-sm'
-                                : 'text-slate-700 hover:bg-blue-50 hover:text-slate-950'
+                            option.value === modelValue ? 'bg-[#00336C] text-white shadow-sm' : 'text-slate-700 hover:bg-blue-50 hover:text-slate-950'
                         "
                         role="option"
                         :aria-selected="option.value === modelValue"
@@ -140,10 +138,7 @@ onBeforeUnmount(() => {
                     >
                         <span class="min-w-0">
                             <span class="block text-sm font-semibold">{{ option.label }}</span>
-                            <span
-                                class="mt-0.5 block text-xs font-medium"
-                                :class="option.value === modelValue ? 'text-blue-100' : 'text-slate-500'"
-                            >
+                            <span class="mt-0.5 block text-xs font-medium" :class="option.value === modelValue ? 'text-blue-100' : 'text-slate-500'">
                                 {{ descriptions[option.value] ?? 'Data cascading RPJMD' }}
                             </span>
                         </span>

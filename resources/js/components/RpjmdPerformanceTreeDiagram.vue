@@ -176,8 +176,7 @@ const sasaranGap = 34;
 const indicatorColumnWidth = 150;
 const indicatorGap = 16;
 
-const indicatorRowWidth = (count: number) =>
-    count > 0 ? count * indicatorColumnWidth + Math.max(0, count - 1) * indicatorGap : sasaranNodeMinWidth;
+const indicatorRowWidth = (count: number) => (count > 0 ? count * indicatorColumnWidth + Math.max(0, count - 1) * indicatorGap : sasaranNodeMinWidth);
 
 const sasaranBlockWidth = (sasaran: DiagramSasaran) => Math.max(sasaranNodeMinWidth, indicatorRowWidth(sasaran.indicators.length));
 
@@ -189,8 +188,7 @@ const sasaranRowWidth = (tujuan: DiagramTujuan) => {
     return tujuan.sasaran.reduce((width, sasaran, index) => width + sasaranBlockWidth(sasaran) + (index > 0 ? sasaranGap : 0), 0);
 };
 
-const tujuanHeaderWidth = (tujuan: DiagramTujuan) =>
-    tujuanNodeWidth + (tujuan.indicators.length ? tujuanIndicatorGap + tujuanIndicatorWidth : 0);
+const tujuanHeaderWidth = (tujuan: DiagramTujuan) => tujuanNodeWidth + (tujuan.indicators.length ? tujuanIndicatorGap + tujuanIndicatorWidth : 0);
 
 const tujuanBlockWidth = (tujuan: DiagramTujuan) => Math.max(360, tujuanHeaderWidth(tujuan), sasaranRowWidth(tujuan));
 
@@ -242,9 +240,7 @@ const hasData = computed(() => visibleDiagrams.value.some((diagram) => diagram.m
 
 <template>
     <div class="rpjmd-performance-tree">
-        <div v-if="!hasData" class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-            Belum ada data pohon kinerja.
-        </div>
+        <div v-if="!hasData" class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">Belum ada data pohon kinerja.</div>
 
         <div v-else class="grid gap-5">
             <section
@@ -328,7 +324,11 @@ const hasData = computed(() => visibleDiagrams.value.some((diagram) => diagram.m
                                                 'line-vertical--arrow': tujuan.sasaran.length === 1,
                                             }"
                                         />
-                                        <div v-if="tujuan.sasaran.length > 1" class="line-horizontal line-horizontal--sasaran" :style="sasaranBusStyle(tujuan)" />
+                                        <div
+                                            v-if="tujuan.sasaran.length > 1"
+                                            class="line-horizontal line-horizontal--sasaran"
+                                            :style="sasaranBusStyle(tujuan)"
+                                        />
                                         <div class="sasaran-row" :style="{ width: `${sasaranRowWidth(tujuan)}px` }">
                                             <div
                                                 v-for="(sasaran, sasaranIndex) in tujuan.sasaran"
@@ -355,7 +355,10 @@ const hasData = computed(() => visibleDiagrams.value.some((diagram) => diagram.m
                                                         class="line-horizontal line-horizontal--indicator-sasaran"
                                                         :style="indicatorBusStyle()"
                                                     />
-                                                    <div class="sasaran-indicator-row" :style="{ width: `${indicatorRowWidth(sasaran.indicators.length)}px` }">
+                                                    <div
+                                                        class="sasaran-indicator-row"
+                                                        :style="{ width: `${indicatorRowWidth(sasaran.indicators.length)}px` }"
+                                                    >
                                                         <div
                                                             v-for="(indikator, indikatorIndex) in sasaran.indicators"
                                                             :key="indikator.id"
@@ -398,10 +401,8 @@ const hasData = computed(() => visibleDiagrams.value.some((diagram) => diagram.m
     padding: 26px 54px 46px;
     background-color: #fff;
     background-image:
-        linear-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(15, 23, 42, 0.055) 1px, transparent 1px),
-        linear-gradient(rgba(15, 23, 42, 0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(15, 23, 42, 0.025) 1px, transparent 1px);
+        linear-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(15, 23, 42, 0.055) 1px, transparent 1px),
+        linear-gradient(rgba(15, 23, 42, 0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(15, 23, 42, 0.025) 1px, transparent 1px);
     background-size:
         32px 32px,
         32px 32px,

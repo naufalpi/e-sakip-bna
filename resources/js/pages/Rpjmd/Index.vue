@@ -84,7 +84,6 @@ const statusClass = (status: string) =>
         rejected: 'bg-red-100 text-red-800',
         locked: 'bg-zinc-200 text-zinc-800',
     })[status] ?? 'bg-slate-100 text-slate-700';
-
 </script>
 
 <template>

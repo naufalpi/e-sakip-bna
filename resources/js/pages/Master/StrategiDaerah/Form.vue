@@ -93,7 +93,10 @@ const submit = () => {
         </section>
 
         <div class="flex justify-end gap-2">
-            <Link :href="route('master.strategi-daerah.index')" class="inline-flex h-10 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted">
+            <Link
+                :href="route('master.strategi-daerah.index')"
+                class="inline-flex h-10 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
+            >
                 Batal
             </Link>
             <button

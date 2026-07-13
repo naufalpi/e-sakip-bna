@@ -101,7 +101,7 @@ const applyFilters = () =>
         replace: true,
         only: ['filters', 'availableYears', 'opdOptions', 'selectedOpd', 'sections', 'summary', 'isAggregate', 'publicUrl'],
     });
-const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters, 250);
+useAutoFilters(filterForm, applyFilters, 250);
 
 const stateLabel = (state: string) =>
     ({

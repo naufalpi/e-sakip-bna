@@ -135,7 +135,7 @@ onBeforeUnmount(() => {
         <button
             :id="id"
             type="button"
-            class="group flex min-h-11 min-w-0 w-full items-center justify-between gap-3 overflow-hidden rounded-xl border bg-white px-3.5 py-2.5 text-left text-sm shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-[#00336C]/35 hover:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/25 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+            class="group flex min-h-11 w-full min-w-0 items-center justify-between gap-3 overflow-hidden rounded-xl border bg-white px-3.5 py-2.5 text-left text-sm shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-[#00336C]/35 hover:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/25 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
             :class="invalid ? 'border-amber-300 bg-amber-50/50' : 'border-slate-200'"
             :disabled="disabled"
             aria-haspopup="listbox"
@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
         >
             <div
                 v-if="isOpen"
-                class="absolute left-0 z-50 flex w-full min-w-0 max-w-[min(42rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.14)] max-h-[min(420px,calc(100vh-32px))]"
+                class="absolute left-0 z-50 flex max-h-[min(420px,calc(100vh-32px))] w-full min-w-0 max-w-[min(42rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.14)]"
                 :class="openUpwards ? 'bottom-full mb-2' : 'top-full mt-2'"
             >
                 <div v-if="options.length" class="border-b border-slate-100 p-2">
@@ -247,11 +247,7 @@ onBeforeUnmount(() => {
                                 <span
                                     v-if="option.badge"
                                     class="rounded-full px-2 py-0.5 text-xs font-semibold"
-                                    :class="
-                                        sameValue(optionValue(option), modelValue)
-                                            ? 'bg-white/15 text-white'
-                                            : 'bg-blue-50 text-[#00336C]'
-                                    "
+                                    :class="sameValue(optionValue(option), modelValue) ? 'bg-white/15 text-white' : 'bg-blue-50 text-[#00336C]'"
                                 >
                                     {{ option.badge }}
                                 </span>

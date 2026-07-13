@@ -151,7 +151,7 @@ class RpjmdNodeController extends Controller
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
             ]),
-            'program' => tap($this->indikatorSasaran($rpjmd, $data['parent_id'] ?? null), function (IndikatorSasaranDaerah $indikatorSasaran) use ($rpjmd, $data) {
+            'program' => tap($this->indikatorSasaran($rpjmd, $data['parent_id'] ?? null), function (IndikatorSasaranDaerah $indikatorSasaran) use ($data) {
                 $strategi = $this->optionalStrategiProgram($data);
 
                 ProgramRpjmd::create([
