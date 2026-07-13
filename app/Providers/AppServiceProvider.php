@@ -25,6 +25,7 @@ use App\Policies\RolePolicy;
 use App\Policies\RpjmdPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -42,6 +43,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $appUrl = config('app.url');
+
+        if (app()->environment('production') && is_string($appUrl) && str_starts_with($appUrl, 'https://')) {
+            URL::forceRootUrl(rtrim($appUrl, '/'));
+            URL::forceScheme('https');
+        }
+
         Gate::policy(Opd::class, OpdPolicy::class);
         Gate::policy(Dokumen::class, DokumenPolicy::class);
         Gate::policy(EvaluasiSakip::class, EvaluasiSakipPolicy::class);
