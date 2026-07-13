@@ -4,7 +4,6 @@ namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -15,12 +14,7 @@ class StrategiDaerah extends Model
 
     protected $table = 'strategi_daerah';
 
-    protected $fillable = ['sasaran_daerah_id', 'kode', 'strategi', 'arah_kebijakan', 'urutan'];
-
-    public function sasaran(): BelongsTo
-    {
-        return $this->belongsTo(SasaranDaerah::class, 'sasaran_daerah_id');
-    }
+    protected $fillable = ['kode', 'strategi', 'status'];
 
     public function programs(): HasMany
     {

@@ -189,7 +189,7 @@ function changeYear(event: Event): void {
         <PublicSiteHeader :home-url="props.section_urls.home" :nav-items="navItems" :entry-url="entryUrl" :entry-label="entryLabel" />
 
         <main>
-            <PublicHero v-if="!currentSection" :planning-url="props.section_urls.perencanaan" :entry-url="entryUrl" :entry-label="entryLabel" />
+            <PublicHero v-if="!currentSection" />
             <PublicModuleHeader
                 v-else
                 :section="currentSection"

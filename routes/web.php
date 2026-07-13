@@ -25,6 +25,7 @@ use App\Http\Controllers\Master\OpdUnitController;
 use App\Http\Controllers\Master\PeriodeTahunController;
 use App\Http\Controllers\Master\RolePermissionController;
 use App\Http\Controllers\Master\SatuanIndikatorController;
+use App\Http\Controllers\Master\StrategiDaerahController;
 use App\Http\Controllers\Master\SystemSettingController;
 use App\Http\Controllers\Master\UrusanPemerintahanController;
 use App\Http\Controllers\Master\UserController;
@@ -142,6 +143,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
         Route::resource('opd-units', OpdUnitController::class)->parameters(['opd-units' => 'opdUnit'])->except(['show']);
         Route::resource('periode-tahun', PeriodeTahunController::class)->parameters(['periode-tahun' => 'periodeTahun'])->except(['show']);
         Route::resource('satuan-indikator', SatuanIndikatorController::class)->parameters(['satuan-indikator' => 'satuanIndikator'])->except(['show']);
+        Route::resource('strategi-daerah', StrategiDaerahController::class)->parameters(['strategi-daerah' => 'strategiDaerah'])->except(['show']);
         Route::resource('urusan-pemerintahan', UrusanPemerintahanController::class)->parameters(['urusan-pemerintahan' => 'urusanPemerintahan'])->except(['show']);
         Route::resource('system-settings', SystemSettingController::class)->parameters(['system-settings' => 'systemSetting'])->except(['show']);
         Route::resource('users', UserController::class)->except(['show']);

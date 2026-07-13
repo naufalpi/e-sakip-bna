@@ -27,6 +27,16 @@ class SakipBusinessMetricsTest extends TestCase
             'indikator_tujuan_daerah',
             'indikator_sasaran_daerah',
             'indikator_program_rpjmd',
+        ] as $table) {
+            $this->assertFalse(Schema::hasColumn($table, 'tipe_indikator'), "Kolom tipe_indikator seharusnya sudah tidak ada pada {$table}.");
+            $this->assertFalse(Schema::hasColumn($table, 'formula'), "Kolom formula seharusnya sudah diganti pada {$table}.");
+
+            foreach (['definisi_operasional', 'alasan_pemilihan', 'formulasi_pengukuran', 'tipe_perhitungan', 'sumber_data', 'opd_id'] as $column) {
+                $this->assertTrue(Schema::hasColumn($table, $column), "Kolom {$column} belum ada pada {$table}.");
+            }
+        }
+
+        foreach ([
             'indikator_tujuan_opd',
             'indikator_sasaran_opd',
             'indikator_opd_program',

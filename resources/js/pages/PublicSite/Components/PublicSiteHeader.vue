@@ -33,9 +33,9 @@ function closeMobileMenu(): void {
         <div class="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
             <Link
                 :href="homeUrl"
-                class="flex min-h-11 items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
+                class="flex min-h-11 items-center gap-3 transition duration-200 hover:opacity-90 focus-visible:outline-none focus-visible:opacity-90"
             >
-                <img src="/images/logo-banjarnegara.svg" alt="Lambang Kabupaten Banjarnegara" class="h-11 w-11 object-contain" />
+                <img src="/images/logo-banjarnegara2.png" alt="Lambang Kabupaten Banjarnegara" class="h-11 w-11 object-contain" />
                 <div class="leading-tight">
                     <p class="text-sm font-bold uppercase text-[#00336C]">E-SAKIP</p>
                     <p class="text-sm font-medium text-slate-700">Kabupaten Banjarnegara</p>
@@ -47,11 +47,11 @@ function closeMobileMenu(): void {
                     v-for="item in navItems"
                     :key="item.id"
                     :href="item.href"
-                    class="relative rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
+                    class="relative px-4 py-2 text-sm font-semibold transition duration-200 after:absolute after:inset-x-4 after:bottom-0 after:h-px after:origin-left after:rounded-full after:bg-[#00336C]/35 after:transition-transform after:duration-200 hover:-translate-y-0.5 hover:text-[#00336C] hover:after:scale-x-100 focus-visible:-translate-y-0.5 focus-visible:text-[#00336C] focus-visible:outline-none focus-visible:after:scale-x-100"
                     :class="
                         item.isActive
-                            ? 'text-[#00336C] after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#00336C]'
-                            : 'text-slate-700 hover:bg-blue-50 hover:text-[#00336C]'
+                            ? 'text-[#00336C] after:h-0.5 after:bg-[#00336C] after:scale-x-100'
+                            : 'text-slate-700 after:scale-x-0'
                     "
                 >
                     {{ item.label }}
@@ -61,7 +61,7 @@ function closeMobileMenu(): void {
             <div class="hidden items-center gap-3 lg:flex">
                 <Link
                     :href="entryUrl"
-                    class="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#00336C] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/15 transition hover:bg-[#002957] focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2"
+                    class="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#00336C] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/15 transition duration-200 hover:-translate-y-px hover:bg-[#002957] hover:shadow-md hover:shadow-blue-950/20 focus-visible:-translate-y-px focus-visible:bg-[#002957] focus-visible:outline-none focus-visible:shadow-md focus-visible:shadow-blue-950/20 active:translate-y-0"
                 >
                     <LogIn class="h-4 w-4" />
                     {{ entryLabel }}
@@ -85,15 +85,15 @@ function closeMobileMenu(): void {
                     v-for="item in navItems"
                     :key="item.id"
                     :href="item.href"
-                    class="min-h-11 rounded-md px-3 py-3 text-sm font-semibold"
-                    :class="item.isActive ? 'text-[#00336C]' : 'text-slate-700 hover:bg-blue-50'"
+                    class="relative min-h-11 px-3 py-3 text-sm font-semibold transition duration-200 after:absolute after:inset-x-3 after:bottom-1 after:h-px after:origin-left after:rounded-full after:bg-[#00336C]/35 after:transition-transform after:duration-200 hover:translate-x-0.5 hover:text-[#00336C] hover:after:scale-x-100 focus-visible:translate-x-0.5 focus-visible:text-[#00336C] focus-visible:outline-none focus-visible:after:scale-x-100"
+                    :class="item.isActive ? 'text-[#00336C] after:h-0.5 after:bg-[#00336C] after:scale-x-100' : 'text-slate-700 after:scale-x-0'"
                     @click="closeMobileMenu"
                 >
                     {{ item.label }}
                 </Link>
                 <Link
                     :href="entryUrl"
-                    class="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#00336C] px-4 py-2 text-sm font-semibold text-white"
+                    class="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#00336C] px-4 py-2 text-sm font-semibold text-white transition duration-200 hover:-translate-y-px hover:bg-[#002957] focus-visible:-translate-y-px focus-visible:bg-[#002957] focus-visible:outline-none active:translate-y-0"
                 >
                     <LogIn class="h-4 w-4" />
                     {{ entryLabel }}

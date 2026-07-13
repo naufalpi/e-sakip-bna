@@ -6,6 +6,7 @@ use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -28,11 +29,21 @@ class TujuanDaerah extends Model
         return $this->belongsTo(RpjmdMisi::class, 'rpjmd_misi_id');
     }
 
+    public function misiTerkait(): BelongsToMany
+    {
+        return $this->belongsToMany(RpjmdMisi::class, 'tujuan_daerah_misi', 'tujuan_daerah_id', 'rpjmd_misi_id')
+            ->withPivot('urutan')
+            ->withTimestamps()
+            ->orderByPivot('urutan')
+            ->orderBy('rpjmd_misi.urutan');
+    }
+
     public function scopeForRpjmd(Builder $query, int $rpjmdId): Builder
     {
         return $query->where(function (Builder $query) use ($rpjmdId) {
             $query->whereHas('visi', fn (Builder $query) => $query->where('rpjmd_id', $rpjmdId))
-                ->orWhereHas('misi', fn (Builder $query) => $query->where('rpjmd_id', $rpjmdId));
+                ->orWhereHas('misi', fn (Builder $query) => $query->where('rpjmd_id', $rpjmdId))
+                ->orWhereHas('misiTerkait', fn (Builder $query) => $query->where('rpjmd_id', $rpjmdId));
         });
     }
 

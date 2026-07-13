@@ -31,6 +31,7 @@ const breadcrumbTitleByPrefix: Array<[string, string]> = [
     ['/master/opd', 'Master OPD'],
     ['/master/periode-tahun', 'Periode Tahun'],
     ['/master/satuan-indikator', 'Satuan Indikator'],
+    ['/master/strategi-daerah', 'Strategi Daerah'],
     ['/master/urusan-pemerintahan', 'Urusan Pemerintahan'],
     ['/master/users', 'Master User'],
     ['/master/role-permission', 'Role Permission'],

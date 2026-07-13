@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -21,10 +22,12 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->post('/login', [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
+        $response = $this
+            ->withSession([LoginRequest::FORM_ISSUED_AT_SESSION_KEY => now()->subSeconds(2)->timestamp])
+            ->post('/login', [
+                'email' => $user->email,
+                'password' => 'password',
+            ]);
 
         $this->assertAuthenticated();
         $response->assertRedirect(route('dashboard', absolute: false));
@@ -34,12 +37,32 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->post('/login', [
-            'email' => $user->email,
-            'password' => 'wrong-password',
-        ]);
+        $this
+            ->withSession([LoginRequest::FORM_ISSUED_AT_SESSION_KEY => now()->subSeconds(2)->timestamp])
+            ->post('/login', [
+                'email' => $user->email,
+                'password' => 'wrong-password',
+            ]);
 
         $this->assertGuest();
+    }
+
+    public function test_login_rejects_bot_honeypot_submissions()
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->withSession([LoginRequest::FORM_ISSUED_AT_SESSION_KEY => now()->subSeconds(2)->timestamp])
+            ->from('/login')
+            ->post('/login', [
+                'email' => $user->email,
+                'password' => 'password',
+                'login_website' => 'https://spam.test',
+            ]);
+
+        $this->assertGuest();
+        $response->assertRedirect('/login');
+        $response->assertSessionHasErrors('email');
     }
 
     public function test_users_can_logout()

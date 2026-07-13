@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -22,14 +23,19 @@ class SasaranDaerah extends Model
         return $this->belongsTo(TujuanDaerah::class, 'tujuan_daerah_id');
     }
 
+    public function indikatorTujuanTerkait(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            IndikatorTujuanDaerah::class,
+            'sasaran_daerah_indikator_tujuan',
+            'sasaran_daerah_id',
+            'indikator_tujuan_daerah_id',
+        )->withTimestamps();
+    }
+
     public function indikator(): HasMany
     {
         return $this->hasMany(IndikatorSasaranDaerah::class)->orderBy('urutan');
-    }
-
-    public function strategi(): HasMany
-    {
-        return $this->hasMany(StrategiDaerah::class)->orderBy('urutan');
     }
 
     public function programs(): HasMany

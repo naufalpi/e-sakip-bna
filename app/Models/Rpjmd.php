@@ -22,6 +22,8 @@ class Rpjmd extends Model
         'tahun_awal',
         'tahun_akhir',
         'status',
+        'struktur_tujuan_mode',
+        'struktur_sasaran_mode',
         'keterangan',
     ];
 

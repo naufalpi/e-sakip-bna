@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\IndikatorOpdProgram;
 use App\Models\IndikatorProgramRpjmd;
+use App\Models\IndikatorSasaranDaerah;
 use App\Models\Opd;
 use App\Models\OpdKegiatan;
 use App\Models\OpdProgram;
@@ -47,6 +48,8 @@ class PohonKinerjaTest extends TestCase
             ->assertOk()
             ->assertJsonPath('mode', 'kabupaten')
             ->assertJsonPath('tree.type', 'rpjmd')
+            ->assertJsonPath('tree.meta.struktur_tujuan_mode', 'tujuan_lintas_misi')
+            ->assertJsonPath('tree.meta.struktur_sasaran_mode', 'sasaran_langsung_tujuan')
             ->assertJsonPath('stats.target_tahunan_nodes', 1)
             ->assertJsonPath('stats.target_triwulan_nodes', 1)
             ->assertJsonFragment(['type' => 'program_rpjmd'])
@@ -123,17 +126,18 @@ class PohonKinerjaTest extends TestCase
         $misi = RpjmdMisi::create(['rpjmd_id' => $rpjmd->id, 'rpjmd_visi_id' => $visi->id, 'misi' => 'Misi Kabupaten', 'urutan' => 1]);
         $tujuan = TujuanDaerah::create(['rpjmd_visi_id' => $visi->id, 'rpjmd_misi_id' => null, 'tujuan' => 'Tujuan Daerah', 'urutan' => 1]);
         $sasaran = SasaranDaerah::create(['tujuan_daerah_id' => $tujuan->id, 'sasaran' => 'Sasaran Daerah', 'urutan' => 1]);
-        $strategi = StrategiDaerah::create(['sasaran_daerah_id' => $sasaran->id, 'strategi' => 'Strategi Daerah', 'urutan' => 1]);
+        $indikatorSasaran = IndikatorSasaranDaerah::create(['sasaran_daerah_id' => $sasaran->id, 'indikator' => 'Indikator Sasaran Daerah', 'urutan' => 1]);
+        $strategi = StrategiDaerah::create(['strategi' => 'Strategi Daerah', 'status' => 'active']);
         $program = ProgramRpjmd::create([
             'strategi_daerah_id' => $strategi->id,
             'sasaran_daerah_id' => $sasaran->id,
+            'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
             'nama' => 'Program RPJMD',
-            'pagu_indikatif' => 1000000,
             'status' => 'approved',
             'urutan' => 1,
         ]);
         $indikatorProgram = IndikatorProgramRpjmd::create(['program_rpjmd_id' => $program->id, 'indikator' => 'Indikator Program RPJMD', 'urutan' => 1]);
-        TargetIndikatorProgramRpjmd::create(['indikator_program_rpjmd_id' => $indikatorProgram->id, 'periode_tahun_id' => $periode->id, 'target' => 90, 'target_text' => '90 persen', 'pagu' => 1000000]);
+        TargetIndikatorProgramRpjmd::create(['indikator_program_rpjmd_id' => $indikatorProgram->id, 'periode_tahun_id' => $periode->id, 'target' => 90, 'target_text' => '90 persen']);
         TargetTriwulanIndikator::create(['related_table' => 'indikator_program_rpjmd', 'related_id' => $indikatorProgram->id, 'periode_tahun_id' => $periode->id, 'triwulan' => 'tw1', 'target_text' => '25 persen', 'target_angka' => 25, 'target_anggaran' => 250000]);
         ProgramRpjmdOpdPenanggungJawab::create(['program_rpjmd_id' => $program->id, 'opd_id' => $opd->id, 'peran' => 'penanggung_jawab', 'is_utama' => true]);
 

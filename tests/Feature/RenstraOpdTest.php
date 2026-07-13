@@ -551,8 +551,15 @@ class RenstraOpdTest extends TestCase
         $indikatorTujuan = IndikatorTujuanDaerah::create(['tujuan_daerah_id' => $tujuan->id, 'indikator' => 'Indikator Tujuan Daerah', 'urutan' => 1]);
         $sasaran = SasaranDaerah::create(['tujuan_daerah_id' => $tujuan->id, 'sasaran' => 'Sasaran Daerah', 'urutan' => 1]);
         $indikatorSasaran = IndikatorSasaranDaerah::create(['sasaran_daerah_id' => $sasaran->id, 'indikator' => 'Indikator Sasaran Daerah', 'urutan' => 1]);
-        $strategi = StrategiDaerah::create(['sasaran_daerah_id' => $sasaran->id, 'strategi' => 'Strategi Daerah', 'urutan' => 1]);
-        $program = ProgramRpjmd::create(['strategi_daerah_id' => $strategi->id, 'sasaran_daerah_id' => $sasaran->id, 'nama' => 'Program RPJMD', 'status' => 'approved', 'urutan' => 1]);
+        $strategi = StrategiDaerah::create(['strategi' => 'Strategi Daerah', 'status' => 'active']);
+        $program = ProgramRpjmd::create([
+            'strategi_daerah_id' => $strategi->id,
+            'sasaran_daerah_id' => $sasaran->id,
+            'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
+            'nama' => 'Program RPJMD',
+            'status' => 'approved',
+            'urutan' => 1,
+        ]);
         $indikatorProgram = IndikatorProgramRpjmd::create(['program_rpjmd_id' => $program->id, 'indikator' => 'Indikator Program RPJMD', 'urutan' => 1]);
 
         return [

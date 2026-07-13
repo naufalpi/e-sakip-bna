@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -30,5 +31,14 @@ class RpjmdMisi extends Model
     public function tujuan(): HasMany
     {
         return $this->hasMany(TujuanDaerah::class)->orderBy('urutan');
+    }
+
+    public function tujuanTerkait(): BelongsToMany
+    {
+        return $this->belongsToMany(TujuanDaerah::class, 'tujuan_daerah_misi', 'rpjmd_misi_id', 'tujuan_daerah_id')
+            ->withPivot('urutan')
+            ->withTimestamps()
+            ->orderByPivot('urutan')
+            ->orderBy('tujuan_daerah.urutan');
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services\Perencanaan;
 
 use App\Models\IndikatorOpdProgram;
+use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorSasaranOpd;
 use App\Models\IndikatorTujuanOpd;
 use App\Models\Opd;
@@ -16,7 +17,6 @@ use App\Models\RpjmdMisi;
 use App\Models\RpjmdVisi;
 use App\Models\SasaranDaerah;
 use App\Models\SasaranOpd;
-use App\Models\StrategiDaerah;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
 use Illuminate\Database\Eloquent\Model;
@@ -32,17 +32,20 @@ class PohonKinerjaService
         $rpjmd->loadMissing([
             'periodeTahun:id,tahun,nama',
             'visi.misi',
+            'visi.tujuan.misiTerkait:id,rpjmd_id,rpjmd_visi_id,kode,misi,urutan',
             'visi.tujuan.indikator.satuanIndikator:id,nama,simbol',
             'visi.tujuan.indikator.targets.periodeTahun:id,tahun,nama',
             'visi.tujuan.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
+            'visi.tujuan.sasaran.indikatorTujuanTerkait:id,tujuan_daerah_id,kode,indikator,urutan',
             'visi.tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
-            'visi.tujuan.sasaran.strategi.programs.urusanPemerintahan:id,kode,nama',
-            'visi.tujuan.sasaran.strategi.programs.opdPenanggungJawab:id,kode,nama,singkatan',
-            'visi.tujuan.sasaran.strategi.programs.indikator.satuanIndikator:id,nama,simbol',
-            'visi.tujuan.sasaran.strategi.programs.indikator.targets.periodeTahun:id,tahun,nama',
-            'visi.tujuan.sasaran.strategi.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.indikator.programs.strategi:id,kode,strategi',
+            'visi.tujuan.sasaran.indikator.programs.urusanPemerintahan:id,kode,nama',
+            'visi.tujuan.sasaran.indikator.programs.opdPenanggungJawab:id,kode,nama,singkatan',
+            'visi.tujuan.sasaran.indikator.programs.indikator.satuanIndikator:id,nama,simbol',
+            'visi.tujuan.sasaran.indikator.programs.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.indikator.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
         ]);
 
         return $this->node(
@@ -53,6 +56,8 @@ class PohonKinerjaService
                 'status' => $rpjmd->status,
                 'periode' => $rpjmd->periodeTahun?->nama,
                 'nomor_perda' => $rpjmd->nomor_perda,
+                'struktur_tujuan_mode' => $rpjmd->struktur_tujuan_mode,
+                'struktur_sasaran_mode' => $rpjmd->struktur_sasaran_mode,
             ],
             children: $rpjmd->visi
                 ->map(fn (RpjmdVisi $visi) => $this->visiNode($visi, $visibleOpdId))
@@ -226,6 +231,9 @@ class PohonKinerjaService
             type: 'tujuan_daerah',
             id: $tujuan->id,
             label: $this->label($tujuan->kode, $tujuan->tujuan),
+            meta: [
+                'misi_ids' => $tujuan->misiTerkait->pluck('id')->values()->all(),
+            ],
             children: [
                 ...$this->indicatorNodes($tujuan->indikator, 'indikator_tujuan_daerah'),
                 ...$sasaranChildren->all(),
@@ -238,12 +246,12 @@ class PohonKinerjaService
      */
     private function sasaranDaerahNode(SasaranDaerah $sasaran, ?int $visibleOpdId): ?array
     {
-        $strategiChildren = $sasaran->strategi
-            ->map(fn (StrategiDaerah $strategi) => $this->strategiDaerahNode($strategi, $visibleOpdId))
+        $indikatorChildren = $sasaran->indikator
+            ->map(fn (IndikatorSasaranDaerah $indikator) => $this->indikatorSasaranDaerahNode($indikator, $visibleOpdId))
             ->filter()
             ->values();
 
-        if ($visibleOpdId && $strategiChildren->isEmpty()) {
+        if ($visibleOpdId && $indikatorChildren->isEmpty()) {
             return null;
         }
 
@@ -251,19 +259,19 @@ class PohonKinerjaService
             type: 'sasaran_daerah',
             id: $sasaran->id,
             label: $this->label($sasaran->kode, $sasaran->sasaran),
-            children: [
-                ...$this->indicatorNodes($sasaran->indikator, 'indikator_sasaran_daerah'),
-                ...$strategiChildren->all(),
+            meta: [
+                'indikator_tujuan_ids' => $sasaran->indikatorTujuanTerkait->pluck('id')->values()->all(),
             ],
+            children: $indikatorChildren->all(),
         );
     }
 
     /**
      * @return array<string, mixed>|null
      */
-    private function strategiDaerahNode(StrategiDaerah $strategi, ?int $visibleOpdId): ?array
+    private function indikatorSasaranDaerahNode(IndikatorSasaranDaerah $indikator, ?int $visibleOpdId): ?array
     {
-        $programs = $strategi->programs
+        $programs = $indikator->programs
             ->when($visibleOpdId, fn (Collection $programs) => $programs->filter(
                 fn (ProgramRpjmd $program) => $program->opdPenanggungJawab->contains('id', $visibleOpdId)
             ))
@@ -275,13 +283,7 @@ class PohonKinerjaService
             return null;
         }
 
-        return $this->node(
-            type: 'strategi_daerah',
-            id: $strategi->id,
-            label: $this->label($strategi->kode, $strategi->strategi),
-            meta: ['arah_kebijakan' => $strategi->arah_kebijakan],
-            children: $programs,
-        );
+        return $this->indicatorNode($indikator, 'indikator_sasaran_daerah', extraChildren: $programs);
     }
 
     /**
@@ -295,8 +297,8 @@ class PohonKinerjaService
             label: $this->label($program->kode, $program->nama),
             meta: [
                 'status' => $program->status,
-                'pagu_indikatif' => $program->pagu_indikatif,
                 'urusan' => $program->urusanPemerintahan ? $this->label($program->urusanPemerintahan->kode, $program->urusanPemerintahan->nama) : null,
+                'strategi' => $program->strategi ? $this->label($program->strategi->kode, $program->strategi->strategi) : null,
             ],
             children: [
                 ...$this->indicatorNodes($program->indikator, 'indikator_program_rpjmd'),
@@ -409,21 +411,27 @@ class PohonKinerjaService
     /**
      * @return array<string, mixed>
      */
-    private function indicatorNode(Model $indicator, string $type, ?array $linkedTo = null): array
+    private function indicatorNode(Model $indicator, string $type, ?array $linkedTo = null, array $extraChildren = []): array
     {
         return $this->node(
             type: $type,
             id: $indicator->getKey(),
             label: $this->label($indicator->getAttribute('kode'), $indicator->getAttribute('indikator')),
             meta: [
-                'tipe_indikator' => $indicator->getAttribute('tipe_indikator') ?: 'positif',
                 'satuan' => $indicator->satuanIndikator?->simbol ?: $indicator->satuanIndikator?->nama,
+                'tipe_indikator' => $indicator->getAttribute('tipe_indikator'),
                 'formula' => $indicator->getAttribute('formula'),
+                'definisi_operasional' => $indicator->getAttribute('definisi_operasional'),
+                'alasan_pemilihan' => $indicator->getAttribute('alasan_pemilihan'),
+                'formulasi_pengukuran' => $indicator->getAttribute('formulasi_pengukuran'),
+                'tipe_perhitungan' => $indicator->getAttribute('tipe_perhitungan'),
                 'sumber_data' => $indicator->getAttribute('sumber_data'),
+                'opd' => $indicator->getRelationValue('opd')?->singkatan ?: $indicator->getRelationValue('opd')?->nama,
             ],
             children: [
                 ...$this->targetTahunanNodes($indicator),
                 ...$this->targetTriwulanNodes($indicator),
+                ...$extraChildren,
             ],
             linkedTo: $linkedTo,
         );
@@ -443,12 +451,12 @@ class PohonKinerjaService
                 type: 'target_tahunan',
                 id: $target->getKey(),
                 label: 'Target '.$target->periodeTahun?->tahun.': '.$this->targetDisplay($target),
-                meta: [
+                meta: array_filter([
                     'tahun' => $target->periodeTahun?->tahun,
                     'target' => $target->getAttribute('target'),
                     'target_text' => $target->getAttribute('target_text'),
                     'pagu' => $target->getAttribute('pagu'),
-                ],
+                ], fn ($value) => $value !== null),
             ))
             ->values()
             ->all();

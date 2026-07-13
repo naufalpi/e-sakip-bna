@@ -14,13 +14,6 @@ class TargetIndikatorSasaranDaerah extends Model
 
     protected $fillable = ['indikator_sasaran_daerah_id', 'periode_tahun_id', 'target', 'target_text'];
 
-    protected function casts(): array
-    {
-        return [
-            'target' => 'decimal:4',
-        ];
-    }
-
     public function indikator(): BelongsTo
     {
         return $this->belongsTo(IndikatorSasaranDaerah::class, 'indikator_sasaran_daerah_id');

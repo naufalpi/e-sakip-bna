@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
-import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -11,13 +10,13 @@ import { LoaderCircle } from 'lucide-vue-next';
 
 defineProps<{
     status?: string;
-    canResetPassword: boolean;
 }>();
 
 const form = useForm({
     email: '',
     password: '',
     remember: false,
+    login_website: '',
 });
 
 const submit = () => {
@@ -47,7 +46,7 @@ const submit = () => {
                         tabindex="1"
                         autocomplete="username"
                         v-model="form.email"
-                        placeholder="superadmin atau nama@banjarnegarakab.go.id"
+                        placeholder="Email atau username"
                     />
                     <InputError :message="form.errors.email" />
                 </div>
@@ -55,7 +54,6 @@ const submit = () => {
                 <div class="grid gap-2">
                     <div class="flex items-center justify-between">
                         <Label for="password">Kata sandi</Label>
-                        <TextLink v-if="canResetPassword" :href="route('password.request')" class="text-sm" tabindex="5">Lupa kata sandi?</TextLink>
                     </div>
                     <Input
                         id="password"
@@ -67,6 +65,11 @@ const submit = () => {
                         placeholder="Kata sandi"
                     />
                     <InputError :message="form.errors.password" />
+                </div>
+
+                <div class="pointer-events-none absolute -left-[10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
+                    <Label for="login_website">Website</Label>
+                    <Input id="login_website" v-model="form.login_website" type="text" tabindex="-1" autocomplete="off" />
                 </div>
 
                 <div class="flex items-center justify-between" tabindex="3">

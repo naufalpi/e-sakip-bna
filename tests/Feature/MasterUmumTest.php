@@ -7,10 +7,12 @@ use App\Models\OpdUnit;
 use App\Models\PeriodeTahun;
 use App\Models\Role;
 use App\Models\SatuanIndikator;
+use App\Models\StrategiDaerah;
 use App\Models\SystemSetting;
 use App\Models\UrusanPemerintahan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -106,6 +108,32 @@ class MasterUmumTest extends TestCase
         $this->assertDatabaseHas('urusan_pemerintahan', ['id' => $urusan->id, 'status' => 'inactive']);
 
         $this->actingAs($admin)
+            ->post(route('master.strategi-daerah.store'), [
+                'kode' => 'STR-DEMO',
+                'strategi' => 'Strategi pelayanan publik terpadu',
+                'status' => 'active',
+            ])
+            ->assertRedirect(route('master.strategi-daerah.index'));
+
+        $strategi = StrategiDaerah::where('kode', 'STR-DEMO')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->put(route('master.strategi-daerah.update', $strategi), [
+                'kode' => 'STR-DEMO',
+                'strategi' => 'Strategi pelayanan publik terintegrasi',
+                'status' => 'inactive',
+            ])
+            ->assertRedirect(route('master.strategi-daerah.index'));
+
+        $this->assertDatabaseHas('strategi_daerah', [
+            'id' => $strategi->id,
+            'status' => 'inactive',
+        ]);
+        $this->assertFalse(Schema::hasColumn('strategi_daerah', 'sasaran_daerah_id'));
+        $this->assertFalse(Schema::hasColumn('strategi_daerah', 'arah_kebijakan'));
+        $this->assertFalse(Schema::hasColumn('strategi_daerah', 'urutan'));
+
+        $this->actingAs($admin)
             ->post(route('master.system-settings.store'), [
                 'group' => 'demo',
                 'key' => 'demo.enabled',
@@ -150,6 +178,7 @@ class MasterUmumTest extends TestCase
         foreach ([
             route('master.periode-tahun.index'),
             route('master.satuan-indikator.index'),
+            route('master.strategi-daerah.index'),
             route('master.urusan-pemerintahan.index'),
             route('master.system-settings.index'),
         ] as $url) {

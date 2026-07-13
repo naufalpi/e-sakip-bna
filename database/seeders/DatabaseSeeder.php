@@ -56,6 +56,8 @@ class DatabaseSeeder extends Seeder
             ['name' => 'periode.manage', 'label' => 'Kelola Periode', 'module' => 'periode'],
             ['name' => 'satuan.view', 'label' => 'Lihat Satuan Indikator', 'module' => 'satuan_indikator'],
             ['name' => 'satuan.manage', 'label' => 'Kelola Satuan Indikator', 'module' => 'satuan_indikator'],
+            ['name' => 'strategi.view', 'label' => 'Lihat Strategi Daerah', 'module' => 'strategi_daerah'],
+            ['name' => 'strategi.manage', 'label' => 'Kelola Strategi Daerah', 'module' => 'strategi_daerah'],
             ['name' => 'urusan.view', 'label' => 'Lihat Urusan Pemerintahan', 'module' => 'urusan_pemerintahan'],
             ['name' => 'urusan.manage', 'label' => 'Kelola Urusan Pemerintahan', 'module' => 'urusan_pemerintahan'],
             ['name' => 'settings.view', 'label' => 'Lihat Pengaturan Sistem', 'module' => 'system_settings'],
@@ -95,22 +97,22 @@ class DatabaseSeeder extends Seeder
             'admin_kabupaten_bagian_organisasi' => [
                 'label' => 'Admin Kabupaten Bagian Organisasi',
                 'description' => 'Monitoring, validasi umum, dan melihat progres OPD.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'users.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'evaluasi.view', 'dokumen.view', 'lkjip.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'users.view', 'periode.view', 'satuan.view', 'strategi.view', 'urusan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'evaluasi.view', 'dokumen.view', 'lkjip.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_bapperida' => [
                 'label' => 'Admin Kabupaten Bapperida',
                 'description' => 'Input dan kelola data perencanaan kabupaten/RPJMD.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'satuan.view', 'urusan.view', 'rpjmd.view', 'rpjmd.manage', 'view_rpjmd', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'satuan.view', 'strategi.view', 'strategi.manage', 'urusan.view', 'rpjmd.view', 'rpjmd.manage', 'view_rpjmd', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_inspektorat' => [
                 'label' => 'Admin Kabupaten Inspektorat',
                 'description' => 'Evaluasi kinerja, LKE, LHE, rekomendasi, dan verifikasi tindak lanjut.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'evaluasi.view', 'evaluasi.manage', 'manage_evaluasi', 'verify_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'strategi.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'evaluasi.view', 'evaluasi.manage', 'manage_evaluasi', 'verify_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_dinkominfo' => [
                 'label' => 'Admin Kabupaten Dinkominfo',
                 'description' => 'Kelola master data umum, OPD, user, dan konfigurasi aplikasi.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'opd.manage', 'opd_units.manage', 'manage_opd', 'users.view', 'users.manage', 'manage_users', 'roles.view', 'manage_roles', 'periode.view', 'periode.manage', 'lock_period', 'satuan.view', 'satuan.manage', 'urusan.view', 'urusan.manage', 'manage_master_umum', 'settings.view', 'settings.manage', 'activity_logs.view'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'opd.manage', 'opd_units.manage', 'manage_opd', 'users.view', 'users.manage', 'manage_users', 'roles.view', 'manage_roles', 'periode.view', 'periode.manage', 'lock_period', 'satuan.view', 'satuan.manage', 'strategi.view', 'strategi.manage', 'urusan.view', 'urusan.manage', 'manage_master_umum', 'settings.view', 'settings.manage', 'activity_logs.view'],
             ],
             'admin_opd' => [
                 'label' => 'Admin OPD',

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -19,20 +20,13 @@ class ProgramRpjmd extends Model
     protected $fillable = [
         'strategi_daerah_id',
         'sasaran_daerah_id',
+        'indikator_sasaran_daerah_id',
         'urusan_pemerintahan_id',
         'kode',
         'nama',
-        'pagu_indikatif',
         'status',
         'urutan',
     ];
-
-    protected function casts(): array
-    {
-        return [
-            'pagu_indikatif' => 'decimal:2',
-        ];
-    }
 
     public function strategi(): BelongsTo
     {
@@ -42,6 +36,11 @@ class ProgramRpjmd extends Model
     public function sasaran(): BelongsTo
     {
         return $this->belongsTo(SasaranDaerah::class, 'sasaran_daerah_id');
+    }
+
+    public function indikatorSasaran(): BelongsTo
+    {
+        return $this->belongsTo(IndikatorSasaranDaerah::class, 'indikator_sasaran_daerah_id');
     }
 
     public function urusanPemerintahan(): BelongsTo
@@ -59,5 +58,13 @@ class ProgramRpjmd extends Model
         return $this->belongsToMany(Opd::class, 'program_rpjmd_opd_penanggung_jawab')
             ->withPivot(['id', 'peran', 'is_utama'])
             ->withTimestamps();
+    }
+
+    public function scopeForRpjmd(Builder $query, int $rpjmdId): Builder
+    {
+        return $query->where(function (Builder $query) use ($rpjmdId) {
+            $query->whereHas('indikatorSasaran.sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId))
+                ->orWhereHas('sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId));
+        });
     }
 }

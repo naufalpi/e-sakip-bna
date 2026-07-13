@@ -15,6 +15,7 @@ use App\Models\Rpjmd;
 use App\Models\RpjmdMisi;
 use App\Models\RpjmdVisi;
 use App\Models\SasaranDaerah;
+use App\Models\SatuanIndikator;
 use App\Models\StrategiDaerah;
 use App\Models\TargetIndikatorProgramRpjmd;
 use App\Models\TargetIndikatorSasaranDaerah;
@@ -34,6 +35,8 @@ class RpjmdImportApplyService
      */
     private array $context = [];
 
+    private ?User $actor = null;
+
     public function apply(ImportBatch $batch, User $user): ImportBatch
     {
         if ($batch->module !== 'rpjmd') {
@@ -47,6 +50,9 @@ class RpjmdImportApplyService
                 'import_batch_id' => 'Batch import hanya dapat diterapkan setelah status previewed.',
             ]);
         }
+
+        $this->actor = $user;
+        $this->context = [];
 
         $summary = [
             'imported_rows' => 0,
@@ -90,7 +96,7 @@ class RpjmdImportApplyService
                         ...$summary,
                         'applied_by' => $user->id,
                         'applied_at' => now()->toISOString(),
-                        'rpjmd_id' => $this->context['rpjmd']->getKey() ?? null,
+                        'rpjmd_id' => ($this->context['rpjmd'] ?? null)?->getKey(),
                     ],
                 ],
             ]);
@@ -117,12 +123,11 @@ class RpjmdImportApplyService
             'sasaran' => $this->applySasaran($mapped),
             'indikator_sasaran' => $this->applyIndikatorSasaran($mapped),
             'target_sasaran' => $this->applyTargetSasaran($mapped),
-            'strategi' => $this->applyStrategi($mapped),
             'program' => $this->applyProgram($mapped),
             'indikator_program' => $this->applyIndikatorProgram($mapped),
             'target_program' => $this->applyTargetProgram($mapped),
             'opd_penanggung_jawab' => $this->applyOpdPenanggungJawab($mapped),
-            default => throw new RuntimeException('Level import tidak dikenali. Gunakan level rpjmd, visi, misi, tujuan, indikator_tujuan, sasaran, strategi, program, indikator_program, target_program, atau opd_penanggung_jawab.'),
+            default => throw new RuntimeException('Level import tidak dikenali. Gunakan level rpjmd, visi, misi, tujuan, indikator_tujuan, sasaran, program, indikator_program, target_program, atau opd_penanggung_jawab.'),
         };
     }
 
@@ -196,6 +201,18 @@ class RpjmdImportApplyService
             'urutan' => $this->order($mapped),
         ]);
 
+        $relatedMisiIds = $this->relatedMisiIds($mapped, $visi);
+
+        if ($relatedMisiIds !== null) {
+            $tujuan->misiTerkait()->sync($this->orderedSyncPayload($relatedMisiIds));
+            $tujuan->forceFill(['rpjmd_misi_id' => $relatedMisiIds[0] ?? null])->save();
+        } elseif (($this->context['misi'] ?? null) instanceof RpjmdMisi) {
+            $tujuan->misiTerkait()->syncWithoutDetaching([
+                $this->context['misi']->id => ['urutan' => $this->context['misi']->urutan ?? 1],
+            ]);
+            $tujuan->forceFill(['rpjmd_misi_id' => $this->context['misi']->id])->save();
+        }
+
         $this->setContext('tujuan', $tujuan);
 
         return $this->result($tujuan);
@@ -243,6 +260,12 @@ class RpjmdImportApplyService
             'urutan' => $this->order($mapped),
         ]);
 
+        $relatedIndikatorIds = $this->relatedIndikatorTujuanIds($mapped, $tujuan);
+
+        if ($relatedIndikatorIds !== null) {
+            $sasaran->indikatorTujuanTerkait()->sync($relatedIndikatorIds);
+        }
+
         $this->setContext('sasaran', $sasaran);
 
         return $this->result($sasaran);
@@ -278,48 +301,22 @@ class RpjmdImportApplyService
      * @param  array<string, mixed>  $mapped
      * @return array<string, mixed>
      */
-    private function applyStrategi(array $mapped): array
-    {
-        $sasaran = $this->requiredContext('sasaran', 'Strategi daerah harus berada setelah baris sasaran.');
-        $text = $this->requiredText($mapped, ['strategi', 'uraian', 'nama'], 'Strategi daerah');
-        $kode = $this->text($mapped, ['kode', 'kode_strategi']);
-        $identity = $kode ? ['sasaran_daerah_id' => $sasaran->id, 'kode' => $kode] : ['sasaran_daerah_id' => $sasaran->id, 'strategi' => $text];
-
-        $strategi = StrategiDaerah::updateOrCreate($identity, [
-            'strategi' => $text,
-            'arah_kebijakan' => $this->text($mapped, ['arah_kebijakan', 'kebijakan']),
-            'urutan' => $this->order($mapped),
-        ]);
-
-        $this->setContext('strategi', $strategi);
-
-        return $this->result($strategi);
-    }
-
-    /**
-     * @param  array<string, mixed>  $mapped
-     * @return array<string, mixed>
-     */
     private function applyProgram(array $mapped): array
     {
-        $sasaran = $this->context['sasaran'] ?? null;
-        $strategi = $this->context['strategi'] ?? null;
-
-        if (! $sasaran instanceof SasaranDaerah && ! $strategi instanceof StrategiDaerah) {
-            throw new RuntimeException('Program RPJMD harus berada setelah baris sasaran atau strategi.');
-        }
+        $indikatorSasaran = $this->requiredContext('indikator_sasaran', 'Program RPJMD harus berada setelah baris indikator sasaran.');
+        $strategi = $this->resolveProgramStrategi($mapped);
 
         $text = $this->requiredText($mapped, ['program', 'nama_program', 'uraian', 'nama'], 'Program RPJMD');
         $kode = $this->text($mapped, ['kode', 'kode_program']);
         $identity = $kode
-            ? ['kode' => $kode, 'sasaran_daerah_id' => $sasaran?->id, 'strategi_daerah_id' => $strategi?->id]
-            : ['nama' => $text, 'sasaran_daerah_id' => $sasaran?->id, 'strategi_daerah_id' => $strategi?->id];
+            ? ['kode' => $kode, 'indikator_sasaran_daerah_id' => $indikatorSasaran->id]
+            : ['nama' => $text, 'indikator_sasaran_daerah_id' => $indikatorSasaran->id];
 
         $program = ProgramRpjmd::updateOrCreate($identity, [
             'strategi_daerah_id' => $strategi?->id,
-            'sasaran_daerah_id' => $sasaran?->id,
+            'sasaran_daerah_id' => $indikatorSasaran->sasaran_daerah_id,
+            'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
             'nama' => $text,
-            'pagu_indikatif' => $this->number($mapped, ['pagu', 'pagu_program', 'pagu_indikatif']),
             'status' => $this->status($mapped, 'draft'),
             'urutan' => $this->order($mapped),
         ]);
@@ -389,6 +386,8 @@ class RpjmdImportApplyService
                 throw new RuntimeException("RPJMD ID {$id} tidak ditemukan.");
             }
 
+            $this->assertCanUpdate($rpjmd);
+
             return $rpjmd;
         }
 
@@ -402,16 +401,30 @@ class RpjmdImportApplyService
 
         $periode = PeriodeTahun::query()->where('tahun', $tahunAwal)->first();
 
-        return Rpjmd::updateOrCreate([
+        $identity = [
             'judul' => $judul,
             'tahun_awal' => $tahunAwal,
             'tahun_akhir' => $tahunAkhir,
-        ], [
+        ];
+        $rpjmd = Rpjmd::query()->firstOrNew($identity);
+
+        if ($rpjmd->exists) {
+            $this->assertCanUpdate($rpjmd);
+        }
+
+        $rpjmd->fill([
             'periode_tahun_id' => $periode?->id,
             'nomor_perda' => $this->text($mapped, ['nomor_perda', 'nomor_dokumen']),
-            'status' => $this->status($mapped, 'draft'),
             'keterangan' => $this->text($mapped, ['keterangan', 'catatan']),
         ]);
+
+        if (! $rpjmd->exists) {
+            $rpjmd->status = 'draft';
+        }
+
+        $rpjmd->save();
+
+        return $rpjmd;
     }
 
     /**
@@ -440,10 +453,7 @@ class RpjmdImportApplyService
 
         return IndikatorTujuanDaerah::updateOrCreate($identity, [
             'indikator' => $text,
-            'tipe_indikator' => $this->tipeIndikator($mapped),
-            'formula' => $this->text($mapped, ['formula', 'rumus']),
-            'sumber_data' => $this->text($mapped, ['sumber_data']),
-            'urutan' => $this->order($mapped),
+            ...$this->indikatorMetadata($mapped),
         ]);
     }
 
@@ -458,10 +468,7 @@ class RpjmdImportApplyService
 
         return IndikatorSasaranDaerah::updateOrCreate($identity, [
             'indikator' => $text,
-            'tipe_indikator' => $this->tipeIndikator($mapped),
-            'formula' => $this->text($mapped, ['formula', 'rumus']),
-            'sumber_data' => $this->text($mapped, ['sumber_data']),
-            'urutan' => $this->order($mapped),
+            ...$this->indikatorMetadata($mapped),
         ]);
     }
 
@@ -476,11 +483,222 @@ class RpjmdImportApplyService
 
         return IndikatorProgramRpjmd::updateOrCreate($identity, [
             'indikator' => $text,
-            'tipe_indikator' => $this->tipeIndikator($mapped),
-            'formula' => $this->text($mapped, ['formula', 'rumus']),
-            'sumber_data' => $this->text($mapped, ['sumber_data']),
-            'urutan' => $this->order($mapped),
+            ...$this->indikatorMetadata($mapped),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $mapped
+     */
+    private function resolveProgramStrategi(array $mapped): ?StrategiDaerah
+    {
+        $strategiText = $this->text($mapped, ['strategi', 'strategi_daerah', 'nama_strategi']);
+        $strategiKode = $this->text($mapped, ['strategi_kode', 'kode_strategi']);
+
+        if (! $strategiText && ! $strategiKode) {
+            return null;
+        }
+
+        $strategi = StrategiDaerah::query()
+            ->where('status', 'active')
+            ->when(
+                $strategiKode,
+                fn ($query) => $query->where('kode', $strategiKode),
+                fn ($query) => $query->where('strategi', 'ilike', $strategiText),
+            )
+            ->first();
+
+        if (! $strategi) {
+            $reference = $strategiKode ?: $strategiText;
+            throw new RuntimeException("Strategi '{$reference}' belum tersedia atau tidak aktif di Master Strategi Daerah.");
+        }
+
+        return $strategi;
+    }
+
+    /**
+     * @param  array<string, mixed>  $mapped
+     * @return array<string, mixed>
+     */
+    private function indikatorMetadata(array $mapped): array
+    {
+        return [
+            'definisi_operasional' => $this->text($mapped, ['definisi_operasional', 'definisi_operasional_indikator', 'definisi']),
+            'alasan_pemilihan' => $this->text($mapped, ['alasan_pemilihan', 'alasan_pemilihan_indikator', 'alasan']),
+            'formulasi_pengukuran' => $this->text($mapped, ['formulasi_pengukuran', 'formula', 'rumus']),
+            'tipe_perhitungan' => $this->tipePerhitungan($mapped),
+            'sumber_data' => $this->text($mapped, ['sumber_data']),
+            'satuan_indikator_id' => $this->optionalSatuanIndikator($mapped)?->id,
+            'opd_id' => $this->optionalOpd($mapped)?->id,
+            'urutan' => $this->order($mapped),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $mapped
+     */
+    private function optionalSatuanIndikator(array $mapped): ?SatuanIndikator
+    {
+        $id = $this->text($mapped, ['satuan_indikator_id', 'satuan_id']);
+        $reference = $this->text($mapped, ['satuan', 'satuan_indikator', 'satuan_simbol', 'simbol_satuan']);
+
+        if ($id === null && $reference === null) {
+            return null;
+        }
+
+        $query = SatuanIndikator::query()->where('status', 'active');
+
+        if ($id !== null) {
+            $query->whereKey($id);
+        } else {
+            $normalized = str($reference)->lower()->toString();
+            $query->where(function ($query) use ($normalized) {
+                $query->whereRaw('LOWER(nama) = ?', [$normalized])
+                    ->orWhereRaw('LOWER(simbol) = ?', [$normalized]);
+            });
+        }
+
+        $satuan = $query->first();
+
+        if (! $satuan) {
+            $label = $reference ?? $id;
+            throw new RuntimeException("Satuan indikator '{$label}' belum tersedia atau tidak aktif di master satuan.");
+        }
+
+        return $satuan;
+    }
+
+    /**
+     * @param  array<string, mixed>  $mapped
+     * @return array<int, int>|null
+     */
+    private function relatedMisiIds(array $mapped, RpjmdVisi $visi): ?array
+    {
+        $ids = $this->integerList($mapped, ['misi_ids', 'misi_id_terkait']);
+        $codes = $this->textList($mapped, ['misi_kode_terkait', 'kode_misi_terkait']);
+
+        if ($ids === [] && $codes === []) {
+            return null;
+        }
+
+        $misi = RpjmdMisi::query()
+            ->where('rpjmd_id', $visi->rpjmd_id)
+            ->where('rpjmd_visi_id', $visi->id)
+            ->where(function ($query) use ($ids, $codes) {
+                if ($ids !== []) {
+                    $query->whereIn('id', $ids);
+                }
+
+                if ($codes !== []) {
+                    $method = $ids === [] ? 'whereIn' : 'orWhereIn';
+                    $query->{$method}('kode', $codes);
+                }
+            })
+            ->get(['id', 'kode']);
+
+        $resolvedIds = [
+            ...collect($ids)->map(fn (int $id) => $misi->firstWhere('id', $id)?->id)->filter()->all(),
+            ...collect($codes)->map(fn (string $code) => $misi->firstWhere('kode', $code)?->id)->filter()->all(),
+        ];
+
+        if (
+            $misi->whereIn('id', $ids)->count() !== count(array_unique($ids))
+            || $misi->whereIn('kode', $codes)->count() !== count(array_unique($codes))
+        ) {
+            throw new RuntimeException('Misi terkait tidak ditemukan pada visi dan RPJMD yang sama.');
+        }
+
+        return array_values(array_unique($resolvedIds));
+    }
+
+    /**
+     * @param  array<string, mixed>  $mapped
+     * @return array<int, int>|null
+     */
+    private function relatedIndikatorTujuanIds(array $mapped, TujuanDaerah $tujuan): ?array
+    {
+        $ids = $this->integerList($mapped, ['indikator_tujuan_ids', 'indikator_tujuan_id_terkait']);
+        $codes = $this->textList($mapped, ['indikator_tujuan_kode_terkait', 'kode_indikator_tujuan_terkait']);
+
+        if ($ids === [] && $codes === []) {
+            return null;
+        }
+
+        $indikator = IndikatorTujuanDaerah::query()
+            ->where('tujuan_daerah_id', $tujuan->id)
+            ->where(function ($query) use ($ids, $codes) {
+                if ($ids !== []) {
+                    $query->whereIn('id', $ids);
+                }
+
+                if ($codes !== []) {
+                    $method = $ids === [] ? 'whereIn' : 'orWhereIn';
+                    $query->{$method}('kode', $codes);
+                }
+            })
+            ->get(['id', 'kode']);
+
+        $resolvedIds = [
+            ...collect($ids)->map(fn (int $id) => $indikator->firstWhere('id', $id)?->id)->filter()->all(),
+            ...collect($codes)->map(fn (string $code) => $indikator->firstWhere('kode', $code)?->id)->filter()->all(),
+        ];
+
+        if (
+            $indikator->whereIn('id', $ids)->count() !== count(array_unique($ids))
+            || $indikator->whereIn('kode', $codes)->count() !== count(array_unique($codes))
+        ) {
+            throw new RuntimeException('Indikator tujuan terkait tidak ditemukan pada tujuan daerah yang sama.');
+        }
+
+        return array_values(array_unique($resolvedIds));
+    }
+
+    /**
+     * @param  array<int, int>  $ids
+     * @return array<int, array<string, int>>
+     */
+    private function orderedSyncPayload(array $ids): array
+    {
+        return collect($ids)
+            ->values()
+            ->mapWithKeys(fn (int $id, int $index) => [$id => ['urutan' => $index + 1]])
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $mapped
+     * @param  array<int, string>  $keys
+     * @return array<int, string>
+     */
+    private function textList(array $mapped, array $keys): array
+    {
+        $value = $this->text($mapped, $keys);
+
+        if ($value === null) {
+            return [];
+        }
+
+        return collect(preg_split('/[,;|]+/', $value) ?: [])
+            ->map(fn (string $item) => trim($item))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $mapped
+     * @param  array<int, string>  $keys
+     * @return array<int, int>
+     */
+    private function integerList(array $mapped, array $keys): array
+    {
+        return collect($this->textList($mapped, $keys))
+            ->filter(fn (string $item) => ctype_digit($item))
+            ->map(fn (string $item) => (int) $item)
+            ->filter(fn (int $id) => $id > 0)
+            ->values()
+            ->all();
     }
 
     /**
@@ -524,7 +742,7 @@ class RpjmdImportApplyService
             'indikator_tujuan_daerah_id' => $indikator->id,
             'periode_tahun_id' => $periode->id,
         ], [
-            'target' => $this->number($mapped, ['target', 'target_tujuan', 'target_angka']),
+            'target' => $this->text($mapped, ['target', 'target_tujuan', 'target_angka']),
             'target_text' => $this->text($mapped, ['target_text', 'target_teks', 'target_tujuan_text']),
         ]);
     }
@@ -540,7 +758,7 @@ class RpjmdImportApplyService
             'indikator_sasaran_daerah_id' => $indikator->id,
             'periode_tahun_id' => $periode->id,
         ], [
-            'target' => $this->number($mapped, ['target', 'target_sasaran', 'target_angka']),
+            'target' => $this->text($mapped, ['target', 'target_sasaran', 'target_angka']),
             'target_text' => $this->text($mapped, ['target_text', 'target_teks', 'target_sasaran_text']),
         ]);
     }
@@ -556,10 +774,20 @@ class RpjmdImportApplyService
             'indikator_program_rpjmd_id' => $indikator->id,
             'periode_tahun_id' => $periode->id,
         ], [
-            'target' => $this->number($mapped, ['target', 'target_program', 'target_angka']),
+            'target' => $this->text($mapped, ['target', 'target_program', 'target_angka']),
             'target_text' => $this->text($mapped, ['target_text', 'target_teks', 'target_program_text']),
-            'pagu' => $this->number($mapped, ['pagu', 'pagu_program', 'pagu_target']),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $mapped
+     */
+    private function optionalOpd(array $mapped): ?Opd
+    {
+        $hasOpdReference = collect(['opd_id', 'opd_kode', 'kode_opd', 'opd', 'opd_nama', 'nama_opd'])
+            ->contains(fn (string $key) => filled($mapped[$key] ?? null));
+
+        return $hasOpdReference ? $this->resolveOpd($mapped) : null;
     }
 
     /**
@@ -643,7 +871,6 @@ class RpjmdImportApplyService
             'sasaran', 'sasaran_daerah' => 'sasaran',
             'indikator_sasaran', 'indikator_sasaran_daerah', 'iku_sasaran' => 'indikator_sasaran',
             'target_sasaran', 'target_indikator_sasaran', 'target_indikator_sasaran_daerah' => 'target_sasaran',
-            'strategi', 'strategi_daerah' => 'strategi',
             'program', 'program_rpjmd' => 'program',
             'indikator_program', 'indikator_program_rpjmd' => 'indikator_program',
             'target_program', 'target_indikator_program', 'target_indikator_program_rpjmd' => 'target_program',
@@ -734,11 +961,15 @@ class RpjmdImportApplyService
     /**
      * @param  array<string, mixed>  $mapped
      */
-    private function tipeIndikator(array $mapped): string
+    private function tipePerhitungan(array $mapped): string
     {
-        $tipe = $this->text($mapped, ['tipe_indikator', 'tipe']);
+        $tipe = str((string) $this->text($mapped, ['tipe_perhitungan', 'tipe_perhitungan_indikator']))
+            ->lower()
+            ->replace([' ', '-'], '_')
+            ->replace('komulatif', 'kumulatif')
+            ->toString();
 
-        return $tipe === 'negatif' ? 'negatif' : 'positif';
+        return $tipe === 'kumulatif' ? 'kumulatif' : 'non_kumulatif';
     }
 
     /**
@@ -777,7 +1008,7 @@ class RpjmdImportApplyService
 
     private function setContext(string $key, Model $model): void
     {
-        $order = ['rpjmd', 'visi', 'misi', 'tujuan', 'indikator_tujuan', 'sasaran', 'indikator_sasaran', 'strategi', 'program', 'indikator_program'];
+        $order = ['rpjmd', 'visi', 'misi', 'tujuan', 'indikator_tujuan', 'sasaran', 'indikator_sasaran', 'program', 'indikator_program'];
         $index = array_search($key, $order, true);
 
         if ($index !== false) {
@@ -787,6 +1018,13 @@ class RpjmdImportApplyService
         }
 
         $this->context[$key] = $model;
+    }
+
+    private function assertCanUpdate(Rpjmd $rpjmd): void
+    {
+        if (! $this->actor?->can('update', $rpjmd)) {
+            throw new RuntimeException('RPJMD yang sudah disetujui atau dikunci tidak dapat diubah melalui import.');
+        }
     }
 
     /**

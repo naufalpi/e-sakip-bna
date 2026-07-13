@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Requests\Auth\LoginRequest;
 use App\Models\Opd;
 use App\Models\Permission;
 use App\Models\Role;
@@ -75,10 +76,12 @@ class MasterAccessTest extends TestCase
     {
         $this->seed();
 
-        $response = $this->post(route('login'), [
-            'email' => 'admin@example.test',
-            'password' => 'password',
-        ]);
+        $response = $this
+            ->withSession([LoginRequest::FORM_ISSUED_AT_SESSION_KEY => now()->subSeconds(2)->timestamp])
+            ->post(route('login'), [
+                'email' => 'admin@example.test',
+                'password' => 'password',
+            ]);
 
         $response->assertRedirect(route('dashboard', absolute: false));
 

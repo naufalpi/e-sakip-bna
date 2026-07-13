@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PohonKinerjaNode, { type TreeNode } from '@/components/PohonKinerjaNode.vue';
+import RpjmdPerformanceTreeDiagram from '@/components/RpjmdPerformanceTreeDiagram.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { FileJson2, GitBranch, Layers3, Network } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -207,12 +208,19 @@ const formatCurrency = (value?: number | string | null) => {
 
         <section class="rounded-lg border bg-card">
             <div class="border-b p-4">
-                <h2 class="text-base font-semibold">Visualisasi Tree</h2>
+                <h2 class="text-base font-semibold">{{ mode === 'kabupaten' ? 'Diagram Pohon Kinerja' : 'Visualisasi Tree' }}</h2>
                 <p class="mt-1 text-sm text-muted-foreground">
-                    Node dapat dibuka dan ditutup untuk menelusuri cascading sampai target tahunan dan triwulan.
+                    {{
+                        mode === 'kabupaten'
+                            ? 'Pohon kinerja RPJMD ditampilkan dalam alur visi, misi, tujuan, sasaran, dan indikator.'
+                            : 'Node dapat dibuka dan ditutup untuk menelusuri cascading sampai target tahunan dan triwulan.'
+                    }}
                 </p>
             </div>
-            <div class="space-y-2 overflow-x-auto p-4">
+            <div v-if="mode === 'kabupaten'" class="p-4">
+                <RpjmdPerformanceTreeDiagram :tree="tree" />
+            </div>
+            <div v-else class="space-y-2 overflow-x-auto p-4">
                 <PohonKinerjaNode :node="tree" />
             </div>
         </section>

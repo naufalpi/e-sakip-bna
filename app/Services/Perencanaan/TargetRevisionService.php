@@ -267,7 +267,8 @@ class TargetRevisionService
             'target_indikator_tujuan_daerah' => $this->rpjmdFromTujuan($target->indikator->tujuan),
             'target_indikator_sasaran_daerah' => $this->rpjmdFromTujuan($target->indikator->sasaran->tujuan),
             'target_indikator_program_rpjmd' => $this->rpjmdFromTujuan(
-                $target->indikator->program->strategi?->sasaran?->tujuan ?? $target->indikator->program->sasaran->tujuan
+                $target->indikator->program->indikatorSasaran?->sasaran?->tujuan
+                    ?? $target->indikator->program->sasaran?->tujuan
             ),
             'target_indikator_tujuan_opd' => $target->indikator->tujuan->renstra,
             'target_indikator_sasaran_opd' => $target->indikator->sasaran->tujuan->renstra,
@@ -294,7 +295,8 @@ class TargetRevisionService
             'indikator_tujuan_daerah' => $this->rpjmdFromTujuan($related->tujuan),
             'indikator_sasaran_daerah' => $this->rpjmdFromTujuan($related->sasaran->tujuan),
             'indikator_program_rpjmd' => $this->rpjmdFromTujuan(
-                $related->program->strategi?->sasaran?->tujuan ?? $related->program->sasaran->tujuan
+                $related->program->indikatorSasaran?->sasaran?->tujuan
+                    ?? $related->program->sasaran?->tujuan
             ),
             'indikator_tujuan_opd' => $related->tujuan->renstra,
             'indikator_sasaran_opd' => $related->sasaran->tujuan->renstra,

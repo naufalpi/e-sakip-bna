@@ -553,12 +553,12 @@ class RenstraImportApplyService
 
     private function resolveProgramRpjmd(array $mapped, RenstraOpd $renstra): ?ProgramRpjmd
     {
-        return $this->referenceByIdOrKode(ProgramRpjmd::query()->whereHas('strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($renstra->rpjmd_id)), $mapped, ['program_rpjmd_id'], ['program_rpjmd_kode', 'kode_program_rpjmd']);
+        return $this->referenceByIdOrKode(ProgramRpjmd::query()->forRpjmd($renstra->rpjmd_id), $mapped, ['program_rpjmd_id'], ['program_rpjmd_kode', 'kode_program_rpjmd']);
     }
 
     private function resolveIndikatorProgramRpjmd(array $mapped, RenstraOpd $renstra): ?IndikatorProgramRpjmd
     {
-        return $this->referenceByIdOrKode(IndikatorProgramRpjmd::query()->whereHas('program.strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($renstra->rpjmd_id)), $mapped, ['indikator_program_rpjmd_id'], ['indikator_program_rpjmd_kode']);
+        return $this->referenceByIdOrKode(IndikatorProgramRpjmd::query()->whereHas('program', fn ($query) => $query->forRpjmd($renstra->rpjmd_id)), $mapped, ['indikator_program_rpjmd_id'], ['indikator_program_rpjmd_kode']);
     }
 
     /**

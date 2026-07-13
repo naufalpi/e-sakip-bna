@@ -285,6 +285,8 @@ class DemoDataSeeder extends Seeder
                 'tahun_awal' => $tahunAwal,
                 'tahun_akhir' => $tahunAkhir,
                 'status' => 'approved',
+                'struktur_tujuan_mode' => 'tujuan_lintas_misi',
+                'struktur_sasaran_mode' => 'sasaran_langsung_tujuan',
                 'keterangan' => 'Data demo RPJMD untuk pengujian cascading kabupaten sampai OPD.',
             ],
         );
@@ -294,16 +296,28 @@ class DemoDataSeeder extends Seeder
             ['visi' => 'Banjarnegara Maju, Sejahtera, dan Berdaya Saing Berbasis Pelayanan Publik yang Akuntabel.'],
         );
 
-        $misi = RpjmdMisi::query()->updateOrCreate(
-            ['rpjmd_id' => $rpjmd->id, 'kode' => 'M-1'],
-            ['rpjmd_visi_id' => $visi->id, 'misi' => 'Meningkatkan kualitas pelayanan dasar dan tata kelola pemerintahan yang akuntabel.', 'urutan' => 1],
-        );
+        $misiList = collect([
+            'Meningkatkan infrastruktur dan pelayanan publik yang merata.',
+            'Mendorong pertumbuhan ekonomi lokal berbasis potensi unggulan daerah.',
+            'Meningkatkan kualitas dan akses pendidikan, kesehatan, dan kesejahteraan sosial.',
+            'Mewujudkan pembangunan berkelanjutan dan ramah lingkungan.',
+            'Mewujudkan pemerintahan yang baik, akuntabel, dan transparan.',
+        ])->map(fn (string $misi, int $index) => RpjmdMisi::query()->updateOrCreate(
+            ['rpjmd_id' => $rpjmd->id, 'kode' => 'M-'.($index + 1)],
+            [
+                'rpjmd_visi_id' => $visi->id,
+                'misi' => $misi,
+                'urutan' => $index + 1,
+            ],
+        ));
+
+        $misi = $misiList->first();
 
         $tujuan = TujuanDaerah::query()->updateOrCreate(
             ['rpjmd_visi_id' => $visi->id, 'kode' => 'T-1'],
             [
                 'rpjmd_misi_id' => null,
-                'tujuan' => 'Meningkatnya kesejahteraan masyarakat dan kualitas layanan publik.',
+                'tujuan' => 'Terwujudnya Banjarnegara maju, sejahtera, dan berdaya saing.',
                 'urutan' => 1,
             ],
         );
@@ -312,9 +326,12 @@ class DemoDataSeeder extends Seeder
             ['tujuan_daerah_id' => $tujuan->id, 'kode' => 'ITD-1'],
             [
                 'satuan_indikator_id' => $satuan['nilai']->id,
-                'indikator' => 'Indeks pembangunan manusia',
-                'tipe_indikator' => 'positif',
-                'formula' => 'Indeks komposit pendidikan, kesehatan, dan pengeluaran.',
+                'opd_id' => $opds['dinkes']->id,
+                'indikator' => 'Indeks Pembangunan Manusia',
+                'definisi_operasional' => 'Indikator komposit yang menggambarkan capaian pendidikan, kesehatan, dan daya beli masyarakat.',
+                'alasan_pemilihan' => 'IPM menjadi ukuran utama kualitas pembangunan manusia daerah.',
+                'formulasi_pengukuran' => 'Mengacu metodologi Indeks Pembangunan Manusia yang diterbitkan BPS.',
+                'tipe_perhitungan' => 'non_kumulatif',
                 'sumber_data' => 'BPS',
                 'urutan' => 1,
             ],
@@ -322,18 +339,28 @@ class DemoDataSeeder extends Seeder
 
         $this->seedAnnualTargets($indikatorTujuan, 'indikator_tujuan_daerah_id', 'target_indikator_tujuan_daerah', $periode, 72, '72');
 
+        $tujuan->misiTerkait()->sync(
+            $misiList
+                ->values()
+                ->mapWithKeys(fn (RpjmdMisi $misi, int $index) => [$misi->id => ['urutan' => $index + 1]])
+                ->all(),
+        );
+
         $sasaran = SasaranDaerah::query()->updateOrCreate(
             ['tujuan_daerah_id' => $tujuan->id, 'kode' => 'SD-1'],
-            ['sasaran' => 'Meningkatnya kualitas layanan dasar dan akuntabilitas kinerja perangkat daerah.', 'urutan' => 1],
+            ['sasaran' => 'Meningkatnya kualitas hidup masyarakat.', 'urutan' => 1],
         );
 
         $indikatorSasaran = IndikatorSasaranDaerah::query()->updateOrCreate(
             ['sasaran_daerah_id' => $sasaran->id, 'kode' => 'ISD-1'],
             [
                 'satuan_indikator_id' => $satuan['nilai']->id,
+                'opd_id' => $opds['dinkominfo']->id,
                 'indikator' => 'Nilai SAKIP Kabupaten',
-                'tipe_indikator' => 'positif',
-                'formula' => 'Nilai hasil evaluasi SAKIP kabupaten.',
+                'definisi_operasional' => 'Nilai akuntabilitas kinerja pemerintah kabupaten berdasarkan hasil evaluasi SAKIP.',
+                'alasan_pemilihan' => 'Menjadi ukuran kualitas manajemen kinerja pemerintah daerah.',
+                'formulasi_pengukuran' => 'Nilai hasil evaluasi SAKIP kabupaten sesuai pedoman evaluasi berlaku.',
+                'tipe_perhitungan' => 'non_kumulatif',
                 'sumber_data' => 'Inspektorat',
                 'urutan' => 1,
             ],
@@ -342,11 +369,10 @@ class DemoDataSeeder extends Seeder
         $this->seedAnnualTargets($indikatorSasaran, 'indikator_sasaran_daerah_id', 'target_indikator_sasaran_daerah', $periode, 78, 'BB');
 
         $strategi = StrategiDaerah::query()->updateOrCreate(
-            ['sasaran_daerah_id' => $sasaran->id, 'kode' => 'STR-1'],
+            ['kode' => 'STR-1'],
             [
                 'strategi' => 'Penguatan manajemen kinerja dan digitalisasi layanan prioritas.',
-                'arah_kebijakan' => 'Mendorong OPD menyelaraskan target kinerja dengan anggaran dan bukti dukung.',
-                'urutan' => 1,
+                'status' => 'active',
             ],
         );
 
@@ -355,9 +381,9 @@ class DemoDataSeeder extends Seeder
             [
                 'strategi_daerah_id' => $strategi->id,
                 'sasaran_daerah_id' => $sasaran->id,
+                'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
                 'urusan_pemerintahan_id' => $urusan['umum']->id,
                 'nama' => 'Program Penguatan Akuntabilitas Kinerja Pemerintah Daerah',
-                'pagu_indikatif' => 15000000000,
                 'status' => 'approved',
                 'urutan' => 1,
             ],
@@ -367,15 +393,18 @@ class DemoDataSeeder extends Seeder
             ['program_rpjmd_id' => $program->id, 'kode' => 'IPR-1'],
             [
                 'satuan_indikator_id' => $satuan['persen']->id,
+                'opd_id' => $opds['dinkominfo']->id,
                 'indikator' => 'Persentase OPD dengan capaian kinerja minimal baik',
-                'tipe_indikator' => 'positif',
-                'formula' => '(Jumlah OPD kategori baik / seluruh OPD) x 100',
+                'definisi_operasional' => 'Persentase perangkat daerah yang memenuhi kategori capaian kinerja minimal baik.',
+                'alasan_pemilihan' => 'Menunjukkan pemerataan kualitas pelaksanaan akuntabilitas kinerja perangkat daerah.',
+                'formulasi_pengukuran' => '(Jumlah OPD kategori baik / seluruh OPD) x 100',
+                'tipe_perhitungan' => 'kumulatif',
                 'sumber_data' => 'E-SAKIP',
                 'urutan' => 1,
             ],
         );
 
-        $this->seedAnnualTargets($indikatorProgram, 'indikator_program_rpjmd_id', 'target_indikator_program_rpjmd', $periode, 85, '85%', 15000000000);
+        $this->seedAnnualTargets($indikatorProgram, 'indikator_program_rpjmd_id', 'target_indikator_program_rpjmd', $periode, 85, '85%');
         $this->seedTriwulan($indikatorProgram, $periode, [20, 45, 70, 85], [2000000000, 5500000000, 9500000000, 15000000000]);
 
         foreach ($opds as $index => $opd) {

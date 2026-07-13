@@ -107,7 +107,7 @@ const importStatusClass = (status: string) =>
 
 <template>
     <Head title="RPJMD Kabupaten" />
-    <div class="flex flex-col gap-4 p-4">
+    <div class="rpjmd-select-scope flex flex-col gap-4 p-4">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
                 <h1 class="text-2xl font-semibold tracking-normal">RPJMD Kabupaten</h1>

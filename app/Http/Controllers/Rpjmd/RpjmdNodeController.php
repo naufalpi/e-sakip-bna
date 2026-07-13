@@ -37,7 +37,7 @@ class RpjmdNodeController extends Controller
         return back()->with('success', 'Data cascading RPJMD berhasil disimpan.');
     }
 
-    public function bulkStore(StoreRpjmdNodeBulkRequest $request, Rpjmd $rpjmd): RedirectResponse
+    public function bulkStore(StoreRpjmdNodeBulkRequest $request, Rpjmd $rpjmd): RedirectResponse|JsonResponse
     {
         $this->authorize('update', $rpjmd);
 
@@ -54,6 +54,13 @@ class RpjmdNodeController extends Controller
         DB::transaction(function () use ($rpjmd, $rows): void {
             $rows->each(fn (array $row) => $this->storeNode($rpjmd, $row));
         });
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'count' => $rows->count(),
+                'message' => "{$rows->count()} data cascading RPJMD berhasil disimpan.",
+            ]);
+        }
 
         return back()->with('success', "{$rows->count()} data cascading RPJMD berhasil disimpan.");
     }
@@ -109,22 +116,16 @@ class RpjmdNodeController extends Controller
                 'misi' => $this->requiredText($data, 'uraian', 'Misi wajib diisi.'),
                 'urutan' => $data['urutan'] ?? 1,
             ]),
-            'tujuan' => TujuanDaerah::create([
+            'tujuan' => tap(TujuanDaerah::create([
                 'rpjmd_visi_id' => $this->visi($rpjmd, $data['parent_id'] ?? null)->id,
                 'rpjmd_misi_id' => null,
                 'kode' => $data['kode'] ?? null,
                 'tujuan' => $this->requiredText($data, 'uraian', 'Tujuan daerah wajib diisi.'),
                 'urutan' => $data['urutan'] ?? 1,
-            ]),
+            ]), fn (TujuanDaerah $tujuan) => $this->syncTujuanMisi($rpjmd, $tujuan, $data)),
             'indikator_tujuan' => IndikatorTujuanDaerah::create([
                 'tujuan_daerah_id' => $this->tujuan($rpjmd, $data['parent_id'] ?? null)->id,
-                'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                'kode' => $data['kode'] ?? null,
-                'indikator' => $this->requiredText($data, 'indikator', 'Indikator tujuan wajib diisi.'),
-                'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                'formula' => $data['formula'] ?? null,
-                'sumber_data' => $data['sumber_data'] ?? null,
-                'urutan' => $data['urutan'] ?? 1,
+                ...$this->indicatorPayload($data, 'Indikator tujuan wajib diisi.'),
             ]),
             'target_tujuan' => TargetIndikatorTujuanDaerah::updateOrCreate([
                 'indikator_tujuan_daerah_id' => $this->indikatorTujuan($rpjmd, $data['parent_id'] ?? null)->id,
@@ -133,21 +134,15 @@ class RpjmdNodeController extends Controller
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
             ]),
-            'sasaran' => SasaranDaerah::create([
+            'sasaran' => tap(SasaranDaerah::create([
                 'tujuan_daerah_id' => $this->tujuan($rpjmd, $data['parent_id'] ?? null)->id,
                 'kode' => $data['kode'] ?? null,
                 'sasaran' => $this->requiredText($data, 'uraian', 'Sasaran daerah wajib diisi.'),
                 'urutan' => $data['urutan'] ?? 1,
-            ]),
+            ]), fn (SasaranDaerah $sasaran) => $this->syncSasaranIndikatorTujuan($rpjmd, $sasaran, $data)),
             'indikator_sasaran' => IndikatorSasaranDaerah::create([
                 'sasaran_daerah_id' => $this->sasaran($rpjmd, $data['parent_id'] ?? null)->id,
-                'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                'kode' => $data['kode'] ?? null,
-                'indikator' => $this->requiredText($data, 'indikator', 'Indikator sasaran wajib diisi.'),
-                'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                'formula' => $data['formula'] ?? null,
-                'sumber_data' => $data['sumber_data'] ?? null,
-                'urutan' => $data['urutan'] ?? 1,
+                ...$this->indicatorPayload($data, 'Indikator sasaran wajib diisi.'),
             ]),
             'target_sasaran' => TargetIndikatorSasaranDaerah::updateOrCreate([
                 'indikator_sasaran_daerah_id' => $this->indikatorSasaran($rpjmd, $data['parent_id'] ?? null)->id,
@@ -156,34 +151,23 @@ class RpjmdNodeController extends Controller
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
             ]),
-            'strategi' => StrategiDaerah::create([
-                'sasaran_daerah_id' => $this->sasaran($rpjmd, $data['parent_id'] ?? null)->id,
-                'kode' => $data['kode'] ?? null,
-                'strategi' => $this->requiredText($data, 'uraian', 'Strategi daerah wajib diisi.'),
-                'arah_kebijakan' => $data['arah_kebijakan'] ?? null,
-                'urutan' => $data['urutan'] ?? 1,
-            ]),
-            'program' => tap($this->strategi($rpjmd, $data['parent_id'] ?? null), function (StrategiDaerah $strategi) use ($data) {
+            'program' => tap($this->indikatorSasaran($rpjmd, $data['parent_id'] ?? null), function (IndikatorSasaranDaerah $indikatorSasaran) use ($rpjmd, $data) {
+                $strategi = $this->optionalStrategiProgram($data);
+
                 ProgramRpjmd::create([
-                    'strategi_daerah_id' => $strategi->id,
-                    'sasaran_daerah_id' => $strategi->sasaran_daerah_id,
+                    'strategi_daerah_id' => $strategi?->id,
+                    'sasaran_daerah_id' => $indikatorSasaran->sasaran_daerah_id,
+                    'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
                     'urusan_pemerintahan_id' => $data['urusan_pemerintahan_id'] ?? null,
                     'kode' => $data['kode'] ?? null,
                     'nama' => $this->requiredText($data, 'uraian', 'Nama program wajib diisi.'),
-                    'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
                     'status' => 'draft',
                     'urutan' => $data['urutan'] ?? 1,
                 ]);
             }),
             'indikator_program' => IndikatorProgramRpjmd::create([
                 'program_rpjmd_id' => $this->program($rpjmd, $data['parent_id'] ?? null)->id,
-                'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                'kode' => $data['kode'] ?? null,
-                'indikator' => $this->requiredText($data, 'indikator', 'Indikator program wajib diisi.'),
-                'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                'formula' => $data['formula'] ?? null,
-                'sumber_data' => $data['sumber_data'] ?? null,
-                'urutan' => $data['urutan'] ?? 1,
+                ...$this->indicatorPayload($data, 'Indikator program wajib diisi.'),
             ]),
             'target_program' => TargetIndikatorProgramRpjmd::updateOrCreate([
                 'indikator_program_rpjmd_id' => $this->indikatorProgram($rpjmd, $data['parent_id'] ?? null)->id,
@@ -191,7 +175,6 @@ class RpjmdNodeController extends Controller
             ], [
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
-                'pagu' => $data['pagu'] ?? null,
             ]),
             'program_opd' => ProgramRpjmdOpdPenanggungJawab::updateOrCreate([
                 'program_rpjmd_id' => $this->program($rpjmd, $data['parent_id'] ?? null)->id,
@@ -212,9 +195,12 @@ class RpjmdNodeController extends Controller
     {
         $inheritKeys = [
             'parent_id',
+            'misi_ids',
+            'indikator_tujuan_ids',
             'periode_tahun_id',
             'satuan_indikator_id',
             'urusan_pemerintahan_id',
+            'strategi_daerah_id',
             'peran',
             'is_utama',
         ];
@@ -248,7 +234,7 @@ class RpjmdNodeController extends Controller
             'indikator_tujuan', 'indikator_sasaran', 'indikator_program' => filled($row['indikator'] ?? null),
             'target_tujuan', 'target_sasaran', 'target_program' => filled($row['target'] ?? null)
                 || filled($row['target_text'] ?? null)
-                || filled($row['pagu'] ?? null),
+                || filled($row['existing_target_id'] ?? null),
             'program_opd' => filled($row['opd_id'] ?? null),
             default => filled($row['uraian'] ?? null),
         };
@@ -280,17 +266,13 @@ class RpjmdNodeController extends Controller
                     'tujuan' => $this->requiredText($data, 'uraian', 'Tujuan daerah wajib diisi.'),
                     'urutan' => $data['urutan'] ?? 1,
                 ]);
+
+                $this->syncTujuanMisi($rpjmd, $tujuan->refresh(), $data);
             }),
             'indikator_tujuan' => tap($this->indikatorTujuan($rpjmd, $id), function (IndikatorTujuanDaerah $indikator) use ($rpjmd, $data) {
                 $indikator->update([
                     'tujuan_daerah_id' => filled($data['parent_id'] ?? null) ? $this->tujuan($rpjmd, $data['parent_id'])->id : $indikator->tujuan_daerah_id,
-                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator tujuan wajib diisi.'),
-                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                    'formula' => $data['formula'] ?? null,
-                    'sumber_data' => $data['sumber_data'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
+                    ...$this->indicatorPayload($data, 'Indikator tujuan wajib diisi.'),
                 ]);
             }),
             'target_tujuan' => tap($this->findNode($rpjmd, $type, $id), function (TargetIndikatorTujuanDaerah $target) use ($rpjmd, $data) {
@@ -308,17 +290,13 @@ class RpjmdNodeController extends Controller
                     'sasaran' => $this->requiredText($data, 'uraian', 'Sasaran daerah wajib diisi.'),
                     'urutan' => $data['urutan'] ?? 1,
                 ]);
+
+                $this->syncSasaranIndikatorTujuan($rpjmd, $sasaran->refresh(), $data);
             }),
             'indikator_sasaran' => tap($this->indikatorSasaran($rpjmd, $id), function (IndikatorSasaranDaerah $indikator) use ($rpjmd, $data) {
                 $indikator->update([
                     'sasaran_daerah_id' => filled($data['parent_id'] ?? null) ? $this->sasaran($rpjmd, $data['parent_id'])->id : $indikator->sasaran_daerah_id,
-                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator sasaran wajib diisi.'),
-                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                    'formula' => $data['formula'] ?? null,
-                    'sumber_data' => $data['sumber_data'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
+                    ...$this->indicatorPayload($data, 'Indikator sasaran wajib diisi.'),
                 ]);
             }),
             'target_sasaran' => tap($this->findNode($rpjmd, $type, $id), function (TargetIndikatorSasaranDaerah $target) use ($rpjmd, $data) {
@@ -329,38 +307,28 @@ class RpjmdNodeController extends Controller
                     'target_text' => $data['target_text'] ?? null,
                 ]);
             }),
-            'strategi' => tap($this->strategi($rpjmd, $id), function (StrategiDaerah $strategi) use ($rpjmd, $data) {
-                $strategi->update([
-                    'sasaran_daerah_id' => filled($data['parent_id'] ?? null) ? $this->sasaran($rpjmd, $data['parent_id'])->id : $strategi->sasaran_daerah_id,
-                    'kode' => $data['kode'] ?? null,
-                    'strategi' => $this->requiredText($data, 'uraian', 'Strategi daerah wajib diisi.'),
-                    'arah_kebijakan' => $data['arah_kebijakan'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
-                ]);
-            }),
             'program' => tap($this->program($rpjmd, $id), function (ProgramRpjmd $program) use ($rpjmd, $data) {
-                $strategi = filled($data['parent_id'] ?? null) ? $this->strategi($rpjmd, $data['parent_id']) : null;
+                $indikatorSasaran = filled($data['parent_id'] ?? null)
+                    ? $this->indikatorSasaran($rpjmd, $data['parent_id'])
+                    : $program->indikatorSasaran;
+                $strategi = $indikatorSasaran
+                    ? $this->optionalStrategiProgram($data, $program->strategi_daerah_id)
+                    : null;
 
                 $program->update([
-                    'strategi_daerah_id' => $strategi?->id ?? $program->strategi_daerah_id,
-                    'sasaran_daerah_id' => $strategi?->sasaran_daerah_id ?? $program->sasaran_daerah_id,
+                    'strategi_daerah_id' => $strategi?->id,
+                    'sasaran_daerah_id' => $indikatorSasaran?->sasaran_daerah_id ?? $program->sasaran_daerah_id,
+                    'indikator_sasaran_daerah_id' => $indikatorSasaran?->id ?? $program->indikator_sasaran_daerah_id,
                     'urusan_pemerintahan_id' => $data['urusan_pemerintahan_id'] ?? null,
                     'kode' => $data['kode'] ?? null,
                     'nama' => $this->requiredText($data, 'uraian', 'Nama program wajib diisi.'),
-                    'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
                     'urutan' => $data['urutan'] ?? 1,
                 ]);
             }),
             'indikator_program' => tap($this->indikatorProgram($rpjmd, $id), function (IndikatorProgramRpjmd $indikator) use ($rpjmd, $data) {
                 $indikator->update([
                     'program_rpjmd_id' => filled($data['parent_id'] ?? null) ? $this->program($rpjmd, $data['parent_id'])->id : $indikator->program_rpjmd_id,
-                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator program wajib diisi.'),
-                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                    'formula' => $data['formula'] ?? null,
-                    'sumber_data' => $data['sumber_data'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
+                    ...$this->indicatorPayload($data, 'Indikator program wajib diisi.'),
                 ]);
             }),
             'target_program' => tap($this->findNode($rpjmd, $type, $id), function (TargetIndikatorProgramRpjmd $target) use ($rpjmd, $data) {
@@ -369,7 +337,6 @@ class RpjmdNodeController extends Controller
                     'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
                     'target' => $data['target'] ?? null,
                     'target_text' => $data['target_text'] ?? null,
-                    'pagu' => $data['pagu'] ?? null,
                 ]);
             }),
             'program_opd' => tap($this->findNode($rpjmd, $type, $id), function (ProgramRpjmdOpdPenanggungJawab $pivot) use ($rpjmd, $data) {
@@ -390,6 +357,135 @@ class RpjmdNodeController extends Controller
         throw_if($value === '', ValidationException::withMessages([$key => $message]));
 
         return $value;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function indicatorPayload(array $data, string $requiredMessage): array
+    {
+        return [
+            'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+            'opd_id' => $data['opd_id'] ?? null,
+            'kode' => $data['kode'] ?? null,
+            'indikator' => $this->requiredText($data, 'indikator', $requiredMessage),
+            'definisi_operasional' => $data['definisi_operasional'] ?? null,
+            'alasan_pemilihan' => $data['alasan_pemilihan'] ?? null,
+            'formulasi_pengukuran' => $data['formulasi_pengukuran'] ?? null,
+            'tipe_perhitungan' => $data['tipe_perhitungan'] ?? 'non_kumulatif',
+            'sumber_data' => $data['sumber_data'] ?? null,
+            'urutan' => $data['urutan'] ?? 1,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function syncTujuanMisi(Rpjmd $rpjmd, TujuanDaerah $tujuan, array $data): void
+    {
+        if (! array_key_exists('misi_ids', $data)) {
+            return;
+        }
+
+        $ids = $this->validMisiIds($rpjmd, $tujuan, $data['misi_ids'] ?? []);
+
+        $tujuan->misiTerkait()->sync($this->orderedSyncPayload($ids));
+        $tujuan->forceFill(['rpjmd_misi_id' => $ids[0] ?? null])->save();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function syncSasaranIndikatorTujuan(Rpjmd $rpjmd, SasaranDaerah $sasaran, array $data): void
+    {
+        if (! array_key_exists('indikator_tujuan_ids', $data)) {
+            return;
+        }
+
+        $ids = $this->validIndikatorTujuanIds($rpjmd, $sasaran, $data['indikator_tujuan_ids'] ?? []);
+
+        $sasaran->indikatorTujuanTerkait()->sync($ids);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function validMisiIds(Rpjmd $rpjmd, TujuanDaerah $tujuan, mixed $rawIds): array
+    {
+        $ids = $this->normalizeIds($rawIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $validIds = RpjmdMisi::query()
+            ->where('rpjmd_id', $rpjmd->id)
+            ->when($tujuan->rpjmd_visi_id, fn ($query) => $query->where('rpjmd_visi_id', $tujuan->rpjmd_visi_id))
+            ->whereIn('id', $ids)
+            ->pluck('id')
+            ->all();
+
+        if (count($validIds) !== count($ids)) {
+            throw ValidationException::withMessages([
+                'misi_ids' => 'Misi terkait harus berada pada visi dan RPJMD yang sama.',
+            ]);
+        }
+
+        return array_values(array_filter($ids, fn (int $id) => in_array($id, $validIds, true)));
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function validIndikatorTujuanIds(Rpjmd $rpjmd, SasaranDaerah $sasaran, mixed $rawIds): array
+    {
+        $ids = $this->normalizeIds($rawIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $validIds = IndikatorTujuanDaerah::query()
+            ->where('tujuan_daerah_id', $sasaran->tujuan_daerah_id)
+            ->whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))
+            ->whereIn('id', $ids)
+            ->pluck('id')
+            ->all();
+
+        if (count($validIds) !== count($ids)) {
+            throw ValidationException::withMessages([
+                'indikator_tujuan_ids' => 'Indikator tujuan terkait harus berada pada tujuan daerah yang sama.',
+            ]);
+        }
+
+        return array_values(array_filter($ids, fn (int $id) => in_array($id, $validIds, true)));
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function normalizeIds(mixed $rawIds): array
+    {
+        return collect(is_array($rawIds) ? $rawIds : [])
+            ->filter(fn ($id) => filled($id))
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $ids
+     * @return array<int, array<string, int>>
+     */
+    private function orderedSyncPayload(array $ids): array
+    {
+        return collect($ids)
+            ->values()
+            ->mapWithKeys(fn (int $id, int $index) => [$id => ['urutan' => $index + 1]])
+            ->all();
     }
 
     private function requiredInt(array $data, string $key, string $message): int
@@ -429,19 +525,27 @@ class RpjmdNodeController extends Controller
         return IndikatorSasaranDaerah::whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id);
     }
 
-    private function strategi(Rpjmd $rpjmd, mixed $id): StrategiDaerah
-    {
-        return StrategiDaerah::whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id);
+    private function optionalStrategiProgram(
+        array $data,
+        mixed $fallbackId = null,
+    ): ?StrategiDaerah {
+        $id = $data['strategi_daerah_id'] ?? $fallbackId;
+
+        if (blank($id)) {
+            return null;
+        }
+
+        return StrategiDaerah::query()->findOrFail($id);
     }
 
     private function program(Rpjmd $rpjmd, mixed $id): ProgramRpjmd
     {
-        return ProgramRpjmd::whereHas('strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id);
+        return ProgramRpjmd::query()->forRpjmd($rpjmd->id)->findOrFail($id);
     }
 
     private function indikatorProgram(Rpjmd $rpjmd, mixed $id): IndikatorProgramRpjmd
     {
-        return IndikatorProgramRpjmd::whereHas('program.strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id);
+        return IndikatorProgramRpjmd::whereHas('program', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id);
     }
 
     private function findNode(Rpjmd $rpjmd, string $type, int $id): object
@@ -453,13 +557,12 @@ class RpjmdNodeController extends Controller
             'indikator_tujuan' => $this->indikatorTujuan($rpjmd, $id),
             'sasaran' => $this->sasaran($rpjmd, $id),
             'indikator_sasaran' => $this->indikatorSasaran($rpjmd, $id),
-            'strategi' => $this->strategi($rpjmd, $id),
             'program' => $this->program($rpjmd, $id),
             'indikator_program' => $this->indikatorProgram($rpjmd, $id),
             'target_tujuan' => TargetIndikatorTujuanDaerah::whereHas('indikator.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
             'target_sasaran' => TargetIndikatorSasaranDaerah::whereHas('indikator.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
-            'target_program' => TargetIndikatorProgramRpjmd::whereHas('indikator.program.strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
-            'program_opd' => ProgramRpjmdOpdPenanggungJawab::whereHas('program.strategi.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
+            'target_program' => TargetIndikatorProgramRpjmd::whereHas('indikator.program', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
+            'program_opd' => ProgramRpjmdOpdPenanggungJawab::whereHas('program', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
             default => abort(404),
         };
     }

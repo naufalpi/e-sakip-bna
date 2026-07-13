@@ -1,17 +1,8 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
-import ChevronRight from 'lucide-vue-next/dist/esm/icons/chevron-right.js';
 import CheckCircle2 from 'lucide-vue-next/dist/esm/icons/circle-check.js';
-import LogIn from 'lucide-vue-next/dist/esm/icons/log-in.js';
 import ShieldCheck from 'lucide-vue-next/dist/esm/icons/shield-check.js';
 
 import { useHeroMeshCanvas } from '../composables/useHeroMeshCanvas';
-
-defineProps<{
-    planningUrl: string;
-    entryUrl: string;
-    entryLabel: string;
-}>();
 
 const { heroMeshCanvas } = useHeroMeshCanvas();
 </script>
@@ -37,29 +28,12 @@ const { heroMeshCanvas } = useHeroMeshCanvas();
                         Portal Publik Akuntabilitas Kinerja
                     </p>
                     <h1 class="hero-title mt-5 max-w-4xl text-3xl font-bold leading-tight text-white sm:text-5xl xl:text-6xl">
-                        Transparansi Kinerja Pemerintah Kabupaten Banjarnegara
+                        Sistem Akuntabilitas Kinerja Instansi Pemerintah Kabupaten Banjarnegara
                     </h1>
                     <p class="mt-5 max-w-2xl text-base font-medium leading-8 text-blue-50/90 sm:text-lg">
                         Selamat datang di E-SAKIP Kabupaten Banjarnegara. Masyarakat dapat menelusuri dokumen perencanaan, pengukuran, pelaporan, dan
                         evaluasi kinerja perangkat daerah berdasarkan tahun berjalan.
                     </p>
-
-                    <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-                        <Link
-                            :href="planningUrl"
-                            class="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-bold text-[#00336C] shadow-lg shadow-blue-950/25 transition hover:-translate-y-0.5 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#00336C]"
-                        >
-                            Lihat Data Publik
-                            <ChevronRight class="h-4 w-4" />
-                        </Link>
-                        <Link
-                            :href="entryUrl"
-                            class="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/25 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#00336C]"
-                        >
-                            <LogIn class="h-4 w-4" />
-                            {{ entryLabel }}
-                        </Link>
-                    </div>
 
                     <div class="hero-proofline mt-8 grid gap-3 text-sm font-semibold text-blue-50 sm:grid-cols-2 xl:grid-cols-4">
                         <span><CheckCircle2 class="h-4 w-4" /> Perencanaan</span>
