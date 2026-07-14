@@ -40,7 +40,7 @@ class DemoDataSeederTest extends TestCase
         $this->assertDatabaseHas('opds', ['singkatan' => 'Disdikpora']);
         $this->assertDatabaseHas('opds', ['singkatan' => 'Dinkominfo']);
 
-        $this->assertSame(3, Opd::query()->count());
+        $this->assertSame(44, Opd::query()->count());
         $this->assertSame(1, Rpjmd::query()->count());
         $this->assertSame(3, RenstraOpd::query()->count());
         $this->assertSame(3, PerjanjianKinerja::query()->count());

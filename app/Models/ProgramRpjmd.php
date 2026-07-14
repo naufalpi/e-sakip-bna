@@ -21,6 +21,7 @@ class ProgramRpjmd extends Model
         'strategi_daerah_id',
         'sasaran_daerah_id',
         'indikator_sasaran_daerah_id',
+        'program_pemerintahan_id',
         'urusan_pemerintahan_id',
         'kode',
         'nama',
@@ -41,6 +42,11 @@ class ProgramRpjmd extends Model
     public function indikatorSasaran(): BelongsTo
     {
         return $this->belongsTo(IndikatorSasaranDaerah::class, 'indikator_sasaran_daerah_id');
+    }
+
+    public function programPemerintahan(): BelongsTo
+    {
+        return $this->belongsTo(ProgramPemerintahan::class);
     }
 
     public function urusanPemerintahan(): BelongsTo

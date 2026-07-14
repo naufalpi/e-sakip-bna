@@ -10,6 +10,7 @@ use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
+use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
 use App\Models\Rpjmd;
 use App\Models\RpjmdMisi;
@@ -121,6 +122,7 @@ class RpjmdController extends Controller
             'visi.tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.indikator.programs.strategi:id,kode,strategi,status',
+            'visi.tujuan.sasaran.indikator.programs.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
             'visi.tujuan.sasaran.indikator.programs.urusanPemerintahan:id,kode,nama',
             'visi.tujuan.sasaran.indikator.programs.indikator.satuanIndikator:id,nama,simbol',
             'visi.tujuan.sasaran.indikator.programs.indikator.opd:id,kode,nama,singkatan',
@@ -141,6 +143,7 @@ class RpjmdController extends Controller
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
             'opdOptions' => $manage ? $this->opdOptions() : [],
             'urusanOptions' => $manage ? $this->urusanOptions() : [],
+            'programPemerintahanOptions' => $manage ? $this->programPemerintahanOptions() : [],
             'can' => [
                 'manage' => $manage,
                 'review' => $this->canReviewWorkflow($request->user()),
@@ -252,6 +255,29 @@ class RpjmdController extends Controller
     }
 
     /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function programPemerintahanOptions(): array
+    {
+        return ProgramPemerintahan::query()
+            ->with('bidangUrusan.urusanPemerintahan:id,kode,nama')
+            ->where('status', 'active')
+            ->orderBy('kode')
+            ->get(['id', 'bidang_urusan_id', 'kode', 'nama'])
+            ->map(fn (ProgramPemerintahan $program) => [
+                'id' => $program->id,
+                'label' => "{$program->kode} - {$program->nama}",
+                'description' => $program->bidangUrusan
+                    ? "{$program->bidangUrusan->kode} - {$program->bidangUrusan->nama}"
+                    : null,
+                'group' => $program->bidangUrusan?->urusanPemerintahan
+                    ? "{$program->bidangUrusan->urusanPemerintahan->kode} - {$program->bidangUrusan->urusanPemerintahan->nama}"
+                    : null,
+            ])
+            ->all();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function nodeOptions(Rpjmd $rpjmd): array
@@ -305,7 +331,7 @@ class RpjmdController extends Controller
         $program = ProgramRpjmd::query()
             ->forRpjmd($rpjmd->id)
             ->with('indikatorSasaran.sasaran.tujuan.visi:id,urutan')
-            ->get(['id', 'indikator_sasaran_daerah_id', 'kode', 'nama', 'urutan'])
+            ->get(['id', 'indikator_sasaran_daerah_id', 'program_pemerintahan_id', 'kode', 'nama', 'urutan'])
             ->sortBy(fn ($item) => $this->hierarchySortKey(
                 $item->indikatorSasaran?->sasaran?->tujuan?->visi?->urutan,
                 $item->indikatorSasaran?->sasaran?->tujuan?->urutan,
@@ -561,6 +587,7 @@ class RpjmdController extends Controller
             'indikator_sasaran_daerah_id' => $program->indikator_sasaran_daerah_id,
             'strategi_daerah_id' => $program->strategi_daerah_id,
             'urusan_pemerintahan_id' => $program->urusan_pemerintahan_id,
+            'program_pemerintahan_id' => $program->program_pemerintahan_id,
             'kode' => $program->kode,
             'nama' => $program->nama,
             'status' => $program->status,
@@ -569,6 +596,15 @@ class RpjmdController extends Controller
                 'id' => $program->strategi->id,
                 'kode' => $program->strategi->kode,
                 'strategi' => $program->strategi->strategi,
+            ] : null,
+            'program_pemerintahan' => $program->programPemerintahan ? [
+                'id' => $program->programPemerintahan->id,
+                'kode' => $program->programPemerintahan->kode,
+                'nama' => $program->programPemerintahan->nama,
+                'bidang_urusan' => $program->programPemerintahan->bidangUrusan ? [
+                    'kode' => $program->programPemerintahan->bidangUrusan->kode,
+                    'nama' => $program->programPemerintahan->bidangUrusan->nama,
+                ] : null,
             ] : null,
             'urusan_pemerintahan' => $program->urusanPemerintahan ? [
                 'kode' => $program->urusanPemerintahan->kode,

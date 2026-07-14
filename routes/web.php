@@ -23,6 +23,7 @@ use App\Http\Controllers\Lkjip\LkjipController;
 use App\Http\Controllers\Master\OpdController;
 use App\Http\Controllers\Master\OpdUnitController;
 use App\Http\Controllers\Master\PeriodeTahunController;
+use App\Http\Controllers\Master\ProgramPemerintahanController;
 use App\Http\Controllers\Master\RolePermissionController;
 use App\Http\Controllers\Master\SatuanIndikatorController;
 use App\Http\Controllers\Master\StrategiDaerahController;
@@ -144,7 +145,21 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
         Route::resource('periode-tahun', PeriodeTahunController::class)->parameters(['periode-tahun' => 'periodeTahun'])->except(['show']);
         Route::resource('satuan-indikator', SatuanIndikatorController::class)->parameters(['satuan-indikator' => 'satuanIndikator'])->except(['show']);
         Route::resource('strategi-daerah', StrategiDaerahController::class)->parameters(['strategi-daerah' => 'strategiDaerah'])->except(['show']);
+        Route::get('urusan-pemerintahan/export', [UrusanPemerintahanController::class, 'export'])->name('urusan-pemerintahan.export');
+        Route::post('urusan-pemerintahan/bidang', [UrusanPemerintahanController::class, 'storeBidang'])->name('urusan-pemerintahan.bidang.store');
+        Route::put('urusan-pemerintahan/bidang/{bidangUrusan}', [UrusanPemerintahanController::class, 'updateBidang'])->name('urusan-pemerintahan.bidang.update');
+        Route::delete('urusan-pemerintahan/bidang/{bidangUrusan}', [UrusanPemerintahanController::class, 'destroyBidang'])->name('urusan-pemerintahan.bidang.destroy');
         Route::resource('urusan-pemerintahan', UrusanPemerintahanController::class)->parameters(['urusan-pemerintahan' => 'urusanPemerintahan'])->except(['show']);
+        Route::get('program-pemerintahan', [ProgramPemerintahanController::class, 'index'])->name('program-pemerintahan.index');
+        Route::get('program-pemerintahan/export', [ProgramPemerintahanController::class, 'export'])->name('program-pemerintahan.export');
+        Route::post('program-pemerintahan', [ProgramPemerintahanController::class, 'store'])->name('program-pemerintahan.store');
+        Route::post('program-pemerintahan/bulk', [ProgramPemerintahanController::class, 'bulkStore'])->name('program-pemerintahan.bulk-store');
+        Route::put('program-pemerintahan/{type}/{id}', [ProgramPemerintahanController::class, 'update'])
+            ->whereIn('type', ['program', 'kegiatan', 'sub_kegiatan'])
+            ->name('program-pemerintahan.update');
+        Route::delete('program-pemerintahan/{type}/{id}', [ProgramPemerintahanController::class, 'destroy'])
+            ->whereIn('type', ['program', 'kegiatan', 'sub_kegiatan'])
+            ->name('program-pemerintahan.destroy');
         Route::resource('system-settings', SystemSettingController::class)->parameters(['system-settings' => 'systemSetting'])->except(['show']);
         Route::resource('users', UserController::class)->except(['show']);
         Route::get('role-permission', RolePermissionController::class)->name('role-permission.index');

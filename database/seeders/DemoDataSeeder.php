@@ -23,6 +23,7 @@ use App\Models\OpdSubKegiatan;
 use App\Models\OpdUnit;
 use App\Models\PeriodeTahun;
 use App\Models\PerjanjianKinerja;
+use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
 use App\Models\RealisasiKinerja;
 use App\Models\RekomendasiEvaluasi;
@@ -120,19 +121,10 @@ class DemoDataSeeder extends Seeder
     private function urusan(): array
     {
         return [
-            'umum' => UrusanPemerintahan::query()->where('kode', '00')->firstOrFail(),
-            'kesehatan' => UrusanPemerintahan::query()->updateOrCreate(
-                ['kode' => '1.02'],
-                ['nama' => 'Kesehatan', 'deskripsi' => 'Urusan pemerintahan bidang kesehatan.', 'status' => 'active'],
-            ),
-            'pendidikan' => UrusanPemerintahan::query()->updateOrCreate(
-                ['kode' => '1.01'],
-                ['nama' => 'Pendidikan', 'deskripsi' => 'Urusan pemerintahan bidang pendidikan.', 'status' => 'active'],
-            ),
-            'kominfo' => UrusanPemerintahan::query()->updateOrCreate(
-                ['kode' => '2.16'],
-                ['nama' => 'Komunikasi dan Informatika', 'deskripsi' => 'Urusan komunikasi, informatika, statistik, dan persandian.', 'status' => 'active'],
-            ),
+            'umum' => UrusanPemerintahan::query()->where('kode', '5')->firstOrFail(),
+            'kesehatan' => UrusanPemerintahan::query()->where('kode', '1')->firstOrFail(),
+            'pendidikan' => UrusanPemerintahan::query()->where('kode', '1')->firstOrFail(),
+            'kominfo' => UrusanPemerintahan::query()->where('kode', '2')->firstOrFail(),
         ];
     }
 
@@ -159,7 +151,7 @@ class DemoDataSeeder extends Seeder
                 ],
             ),
             'disdikpora' => Opd::query()->updateOrCreate(
-                ['kode' => '1.01.0.00.0.00.01.0000'],
+                ['kode' => '1.01.2.19.0.00.01.0000'],
                 [
                     'urusan_pemerintahan_id' => $urusan['pendidikan']->id,
                     'nama' => 'Dinas Pendidikan, Kepemudaan dan Olahraga Kabupaten Banjarnegara',
@@ -174,7 +166,7 @@ class DemoDataSeeder extends Seeder
                 ],
             ),
             'dinkominfo' => Opd::query()->updateOrCreate(
-                ['kode' => '2.16.0.00.0.00.01.0000'],
+                ['kode' => '2.16.2.20.2.21.01.0000'],
                 [
                     'urusan_pemerintahan_id' => $urusan['kominfo']->id,
                     'nama' => 'Dinas Komunikasi dan Informatika Kabupaten Banjarnegara',
@@ -376,14 +368,20 @@ class DemoDataSeeder extends Seeder
             ],
         );
 
+        $programReference = ProgramPemerintahan::query()
+            ->with('bidangUrusan:id,urusan_pemerintahan_id')
+            ->where('kode', '5.01.01')
+            ->first();
+
         $program = ProgramRpjmd::query()->updateOrCreate(
-            ['kode' => 'PRG-RPJMD-01'],
+            ['kode' => $programReference?->kode ?? 'PRG-RPJMD-01'],
             [
                 'strategi_daerah_id' => $strategi->id,
                 'sasaran_daerah_id' => $sasaran->id,
                 'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
-                'urusan_pemerintahan_id' => $urusan['umum']->id,
-                'nama' => 'Program Penguatan Akuntabilitas Kinerja Pemerintah Daerah',
+                'program_pemerintahan_id' => $programReference?->id,
+                'urusan_pemerintahan_id' => $programReference?->bidangUrusan?->urusan_pemerintahan_id ?? $urusan['umum']->id,
+                'nama' => $programReference?->nama ?? 'Program Penguatan Akuntabilitas Kinerja Pemerintah Daerah',
                 'status' => 'approved',
                 'urutan' => 1,
             ],

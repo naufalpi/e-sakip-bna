@@ -1,0 +1,39 @@
+<?php
+
+namespace App\Models;
+
+use App\Models\Concerns\LogsActivity;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class ProgramPemerintahan extends Model
+{
+    use LogsActivity;
+    use SoftDeletes;
+
+    protected $table = 'program_pemerintahan';
+
+    protected $fillable = [
+        'bidang_urusan_id',
+        'kode',
+        'nama',
+        'status',
+    ];
+
+    public function bidangUrusan(): BelongsTo
+    {
+        return $this->belongsTo(BidangUrusan::class);
+    }
+
+    public function kegiatan(): HasMany
+    {
+        return $this->hasMany(KegiatanPemerintahan::class)->orderBy('kode');
+    }
+
+    public function programRpjmd(): HasMany
+    {
+        return $this->hasMany(ProgramRpjmd::class);
+    }
+}

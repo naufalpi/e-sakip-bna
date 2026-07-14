@@ -2,12 +2,16 @@
 
 namespace Database\Seeders;
 
+use App\Models\BidangUrusan;
+use App\Models\KegiatanPemerintahan;
 use App\Models\KomponenEvaluasi;
 use App\Models\PeriodeTahun;
 use App\Models\Permission;
 use App\Models\PredikatEvaluasi;
+use App\Models\ProgramPemerintahan;
 use App\Models\Role;
 use App\Models\SatuanIndikator;
+use App\Models\SubKegiatanPemerintahan;
 use App\Models\SystemSetting;
 use App\Models\UrusanPemerintahan;
 use App\Models\User;
@@ -183,14 +187,9 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        UrusanPemerintahan::updateOrCreate(
-            ['kode' => '00'],
-            [
-                'nama' => 'Urusan Pemerintahan Umum',
-                'deskripsi' => 'Urusan pemerintahan umum untuk data awal.',
-                'status' => 'active',
-            ],
-        );
+        $this->seedUrusanDanBidang();
+        $this->call(OpdSeeder::class);
+        $this->seedProgramPemerintahanReferences();
 
         foreach (SystemSettingCatalog::settings() as $key => $setting) {
             SystemSetting::updateOrCreate(
@@ -357,6 +356,154 @@ class DatabaseSeeder extends Seeder
                     );
                 }
             }
+        }
+    }
+
+    private function seedUrusanDanBidang(): void
+    {
+        $urusan = collect([
+            ['kode' => '1', 'nama' => 'URUSAN PEMERINTAHAN WAJIB YANG BERKAITAN DENGAN PELAYANAN DASAR'],
+            ['kode' => '2', 'nama' => 'URUSAN PEMERINTAHAN WAJIB YANG TIDAK BERKAITAN DENGAN PELAYANAN DASAR'],
+            ['kode' => '3', 'nama' => 'URUSAN PEMERINTAHAN PILIHAN'],
+            ['kode' => '4', 'nama' => 'UNSUR PENDUKUNG URUSAN PEMERINTAHAN'],
+            ['kode' => '5', 'nama' => 'UNSUR PENUNJANG URUSAN PEMERINTAHAN'],
+            ['kode' => '6', 'nama' => 'UNSUR PENGAWASAN URUSAN PEMERINTAHAN'],
+            ['kode' => '7', 'nama' => 'UNSUR KEWILAYAHAN'],
+            ['kode' => '8', 'nama' => 'UNSUR PEMERINTAHAN UMUM'],
+        ])->mapWithKeys(function (array $item) {
+            $model = UrusanPemerintahan::updateOrCreate(
+                ['kode' => $item['kode']],
+                [
+                    'nama' => $item['nama'],
+                    'deskripsi' => null,
+                    'status' => 'active',
+                ],
+            );
+
+            return [$model->kode => $model];
+        });
+
+        $bidang = [
+            ['kode' => '1.01', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PENDIDIKAN'],
+            ['kode' => '1.02', 'nama' => 'URUSAN PEMERINTAHAN BIDANG KESEHATAN'],
+            ['kode' => '1.03', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PEKERJAAN UMUM DAN PENATAAN RUANG'],
+            ['kode' => '1.04', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PERUMAHAN DAN KAWASAN PERMUKIMAN'],
+            ['kode' => '1.06', 'nama' => 'URUSAN PEMERINTAHAN BIDANG SOSIAL'],
+            ['kode' => '2.07', 'nama' => 'URUSAN PEMERINTAHAN BIDANG TENAGA KERJA'],
+            ['kode' => '2.08', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PEMBERDAYAAN PEREMPUAN DAN PERLINDUNGAN ANAK'],
+            ['kode' => '2.09', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PANGAN'],
+            ['kode' => '2.11', 'nama' => 'URUSAN PEMERINTAHAN BIDANG LINGKUNGAN HIDUP'],
+            ['kode' => '2.12', 'nama' => 'URUSAN PEMERINTAHAN BIDANG ADMINISTRASI KEPENDUDUKAN DAN PENCATATAN SIPIL'],
+            ['kode' => '2.13', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PEMBERDAYAAN MASYARAKAT DAN DESA'],
+            ['kode' => '2.14', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA'],
+            ['kode' => '2.15', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PERHUBUNGAN'],
+            ['kode' => '2.16', 'nama' => 'URUSAN PEMERINTAHAN BIDANG KOMUNIKASI DAN INFORMATIKA'],
+            ['kode' => '2.17', 'nama' => 'URUSAN PEMERINTAHAN BIDANG KOPERASI, USAHA KECIL, DAN MENENGAH'],
+            ['kode' => '2.18', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PENANAMAN MODAL'],
+            ['kode' => '2.19', 'nama' => 'URUSAN PEMERINTAHAN BIDANG KEPEMUDAAN DAN OLAHRAGA'],
+            ['kode' => '2.20', 'nama' => 'URUSAN PEMERINTAHAN BIDANG STATISTIK'],
+            ['kode' => '2.21', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PERSANDIAN'],
+            ['kode' => '2.22', 'nama' => 'URUSAN PEMERINTAHAN BIDANG KEBUDAYAAN'],
+            ['kode' => '2.23', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PERPUSTAKAAN'],
+            ['kode' => '2.24', 'nama' => 'URUSAN PEMERINTAHAN BIDANG KEARSIPAN'],
+            ['kode' => '3.25', 'nama' => 'URUSAN PEMERINTAHAN BIDANG KELAUTAN DAN PERIKANAN'],
+            ['kode' => '3.26', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PARIWISATA'],
+            ['kode' => '3.27', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PERTANIAN'],
+            ['kode' => '3.30', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PERDAGANGAN'],
+            ['kode' => '3.31', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PERINDUSTRIAN'],
+            ['kode' => '3.32', 'nama' => 'URUSAN PEMERINTAHAN BIDANG TRANSMIGRASI'],
+            ['kode' => '5.01', 'nama' => 'PERENCANAAN'],
+            ['kode' => '5.02', 'nama' => 'KEUANGAN'],
+            ['kode' => '5.03', 'nama' => 'KEPEGAWAIAN'],
+            ['kode' => '5.04', 'nama' => 'PENDIDIKAN DAN PELATIHAN'],
+            ['kode' => '8.01', 'nama' => 'URUSAN PEMERINTAHAN BIDANG KESATUAN BANGSA DAN POLITIK'],
+        ];
+
+        foreach ($bidang as $item) {
+            $urusanKode = str($item['kode'])->before('.')->toString();
+            $parent = $urusan->get($urusanKode);
+
+            if (! $parent) {
+                continue;
+            }
+
+            BidangUrusan::updateOrCreate(
+                [
+                    'urusan_pemerintahan_id' => $parent->id,
+                    'kode' => $item['kode'],
+                ],
+                [
+                    'nama' => $item['nama'],
+                    'status' => 'active',
+                ],
+            );
+        }
+    }
+
+    private function seedProgramPemerintahanReferences(): void
+    {
+        $references = [
+            [
+                'bidang_kode' => '5.01',
+                'program' => ['kode' => '5.01.01', 'nama' => 'Program Penunjang Urusan Pemerintahan Daerah Kabupaten/Kota'],
+                'kegiatan' => ['kode' => '5.01.01.2.01', 'nama' => 'Perencanaan, Penganggaran, dan Evaluasi Kinerja Perangkat Daerah'],
+                'sub_kegiatan' => ['kode' => '5.01.01.2.01.0001', 'nama' => 'Penyusunan Dokumen Perencanaan Perangkat Daerah'],
+            ],
+            [
+                'bidang_kode' => '1.01',
+                'program' => ['kode' => '1.01.02', 'nama' => 'Program Pengelolaan Pendidikan'],
+                'kegiatan' => ['kode' => '1.01.02.2.01', 'nama' => 'Pengelolaan Pendidikan Sekolah Dasar'],
+                'sub_kegiatan' => ['kode' => '1.01.02.2.01.0001', 'nama' => 'Pembangunan Sarana, Prasarana dan Utilitas Sekolah'],
+            ],
+            [
+                'bidang_kode' => '1.02',
+                'program' => ['kode' => '1.02.02', 'nama' => 'Program Pemenuhan Upaya Kesehatan Perorangan dan Upaya Kesehatan Masyarakat'],
+                'kegiatan' => ['kode' => '1.02.02.2.02', 'nama' => 'Penyediaan Layanan Kesehatan untuk UKM dan UKP Rujukan Tingkat Daerah'],
+                'sub_kegiatan' => ['kode' => '1.02.02.2.02.0001', 'nama' => 'Pengelolaan Pelayanan Kesehatan Ibu Hamil'],
+            ],
+            [
+                'bidang_kode' => '2.16',
+                'program' => ['kode' => '2.16.03', 'nama' => 'Program Pengelolaan Aplikasi Informatika'],
+                'kegiatan' => ['kode' => '2.16.03.2.01', 'nama' => 'Pengelolaan Nama Domain yang Telah Ditetapkan oleh Pemerintah Pusat'],
+                'sub_kegiatan' => ['kode' => '2.16.03.2.01.0001', 'nama' => 'Penyelenggaraan Sistem Jaringan Intra Pemerintah Daerah'],
+            ],
+        ];
+
+        foreach ($references as $reference) {
+            $bidang = BidangUrusan::where('kode', $reference['bidang_kode'])->firstOrFail();
+
+            $program = ProgramPemerintahan::updateOrCreate(
+                [
+                    'bidang_urusan_id' => $bidang->id,
+                    'kode' => $reference['program']['kode'],
+                ],
+                [
+                    'nama' => $reference['program']['nama'],
+                    'status' => 'active',
+                ],
+            );
+
+            $kegiatan = KegiatanPemerintahan::updateOrCreate(
+                [
+                    'program_pemerintahan_id' => $program->id,
+                    'kode' => $reference['kegiatan']['kode'],
+                ],
+                [
+                    'nama' => $reference['kegiatan']['nama'],
+                    'status' => 'active',
+                ],
+            );
+
+            SubKegiatanPemerintahan::updateOrCreate(
+                [
+                    'kegiatan_pemerintahan_id' => $kegiatan->id,
+                    'kode' => $reference['sub_kegiatan']['kode'],
+                ],
+                [
+                    'nama' => $reference['sub_kegiatan']['nama'],
+                    'status' => 'active',
+                ],
+            );
         }
     }
 }

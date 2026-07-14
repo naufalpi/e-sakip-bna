@@ -23,12 +23,14 @@ const props = withDefaults(
         emptyText?: string;
         invalid?: boolean;
         disabled?: boolean;
+        placement?: 'auto' | 'bottom' | 'top';
     }>(),
     {
         placeholder: 'Pilih data',
         emptyText: 'Data belum tersedia',
         invalid: false,
         disabled: false,
+        placement: 'auto',
     },
 );
 
@@ -89,9 +91,18 @@ const toggleOpen = () => {
     }
 
     if (!isOpen.value) {
-        const rect = root.value?.getBoundingClientRect();
+        if (props.placement === 'bottom') {
+            openUpwards.value = false;
+        } else if (props.placement === 'top') {
+            openUpwards.value = true;
+        } else {
+            const rect = root.value?.getBoundingClientRect();
 
-        if (rect) {
+            if (!rect) {
+                openUpwards.value = false;
+                return;
+            }
+
             const spaceBelow = window.innerHeight - rect.bottom;
             const spaceAbove = rect.top;
             openUpwards.value = spaceBelow < 280 && spaceAbove > spaceBelow;

@@ -125,6 +125,12 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     pageComponent: 'Master/UrusanPemerintahan/Index',
                     icon: Landmark,
                 },
+                hasPermission('urusan.view') && {
+                    title: 'Program/Kegiatan',
+                    href: '/master/program-pemerintahan',
+                    pageComponent: 'Master/ProgramPemerintahan/Index',
+                    icon: Network,
+                },
             ]),
         },
         {

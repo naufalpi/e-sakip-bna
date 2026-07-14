@@ -42,6 +42,7 @@ class StoreRpjmdNodeRequest extends FormRequest
             'opd_id' => ['nullable', 'integer', 'exists:opds,id'],
             'urusan_pemerintahan_id' => ['nullable', 'integer', 'exists:urusan_pemerintahan,id'],
             'strategi_daerah_id' => ['nullable', 'integer', 'exists:strategi_daerah,id'],
+            'program_pemerintahan_id' => ['nullable', 'integer', 'exists:program_pemerintahan,id'],
             'kode' => ['nullable', 'string', 'max:80'],
             'uraian' => ['nullable', 'string'],
             'indikator' => ['nullable', 'string'],

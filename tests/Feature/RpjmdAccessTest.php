@@ -8,6 +8,7 @@ use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
+use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
 use App\Models\ProgramRpjmdOpdPenanggungJawab;
 use App\Models\Role;
@@ -550,6 +551,38 @@ class RpjmdAccessTest extends TestCase
             'strategi_daerah_id' => $strategi->id,
             'nama' => 'Program Peningkatan Akuntabilitas Kinerja',
             'urutan' => 2,
+        ]);
+    }
+
+    public function test_program_rpjmd_can_use_program_pemerintahan_reference(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '2.31', 'nama' => 'Dinas Program Referensi', 'status' => 'active']);
+        $rpjmd = $this->createRpjmdWithProgramForOpd($opd, 'RPJMD Program Referensi');
+        $indikatorSasaran = IndikatorSasaranDaerah::whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->firstOrFail();
+        $programPemerintahan = ProgramPemerintahan::with('bidangUrusan.urusanPemerintahan')->firstOrFail();
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.store', $rpjmd), [
+                'type' => 'program',
+                'parent_id' => $indikatorSasaran->id,
+                'program_pemerintahan_id' => $programPemerintahan->id,
+                'status' => 'draft',
+                'urutan' => 3,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('program_rpjmd', [
+            'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
+            'program_pemerintahan_id' => $programPemerintahan->id,
+            'kode' => $programPemerintahan->kode,
+            'nama' => $programPemerintahan->nama,
+            'urusan_pemerintahan_id' => $programPemerintahan->bidangUrusan->urusan_pemerintahan_id,
+            'urutan' => 3,
         ]);
     }
 

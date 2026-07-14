@@ -25,4 +25,9 @@ class UrusanPemerintahan extends Model
     {
         return $this->hasMany(Opd::class);
     }
+
+    public function bidangUrusan(): HasMany
+    {
+        return $this->hasMany(BidangUrusan::class)->orderBy('kode');
+    }
 }

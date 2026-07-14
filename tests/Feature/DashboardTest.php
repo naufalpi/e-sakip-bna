@@ -83,6 +83,9 @@ class DashboardTest extends TestCase
         $this->seed();
 
         $scenario = $this->dashboardScenario();
+        $expectedOpdCount = Opd::query()->where('status', 'active')->count();
+        $expectedOpdsWithoutRealization = min(10, $expectedOpdCount - 1);
+        $expectedRankingCount = min(10, $expectedOpdCount);
         $monitor = User::factory()->create();
         $monitor->roles()->sync([Role::where('name', 'admin_kabupaten_bagian_organisasi')->value('id')]);
 
@@ -93,7 +96,7 @@ class DashboardTest extends TestCase
                 ->component('Dashboard')
                 ->where('dashboard.type', 'kabupaten')
                 ->where('dashboard.can_filter_opd', true)
-                ->where('stats.opd_count', 2)
+                ->where('stats.opd_count', $expectedOpdCount)
                 ->where('stats.rpjmd_linked_opd_count', 1)
                 ->where('stats.renstra_opd_count', 1)
                 ->where('stats.perjanjian_kinerja_opd_count', 1)
@@ -102,10 +105,10 @@ class DashboardTest extends TestCase
                 ->where('stats.evaluasi_opd_count', 1)
                 ->where('stats.rekomendasi_terbuka_count', 1)
                 ->where('stats.rekomendasi_overdue_count', 1)
-                ->where('stats.opd_belum_realisasi_count', 1)
+                ->where('stats.opd_belum_realisasi_count', $expectedOpdsWithoutRealization)
                 ->where('stats.indikator_kuning_count', 1)
-                ->has('progressOpd', 2)
-                ->has('opdPerformanceRanking', 2)
+                ->has('progressOpd', $expectedOpdCount)
+                ->has('opdPerformanceRanking', $expectedRankingCount)
                 ->where('opdPerformanceRanking.0.opd_id', $scenario['opd']->id)
                 ->has('achievementByYear', 1)
                 ->has('achievementStatusDistribution', 3)
@@ -126,7 +129,7 @@ class DashboardTest extends TestCase
                 ->where('cache.ttl_seconds', 300)
                 ->has('cache.generated_at')
                 ->has('cache.version')
-                ->has('opdsWithoutRealization', 1)
+                ->has('opdsWithoutRealization', $expectedOpdsWithoutRealization)
                 ->has('overdueRecommendations', 1)
                 ->has('workflowStatus', 1)
                 ->has('evaluationRanking', 1)
@@ -187,6 +190,7 @@ class DashboardTest extends TestCase
         $this->seed();
 
         $scenario = $this->dashboardScenario();
+        $expectedOpdCount = Opd::query()->where('status', 'active')->count();
         $pimpinan = User::factory()->create();
         $pimpinan->roles()->sync([Role::where('name', 'pimpinan')->value('id')]);
 
@@ -196,7 +200,7 @@ class DashboardTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Dashboard')
                 ->where('dashboard.type', 'pimpinan')
-                ->where('stats.opd_count', 2)
+                ->where('stats.opd_count', $expectedOpdCount)
             );
     }
 

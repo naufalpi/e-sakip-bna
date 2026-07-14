@@ -8,6 +8,7 @@ use App\Http\Requests\Rpjmd\StoreRpjmdNodeRequest;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
+use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
 use App\Models\ProgramRpjmdOpdPenanggungJawab;
 use App\Models\Rpjmd;
@@ -153,14 +154,16 @@ class RpjmdNodeController extends Controller
             ]),
             'program' => tap($this->indikatorSasaran($rpjmd, $data['parent_id'] ?? null), function (IndikatorSasaranDaerah $indikatorSasaran) use ($data) {
                 $strategi = $this->optionalStrategiProgram($data);
+                $programPemerintahan = $this->optionalProgramPemerintahan($data);
 
                 ProgramRpjmd::create([
                     'strategi_daerah_id' => $strategi?->id,
                     'sasaran_daerah_id' => $indikatorSasaran->sasaran_daerah_id,
                     'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
-                    'urusan_pemerintahan_id' => $data['urusan_pemerintahan_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'nama' => $this->requiredText($data, 'uraian', 'Nama program wajib diisi.'),
+                    'program_pemerintahan_id' => $programPemerintahan?->id,
+                    'urusan_pemerintahan_id' => $programPemerintahan?->bidangUrusan?->urusan_pemerintahan_id ?? ($data['urusan_pemerintahan_id'] ?? null),
+                    'kode' => $programPemerintahan?->kode ?? ($data['kode'] ?? null),
+                    'nama' => $programPemerintahan?->nama ?? $this->requiredText($data, 'uraian', 'Nama program wajib diisi.'),
                     'status' => 'draft',
                     'urutan' => $data['urutan'] ?? 1,
                 ]);
@@ -201,6 +204,7 @@ class RpjmdNodeController extends Controller
             'satuan_indikator_id',
             'urusan_pemerintahan_id',
             'strategi_daerah_id',
+            'program_pemerintahan_id',
             'peran',
             'is_utama',
         ];
@@ -232,6 +236,7 @@ class RpjmdNodeController extends Controller
     {
         return match ($row['type']) {
             'indikator_tujuan', 'indikator_sasaran', 'indikator_program' => filled($row['indikator'] ?? null),
+            'program' => filled($row['program_pemerintahan_id'] ?? null) || filled($row['uraian'] ?? null),
             'target_tujuan', 'target_sasaran', 'target_program' => filled($row['target'] ?? null)
                 || filled($row['target_text'] ?? null)
                 || filled($row['existing_target_id'] ?? null),
@@ -314,14 +319,16 @@ class RpjmdNodeController extends Controller
                 $strategi = $indikatorSasaran
                     ? $this->optionalStrategiProgram($data, $program->strategi_daerah_id)
                     : null;
+                $programPemerintahan = $this->optionalProgramPemerintahan($data, $program->program_pemerintahan_id);
 
                 $program->update([
                     'strategi_daerah_id' => $strategi?->id,
                     'sasaran_daerah_id' => $indikatorSasaran?->sasaran_daerah_id ?? $program->sasaran_daerah_id,
                     'indikator_sasaran_daerah_id' => $indikatorSasaran?->id ?? $program->indikator_sasaran_daerah_id,
-                    'urusan_pemerintahan_id' => $data['urusan_pemerintahan_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'nama' => $this->requiredText($data, 'uraian', 'Nama program wajib diisi.'),
+                    'program_pemerintahan_id' => $programPemerintahan?->id,
+                    'urusan_pemerintahan_id' => $programPemerintahan?->bidangUrusan?->urusan_pemerintahan_id ?? ($data['urusan_pemerintahan_id'] ?? null),
+                    'kode' => $programPemerintahan?->kode ?? ($data['kode'] ?? null),
+                    'nama' => $programPemerintahan?->nama ?? $this->requiredText($data, 'uraian', 'Nama program wajib diisi.'),
                     'urutan' => $data['urutan'] ?? 1,
                 ]);
             }),
@@ -536,6 +543,21 @@ class RpjmdNodeController extends Controller
         }
 
         return StrategiDaerah::query()->findOrFail($id);
+    }
+
+    private function optionalProgramPemerintahan(
+        array $data,
+        mixed $fallbackId = null,
+    ): ?ProgramPemerintahan {
+        $id = $data['program_pemerintahan_id'] ?? $fallbackId;
+
+        if (blank($id)) {
+            return null;
+        }
+
+        return ProgramPemerintahan::query()
+            ->with('bidangUrusan:id,urusan_pemerintahan_id')
+            ->findOrFail($id);
     }
 
     private function program(Rpjmd $rpjmd, mixed $id): ProgramRpjmd

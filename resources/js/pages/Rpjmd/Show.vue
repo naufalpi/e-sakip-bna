@@ -73,9 +73,11 @@ type Program = {
     status: string;
     indikator_sasaran_daerah_id?: number | null;
     strategi_daerah_id?: number | null;
+    program_pemerintahan_id?: number | null;
     urusan_pemerintahan_id?: number | null;
     urutan?: number | null;
     strategi?: { id: number; kode?: string | null; strategi: string } | null;
+    program_pemerintahan?: { id: number; kode: string; nama: string; bidang_urusan?: { kode: string; nama: string } | null } | null;
     urusan_pemerintahan?: { kode: string; nama: string } | null;
     opd_penanggung_jawab: Array<{ pivot_id: number; id: number; nama: string; singkatan?: string | null; peran: string; is_utama: boolean }>;
     indikator: Indikator[];
@@ -167,6 +169,7 @@ type BulkRow = {
     opd_id: number | string;
     urusan_pemerintahan_id: number | string;
     strategi_daerah_id: number | string;
+    program_pemerintahan_id: number | string;
     uraian: string;
     indikator: string;
     definisi_operasional: string;
@@ -203,6 +206,8 @@ type BulkExistingRow = {
     urusan_pemerintahan_id?: number | null;
     strategi_daerah_id?: number | null;
     strategi?: string | null;
+    program_pemerintahan_id?: number | null;
+    program_pemerintahan?: string | null;
     target?: string | number | null;
     target_text?: string | null;
     opd?: string | null;
@@ -225,6 +230,7 @@ const props = defineProps<{
     satuanOptions: Option[];
     opdOptions: Option[];
     urusanOptions: Option[];
+    programPemerintahanOptions: Option[];
     can: {
         manage: boolean;
         review: boolean;
@@ -347,6 +353,7 @@ const form = useForm({
     opd_id: '' as number | string,
     urusan_pemerintahan_id: '' as number | string,
     strategi_daerah_id: '' as number | string,
+    program_pemerintahan_id: '' as number | string,
     uraian: '',
     indikator: '',
     definisi_operasional: '',
@@ -374,6 +381,7 @@ const emptyBulkRow = (index = 0): BulkRow => ({
     opd_id: '',
     urusan_pemerintahan_id: '',
     strategi_daerah_id: '',
+    program_pemerintahan_id: '',
     uraian: '',
     indikator: '',
     definisi_operasional: '',
@@ -397,6 +405,7 @@ const bulkForm = useForm({
     satuan_indikator_id: '' as number | string,
     urusan_pemerintahan_id: '' as number | string,
     strategi_daerah_id: '' as number | string,
+    program_pemerintahan_id: '' as number | string,
     peran: 'penanggung_jawab',
     is_utama: true,
     rows: [emptyBulkRow()],
@@ -458,6 +467,7 @@ const canSubmitNode = computed(
     () =>
         !form.processing &&
         (!needsParent.value || Boolean(form.parent_id)) &&
+        (!isProgramType.value || Boolean(form.program_pemerintahan_id) || trimText(form.uraian).length > 0) &&
         (!shouldRequireTujuanMisi.value || form.misi_ids.length > 0) &&
         (!shouldRequireSasaranIndikatorTujuan.value || form.indikator_tujuan_ids.length > 0),
 );
@@ -499,6 +509,10 @@ const bulkFilledRows = computed(
                 return Boolean(row.existing_target_id) || trimText(valueText(row.target)).length > 0;
             }
 
+            if (bulkIsProgramType.value) {
+                return Boolean(row.program_pemerintahan_id) || trimText(row.uraian).length > 0;
+            }
+
             if (bulkIsProgramOpdType.value) {
                 return Boolean(row.opd_id);
             }
@@ -531,7 +545,7 @@ const bulkColumnCount = computed(() => {
     }
 
     if (bulkIsProgramType.value) {
-        count += 2;
+        count += 1;
     }
 
     if (bulkIsTargetType.value) {
@@ -575,6 +589,7 @@ const optionById = (options: Option[], id: number | string | null | undefined) =
 const strategiOptions = computed(() => props.nodeOptions.strategi ?? []);
 const bulkStrategiOptions = strategiOptions;
 const formStrategiOptions = strategiOptions;
+const programPemerintahanOptions = computed(() => props.programPemerintahanOptions ?? []);
 
 const targetCountByType = computed<Record<'target_tujuan' | 'target_sasaran' | 'target_program', Map<number, number>>>(() => {
     const counts = {
@@ -906,6 +921,10 @@ const bulkExistingRows = computed<BulkExistingRow[]>(() => {
                                 uraian: program.nama,
                                 strategi_daerah_id: program.strategi_daerah_id ?? null,
                                 strategi: program.strategi ? nodeText(program.strategi.kode, program.strategi.strategi) : null,
+                                program_pemerintahan_id: program.program_pemerintahan_id ?? null,
+                                program_pemerintahan: program.program_pemerintahan
+                                    ? nodeText(program.program_pemerintahan.kode, program.program_pemerintahan.nama)
+                                    : null,
                                 urusan_pemerintahan_id: program.urusan_pemerintahan_id ?? null,
                                 urusan: program.urusan_pemerintahan
                                     ? nodeText(program.urusan_pemerintahan.kode, program.urusan_pemerintahan.nama)
@@ -1255,6 +1274,7 @@ const clearNodeForm = () => {
     form.opd_id = '';
     form.urusan_pemerintahan_id = '';
     form.strategi_daerah_id = '';
+    form.program_pemerintahan_id = '';
     form.uraian = '';
     form.indikator = '';
     form.definisi_operasional = '';
@@ -1373,6 +1393,7 @@ const bulkRowHasInput = (row: BulkRow, type: NodeType = bulkForm.type) => {
         row.sumber_data,
         row.target,
         row.opd_id,
+        row.program_pemerintahan_id,
     ].some((value) => trimText(valueText(value)).length > 0);
 };
 const bulkRowCanRemove = (row: BulkRow) => !bulkIsTargetType.value && (bulkForm.rows.length > 1 || bulkRowHasInput(row));
@@ -1444,6 +1465,7 @@ const bulkExistingToFormRow = (row: BulkExistingRow): BulkRow => ({
     opd_id: valueText(row.opd_id),
     urusan_pemerintahan_id: valueText(row.urusan_pemerintahan_id),
     strategi_daerah_id: valueText(row.strategi_daerah_id),
+    program_pemerintahan_id: valueText(row.program_pemerintahan_id),
     uraian: valueText(row.uraian),
     indikator: valueText(row.indikator),
     definisi_operasional: valueText(row.definisi_operasional),
@@ -1468,6 +1490,7 @@ const savedBulkSnapshot = (row: BulkRow) =>
         opd_id: valueText(row.opd_id),
         urusan_pemerintahan_id: valueText(row.urusan_pemerintahan_id),
         strategi_daerah_id: valueText(row.strategi_daerah_id),
+        program_pemerintahan_id: valueText(row.program_pemerintahan_id),
         uraian: valueText(row.uraian),
         indikator: valueText(row.indikator),
         definisi_operasional: valueText(row.definisi_operasional),
@@ -1586,6 +1609,7 @@ const editNode = (type: NodeType, id: number, parentId: number | null, node: any
         form.uraian = valueText(node.nama);
         form.strategi_daerah_id = valueText(node.strategi_daerah_id);
         form.urusan_pemerintahan_id = valueText(node.urusan_pemerintahan_id);
+        form.program_pemerintahan_id = valueText(node.program_pemerintahan_id);
     } else if (isIndicatorType.value) {
         form.indikator = valueText(node.indikator);
         form.satuan_indikator_id = valueText(node.satuan_indikator_id);
@@ -1633,6 +1657,7 @@ watch(
 
         if (form.type === 'program') {
             form.strategi_daerah_id = '';
+            form.program_pemerintahan_id = '';
         }
     },
 );
@@ -1654,8 +1679,10 @@ watch(
 
         if (bulkForm.type === 'program') {
             bulkForm.strategi_daerah_id = '';
+            bulkForm.program_pemerintahan_id = '';
             bulkForm.rows.forEach((row) => {
                 row.strategi_daerah_id = '';
+                row.program_pemerintahan_id = '';
             });
         }
     },
@@ -1675,6 +1702,7 @@ watch(
         bulkForm.satuan_indikator_id = '';
         bulkForm.urusan_pemerintahan_id = '';
         bulkForm.strategi_daerah_id = '';
+        bulkForm.program_pemerintahan_id = '';
         bulkForm.peran = 'penanggung_jawab';
         bulkForm.is_utama = true;
         resetBulkRows();
@@ -1768,6 +1796,7 @@ const savedBulkPayload = (row: BulkExistingRow) => {
         opd_id: editable.opd_id,
         urusan_pemerintahan_id: editable.urusan_pemerintahan_id,
         strategi_daerah_id: editable.strategi_daerah_id,
+        program_pemerintahan_id: editable.program_pemerintahan_id,
         uraian: editable.uraian,
         indikator: editable.indikator,
         definisi_operasional: editable.definisi_operasional,
@@ -3066,7 +3095,7 @@ const triwulanLabel = (triwulan: string) =>
                                 <InputError :message="form.errors.indikator_tujuan_ids" />
                             </div>
 
-                            <div v-if="isTextNodeType" class="grid gap-2">
+                            <div v-if="isTextNodeType && !isProgramType" class="grid gap-2">
                                 <label class="text-sm font-medium" for="uraian">{{ isProgramType ? 'Nama Program' : selectedTypeLabel }}</label>
                                 <textarea
                                     id="uraian"
@@ -3076,6 +3105,18 @@ const triwulanLabel = (triwulan: string) =>
                                     :placeholder="selectedTypeMeta.placeholder"
                                 />
                                 <InputError :message="form.errors.uraian" />
+                            </div>
+
+                            <div v-if="isProgramType" class="grid gap-2">
+                                <label class="text-sm font-medium" for="program_pemerintahan_id">Program</label>
+                                <RpjmdRichSelect
+                                    id="program_pemerintahan_id"
+                                    v-model="form.program_pemerintahan_id"
+                                    :options="programPemerintahanOptions"
+                                    placeholder="Cari dan pilih program"
+                                    empty-text="Master program belum tersedia"
+                                />
+                                <InputError :message="form.errors.program_pemerintahan_id" />
                             </div>
 
                             <div v-if="isIndicatorType" class="grid gap-2">
@@ -3185,19 +3226,6 @@ const triwulanLabel = (triwulan: string) =>
                                     </option>
                                 </select>
                                 <InputError :message="form.errors.strategi_daerah_id" />
-                            </div>
-
-                            <div v-if="isProgramType" class="grid gap-2">
-                                <label class="text-sm font-medium" for="urusan_pemerintahan_id">Urusan Pemerintahan</label>
-                                <select
-                                    id="urusan_pemerintahan_id"
-                                    v-model="form.urusan_pemerintahan_id"
-                                    class="h-10 rounded-md border bg-background px-3 text-sm"
-                                >
-                                    <option value="">Pilih urusan</option>
-                                    <option v-for="option in urusanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                                </select>
-                                <InputError :message="form.errors.urusan_pemerintahan_id" />
                             </div>
 
                             <div v-if="isTargetType" class="grid gap-2">
@@ -3426,19 +3454,6 @@ const triwulanLabel = (triwulan: string) =>
                                     </select>
                                     <InputError :message="bulkForm.errors.strategi_daerah_id" />
                                 </div>
-
-                                <div v-if="bulkIsProgramType" class="grid gap-2">
-                                    <label class="text-sm font-medium" for="bulk_urusan_pemerintahan_id">Urusan Default</label>
-                                    <select
-                                        id="bulk_urusan_pemerintahan_id"
-                                        v-model="bulkForm.urusan_pemerintahan_id"
-                                        class="h-10 rounded-md border bg-background px-3 text-sm"
-                                    >
-                                        <option value="">Tidak diset default</option>
-                                        <option v-for="option in urusanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                                    </select>
-                                    <InputError :message="bulkForm.errors.urusan_pemerintahan_id" />
-                                </div>
                             </section>
 
                             <section class="overflow-hidden rounded-lg border bg-card">
@@ -3495,7 +3510,7 @@ const triwulanLabel = (triwulan: string) =>
                                             <tr>
                                                 <th class="w-14 px-3 py-2">No</th>
                                                 <th v-if="bulkIsTextNodeType" class="min-w-[360px] px-3 py-2">
-                                                    {{ bulkIsProgramType ? 'Nama Program' : bulkTypeLabel }}
+                                                    {{ bulkIsProgramType ? 'Program' : bulkTypeLabel }}
                                                 </th>
                                                 <th v-if="bulkIsIndicatorType" class="min-w-[360px] px-3 py-2">Indikator</th>
                                                 <th v-if="bulkIsIndicatorType" class="min-w-44 px-3 py-2">Satuan</th>
@@ -3506,7 +3521,6 @@ const triwulanLabel = (triwulan: string) =>
                                                 <th v-if="bulkIsIndicatorType" class="min-w-56 px-3 py-2">Sumber Data</th>
                                                 <th v-if="bulkIsIndicatorType" class="min-w-72 px-3 py-2">OPD / PD Penanggung Jawab</th>
                                                 <th v-if="bulkIsProgramType" class="min-w-56 px-3 py-2">Strategi</th>
-                                                <th v-if="bulkIsProgramType" class="min-w-48 px-3 py-2">Urusan</th>
                                                 <th v-if="bulkIsTargetType" class="min-w-40 px-3 py-2">Periode</th>
                                                 <th v-if="bulkIsTargetType" class="min-w-64 px-3 py-2">Target</th>
                                                 <th v-if="bulkIsProgramOpdType" class="min-w-80 px-3 py-2">OPD</th>
@@ -3553,13 +3567,22 @@ const triwulanLabel = (triwulan: string) =>
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td v-if="bulkIsTextNodeType" class="px-3 py-2 align-top">
+                                                <td v-if="bulkIsTextNodeType && !bulkIsProgramType" class="px-3 py-2 align-top">
                                                     <textarea
                                                         v-model="editableSavedBulkRow(saved).uraian"
                                                         rows="2"
                                                         class="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm font-semibold leading-5 text-slate-950"
                                                         :placeholder="bulkTypeMeta.placeholder"
                                                         @input="markSavedBulkChanged(saved)"
+                                                    />
+                                                </td>
+                                                <td v-if="bulkIsProgramType" class="min-w-[360px] px-3 py-2 align-top">
+                                                    <RpjmdRichSelect
+                                                        v-model="editableSavedBulkRow(saved).program_pemerintahan_id"
+                                                        :options="programPemerintahanOptions"
+                                                        placeholder="Pilih program"
+                                                        empty-text="Master program belum tersedia"
+                                                        @update:model-value="markSavedBulkChanged(saved)"
                                                     />
                                                 </td>
                                                 <td v-if="bulkIsIndicatorType" class="px-3 py-2 align-top">
@@ -3644,18 +3667,6 @@ const triwulanLabel = (triwulan: string) =>
                                                     >
                                                         <option value="">Tidak diset</option>
                                                         <option v-for="option in strategiOptions" :key="option.id" :value="option.id">
-                                                            {{ option.label }}
-                                                        </option>
-                                                    </select>
-                                                </td>
-                                                <td v-if="bulkIsProgramType" class="px-3 py-2 align-top">
-                                                    <select
-                                                        v-model="editableSavedBulkRow(saved).urusan_pemerintahan_id"
-                                                        class="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                                                        @change="markSavedBulkChanged(saved)"
-                                                    >
-                                                        <option value="">Tidak diset</option>
-                                                        <option v-for="option in urusanOptions" :key="option.id" :value="option.id">
                                                             {{ option.label }}
                                                         </option>
                                                     </select>
@@ -3767,13 +3778,22 @@ const triwulanLabel = (triwulan: string) =>
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td v-if="bulkIsTextNodeType" class="px-3 py-2">
+                                                <td v-if="bulkIsTextNodeType && !bulkIsProgramType" class="px-3 py-2">
                                                     <textarea
                                                         v-model="row.uraian"
                                                         rows="2"
                                                         class="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm font-semibold leading-5 text-slate-950"
                                                         :placeholder="bulkTypeMeta.placeholder"
                                                         @input="markNewBulkChanged(row)"
+                                                    />
+                                                </td>
+                                                <td v-if="bulkIsProgramType" class="min-w-[360px] px-3 py-2">
+                                                    <RpjmdRichSelect
+                                                        v-model="row.program_pemerintahan_id"
+                                                        :options="programPemerintahanOptions"
+                                                        placeholder="Pilih program"
+                                                        empty-text="Master program belum tersedia"
+                                                        @update:model-value="markNewBulkChanged(row)"
                                                     />
                                                 </td>
                                                 <td v-if="bulkIsIndicatorType" class="px-3 py-2">
@@ -3858,18 +3878,6 @@ const triwulanLabel = (triwulan: string) =>
                                                     >
                                                         <option value="">Ikuti default</option>
                                                         <option v-for="option in strategiOptions" :key="option.id" :value="option.id">
-                                                            {{ option.label }}
-                                                        </option>
-                                                    </select>
-                                                </td>
-                                                <td v-if="bulkIsProgramType" class="px-3 py-2">
-                                                    <select
-                                                        v-model="row.urusan_pemerintahan_id"
-                                                        class="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                                                        @change="markNewBulkChanged(row)"
-                                                    >
-                                                        <option value="">Default</option>
-                                                        <option v-for="option in urusanOptions" :key="option.id" :value="option.id">
                                                             {{ option.label }}
                                                         </option>
                                                     </select>
