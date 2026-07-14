@@ -478,8 +478,8 @@ const destroy = async (item: ReferenceItem) => {
             </div>
         </section>
 
-        <div class="overflow-hidden rounded-2xl border bg-card shadow-sm">
-            <div class="flex flex-col gap-4 border-b p-4">
+        <div class="overflow-visible rounded-2xl border bg-card shadow-sm">
+            <div class="relative z-30 flex flex-col gap-4 border-b bg-card p-4">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div class="flex items-center gap-3">
                         <div class="flex size-10 items-center justify-center rounded-xl bg-[#00336C]/10 text-[#00336C]">
@@ -511,7 +511,7 @@ const destroy = async (item: ReferenceItem) => {
                 </div>
 
                 <form
-                    class="grid gap-3"
+                    class="relative z-40 grid gap-3"
                     :class="
                         props.level === 'program'
                             ? 'lg:grid-cols-[minmax(220px,1fr)_minmax(280px,420px)_190px_auto]'
@@ -557,10 +557,10 @@ const destroy = async (item: ReferenceItem) => {
             </div>
 
             <Transition name="fade">
-                <section v-if="can.manage && activePanel" class="border-b bg-muted/20 p-4">
+                <section v-if="can.manage && activePanel" class="relative z-20 border-b bg-muted/20 p-4">
                     <form
                         v-if="activePanel === 'single'"
-                        class="overflow-hidden rounded-2xl border bg-card shadow-sm"
+                        class="overflow-visible rounded-2xl border bg-card shadow-sm"
                         @submit.prevent="submitSingle"
                     >
                         <div class="flex items-center justify-between border-b bg-background p-4">
@@ -594,6 +594,7 @@ const destroy = async (item: ReferenceItem) => {
                                     :options="options.bidang"
                                     placeholder="Pilih bidang urusan"
                                     empty-text="Bidang urusan belum tersedia"
+                                    placement="bottom"
                                 />
                                 <InputError :message="singleForm.errors.bidang_urusan_id" />
                             </div>
@@ -646,7 +647,7 @@ const destroy = async (item: ReferenceItem) => {
                         </div>
                     </form>
 
-                    <form v-else class="overflow-hidden rounded-2xl border bg-card shadow-sm" @submit.prevent="submitBulk">
+                    <form v-else class="overflow-visible rounded-2xl border bg-card shadow-sm" @submit.prevent="submitBulk">
                         <div class="flex items-center justify-between border-b bg-background p-4">
                             <div class="flex items-center gap-3">
                                 <div
@@ -682,6 +683,7 @@ const destroy = async (item: ReferenceItem) => {
                                     :options="options.bidang"
                                     placeholder="Pilih bidang urusan"
                                     empty-text="Bidang urusan belum tersedia"
+                                    placement="bottom"
                                 />
                                 <InputError :message="bulkForm.errors.bidang_urusan_id" />
                             </div>

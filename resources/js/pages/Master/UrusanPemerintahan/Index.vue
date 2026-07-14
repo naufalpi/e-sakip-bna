@@ -4,7 +4,7 @@ import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { Folder, FolderOpen, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
+import { ChevronDown, Folder, FolderOpen, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
 
 type BidangUrusan = {
@@ -70,6 +70,7 @@ const bidangForm = useForm<BidangForm>({
     status: 'active',
 });
 const editingBidang = reactive<{ id: number | null }>({ id: null });
+const collapsedUrusan = reactive<Record<number, boolean>>({});
 
 const selectedUrusan = computed(() => props.options.urusan.find((option) => String(option.id) === String(bidangForm.urusan_pemerintahan_id)));
 const canSubmitBidang = computed(
@@ -83,6 +84,12 @@ const resetFilters = () => {
     filterForm.search = '';
     filterForm.status = '';
     applyFiltersNow();
+};
+
+const isUrusanCollapsed = (id: number) => collapsedUrusan[id] === true;
+
+const toggleUrusan = (id: number) => {
+    collapsedUrusan[id] = !isUrusanCollapsed(id);
 };
 
 const resetBidangForm = () => {
@@ -214,8 +221,22 @@ const destroyBidang = async (item: BidangUrusan) => {
                                 </div>
                             </div>
                         </div>
-                        <div v-if="can.manage" class="flex shrink-0 flex-wrap gap-2">
+                        <div class="flex shrink-0 flex-wrap gap-2">
                             <button
+                                type="button"
+                                class="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-[#00336C]/30 hover:bg-blue-50 hover:text-[#00336C]"
+                                :aria-expanded="!isUrusanCollapsed(urusan.id)"
+                                :aria-label="isUrusanCollapsed(urusan.id) ? `Tampilkan bidang ${urusan.nama}` : `Sembunyikan bidang ${urusan.nama}`"
+                                @click="toggleUrusan(urusan.id)"
+                            >
+                                <ChevronDown
+                                    class="size-4 transition-transform duration-200"
+                                    :class="isUrusanCollapsed(urusan.id) ? '-rotate-90' : 'rotate-0'"
+                                />
+                                <span class="hidden sm:inline">{{ isUrusanCollapsed(urusan.id) ? 'Tampilkan' : 'Sembunyikan' }}</span>
+                            </button>
+                            <button
+                                v-if="can.manage"
                                 type="button"
                                 class="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium hover:bg-blue-50"
                                 @click="addBidangFor(urusan)"
@@ -224,12 +245,14 @@ const destroyBidang = async (item: BidangUrusan) => {
                                 Bidang
                             </button>
                             <Link
+                                v-if="can.manage"
                                 :href="route('master.urusan-pemerintahan.edit', urusan.id)"
                                 class="inline-flex h-9 items-center justify-center rounded-lg border bg-white px-3 text-sm font-medium hover:bg-muted"
                             >
                                 <Pencil class="size-4" />
                             </Link>
                             <button
+                                v-if="can.manage"
                                 type="button"
                                 class="inline-flex h-9 items-center justify-center rounded-lg border bg-white px-3 text-sm font-medium text-red-600 hover:bg-red-50"
                                 @click="destroyUrusan(urusan)"
@@ -239,69 +262,90 @@ const destroyBidang = async (item: BidangUrusan) => {
                         </div>
                     </div>
 
-                    <div class="p-3">
-                        <div v-if="urusan.bidang_urusan.length" class="space-y-2">
-                            <div
-                                v-for="bidang in urusan.bidang_urusan"
-                                :key="bidang.id"
-                                class="group relative ml-3 flex flex-col gap-3 rounded-xl border bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] before:absolute before:-left-3 before:top-0 before:h-1/2 before:w-3 before:border-b before:border-l before:border-slate-200 md:flex-row md:items-center md:justify-between"
-                            >
-                                <div class="flex min-w-0 items-start gap-3">
-                                    <div class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-                                        <Folder class="size-4" />
-                                    </div>
-                                    <div class="min-w-0">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <span class="font-semibold text-slate-900">{{ bidang.kode }}</span>
-                                            <span
-                                                class="rounded-full px-2 py-0.5 text-xs font-medium"
-                                                :class="
-                                                    bidang.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
-                                                "
-                                            >
-                                                {{ bidang.status === 'active' ? 'Aktif' : 'Tidak aktif' }}
-                                            </span>
-                                        </div>
-                                        <p class="mt-1 text-sm font-medium text-slate-700">{{ bidang.nama }}</p>
-                                        <p class="mt-1 text-xs text-muted-foreground">{{ bidang.program_count }} program</p>
-                                    </div>
-                                </div>
+                    <Transition
+                        enter-active-class="transition duration-200 ease-out"
+                        enter-from-class="-translate-y-1 opacity-0"
+                        enter-to-class="translate-y-0 opacity-100"
+                        leave-active-class="transition duration-150 ease-in"
+                        leave-from-class="translate-y-0 opacity-100"
+                        leave-to-class="-translate-y-1 opacity-0"
+                    >
+                        <div v-if="!isUrusanCollapsed(urusan.id)" class="p-3">
+                            <div v-if="urusan.bidang_urusan.length" class="space-y-2">
                                 <div
-                                    v-if="can.manage"
-                                    class="flex shrink-0 overflow-hidden rounded-lg border bg-white opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100"
+                                    v-for="bidang in urusan.bidang_urusan"
+                                    :key="bidang.id"
+                                    class="group relative ml-3 flex flex-col gap-3 rounded-xl border bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] before:absolute before:-left-3 before:top-0 before:h-1/2 before:w-3 before:border-b before:border-l before:border-slate-200 md:flex-row md:items-center md:justify-between"
                                 >
-                                    <button
-                                        type="button"
-                                        class="inline-flex size-9 items-center justify-center text-slate-600 hover:bg-blue-50 hover:text-[#00336C]"
-                                        title="Edit bidang"
-                                        @click="editBidang(bidang)"
+                                    <div class="flex min-w-0 items-start gap-3">
+                                        <div
+                                            class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
+                                        >
+                                            <Folder class="size-4" />
+                                        </div>
+                                        <div class="min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="font-semibold text-slate-900">{{ bidang.kode }}</span>
+                                                <span
+                                                    class="rounded-full px-2 py-0.5 text-xs font-medium"
+                                                    :class="
+                                                        bidang.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                                                    "
+                                                >
+                                                    {{ bidang.status === 'active' ? 'Aktif' : 'Tidak aktif' }}
+                                                </span>
+                                            </div>
+                                            <p class="mt-1 text-sm font-medium text-slate-700">{{ bidang.nama }}</p>
+                                            <p class="mt-1 text-xs text-muted-foreground">{{ bidang.program_count }} program</p>
+                                        </div>
+                                    </div>
+                                    <div
+                                        v-if="can.manage"
+                                        class="flex shrink-0 overflow-hidden rounded-lg border bg-white opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100"
                                     >
-                                        <Pencil class="size-4" />
-                                    </button>
-                                    <span class="h-9 w-px bg-slate-200" />
-                                    <button
-                                        type="button"
-                                        class="inline-flex size-9 items-center justify-center text-red-600 hover:bg-red-50 hover:text-red-700"
-                                        title="Hapus bidang"
-                                        @click="destroyBidang(bidang)"
-                                    >
-                                        <Trash2 class="size-4" />
-                                    </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex size-9 items-center justify-center text-slate-600 hover:bg-blue-50 hover:text-[#00336C]"
+                                            title="Edit bidang"
+                                            @click="editBidang(bidang)"
+                                        >
+                                            <Pencil class="size-4" />
+                                        </button>
+                                        <span class="h-9 w-px bg-slate-200" />
+                                        <button
+                                            type="button"
+                                            class="inline-flex size-9 items-center justify-center text-red-600 hover:bg-red-50 hover:text-red-700"
+                                            title="Hapus bidang"
+                                            @click="destroyBidang(bidang)"
+                                        >
+                                            <Trash2 class="size-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
+                            <button
+                                v-else-if="can.manage"
+                                type="button"
+                                class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-5 text-sm font-medium text-muted-foreground hover:border-[#00336C]/30 hover:bg-blue-50/40 hover:text-[#00336C]"
+                                @click="addBidangFor(urusan)"
+                            >
+                                <Plus class="size-4" />
+                                Tambah bidang urusan pertama
+                            </button>
+                            <div v-else class="rounded-xl border border-dashed py-5 text-center text-sm text-muted-foreground">
+                                Belum ada bidang urusan.
+                            </div>
                         </div>
+                    </Transition>
+                    <div v-if="isUrusanCollapsed(urusan.id)" class="border-t bg-slate-50/40 px-4 py-3">
                         <button
-                            v-else-if="can.manage"
                             type="button"
-                            class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-5 text-sm font-medium text-muted-foreground hover:border-[#00336C]/30 hover:bg-blue-50/40 hover:text-[#00336C]"
-                            @click="addBidangFor(urusan)"
+                            class="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-[#00336C]"
+                            @click="toggleUrusan(urusan.id)"
                         >
-                            <Plus class="size-4" />
-                            Tambah bidang urusan pertama
+                            <ChevronDown class="-rotate-90 size-4" />
+                            {{ urusan.bidang_count }} bidang disembunyikan
                         </button>
-                        <div v-else class="rounded-xl border border-dashed py-5 text-center text-sm text-muted-foreground">
-                            Belum ada bidang urusan.
-                        </div>
                     </div>
                 </article>
 
