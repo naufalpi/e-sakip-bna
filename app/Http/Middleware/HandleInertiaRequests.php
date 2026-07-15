@@ -41,7 +41,7 @@ class HandleInertiaRequests extends Middleware
         $user = $request->user();
 
         if ($user) {
-            $user->loadMissing(['opd:id,nama,singkatan', 'roles.permissions']);
+            $user->loadMissing(['opd:id,nama,singkatan', 'opdUnit:id,opd_id,kode,nama,jenis_unit', 'roles.permissions']);
         }
 
         return array_merge(parent::share($request), [
@@ -61,10 +61,18 @@ class HandleInertiaRequests extends Middleware
                     'status' => $user->status,
                     'last_login_at' => $user->last_login_at?->toISOString(),
                     'opd_id' => $user->opd_id,
+                    'opd_unit_id' => $user->opd_unit_id,
                     'opd' => $user->opd ? [
                         'id' => $user->opd->id,
                         'nama' => $user->opd->nama,
                         'singkatan' => $user->opd->singkatan,
+                    ] : null,
+                    'opd_unit' => $user->opdUnit ? [
+                        'id' => $user->opdUnit->id,
+                        'opd_id' => $user->opdUnit->opd_id,
+                        'kode' => $user->opdUnit->kode,
+                        'nama' => $user->opdUnit->nama,
+                        'jenis_unit' => $user->opdUnit->jenis_unit,
                     ] : null,
                     'roles' => $user->roles->map(fn ($role) => [
                         'id' => $role->id,

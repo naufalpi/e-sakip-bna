@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\BidangUrusan;
+use App\Models\KegiatanPemerintahan;
 use App\Models\Opd;
 use App\Models\OpdUnit;
 use App\Models\PeriodeTahun;
@@ -10,6 +11,7 @@ use App\Models\ProgramPemerintahan;
 use App\Models\Role;
 use App\Models\SatuanIndikator;
 use App\Models\StrategiDaerah;
+use App\Models\SubKegiatanPemerintahan;
 use App\Models\SystemSetting;
 use App\Models\UrusanPemerintahan;
 use App\Models\User;
@@ -35,15 +37,17 @@ class MasterUmumTest extends TestCase
             'nama' => 'UNSUR PENUNJANG URUSAN PEMERINTAHAN',
         ]);
         $this->assertSame(8, UrusanPemerintahan::query()->whereIn('kode', ['1', '2', '3', '4', '5', '6', '7', '8'])->count());
-        $this->assertSame(33, BidangUrusan::query()->whereIn('kode', [
+        $this->assertSame(40, BidangUrusan::query()->whereIn('kode', [
             '1.01',
             '1.02',
             '1.03',
             '1.04',
+            '1.05',
             '1.06',
             '2.07',
             '2.08',
             '2.09',
+            '2.10',
             '2.11',
             '2.12',
             '2.13',
@@ -64,10 +68,15 @@ class MasterUmumTest extends TestCase
             '3.30',
             '3.31',
             '3.32',
+            '4.01',
+            '4.02',
             '5.01',
             '5.02',
             '5.03',
             '5.04',
+            '5.05',
+            '6.01',
+            '7.01',
             '8.01',
         ])->count());
         $this->assertDatabaseHas('opds', [
@@ -79,6 +88,63 @@ class MasterUmumTest extends TestCase
             UrusanPemerintahan::query()->where('kode', '8')->value('id'),
             Opd::query()->where('kode', '8.01.0.00.0.00.01.0000')->value('urusan_pemerintahan_id'),
         );
+        $this->assertDatabaseHas('opd_units', [
+            'kode' => '1.01.2.19.0.00.01.0103',
+            'nama' => 'SMPN 1 Banjarnegara',
+            'jenis_unit' => 'sekolah',
+        ]);
+        $this->assertDatabaseHas('opd_units', [
+            'kode' => '1.02.0.00.0.00.01.0048',
+            'nama' => 'UPTD Puskesmas BANJARNEGARA 1',
+            'jenis_unit' => 'puskesmas',
+        ]);
+        $this->assertDatabaseHas('opd_units', [
+            'kode' => '4.01.0.00.0.00.01.0006',
+            'nama' => 'Bagian Organisasi',
+            'jenis_unit' => 'bagian',
+        ]);
+        $this->assertDatabaseHas('users', [
+            'username' => 'superadmin',
+            'email' => 'admin@example.test',
+        ]);
+        $this->assertDatabaseHas('users', [
+            'username' => 'admin_kabupaten_bagian_organisasi',
+            'email' => 'admin.bagian-organisasi@example.test',
+        ]);
+        $this->assertDatabaseHas('users', [
+            'username' => 'admin_kabupaten_bapperida',
+            'email' => 'admin.bapperida@example.test',
+        ]);
+        $this->assertDatabaseHas('users', [
+            'username' => 'admin_kabupaten_inspektorat',
+            'email' => 'admin.inspektorat@example.test',
+        ]);
+        $this->assertDatabaseHas('users', [
+            'username' => 'pimpinan',
+            'email' => 'pimpinan@example.test',
+        ]);
+        $this->assertDatabaseHas('users', [
+            'username' => 'opd_2_16_2_20_2_21_01_0000',
+            'email' => 'opd-2_16_2_20_2_21_01_0000@example.test',
+        ]);
+        $this->assertDatabaseHas('users', [
+            'username' => 'unit_1_01_2_19_0_00_01_0103',
+            'email' => 'unit-1_01_2_19_0_00_01_0103@example.test',
+        ]);
+        $this->assertSame(
+            Opd::query()->where('status', 'active')->count(),
+            User::query()->pluck('username')->filter(fn (string $username) => str_starts_with($username, 'opd_'))->count(),
+        );
+        $this->assertSame(
+            OpdUnit::query()->where('status', 'active')->count(),
+            User::query()->pluck('username')->filter(fn (string $username) => str_starts_with($username, 'unit_'))->count(),
+        );
+
+        $dinkes = Opd::query()->where('kode', '1.02.0.00.0.00.01.0000')->firstOrFail();
+        $dinkesRootUnit = OpdUnit::query()->where('opd_id', $dinkes->id)->where('kode', $dinkes->kode)->firstOrFail();
+        $puskesmasUnit = OpdUnit::query()->where('opd_id', $dinkes->id)->where('kode', '1.02.0.00.0.00.01.0048')->firstOrFail();
+
+        $this->assertSame($dinkesRootUnit->id, $puskesmasUnit->parent_id);
 
         $admin = $this->userWithRole('admin_kabupaten_dinkominfo');
         $opd = Opd::create([
@@ -216,7 +282,7 @@ class MasterUmumTest extends TestCase
                 'nip_pimpinan' => '198001012010011001',
                 'status' => 'active',
             ])
-            ->assertRedirect(route('master.opd-units.index'));
+            ->assertRedirect(route('master.opd.index'));
 
         $this->assertDatabaseHas('opd_units', [
             'opd_id' => $opd->id,
@@ -246,6 +312,24 @@ class MasterUmumTest extends TestCase
     public function test_dinkominfo_admin_can_manage_program_kegiatan_references(): void
     {
         $this->seed();
+
+        $this->assertSame(150, ProgramPemerintahan::query()->count());
+        $this->assertSame(384, KegiatanPemerintahan::query()->count());
+        $this->assertSame(985, SubKegiatanPemerintahan::query()->count());
+        $this->assertDatabaseHas('program_pemerintahan', [
+            'kode' => '1.01.02',
+            'nama' => 'PROGRAM PENGELOLAAN PENDIDIKAN',
+        ]);
+        $this->assertDatabaseHas('kegiatan_pemerintahan', [
+            'kode' => '1.01.02.2.01',
+            'nama' => 'Pengelolaan Pendidikan Sekolah Dasar',
+        ]);
+        $kegiatanSekolahDasar = KegiatanPemerintahan::query()->where('kode', '1.01.02.2.01')->firstOrFail();
+        $this->assertDatabaseHas('sub_kegiatan_pemerintahan', [
+            'kegiatan_pemerintahan_id' => $kegiatanSekolahDasar->id,
+            'kode' => '1.01.02.2.01.0006',
+            'nama' => 'Pembangunan Sarana, Prasarana dan Utilitas Sekolah',
+        ]);
 
         $admin = $this->userWithRole('admin_kabupaten_dinkominfo');
         $urusan = UrusanPemerintahan::create([
@@ -394,7 +478,7 @@ class MasterUmumTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_admin_opd_can_only_view_own_opd_units(): void
+    public function test_admin_opd_can_manage_own_units_from_master_opd(): void
     {
         $this->seed();
 
@@ -420,14 +504,21 @@ class MasterUmumTest extends TestCase
         $adminOpd->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
 
         $this->actingAs($adminOpd)
-            ->get(route('master.opd-units.index'))
+            ->get(route('master.opd.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Master/OpdUnit/Index')
-                ->has('items.data', 1)
-                ->where('items.data.0.kode', 'OWN')
-                ->where('can.manage', true)
+                ->component('Master/Opd/Index')
+                ->has('opds.data', 1)
+                ->where('opds.data.0.kode', '1.01.01')
+                ->has('opds.data.0.units', 1)
+                ->where('opds.data.0.units.0.kode', 'OWN')
+                ->where('totalUnits', 1)
+                ->where('can.manageUnits', true)
             );
+
+        $this->actingAs($adminOpd)
+            ->get(route('master.opd-units.index'))
+            ->assertRedirect(route('master.opd.index'));
 
         $this->actingAs($adminOpd)
             ->post(route('master.opd-units.store'), [
@@ -436,7 +527,7 @@ class MasterUmumTest extends TestCase
                 'nama' => 'Unit Baru',
                 'status' => 'active',
             ])
-            ->assertRedirect(route('master.opd-units.index'));
+            ->assertRedirect(route('master.opd.index'));
 
         $this->assertDatabaseHas('opd_units', [
             'opd_id' => $opd->id,
@@ -455,11 +546,22 @@ class MasterUmumTest extends TestCase
 
         $this->actingAs($adminOpd)
             ->get(route('master.opd-units.edit', $ownUnit))
-            ->assertOk();
+            ->assertRedirect(route('master.opd.index'));
 
         $this->actingAs($adminOpd)
-            ->get(route('master.opd-units.edit', $otherUnit))
-            ->assertForbidden();
+            ->put(route('master.opd-units.update', $ownUnit), [
+                'opd_id' => $opd->id,
+                'kode' => 'OWN-EDIT',
+                'nama' => 'Unit Sendiri Revisi',
+                'status' => 'active',
+            ])
+            ->assertRedirect(route('master.opd.index'));
+
+        $this->assertDatabaseHas('opd_units', [
+            'id' => $ownUnit->id,
+            'kode' => 'OWN-EDIT',
+            'nama' => 'Unit Sendiri Revisi',
+        ]);
 
         $this->actingAs($adminOpd)
             ->put(route('master.opd-units.update', $otherUnit), [
@@ -472,6 +574,116 @@ class MasterUmumTest extends TestCase
 
         $this->actingAs($adminOpd)
             ->delete(route('master.opd-units.destroy', $otherUnit))
+            ->assertForbidden();
+    }
+
+    public function test_dinkominfo_can_assign_user_to_valid_opd_unit(): void
+    {
+        $this->seed();
+
+        $admin = $this->userWithRole('admin_kabupaten_dinkominfo');
+        $roleId = Role::where('name', 'admin_opd')->value('id');
+
+        $opd = Opd::create(['kode' => '9.01.10', 'nama' => 'OPD Unit User', 'status' => 'active']);
+        $unit = OpdUnit::create([
+            'opd_id' => $opd->id,
+            'kode' => '9.01.10.001',
+            'nama' => 'Unit Valid',
+            'jenis_unit' => 'uptd',
+            'status' => 'active',
+        ]);
+
+        $otherOpd = Opd::create(['kode' => '9.01.11', 'nama' => 'OPD Unit Lain', 'status' => 'active']);
+        $otherUnit = OpdUnit::create([
+            'opd_id' => $otherOpd->id,
+            'kode' => '9.01.11.001',
+            'nama' => 'Unit Tidak Valid',
+            'jenis_unit' => 'uptd',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('master.users.store'), [
+                'opd_id' => $opd->id,
+                'opd_unit_id' => $unit->id,
+                'username' => 'unitvalid',
+                'name' => 'Admin Unit Valid',
+                'email' => 'unitvalid@example.test',
+                'phone' => '081111111111',
+                'jabatan' => 'Operator Unit',
+                'password' => 'password',
+                'password_confirmation' => 'password',
+                'status' => 'active',
+                'role_ids' => [$roleId],
+            ])
+            ->assertRedirect(route('master.users.index'));
+
+        $this->assertDatabaseHas('users', [
+            'username' => 'unitvalid',
+            'opd_id' => $opd->id,
+            'opd_unit_id' => $unit->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('master.users.store'), [
+                'opd_id' => $opd->id,
+                'opd_unit_id' => $otherUnit->id,
+                'username' => 'unitinvalid',
+                'name' => 'Admin Unit Invalid',
+                'email' => 'unitinvalid@example.test',
+                'password' => 'password',
+                'password_confirmation' => 'password',
+                'status' => 'active',
+                'role_ids' => [$roleId],
+            ])
+            ->assertSessionHasErrors('opd_unit_id');
+    }
+
+    public function test_unit_scoped_admin_opd_only_sees_own_unit_scope(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '9.02.10', 'nama' => 'OPD Scope Unit', 'status' => 'active']);
+        $ownUnit = OpdUnit::create([
+            'opd_id' => $opd->id,
+            'kode' => '9.02.10.001',
+            'nama' => 'Unit Scope Sendiri',
+            'jenis_unit' => 'puskesmas',
+            'status' => 'active',
+        ]);
+        OpdUnit::create([
+            'opd_id' => $opd->id,
+            'kode' => '9.02.10.002',
+            'nama' => 'Unit Scope Lain',
+            'jenis_unit' => 'puskesmas',
+            'status' => 'active',
+        ]);
+
+        $adminOpd = User::factory()->create([
+            'opd_id' => $opd->id,
+            'opd_unit_id' => $ownUnit->id,
+        ]);
+        $adminOpd->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $this->actingAs($adminOpd)
+            ->get(route('master.opd.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Master/Opd/Index')
+                ->has('opds.data', 1)
+                ->has('opds.data.0.units', 1)
+                ->where('opds.data.0.units.0.id', $ownUnit->id)
+                ->where('totalUnits', 1)
+                ->where('can.manageUnits', false)
+            );
+
+        $this->actingAs($adminOpd)
+            ->post(route('master.opd-units.store'), [
+                'opd_id' => $opd->id,
+                'kode' => '9.02.10.003',
+                'nama' => 'Unit Baru Tidak Boleh',
+                'status' => 'active',
+            ])
             ->assertForbidden();
     }
 

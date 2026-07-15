@@ -16,6 +16,7 @@ type UserRow = {
     status: string;
     last_login_at?: string | null;
     opd?: { nama: string; singkatan?: string | null } | null;
+    opd_unit?: { kode: string; nama: string; jenis_unit?: string | null } | null;
     roles: Array<{ id: number; name: string; label: string }>;
 };
 
@@ -141,7 +142,11 @@ const destroy = async (user: UserRow) => {
                                 <div class="text-xs text-muted-foreground">{{ user.jabatan || '-' }} · {{ user.phone || '-' }}</div>
                             </td>
                             <td class="px-4 py-3 text-muted-foreground">
-                                <span v-if="user.opd">{{ user.opd.singkatan || user.opd.nama }}</span>
+                                <span v-if="user.opd" class="block text-foreground">{{ user.opd.singkatan || user.opd.nama }}</span>
+                                <span v-if="user.opd_unit" class="mt-1 block text-xs">
+                                    {{ user.opd_unit.kode }} - {{ user.opd_unit.nama }}
+                                </span>
+                                <span v-else-if="user.opd" class="mt-1 block text-xs">Seluruh unit OPD</span>
                                 <span v-else>-</span>
                             </td>
                             <td class="px-4 py-3">

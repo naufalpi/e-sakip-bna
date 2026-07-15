@@ -47,6 +47,10 @@ class UrusanPemerintahanController extends Controller
         return Inertia::render('Master/UrusanPemerintahan/Index', [
             'items' => $items,
             'filters' => $filters,
+            'stats' => [
+                'total_urusan' => UrusanPemerintahan::query()->count(),
+                'total_bidang' => BidangUrusan::query()->count(),
+            ],
             'options' => [
                 'urusan' => $this->urusanOptions(),
             ],

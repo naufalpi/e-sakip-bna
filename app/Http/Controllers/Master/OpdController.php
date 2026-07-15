@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Master\StoreOpdRequest;
 use App\Http\Requests\Master\UpdateOpdRequest;
 use App\Models\Opd;
+use App\Models\OpdUnit;
 use App\Models\UrusanPemerintahan;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,7 +24,15 @@ class OpdController extends Controller
         $user = $request->user();
 
         $opds = Opd::query()
-            ->with('urusanPemerintahan:id,kode,nama')
+            ->with([
+                'urusanPemerintahan:id,kode,nama',
+                'units' => fn ($query) => $query
+                    ->select(['id', 'opd_id', 'parent_id', 'kode', 'nama', 'jenis_unit', 'nama_pimpinan', 'nip_pimpinan', 'status'])
+                    ->when($this->shouldLimitToUserUnit($user), fn ($query) => $query->whereKey($user->opd_unit_id))
+                    ->with('parent:id,kode,nama')
+                    ->orderBy('kode'),
+            ])
+            ->withCount(['units' => fn ($query) => $query->when($this->shouldLimitToUserUnit($user), fn ($query) => $query->whereKey($user->opd_unit_id))])
             ->when($user->hasRole('admin_opd'), fn ($query) => $query->whereKey($user->opd_id))
             ->when($filters['search'] ?? null, function ($query, string $search) {
                 $query->where(function ($query) use ($search) {
@@ -39,10 +49,13 @@ class OpdController extends Controller
 
         return Inertia::render('Master/Opd/Index', [
             'opds' => $opds,
+            'totalUnits' => $this->totalUnits($user),
             'filters' => $filters,
             'can' => [
                 'create' => $request->user()->can('create', Opd::class),
+                'manageUnits' => $this->canManageOpdUnits($request->user()),
             ],
+            'jenisUnitOptions' => $this->jenisUnitOptions(),
         ]);
     }
 
@@ -130,6 +143,83 @@ class OpdController extends Controller
             'nama_kepala' => $opd->nama_kepala,
             'nip_kepala' => $opd->nip_kepala,
             'status' => $opd->status,
+            'units_count' => $opd->units_count ?? $opd->units->count(),
+            'units' => $opd->relationLoaded('units')
+                ? $opd->units->map(fn (OpdUnit $unit) => [
+                    'id' => $unit->id,
+                    'opd_id' => $unit->opd_id,
+                    'parent_id' => $unit->parent_id,
+                    'kode' => $unit->kode,
+                    'nama' => $unit->nama,
+                    'jenis_unit' => $unit->jenis_unit,
+                    'nama_pimpinan' => $unit->nama_pimpinan,
+                    'nip_pimpinan' => $unit->nip_pimpinan,
+                    'status' => $unit->status,
+                    'parent' => $unit->parent ? [
+                        'id' => $unit->parent->id,
+                        'kode' => $unit->parent->kode,
+                        'nama' => $unit->parent->nama,
+                    ] : null,
+                ])->all()
+                : [],
+        ];
+    }
+
+    private function canManageOpdUnits(User $user): bool
+    {
+        if ($this->shouldLimitToUserUnit($user)) {
+            return false;
+        }
+
+        return $user->hasPermission('opd.manage')
+            || $user->hasPermission('opd_units.manage')
+            || ($user->hasRole('admin_opd') && filled($user->opd_id));
+    }
+
+    private function totalUnits(User $user): int
+    {
+        return OpdUnit::query()
+            ->when($user->hasRole('admin_opd'), fn ($query) => $query->where('opd_id', $user->opd_id))
+            ->when($this->shouldLimitToUserUnit($user), fn ($query) => $query->whereKey($user->opd_unit_id))
+            ->count();
+    }
+
+    private function shouldLimitToUserUnit(User $user): bool
+    {
+        return $user->hasRole('admin_opd')
+            && filled($user->opd_unit_id)
+            && ! $user->hasAnyRole([
+                'super_admin',
+                'admin_kabupaten_bagian_organisasi',
+                'admin_kabupaten_bapperida',
+                'admin_kabupaten_inspektorat',
+                'admin_kabupaten_dinkominfo',
+            ]);
+    }
+
+    /**
+     * @return array<int, array<string, string>>
+     */
+    private function jenisUnitOptions(): array
+    {
+        return [
+            ['value' => 'dinas', 'label' => 'Dinas/Badan Induk'],
+            ['value' => 'badan', 'label' => 'Badan'],
+            ['value' => 'satuan', 'label' => 'Satuan'],
+            ['value' => 'sekretariat', 'label' => 'Sekretariat'],
+            ['value' => 'inspektorat', 'label' => 'Inspektorat'],
+            ['value' => 'kecamatan', 'label' => 'Kecamatan'],
+            ['value' => 'bidang', 'label' => 'Bidang'],
+            ['value' => 'bagian', 'label' => 'Bagian'],
+            ['value' => 'subbagian', 'label' => 'Subbagian'],
+            ['value' => 'seksi', 'label' => 'Seksi'],
+            ['value' => 'uptd', 'label' => 'UPTD'],
+            ['value' => 'puskesmas', 'label' => 'Puskesmas'],
+            ['value' => 'sekolah', 'label' => 'Sekolah'],
+            ['value' => 'labkes', 'label' => 'Labkes'],
+            ['value' => 'rsud', 'label' => 'RSUD'],
+            ['value' => 'kelurahan', 'label' => 'Kelurahan'],
+            ['value' => 'lainnya', 'label' => 'Lainnya'],
         ];
     }
 }

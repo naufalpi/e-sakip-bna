@@ -60,10 +60,18 @@ export interface User {
     status: string;
     last_login_at?: string | null;
     opd_id?: number | null;
+    opd_unit_id?: number | null;
     opd?: {
         id: number;
         nama: string;
         singkatan?: string | null;
+    } | null;
+    opd_unit?: {
+        id: number;
+        opd_id: number;
+        kode: string;
+        nama: string;
+        jenis_unit?: string | null;
     } | null;
     roles?: Array<{
         id: number;

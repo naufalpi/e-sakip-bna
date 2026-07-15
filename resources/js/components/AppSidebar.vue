@@ -95,12 +95,6 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     pageComponent: 'Master/Opd/Index',
                     icon: Building2,
                 },
-                hasPermission('opd.view') && {
-                    title: 'Unit OPD',
-                    href: '/master/opd-units',
-                    pageComponent: 'Master/OpdUnit/Index',
-                    icon: Building2,
-                },
                 hasPermission('periode.view') && {
                     title: 'Periode Tahun',
                     href: '/master/periode-tahun',

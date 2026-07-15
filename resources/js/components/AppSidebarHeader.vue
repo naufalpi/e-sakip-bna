@@ -27,7 +27,6 @@ const breadcrumbTitleByPrefix: Array<[string, string]> = [
     ['/dashboard', 'Dashboard'],
     ['/workflow/inbox', 'Inbox Workflow'],
     ['/notifications', 'Notifikasi'],
-    ['/master/opd-units', 'Unit OPD'],
     ['/master/opd', 'Master OPD'],
     ['/master/periode-tahun', 'Periode Tahun'],
     ['/master/satuan-indikator', 'Satuan Indikator'],

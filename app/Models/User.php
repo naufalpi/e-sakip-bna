@@ -28,6 +28,7 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'opd_id',
+        'opd_unit_id',
         'username',
         'name',
         'email',
@@ -67,6 +68,11 @@ class User extends Authenticatable
         return $this->belongsTo(Opd::class);
     }
 
+    public function opdUnit(): BelongsTo
+    {
+        return $this->belongsTo(OpdUnit::class);
+    }
+
     public function roles(): BelongsToMany
     {
         return $this->belongsToMany(Role::class)->withTimestamps();
@@ -84,6 +90,38 @@ class User extends Authenticatable
     public function isSuperAdmin(): bool
     {
         return $this->hasRole('super_admin');
+    }
+
+    public function hasOpdScope(): bool
+    {
+        return filled($this->opd_id);
+    }
+
+    public function hasOpdUnitScope(): bool
+    {
+        return filled($this->opd_unit_id);
+    }
+
+    public function canAccessOpd(int|Opd|null $opd): bool
+    {
+        if ($this->isSuperAdmin() || ! $this->hasOpdScope()) {
+            return true;
+        }
+
+        $opdId = $opd instanceof Opd ? $opd->id : $opd;
+
+        return filled($opdId) && (int) $this->opd_id === (int) $opdId;
+    }
+
+    public function canAccessOpdUnit(int|OpdUnit|null $opdUnit): bool
+    {
+        if ($this->isSuperAdmin() || ! $this->hasOpdUnitScope()) {
+            return true;
+        }
+
+        $opdUnitId = $opdUnit instanceof OpdUnit ? $opdUnit->id : $opdUnit;
+
+        return filled($opdUnitId) && (int) $this->opd_unit_id === (int) $opdUnitId;
     }
 
     /**

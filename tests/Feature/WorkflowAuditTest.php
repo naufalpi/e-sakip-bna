@@ -414,11 +414,27 @@ class WorkflowAuditTest extends TestCase
         ]);
 
         $service = app(RekomendasiDeadlineReminderService::class);
+        $expectedRecipientIds = User::query()
+            ->where('status', 'active')
+            ->where(function ($query) use ($rekomendasi) {
+                $query->where(fn ($query) => $query
+                    ->where('opd_id', $rekomendasi->opd_id)
+                    ->whereHas('roles', fn ($query) => $query->where('name', 'admin_opd')))
+                    ->orWhereHas('roles', fn ($query) => $query->whereIn('name', [
+                        'admin_kabupaten_inspektorat',
+                        'admin_kabupaten_bagian_organisasi',
+                    ]));
+            })
+            ->pluck('id')
+            ->unique()
+            ->values();
 
-        $this->assertSame(2, $service->send(7));
+        $this->assertTrue($expectedRecipientIds->contains($adminOpd->id));
+        $this->assertTrue($expectedRecipientIds->contains($reviewer->id));
+        $this->assertSame($expectedRecipientIds->count(), $service->send(7));
         $this->assertSame(0, $service->send(7));
 
-        foreach ([$adminOpd->id, $reviewer->id] as $userId) {
+        foreach ($expectedRecipientIds as $userId) {
             $this->assertDatabaseHas('notifications', [
                 'user_id' => $userId,
                 'type' => 'rekomendasi_deadline',
@@ -426,7 +442,7 @@ class WorkflowAuditTest extends TestCase
             ]);
         }
 
-        $this->assertSame(2, Notification::query()
+        $this->assertSame($expectedRecipientIds->count(), Notification::query()
             ->where('type', 'rekomendasi_deadline')
             ->where('data->rekomendasi_id', $rekomendasi->id)
             ->count());

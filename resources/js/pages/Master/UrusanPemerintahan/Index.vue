@@ -54,6 +54,7 @@ type BidangForm = {
 const props = defineProps<{
     items: Paginator<Urusan>;
     filters: { search?: string; status?: string };
+    stats: { total_urusan: number; total_bidang: number };
     options: { urusan: Option[] };
     can: { manage: boolean };
 }>();
@@ -86,7 +87,7 @@ const resetFilters = () => {
     applyFiltersNow();
 };
 
-const isUrusanCollapsed = (id: number) => collapsedUrusan[id] === true;
+const isUrusanCollapsed = (id: number) => collapsedUrusan[id] !== false;
 
 const toggleUrusan = (id: number) => {
     collapsedUrusan[id] = !isUrusanCollapsed(id);
@@ -149,20 +150,32 @@ const destroyBidang = async (item: BidangUrusan) => {
     <Head title="Urusan Pemerintahan" />
 
     <div class="flex flex-col gap-4 p-4">
-        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div>
                 <h1 class="text-2xl font-semibold tracking-normal">Urusan Pemerintahan</h1>
                 <p class="mt-1 text-sm text-muted-foreground">Urusan dan bidang urusan dalam struktur induk-anak.</p>
             </div>
-            <div class="flex flex-wrap gap-2">
-                <Link
-                    v-if="can.manage"
-                    :href="route('master.urusan-pemerintahan.create')"
-                    class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#00336C] px-3 text-sm font-medium text-white hover:bg-[#002958]"
-                >
-                    <Plus class="size-4" />
-                    Tambah Urusan
-                </Link>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div class="grid min-w-0 grid-cols-2 gap-2 sm:w-[360px]">
+                    <div class="rounded-xl border bg-card px-3 py-2 shadow-sm">
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Jumlah Urusan</p>
+                        <p class="mt-1 text-2xl font-semibold text-[#00336C]">{{ stats.total_urusan }}</p>
+                    </div>
+                    <div class="rounded-xl border bg-card px-3 py-2 shadow-sm">
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Jumlah Bidang Urusan</p>
+                        <p class="mt-1 text-2xl font-semibold text-[#00336C]">{{ stats.total_bidang }}</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <Link
+                        v-if="can.manage"
+                        :href="route('master.urusan-pemerintahan.create')"
+                        class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#00336C] px-3 text-sm font-medium text-white hover:bg-[#002958]"
+                    >
+                        <Plus class="size-4" />
+                        Tambah Urusan
+                    </Link>
+                </div>
             </div>
         </div>
 
@@ -193,38 +206,38 @@ const destroyBidang = async (item: BidangUrusan) => {
                 <article
                     v-for="urusan in items.data"
                     :key="urusan.id"
-                    class="overflow-hidden rounded-2xl border bg-card shadow-sm transition hover:border-[#00336C]/25"
+                    class="overflow-hidden rounded-xl border bg-card shadow-sm transition hover:border-[#00336C]/25"
                 >
-                    <div class="flex flex-col gap-3 border-b bg-slate-50/70 p-4 md:flex-row md:items-start md:justify-between">
-                        <div class="flex min-w-0 gap-3">
-                            <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#00336C]">
-                                <FolderOpen class="size-5" />
+                    <div class="flex flex-col gap-3 border-b bg-slate-50/70 p-3 md:flex-row md:items-start md:justify-between">
+                        <div class="flex min-w-0 gap-2.5">
+                            <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#00336C]">
+                                <FolderOpen class="size-4" />
                             </div>
                             <div class="min-w-0">
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <span class="rounded-md bg-white px-2 py-1 text-sm font-semibold text-[#00336C] ring-1 ring-slate-200">
+                                    <span class="rounded-md bg-white px-2 py-0.5 text-xs font-semibold text-[#00336C] ring-1 ring-slate-200">
                                         {{ urusan.kode }}
                                     </span>
                                     <span
-                                        class="rounded-full px-2 py-1 text-xs font-medium"
+                                        class="rounded-full px-2 py-0.5 text-xs font-medium"
                                         :class="urusan.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'"
                                     >
                                         {{ urusan.status === 'active' ? 'Aktif' : 'Tidak aktif' }}
                                     </span>
                                 </div>
-                                <h2 class="mt-2 text-lg font-semibold leading-snug text-foreground">{{ urusan.nama }}</h2>
+                                <h2 class="mt-1.5 text-base font-semibold leading-snug text-foreground">{{ urusan.nama }}</h2>
                                 <p v-if="urusan.deskripsi" class="mt-1 line-clamp-2 text-sm text-muted-foreground">{{ urusan.deskripsi }}</p>
-                                <div class="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                    <span class="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">{{ urusan.bidang_count }} bidang</span>
-                                    <span class="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">{{ urusan.program_count }} program</span>
-                                    <span class="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">{{ urusan.opds_count ?? 0 }} OPD</span>
+                                <div class="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                                    <span class="rounded-full bg-white px-2 py-0.5 ring-1 ring-slate-200">{{ urusan.bidang_count }} bidang</span>
+                                    <span class="rounded-full bg-white px-2 py-0.5 ring-1 ring-slate-200">{{ urusan.program_count }} program</span>
+                                    <span class="rounded-full bg-white px-2 py-0.5 ring-1 ring-slate-200">{{ urusan.opds_count ?? 0 }} OPD</span>
                                 </div>
                             </div>
                         </div>
                         <div class="flex shrink-0 flex-wrap gap-2">
                             <button
                                 type="button"
-                                class="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-[#00336C]/30 hover:bg-blue-50 hover:text-[#00336C]"
+                                class="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-white px-2.5 text-sm font-medium text-slate-700 transition hover:border-[#00336C]/30 hover:bg-blue-50 hover:text-[#00336C]"
                                 :aria-expanded="!isUrusanCollapsed(urusan.id)"
                                 :aria-label="isUrusanCollapsed(urusan.id) ? `Tampilkan bidang ${urusan.nama}` : `Sembunyikan bidang ${urusan.nama}`"
                                 @click="toggleUrusan(urusan.id)"
@@ -238,7 +251,7 @@ const destroyBidang = async (item: BidangUrusan) => {
                             <button
                                 v-if="can.manage"
                                 type="button"
-                                class="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium hover:bg-blue-50"
+                                class="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-white px-2.5 text-sm font-medium hover:bg-blue-50"
                                 @click="addBidangFor(urusan)"
                             >
                                 <Plus class="size-4" />
@@ -247,14 +260,14 @@ const destroyBidang = async (item: BidangUrusan) => {
                             <Link
                                 v-if="can.manage"
                                 :href="route('master.urusan-pemerintahan.edit', urusan.id)"
-                                class="inline-flex h-9 items-center justify-center rounded-lg border bg-white px-3 text-sm font-medium hover:bg-muted"
+                                class="inline-flex h-8 items-center justify-center rounded-lg border bg-white px-2.5 text-sm font-medium hover:bg-muted"
                             >
                                 <Pencil class="size-4" />
                             </Link>
                             <button
                                 v-if="can.manage"
                                 type="button"
-                                class="inline-flex h-9 items-center justify-center rounded-lg border bg-white px-3 text-sm font-medium text-red-600 hover:bg-red-50"
+                                class="inline-flex h-8 items-center justify-center rounded-lg border bg-white px-2.5 text-sm font-medium text-red-600 hover:bg-red-50"
                                 @click="destroyUrusan(urusan)"
                             >
                                 <Trash2 class="size-4" />
@@ -270,16 +283,16 @@ const destroyBidang = async (item: BidangUrusan) => {
                         leave-from-class="translate-y-0 opacity-100"
                         leave-to-class="-translate-y-1 opacity-0"
                     >
-                        <div v-if="!isUrusanCollapsed(urusan.id)" class="p-3">
+                        <div v-if="!isUrusanCollapsed(urusan.id)" class="p-2.5">
                             <div v-if="urusan.bidang_urusan.length" class="space-y-2">
                                 <div
                                     v-for="bidang in urusan.bidang_urusan"
                                     :key="bidang.id"
-                                    class="group relative ml-3 flex flex-col gap-3 rounded-xl border bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] before:absolute before:-left-3 before:top-0 before:h-1/2 before:w-3 before:border-b before:border-l before:border-slate-200 md:flex-row md:items-center md:justify-between"
+                                    class="group relative ml-3 flex flex-col gap-2.5 rounded-lg border bg-white p-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] before:absolute before:-left-3 before:top-0 before:h-1/2 before:w-3 before:border-b before:border-l before:border-slate-200 md:flex-row md:items-center md:justify-between"
                                 >
-                                    <div class="flex min-w-0 items-start gap-3">
+                                    <div class="flex min-w-0 items-start gap-2.5">
                                         <div
-                                            class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
+                                            class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
                                         >
                                             <Folder class="size-4" />
                                         </div>
@@ -295,7 +308,7 @@ const destroyBidang = async (item: BidangUrusan) => {
                                                     {{ bidang.status === 'active' ? 'Aktif' : 'Tidak aktif' }}
                                                 </span>
                                             </div>
-                                            <p class="mt-1 text-sm font-medium text-slate-700">{{ bidang.nama }}</p>
+                                            <p class="mt-0.5 text-sm font-medium leading-snug text-slate-700">{{ bidang.nama }}</p>
                                             <p class="mt-1 text-xs text-muted-foreground">{{ bidang.program_count }} program</p>
                                         </div>
                                     </div>
@@ -337,7 +350,7 @@ const destroyBidang = async (item: BidangUrusan) => {
                             </div>
                         </div>
                     </Transition>
-                    <div v-if="isUrusanCollapsed(urusan.id)" class="border-t bg-slate-50/40 px-4 py-3">
+                    <div v-if="isUrusanCollapsed(urusan.id)" class="border-t bg-slate-50/40 px-3 py-2">
                         <button
                             type="button"
                             class="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-[#00336C]"

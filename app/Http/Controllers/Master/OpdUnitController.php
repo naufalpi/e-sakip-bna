@@ -17,6 +17,11 @@ use Inertia\Response;
 
 class OpdUnitController extends Controller
 {
+    public function redirectToOpd(): RedirectResponse
+    {
+        return redirect()->route('master.opd.index');
+    }
+
     public function index(Request $request): Response
     {
         abort_unless($request->user()->hasPermission('opd.view'), 403);
@@ -28,6 +33,7 @@ class OpdUnitController extends Controller
             ->with(['opd:id,kode,nama,singkatan', 'parent:id,kode,nama'])
             ->withCount('children')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
+            ->when($this->shouldLimitToUserUnit($user), fn (Builder $query) => $query->whereKey($user->opd_unit_id))
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $query->where(function (Builder $query) use ($search) {
                     $query->where('kode', 'ilike', "%{$search}%")
@@ -77,7 +83,7 @@ class OpdUnitController extends Controller
 
         OpdUnit::create($data);
 
-        return redirect()->route('master.opd-units.index')->with('success', 'Unit OPD berhasil ditambahkan.');
+        return redirect()->route('master.opd.index')->with('success', 'Unit OPD berhasil ditambahkan.');
     }
 
     public function edit(Request $request, OpdUnit $opdUnit): Response
@@ -103,7 +109,7 @@ class OpdUnitController extends Controller
 
         $opdUnit->update($data);
 
-        return redirect()->route('master.opd-units.index')->with('success', 'Unit OPD berhasil diperbarui.');
+        return redirect()->route('master.opd.index')->with('success', 'Unit OPD berhasil diperbarui.');
     }
 
     public function destroy(Request $request, OpdUnit $opdUnit): RedirectResponse
@@ -113,7 +119,7 @@ class OpdUnitController extends Controller
 
         $opdUnit->delete();
 
-        return redirect()->route('master.opd-units.index')->with('success', 'Unit OPD berhasil dihapus.');
+        return redirect()->route('master.opd.index')->with('success', 'Unit OPD berhasil dihapus.');
     }
 
     private function shouldLimitToUserOpd(User $user): bool
@@ -130,6 +136,10 @@ class OpdUnitController extends Controller
 
     private function canManageOpdUnits(User $user): bool
     {
+        if ($this->shouldLimitToUserUnit($user)) {
+            return false;
+        }
+
         return $user->hasPermission('opd.manage')
             || $user->hasPermission('opd_units.manage')
             || ($user->hasRole('admin_opd') && filled($user->opd_id));
@@ -147,6 +157,11 @@ class OpdUnitController extends Controller
         if ($this->shouldLimitToUserOpd($user) && (int) $user->opd_id !== $opdId) {
             abort(403);
         }
+    }
+
+    private function shouldLimitToUserUnit(User $user): bool
+    {
+        return $this->shouldLimitToUserOpd($user) && filled($user->opd_unit_id);
     }
 
     private function assertParentValid(mixed $parentId, int $opdId, ?OpdUnit $unit = null): void
@@ -228,6 +243,7 @@ class OpdUnitController extends Controller
         return OpdUnit::query()
             ->with('opd:id,nama,singkatan')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
+            ->when($this->shouldLimitToUserUnit($user), fn (Builder $query) => $query->whereKey($user->opd_unit_id))
             ->when($current, fn (Builder $query) => $query->whereKeyNot($current->id))
             ->orderBy('opd_id')
             ->orderBy('kode')
@@ -243,11 +259,22 @@ class OpdUnitController extends Controller
     private function jenisOptions(): array
     {
         return [
+            ['value' => 'dinas', 'label' => 'Dinas/Badan Induk'],
+            ['value' => 'badan', 'label' => 'Badan'],
+            ['value' => 'satuan', 'label' => 'Satuan'],
             ['value' => 'sekretariat', 'label' => 'Sekretariat'],
+            ['value' => 'inspektorat', 'label' => 'Inspektorat'],
+            ['value' => 'kecamatan', 'label' => 'Kecamatan'],
             ['value' => 'bidang', 'label' => 'Bidang'],
+            ['value' => 'bagian', 'label' => 'Bagian'],
             ['value' => 'subbagian', 'label' => 'Subbagian'],
             ['value' => 'seksi', 'label' => 'Seksi'],
             ['value' => 'uptd', 'label' => 'UPTD'],
+            ['value' => 'puskesmas', 'label' => 'Puskesmas'],
+            ['value' => 'sekolah', 'label' => 'Sekolah'],
+            ['value' => 'labkes', 'label' => 'Labkes'],
+            ['value' => 'rsud', 'label' => 'RSUD'],
+            ['value' => 'kelurahan', 'label' => 'Kelurahan'],
             ['value' => 'lainnya', 'label' => 'Lainnya'],
         ];
     }

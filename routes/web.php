@@ -141,7 +141,12 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
 
     Route::prefix('master')->name('master.')->group(function () {
         Route::resource('opd', OpdController::class)->except(['show']);
-        Route::resource('opd-units', OpdUnitController::class)->parameters(['opd-units' => 'opdUnit'])->except(['show']);
+        Route::get('opd-units', [OpdUnitController::class, 'redirectToOpd'])->name('opd-units.index');
+        Route::get('opd-units/create', [OpdUnitController::class, 'redirectToOpd'])->name('opd-units.create');
+        Route::get('opd-units/{opdUnit}/edit', [OpdUnitController::class, 'redirectToOpd'])->name('opd-units.edit');
+        Route::post('opd-units', [OpdUnitController::class, 'store'])->name('opd-units.store');
+        Route::put('opd-units/{opdUnit}', [OpdUnitController::class, 'update'])->name('opd-units.update');
+        Route::delete('opd-units/{opdUnit}', [OpdUnitController::class, 'destroy'])->name('opd-units.destroy');
         Route::resource('periode-tahun', PeriodeTahunController::class)->parameters(['periode-tahun' => 'periodeTahun'])->except(['show']);
         Route::resource('satuan-indikator', SatuanIndikatorController::class)->parameters(['satuan-indikator' => 'satuanIndikator'])->except(['show']);
         Route::resource('strategi-daerah', StrategiDaerahController::class)->parameters(['strategi-daerah' => 'strategiDaerah'])->except(['show']);

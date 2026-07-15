@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { computed, watch } from 'vue';
 
 type UserForm = {
     opd_id: number | string | null;
+    opd_unit_id: number | string | null;
     username: string;
     name: string;
     email: string;
@@ -20,10 +22,12 @@ const props = defineProps<{
     user: (Omit<UserForm, 'password' | 'password_confirmation'> & { id: number }) | null;
     roleOptions: Array<{ id: number; name: string; label: string }>;
     opdOptions: Array<{ id: number; label: string }>;
+    opdUnitOptions: Array<{ id: number; opd_id: number; kode: string; nama: string; jenis_unit?: string | null; label: string; opd_label?: string | null }>;
 }>();
 
 const form = useForm<UserForm>({
     opd_id: props.user?.opd_id ?? '',
+    opd_unit_id: props.user?.opd_unit_id ?? '',
     username: props.user?.username ?? '',
     name: props.user?.name ?? '',
     email: props.user?.email ?? '',
@@ -34,6 +38,31 @@ const form = useForm<UserForm>({
     status: props.user?.status ?? 'active',
     role_ids: props.user?.role_ids ?? [],
 });
+
+const filteredOpdUnitOptions = computed(() => {
+    if (!form.opd_id) {
+        return [];
+    }
+
+    return props.opdUnitOptions.filter((unit) => String(unit.opd_id) === String(form.opd_id));
+});
+
+const selectedOpdLabel = computed(() => props.opdOptions.find((opd) => String(opd.id) === String(form.opd_id))?.label ?? null);
+
+watch(
+    () => form.opd_id,
+    () => {
+        if (!form.opd_unit_id) {
+            return;
+        }
+
+        const unitStillAvailable = filteredOpdUnitOptions.value.some((unit) => String(unit.id) === String(form.opd_unit_id));
+
+        if (!unitStillAvailable) {
+            form.opd_unit_id = '';
+        }
+    },
+);
 
 const toggleRole = (roleId: number, checked: boolean) => {
     if (checked && !form.role_ids.includes(roleId)) {
@@ -64,7 +93,7 @@ const submit = () => {
     <form class="flex max-w-5xl flex-col gap-4 p-4" @submit.prevent="submit">
         <div>
             <h1 class="text-2xl font-semibold tracking-normal">{{ mode === 'create' ? 'Tambah User' : 'Edit User' }}</h1>
-            <p class="mt-1 text-sm text-muted-foreground">Atur akun, status, OPD, dan role pengguna.</p>
+            <p class="mt-1 text-sm text-muted-foreground">Atur akun, lingkup akses, dan role pengguna.</p>
         </div>
 
         <section class="rounded-lg border bg-card p-4">
@@ -119,14 +148,41 @@ const submit = () => {
                     </select>
                     <InputError :message="form.errors.status" />
                 </div>
+            </div>
+        </section>
+
+        <section class="overflow-hidden rounded-lg border bg-card">
+            <div class="border-b bg-muted/30 px-4 py-3">
+                <h2 class="text-sm font-semibold">Lingkup Akses</h2>
+            </div>
+            <div class="grid gap-4 p-4 md:grid-cols-2">
                 <div class="grid gap-2">
                     <label class="text-sm font-medium" for="opd">OPD</label>
-                    <select id="opd" v-model="form.opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                    <select id="opd" v-model="form.opd_id" class="h-10 rounded-md border bg-background px-3 text-sm">
                         <option value="">Tanpa OPD</option>
                         <option v-for="opd in opdOptions" :key="opd.id" :value="opd.id">{{ opd.label }}</option>
                     </select>
                     <InputError :message="form.errors.opd_id" />
                 </div>
+
+                <div class="grid gap-2">
+                    <label class="text-sm font-medium" for="opd_unit">Unit / Sub-unit</label>
+                    <select
+                        id="opd_unit"
+                        v-model="form.opd_unit_id"
+                        class="h-10 rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                        :disabled="!form.opd_id || filteredOpdUnitOptions.length === 0"
+                    >
+                        <option value="">{{ form.opd_id ? 'Seluruh OPD' : 'Pilih OPD terlebih dahulu' }}</option>
+                        <option v-for="unit in filteredOpdUnitOptions" :key="unit.id" :value="unit.id">{{ unit.label }}</option>
+                    </select>
+                    <InputError :message="form.errors.opd_unit_id" />
+                </div>
+            </div>
+            <div v-if="form.opd_id" class="border-t bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                <span class="font-medium text-foreground">{{ selectedOpdLabel }}</span>
+                <span v-if="form.opd_unit_id"> dibatasi pada unit yang dipilih.</span>
+                <span v-else> berlaku untuk seluruh unit dalam OPD.</span>
             </div>
         </section>
 
