@@ -18,7 +18,7 @@ const user = page.props.auth.user as User;
 <template>
     <SidebarMenu>
         <SidebarMenuItem>
-            <DropdownMenu>
+            <DropdownMenu :modal="false">
                 <DropdownMenuTrigger as-child>
                     <SidebarMenuButton size="lg" class="app-sidebar-user-button data-[state=open]:bg-sidebar-accent">
                         <UserInfo :user="user" show-email />
@@ -26,7 +26,7 @@ const user = page.props.auth.user as User;
                     </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
-                    class="app-sidebar-user-dropdown w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-xl"
+                    class="app-sidebar-user-dropdown !z-[90] w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-xl"
                     side="top"
                     align="start"
                     :side-offset="8"

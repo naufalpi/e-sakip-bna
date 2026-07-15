@@ -298,6 +298,7 @@ html {
     }
 
     .app-sidebar-user-dropdown {
+        z-index: 90;
         max-width: min(16.5rem, calc(100vw - 1.5rem));
         border-color: rgb(203 213 225 / 0.9);
         background: rgb(255 255 255 / 0.98);
