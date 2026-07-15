@@ -25,7 +25,13 @@ const user = page.props.auth.user as User;
                         <ChevronsUpDown class="app-sidebar-user-chevron ml-auto size-4" />
                     </SidebarMenuButton>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg" side="bottom" align="end" :side-offset="4">
+                <DropdownMenuContent
+                    class="app-sidebar-user-dropdown w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-xl"
+                    side="top"
+                    align="start"
+                    :side-offset="8"
+                    :collision-padding="12"
+                >
                     <UserMenuContent :user="user" />
                 </DropdownMenuContent>
             </DropdownMenu>

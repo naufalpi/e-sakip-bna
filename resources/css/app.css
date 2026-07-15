@@ -297,6 +297,15 @@ html {
         color: rgb(100 116 139);
     }
 
+    .app-sidebar-user-dropdown {
+        max-width: min(16.5rem, calc(100vw - 1.5rem));
+        border-color: rgb(203 213 225 / 0.9);
+        background: rgb(255 255 255 / 0.98);
+        box-shadow:
+            0 1rem 2.5rem rgb(15 23 42 / 0.16),
+            inset 0 1px 0 rgb(255 255 255 / 0.72);
+    }
+
     .group[data-collapsible='icon'] .app-sidebar-admin [data-sidebar='sidebar'] {
         border-radius: 1rem;
     }
@@ -390,6 +399,12 @@ html {
     .app-sidebar-admin[data-sidebar='sidebar'][data-mobile='true'] .app-sidebar-content {
         min-height: 0;
         overflow-y: auto;
+    }
+
+    .app-sidebar-admin[data-sidebar='sidebar'][data-mobile='true'] .app-sidebar-footer {
+        position: relative;
+        z-index: 2;
+        background: linear-gradient(180deg, rgb(247 251 255 / 0.82), rgb(255 255 255 / 0.94));
     }
 
     .admin-main-shell {
@@ -923,6 +938,18 @@ html {
 
 .dark .app-sidebar-user-button .text-muted-foreground {
     color: rgb(148 163 184);
+}
+
+.dark .app-sidebar-user-dropdown {
+    border-color: rgb(51 65 85 / 0.9);
+    background: rgb(15 23 42 / 0.98);
+    box-shadow:
+        0 1rem 2.5rem rgb(0 0 0 / 0.36),
+        inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.dark .app-sidebar-admin[data-sidebar='sidebar'][data-mobile='true'] .app-sidebar-footer {
+    background: linear-gradient(180deg, rgb(15 23 42 / 0.78), rgb(8 13 24 / 0.94));
 }
 
 .dark .admin-main-shell {
