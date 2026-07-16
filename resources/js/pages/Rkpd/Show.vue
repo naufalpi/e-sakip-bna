@@ -157,6 +157,13 @@ watch(
     },
 );
 
+watch(
+    () => form.opd_id,
+    () => {
+        form.perangkat_daerah_penanggung_jawab = selectedOpd.value?.label ?? '';
+    },
+);
+
 const resetFilters = () => {
     filterForm.search = '';
     filterForm.status = '';
@@ -553,6 +560,7 @@ const formatMoney = (value?: number | string | null) => {
                         <label class="grid gap-1.5 lg:col-span-2">
                             <span class="text-sm font-medium">Perangkat Daerah Penanggung Jawab</span>
                             <input v-model="form.perangkat_daerah_penanggung_jawab" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                            <span class="text-xs text-muted-foreground">Otomatis mengikuti OPD Penanggung Jawab, tetapi tetap bisa diubah jika lintas OPD.</span>
                         </label>
                     </div>
                 </div>
