@@ -32,6 +32,10 @@ use App\Http\Controllers\Master\UrusanPemerintahanController;
 use App\Http\Controllers\Master\UserController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Perencanaan\PohonKinerjaController;
+use App\Http\Controllers\Perencanaan\RenjaOpdController;
+use App\Http\Controllers\Perencanaan\RenjaOpdItemController;
+use App\Http\Controllers\Perencanaan\RkpdController;
+use App\Http\Controllers\Perencanaan\RkpdItemController;
 use App\Http\Controllers\Perencanaan\TargetRevisionController;
 use App\Http\Controllers\Perencanaan\TargetTriwulanIndikatorController;
 use App\Http\Controllers\PublicSite\DokumenController as PublicDokumenController;
@@ -92,6 +96,17 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('target-triwulan-indikator', [TargetTriwulanIndikatorController::class, 'store'])->name('target-triwulan-indikator.store');
     Route::post('target-triwulan-indikator/bulk', [TargetTriwulanIndikatorController::class, 'bulkStore'])->name('target-triwulan-indikator.bulk-store');
     Route::delete('target-triwulan-indikator/{target}', [TargetTriwulanIndikatorController::class, 'destroy'])->name('target-triwulan-indikator.destroy');
+
+    Route::resource('rkpd', RkpdController::class);
+    Route::post('rkpd/{rkpd}/pull-renja', [RkpdItemController::class, 'pullRenja'])->name('rkpd.pull-renja');
+    Route::post('rkpd/{rkpd}/items', [RkpdItemController::class, 'store'])->name('rkpd.items.store');
+    Route::put('rkpd/{rkpd}/items/{item}', [RkpdItemController::class, 'update'])->name('rkpd.items.update');
+    Route::delete('rkpd/{rkpd}/items/{item}', [RkpdItemController::class, 'destroy'])->name('rkpd.items.destroy');
+
+    Route::resource('renja-opd', RenjaOpdController::class)->parameters(['renja-opd' => 'renja_opd']);
+    Route::post('renja-opd/{renja_opd}/items', [RenjaOpdItemController::class, 'store'])->name('renja-opd.items.store');
+    Route::put('renja-opd/{renja_opd}/items/{item}', [RenjaOpdItemController::class, 'update'])->name('renja-opd.items.update');
+    Route::delete('renja-opd/{renja_opd}/items/{item}', [RenjaOpdItemController::class, 'destroy'])->name('renja-opd.items.destroy');
 
     Route::resource('perjanjian-kinerja', PerjanjianKinerjaController::class);
     Route::post('perjanjian-kinerja/{perjanjian_kinerja}/export', [PerjanjianKinerjaController::class, 'export'])->name('perjanjian-kinerja.export');

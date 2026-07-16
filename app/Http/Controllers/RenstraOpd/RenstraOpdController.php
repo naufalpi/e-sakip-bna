@@ -12,17 +12,21 @@ use App\Models\IndikatorSasaranOpd;
 use App\Models\IndikatorSubKegiatan;
 use App\Models\IndikatorTujuanDaerah;
 use App\Models\IndikatorTujuanOpd;
+use App\Models\KegiatanPemerintahan;
 use App\Models\Opd;
 use App\Models\OpdKegiatan;
 use App\Models\OpdProgram;
 use App\Models\OpdSubKegiatan;
+use App\Models\OpdUnit;
 use App\Models\PeriodeTahun;
+use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
 use App\Models\RenstraOpd;
 use App\Models\Rpjmd;
 use App\Models\SasaranDaerah;
 use App\Models\SasaranOpd;
 use App\Models\SatuanIndikator;
+use App\Models\SubKegiatanPemerintahan;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
 use App\Models\User;
@@ -145,11 +149,16 @@ class RenstraOpdController extends Controller
             'tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
             'tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
-            'tujuan.sasaran.programs.programRpjmd:id,kode,nama',
+            'tujuan.sasaran.programs.programRpjmd:id,kode,nama,program_pemerintahan_id',
+            'tujuan.sasaran.programs.programRpjmd.programPemerintahan:id,kode,nama,bidang_urusan_id',
+            'tujuan.sasaran.programs.programPemerintahan:id,kode,nama,bidang_urusan_id',
             'tujuan.sasaran.programs.indikator.indikatorProgramRpjmd:id,kode,indikator',
             'tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
             'tujuan.sasaran.programs.indikator.targets.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'tujuan.sasaran.programs.kegiatan.kegiatanPemerintahan:id,kode,nama,program_pemerintahan_id',
+            'tujuan.sasaran.programs.kegiatan.subKegiatan.subKegiatanPemerintahan:id,kode,nama,kegiatan_pemerintahan_id',
+            'tujuan.sasaran.programs.kegiatan.subKegiatan.opdUnit:id,kode,nama,jenis_unit',
             'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.satuanIndikator:id,nama,simbol',
             'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
         ]);
@@ -159,6 +168,7 @@ class RenstraOpdController extends Controller
             'nodeOptions' => $manage ? $this->nodeOptions($renstraOpd) : [],
             'targetTriwulanOptions' => $manage ? $this->targetTriwulanOptions($renstraOpd) : [],
             'rpjmdReferenceOptions' => $manage ? $this->rpjmdReferenceOptions($renstraOpd->rpjmd_id) : [],
+            'masterReferenceOptions' => $manage ? $this->masterReferenceOptions($renstraOpd) : [],
             'periodeOptions' => $manage ? $this->periodeOptions() : [],
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
             'can' => [
@@ -354,8 +364,93 @@ class RenstraOpdController extends Controller
             'indikator_tujuan_daerah' => IndikatorTujuanDaerah::query()->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
             'sasaran_daerah' => SasaranDaerah::query()->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId))->orderBy('urutan')->get(['id', 'kode', 'sasaran'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all(),
             'indikator_sasaran_daerah' => IndikatorSasaranDaerah::query()->whereHas('sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'program_rpjmd' => ProgramRpjmd::query()->forRpjmd($rpjmdId)->orderBy('urutan')->get(['id', 'kode', 'nama'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->nama)])->values()->all(),
+            'program_rpjmd' => ProgramRpjmd::query()
+                ->forRpjmd($rpjmdId)
+                ->with('programPemerintahan:id,kode,nama,bidang_urusan_id')
+                ->orderBy('urutan')
+                ->get(['id', 'program_pemerintahan_id', 'kode', 'nama'])
+                ->map(fn (ProgramRpjmd $item) => [
+                    'id' => $item->id,
+                    'program_pemerintahan_id' => $item->program_pemerintahan_id,
+                    'label' => $this->nodeLabel($item->kode, $item->nama),
+                    'description' => $item->programPemerintahan ? $this->nodeLabel($item->programPemerintahan->kode, $item->programPemerintahan->nama) : null,
+                ])
+                ->values()
+                ->all(),
             'indikator_program_rpjmd' => IndikatorProgramRpjmd::query()->whereHas('program', fn (Builder $query) => $query->forRpjmd($rpjmdId))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function masterReferenceOptions(RenstraOpd $renstra): array
+    {
+        return [
+            'program_pemerintahan' => ProgramPemerintahan::query()
+                ->with('bidangUrusan.urusanPemerintahan:id,kode,nama')
+                ->where('status', 'active')
+                ->orderBy('kode')
+                ->get(['id', 'bidang_urusan_id', 'kode', 'nama'])
+                ->map(fn (ProgramPemerintahan $program) => [
+                    'id' => $program->id,
+                    'kode' => $program->kode,
+                    'nama' => $program->nama,
+                    'bidang_urusan_id' => $program->bidang_urusan_id,
+                    'label' => $this->nodeLabel($program->kode, $program->nama),
+                    'description' => $program->bidangUrusan ? $this->nodeLabel($program->bidangUrusan->kode, $program->bidangUrusan->nama) : null,
+                    'group' => $program->bidangUrusan?->urusanPemerintahan ? $this->nodeLabel($program->bidangUrusan->urusanPemerintahan->kode, $program->bidangUrusan->urusanPemerintahan->nama) : null,
+                ])
+                ->values()
+                ->all(),
+            'kegiatan_pemerintahan' => KegiatanPemerintahan::query()
+                ->with('programPemerintahan:id,kode,nama,bidang_urusan_id')
+                ->where('status', 'active')
+                ->orderBy('kode')
+                ->get(['id', 'program_pemerintahan_id', 'kode', 'nama'])
+                ->map(fn (KegiatanPemerintahan $kegiatan) => [
+                    'id' => $kegiatan->id,
+                    'kode' => $kegiatan->kode,
+                    'nama' => $kegiatan->nama,
+                    'program_pemerintahan_id' => $kegiatan->program_pemerintahan_id,
+                    'label' => $this->nodeLabel($kegiatan->kode, $kegiatan->nama),
+                    'description' => $kegiatan->programPemerintahan ? $this->nodeLabel($kegiatan->programPemerintahan->kode, $kegiatan->programPemerintahan->nama) : null,
+                    'group' => $kegiatan->programPemerintahan ? $this->nodeLabel($kegiatan->programPemerintahan->kode, $kegiatan->programPemerintahan->nama) : null,
+                ])
+                ->values()
+                ->all(),
+            'sub_kegiatan_pemerintahan' => SubKegiatanPemerintahan::query()
+                ->with('kegiatanPemerintahan.programPemerintahan:id,kode,nama,bidang_urusan_id')
+                ->where('status', 'active')
+                ->orderBy('kode')
+                ->get(['id', 'kegiatan_pemerintahan_id', 'kode', 'nama'])
+                ->map(fn (SubKegiatanPemerintahan $subKegiatan) => [
+                    'id' => $subKegiatan->id,
+                    'kode' => $subKegiatan->kode,
+                    'nama' => $subKegiatan->nama,
+                    'kegiatan_pemerintahan_id' => $subKegiatan->kegiatan_pemerintahan_id,
+                    'program_pemerintahan_id' => $subKegiatan->kegiatanPemerintahan?->program_pemerintahan_id,
+                    'label' => $this->nodeLabel($subKegiatan->kode, $subKegiatan->nama),
+                    'description' => $subKegiatan->kegiatanPemerintahan ? $this->nodeLabel($subKegiatan->kegiatanPemerintahan->kode, $subKegiatan->kegiatanPemerintahan->nama) : null,
+                    'group' => $subKegiatan->kegiatanPemerintahan?->programPemerintahan ? $this->nodeLabel($subKegiatan->kegiatanPemerintahan->programPemerintahan->kode, $subKegiatan->kegiatanPemerintahan->programPemerintahan->nama) : null,
+                ])
+                ->values()
+                ->all(),
+            'opd_units' => OpdUnit::query()
+                ->where('opd_id', $renstra->opd_id)
+                ->where('status', 'active')
+                ->orderBy('kode')
+                ->get(['id', 'kode', 'nama', 'jenis_unit'])
+                ->map(fn (OpdUnit $unit) => [
+                    'id' => $unit->id,
+                    'kode' => $unit->kode,
+                    'nama' => $unit->nama,
+                    'jenis_unit' => $unit->jenis_unit,
+                    'label' => $this->nodeLabel($unit->kode, $unit->nama),
+                    'description' => $unit->jenis_unit,
+                ])
+                ->values()
+                ->all(),
         ];
     }
 
@@ -421,6 +516,7 @@ class RenstraOpdController extends Controller
                     'programs' => $sasaran->programs->map(fn (OpdProgram $program) => [
                         'id' => $program->id,
                         'program_rpjmd_id' => $program->program_rpjmd_id,
+                        'program_pemerintahan_id' => $program->program_pemerintahan_id,
                         'kode' => $program->kode,
                         'nama' => $program->nama,
                         'pagu_indikatif' => $program->pagu_indikatif,
@@ -430,20 +526,43 @@ class RenstraOpdController extends Controller
                         'program_rpjmd' => $program->programRpjmd ? [
                             'kode' => $program->programRpjmd->kode,
                             'nama' => $program->programRpjmd->nama,
+                            'program_pemerintahan_id' => $program->programRpjmd->program_pemerintahan_id,
+                        ] : null,
+                        'program_pemerintahan' => $program->programPemerintahan ? [
+                            'kode' => $program->programPemerintahan->kode,
+                            'nama' => $program->programPemerintahan->nama,
                         ] : null,
                         'indikator' => $program->indikator->map(fn (IndikatorOpdProgram $indikator) => $this->serializeIndikator($indikator, 'indikatorProgramRpjmd')),
                         'kegiatan' => $program->kegiatan->map(fn (OpdKegiatan $kegiatan) => [
                             'id' => $kegiatan->id,
+                            'kegiatan_pemerintahan_id' => $kegiatan->kegiatan_pemerintahan_id,
                             'kode' => $kegiatan->kode,
                             'nama' => $kegiatan->nama,
                             'pagu_indikatif' => $kegiatan->pagu_indikatif,
                             'urutan' => $kegiatan->urutan,
+                            'kegiatan_pemerintahan' => $kegiatan->kegiatanPemerintahan ? [
+                                'kode' => $kegiatan->kegiatanPemerintahan->kode,
+                                'nama' => $kegiatan->kegiatanPemerintahan->nama,
+                                'program_pemerintahan_id' => $kegiatan->kegiatanPemerintahan->program_pemerintahan_id,
+                            ] : null,
                             'sub_kegiatan' => $kegiatan->subKegiatan->map(fn (OpdSubKegiatan $subKegiatan) => [
                                 'id' => $subKegiatan->id,
+                                'sub_kegiatan_pemerintahan_id' => $subKegiatan->sub_kegiatan_pemerintahan_id,
+                                'opd_unit_id' => $subKegiatan->opd_unit_id,
                                 'kode' => $subKegiatan->kode,
                                 'nama' => $subKegiatan->nama,
                                 'pagu_indikatif' => $subKegiatan->pagu_indikatif,
                                 'urutan' => $subKegiatan->urutan,
+                                'sub_kegiatan_pemerintahan' => $subKegiatan->subKegiatanPemerintahan ? [
+                                    'kode' => $subKegiatan->subKegiatanPemerintahan->kode,
+                                    'nama' => $subKegiatan->subKegiatanPemerintahan->nama,
+                                    'kegiatan_pemerintahan_id' => $subKegiatan->subKegiatanPemerintahan->kegiatan_pemerintahan_id,
+                                ] : null,
+                                'opd_unit' => $subKegiatan->opdUnit ? [
+                                    'kode' => $subKegiatan->opdUnit->kode,
+                                    'nama' => $subKegiatan->opdUnit->nama,
+                                    'jenis_unit' => $subKegiatan->opdUnit->jenis_unit,
+                                ] : null,
                                 'indikator' => $subKegiatan->indikator->map(fn (IndikatorSubKegiatan $indikator) => [
                                     'id' => $indikator->id,
                                     'satuan_indikator_id' => $indikator->satuan_indikator_id,

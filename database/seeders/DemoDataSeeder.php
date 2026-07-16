@@ -960,11 +960,18 @@ class DemoDataSeeder extends Seeder
 
     private function seedAnnualTargets(Model $indicator, string $foreignKey, string $table, PeriodeTahun $periode, float $baseTarget, string $targetText, ?float $pagu = null): void
     {
-        foreach (range(0, 4) as $offset) {
+        $isRpjmdTargetTable = in_array($table, [
+            'target_indikator_tujuan_daerah',
+            'target_indikator_sasaran_daerah',
+            'target_indikator_program_rpjmd',
+        ], true);
+
+        foreach (range(0, $isRpjmdTargetTable ? 5 : 4) as $offset) {
             $target = $baseTarget + ($offset * 1.5);
             DB::table($table)->updateOrInsert(
                 [$foreignKey => $indicator->getKey(), 'periode_tahun_id' => $this->periodeByYear($periode->tahun + $offset)->id],
                 [
+                    ...($isRpjmdTargetTable ? ['jenis_target' => $offset > 4 ? 'prakiraan_maju' : 'tahunan'] : []),
                     'target' => $target,
                     'target_text' => str_contains($targetText, '%') ? ((int) round($target)).'%' : $targetText,
                     ...($pagu !== null ? ['pagu' => $pagu + ($offset * 250000000)] : []),

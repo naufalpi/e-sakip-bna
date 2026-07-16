@@ -140,6 +140,7 @@ class RpjmdController extends Controller
             'nodeOptions' => $nodeOptions,
             'targetTriwulanOptions' => $manage ? $this->targetTriwulanOptions($nodeOptions) : [],
             'periodeOptions' => $manage ? $this->periodeOptions() : [],
+            'targetPeriodOptions' => $this->targetPeriodOptions($rpjmd),
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
             'opdOptions' => $manage ? $this->opdOptions() : [],
             'urusanOptions' => $manage ? $this->urusanOptions() : [],
@@ -201,7 +202,32 @@ class RpjmdController extends Controller
             ->get(['id', 'tahun', 'nama', 'status'])
             ->map(fn (PeriodeTahun $periode) => [
                 'id' => $periode->id,
+                'tahun' => $periode->tahun,
                 'label' => "{$periode->tahun} - {$periode->nama}",
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function targetPeriodOptions(Rpjmd $rpjmd): array
+    {
+        return PeriodeTahun::query()
+            ->whereBetween('tahun', [$rpjmd->tahun_awal, $rpjmd->tahun_akhir + 1])
+            ->orderBy('tahun')
+            ->get(['id', 'tahun', 'nama', 'status'])
+            ->map(fn (PeriodeTahun $periode) => [
+                'id' => $periode->id,
+                'tahun' => $periode->tahun,
+                'label' => $periode->tahun > $rpjmd->tahun_akhir
+                    ? "{$periode->tahun} - Prakiraan Maju"
+                    : "{$periode->tahun} - {$periode->nama}",
+                'description' => $periode->tahun > $rpjmd->tahun_akhir
+                    ? 'Tahun transisi setelah periode RPJMD'
+                    : 'Target tahunan RPJMD',
+                'group' => $periode->tahun > $rpjmd->tahun_akhir ? 'Prakiraan Maju' : 'Target RPJMD',
+                'jenis_target' => $periode->tahun > $rpjmd->tahun_akhir ? 'prakiraan_maju' : 'tahunan',
             ])
             ->all();
     }
@@ -668,6 +694,7 @@ class RpjmdController extends Controller
                     'tahun' => $target->periodeTahun->tahun,
                     'nama' => $target->periodeTahun->nama,
                 ],
+                'jenis_target' => $target->jenis_target ?? 'tahunan',
                 'target' => $target->target,
                 'target_text' => $target->target_text,
             ]) : collect(),

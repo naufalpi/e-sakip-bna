@@ -41,8 +41,10 @@ const emit = defineEmits<{
 const isOpen = ref(false);
 const openUpwards = ref(false);
 const root = ref<HTMLElement | null>(null);
+const panel = ref<HTMLElement | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
+const dropdownStyle = ref<Record<string, string>>({});
 
 const optionValue = (option: SelectOption): SelectValue => option.value ?? option.id ?? '';
 const sameValue = (left: SelectValue, right: SelectValue) => String(left ?? '') === String(right ?? '');
@@ -76,6 +78,43 @@ const close = () => {
     searchQuery.value = '';
 };
 
+const updateDropdownPosition = (force = false) => {
+    if (!force && !isOpen.value) {
+        return;
+    }
+
+    const rect = root.value?.getBoundingClientRect();
+
+    if (!rect) {
+        return;
+    }
+
+    const margin = 12;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const panelMaxHeight = Math.min(420, viewportHeight - margin * 2);
+    const panelWidth = Math.min(Math.max(rect.width, 320), viewportWidth - margin * 2);
+    const left = Math.min(Math.max(rect.left, margin), viewportWidth - panelWidth - margin);
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    if (props.placement === 'bottom') {
+        openUpwards.value = false;
+    } else if (props.placement === 'top') {
+        openUpwards.value = true;
+    } else {
+        openUpwards.value = spaceBelow < Math.min(320, panelMaxHeight) && spaceAbove > spaceBelow;
+    }
+
+    dropdownStyle.value = {
+        left: `${left}px`,
+        top: openUpwards.value ? 'auto' : `${Math.min(rect.bottom + 8, viewportHeight - panelMaxHeight - margin)}px`,
+        bottom: openUpwards.value ? `${Math.min(viewportHeight - rect.top + 8, viewportHeight - margin)}px` : 'auto',
+        width: `${panelWidth}px`,
+        maxHeight: `${panelMaxHeight}px`,
+    };
+};
+
 const selectOption = (option: SelectOption) => {
     if (option.disabled) {
         return;
@@ -91,35 +130,25 @@ const toggleOpen = () => {
     }
 
     if (!isOpen.value) {
-        if (props.placement === 'bottom') {
-            openUpwards.value = false;
-        } else if (props.placement === 'top') {
-            openUpwards.value = true;
-        } else {
-            const rect = root.value?.getBoundingClientRect();
-
-            if (!rect) {
-                openUpwards.value = false;
-                return;
-            }
-
-            const spaceBelow = window.innerHeight - rect.bottom;
-            const spaceAbove = rect.top;
-            openUpwards.value = spaceBelow < 280 && spaceAbove > spaceBelow;
-        }
+        updateDropdownPosition(true);
     }
 
     isOpen.value = !isOpen.value;
 
     if (isOpen.value) {
-        nextTick(() => searchInput.value?.focus());
+        nextTick(() => {
+            updateDropdownPosition(true);
+            searchInput.value?.focus();
+        });
     } else {
         searchQuery.value = '';
     }
 };
 
 const handleDocumentClick = (event: MouseEvent) => {
-    if (!root.value?.contains(event.target as Node)) {
+    const target = event.target as Node;
+
+    if (!root.value?.contains(target) && !panel.value?.contains(target)) {
         close();
     }
 };
@@ -133,11 +162,15 @@ const handleKeydown = (event: KeyboardEvent) => {
 onMounted(() => {
     document.addEventListener('click', handleDocumentClick);
     document.addEventListener('keydown', handleKeydown);
+    window.addEventListener('resize', updateDropdownPosition);
+    window.addEventListener('scroll', updateDropdownPosition, true);
 });
 
 onBeforeUnmount(() => {
     document.removeEventListener('click', handleDocumentClick);
     document.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('resize', updateDropdownPosition);
+    window.removeEventListener('scroll', updateDropdownPosition, true);
 });
 </script>
 
@@ -172,19 +205,21 @@ onBeforeUnmount(() => {
             </span>
         </button>
 
-        <Transition
-            enter-active-class="transition duration-150 ease-out"
-            enter-from-class="-translate-y-1 opacity-0"
-            enter-to-class="translate-y-0 opacity-100"
-            leave-active-class="transition duration-100 ease-in"
-            leave-from-class="translate-y-0 opacity-100"
-            leave-to-class="-translate-y-1 opacity-0"
-        >
-            <div
-                v-if="isOpen"
-                class="absolute left-0 z-50 flex max-h-[min(420px,calc(100vh-32px))] w-full min-w-0 max-w-[min(42rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.14)]"
-                :class="openUpwards ? 'bottom-full mb-2' : 'top-full mt-2'"
+        <Teleport to="body">
+            <Transition
+                enter-active-class="transition duration-150 ease-out"
+                enter-from-class="-translate-y-1 opacity-0"
+                enter-to-class="translate-y-0 opacity-100"
+                leave-active-class="transition duration-100 ease-in"
+                leave-from-class="translate-y-0 opacity-100"
+                leave-to-class="-translate-y-1 opacity-0"
             >
+                <div
+                    v-if="isOpen"
+                    ref="panel"
+                    class="fixed z-[9999] flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.14)]"
+                    :style="dropdownStyle"
+                >
                 <div v-if="options.length" class="border-b border-slate-100 p-2">
                     <div class="relative">
                         <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -267,7 +302,8 @@ onBeforeUnmount(() => {
                         </button>
                     </div>
                 </div>
-            </div>
-        </Transition>
+                </div>
+            </Transition>
+        </Teleport>
     </div>
 </template>

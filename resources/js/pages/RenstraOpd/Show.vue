@@ -1,16 +1,14 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
+import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     ArrowLeft,
-    CheckCircle2,
-    CircleDot,
     ClipboardList,
     FileText,
-    GitBranch,
     Layers3,
     Link2,
     Network,
@@ -20,11 +18,24 @@ import {
     Table2,
     Target,
     Trash2,
-    WalletCards,
 } from 'lucide-vue-next';
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 
-type Option = { id: number; label: string };
+type Option = {
+    id: number | string;
+    label: string;
+    description?: string | null;
+    badge?: string | number | null;
+    group?: string | null;
+    disabled?: boolean;
+    kode?: string | null;
+    nama?: string | null;
+    program_pemerintahan_id?: number | null;
+    kegiatan_pemerintahan_id?: number | null;
+    sub_kegiatan_pemerintahan_id?: number | null;
+    bidang_urusan_id?: number | null;
+    jenis_unit?: string | null;
+};
 type NodeType =
     | 'tujuan'
     | 'indikator_tujuan'
@@ -76,19 +87,25 @@ type Indikator = {
 
 type SubKegiatan = {
     id: number;
+    sub_kegiatan_pemerintahan_id?: number | null;
+    opd_unit_id?: number | null;
     kode?: string | null;
     nama: string;
     pagu_indikatif?: string | number | null;
     urutan?: number | null;
+    sub_kegiatan_pemerintahan?: { kode: string; nama: string; kegiatan_pemerintahan_id?: number | null } | null;
+    opd_unit?: { kode: string; nama: string; jenis_unit?: string | null } | null;
     indikator: Indikator[];
 };
 
 type Kegiatan = {
     id: number;
+    kegiatan_pemerintahan_id?: number | null;
     kode?: string | null;
     nama: string;
     pagu_indikatif?: string | number | null;
     urutan?: number | null;
+    kegiatan_pemerintahan?: { kode: string; nama: string; program_pemerintahan_id?: number | null } | null;
     sub_kegiatan: SubKegiatan[];
 };
 
@@ -98,8 +115,11 @@ type Program = {
     nama: string;
     pagu_indikatif?: string | number | null;
     program_rpjmd_id?: number | null;
+    program_pemerintahan_id?: number | null;
     urutan?: number | null;
     linked: boolean;
+    program_rpjmd?: { kode: string; nama: string; program_pemerintahan_id?: number | null } | null;
+    program_pemerintahan?: { kode: string; nama: string } | null;
     indikator: Indikator[];
     kegiatan: Kegiatan[];
 };
@@ -181,6 +201,10 @@ type BulkRow = {
     urutan: number | string;
     reference_field: string;
     reference_value: number | string;
+    program_pemerintahan_id: number | string;
+    kegiatan_pemerintahan_id: number | string;
+    sub_kegiatan_pemerintahan_id: number | string;
+    opd_unit_id: number | string;
     saveState: BulkSaveState;
     savedAt: string;
     error: string;
@@ -203,6 +227,7 @@ const props = defineProps<{
     renstra: Renstra;
     nodeOptions: Record<string, Option[]>;
     rpjmdReferenceOptions: Record<string, Option[]>;
+    masterReferenceOptions: Record<string, Option[]>;
     targetTriwulanOptions: Record<string, Option[]>;
     periodeOptions: Option[];
     satuanOptions: Option[];
@@ -265,6 +290,10 @@ const form = useForm({
     indikator_sasaran_daerah_id: '' as number | string,
     program_rpjmd_id: '' as number | string,
     indikator_program_rpjmd_id: '' as number | string,
+    program_pemerintahan_id: '' as number | string,
+    kegiatan_pemerintahan_id: '' as number | string,
+    sub_kegiatan_pemerintahan_id: '' as number | string,
+    opd_unit_id: '' as number | string,
     kode: '',
     uraian: '',
     indikator: '',
@@ -300,10 +329,17 @@ const parentKey = computed(() => parentKeyByType[form.type]);
 const parentOptions = computed(() => (parentKey.value ? (props.nodeOptions[parentKey.value] ?? []) : []));
 const parentLabel = computed(() => (parentKey.value ? (parentLabels[parentKey.value] ?? 'Induk Data') : 'Induk Data'));
 const needsParent = computed(() => Boolean(parentKey.value));
+const programMasterOptions = computed(() => props.masterReferenceOptions.program_pemerintahan ?? []);
+const opdUnitOptions = computed(() => props.masterReferenceOptions.opd_units ?? []);
+const withEmptyOption = (options: Option[], label = 'Tidak dipilih'): Option[] => [{ id: '', label }, ...options];
 const isIndicatorType = computed(() => ['indikator_tujuan', 'indikator_sasaran', 'indikator_program', 'indikator_sub_kegiatan'].includes(form.type));
 const isTargetType = computed(() => ['target_tujuan', 'target_sasaran', 'target_program'].includes(form.type));
 const isTextNodeType = computed(() => ['tujuan', 'sasaran', 'program', 'kegiatan', 'sub_kegiatan'].includes(form.type));
 const hasPaguIndikatif = computed(() => ['program', 'kegiatan', 'sub_kegiatan'].includes(form.type));
+const usesMasterReference = computed(() => ['program', 'kegiatan', 'sub_kegiatan'].includes(form.type));
+const hasSelectedMasterReference = computed(() =>
+    Boolean(form.program_pemerintahan_id || form.kegiatan_pemerintahan_id || form.sub_kegiatan_pemerintahan_id),
+);
 const targetTriwulanTypeOptions = [
     { value: 'indikator_tujuan_opd', label: 'Indikator Tujuan OPD' },
     { value: 'indikator_sasaran_opd', label: 'Indikator Sasaran OPD' },
@@ -320,20 +356,6 @@ const bulkLastSavedAt = ref('');
 const bulkDraftCounter = ref(0);
 
 const typeOptionMap = computed(() => new Map(typeOptions.map((option) => [option.value, option])));
-const typeGroups: Array<{ label: string; helper: string; icon: unknown; items: NodeType[] }> = [
-    {
-        label: 'Arah Kinerja',
-        helper: 'Mulai dari tujuan, sasaran, indikator, dan target tahunan.',
-        icon: GitBranch,
-        items: ['tujuan', 'indikator_tujuan', 'target_tujuan', 'sasaran', 'indikator_sasaran', 'target_sasaran'],
-    },
-    {
-        label: 'Program dan Anggaran',
-        helper: 'Turunkan sasaran menjadi program, kegiatan, sub kegiatan, dan pagu.',
-        icon: WalletCards,
-        items: ['program', 'indikator_program', 'target_program', 'kegiatan', 'sub_kegiatan', 'indikator_sub_kegiatan'],
-    },
-];
 const typeMeta: Record<NodeType, { stage: string; helper: string; primaryField: string }> = {
     tujuan: {
         stage: 'Level 1',
@@ -397,17 +419,29 @@ const typeMeta: Record<NodeType, { stage: string; helper: string; primaryField: 
     },
 };
 const selectedTypeMeta = computed(() => typeMeta[form.type]);
-const parentRequirementText = computed(() => {
-    if (!needsParent.value) {
-        return 'Tidak memerlukan induk.';
-    }
-
-    if (parentOptions.value.length === 0) {
-        return `${parentLabel.value} belum tersedia. Buat data induknya terlebih dahulu.`;
-    }
-
-    return `Pilih ${parentLabel.value.toLowerCase()} agar data tersimpan pada posisi cascading yang benar.`;
-});
+const typeSelectOptions = computed<Option[]>(() =>
+    typeOptions.map((option) => ({
+        id: option.value,
+        label: option.label,
+        description: typeMeta[option.value].primaryField,
+        group: ['tujuan', 'indikator_tujuan', 'target_tujuan', 'sasaran', 'indikator_sasaran', 'target_sasaran'].includes(option.value)
+            ? 'Arah Kinerja'
+            : 'Program dan Kegiatan',
+    })),
+);
+const parentSelectOptions = computed<Option[]>(() => parentOptions.value);
+const tujuanDaerahSelectOptions = computed(() => withEmptyOption(props.rpjmdReferenceOptions.tujuan_daerah ?? [], 'Tidak dihubungkan'));
+const indikatorTujuanDaerahSelectOptions = computed(() =>
+    withEmptyOption(props.rpjmdReferenceOptions.indikator_tujuan_daerah ?? [], 'Tidak dihubungkan'),
+);
+const sasaranDaerahSelectOptions = computed(() => withEmptyOption(props.rpjmdReferenceOptions.sasaran_daerah ?? [], 'Tidak dihubungkan'));
+const indikatorSasaranDaerahSelectOptions = computed(() =>
+    withEmptyOption(props.rpjmdReferenceOptions.indikator_sasaran_daerah ?? [], 'Tidak dihubungkan'),
+);
+const indikatorProgramRpjmdSelectOptions = computed(() =>
+    withEmptyOption(props.rpjmdReferenceOptions.indikator_program_rpjmd ?? [], 'Tidak dihubungkan'),
+);
+const formModeLabel = computed(() => (editingNode.value ? 'Edit data' : 'Tambah data'));
 const contentRequirementText = computed(() => {
     if (isTextNodeType.value) {
         return `${selectedTypeMeta.value.primaryField} wajib diisi.`;
@@ -419,23 +453,17 @@ const contentRequirementText = computed(() => {
 
     return 'Pilih periode dan isi target angka atau target teks.';
 });
-const nodeFormChecklist = computed(() => [
-    {
-        label: 'Jenis data',
-        complete: Boolean(form.type),
-    },
-    {
-        label: 'Induk cascading',
-        complete: !needsParent.value || Boolean(form.parent_id),
-    },
-    {
-        label: selectedTypeMeta.value.primaryField,
-        complete:
-            (isTextNodeType.value && Boolean(form.uraian)) ||
-            (isIndicatorType.value && Boolean(form.indikator)) ||
-            (isTargetType.value && Boolean(form.periode_tahun_id) && Boolean(form.target || form.target_text)),
-    },
-]);
+const onTypeSelected = (value: number | string | null | undefined) => {
+    if (typeof value !== 'string') {
+        return;
+    }
+
+    if (!typeOptionMap.value.has(value as NodeType)) {
+        return;
+    }
+
+    selectNodeType(value as NodeType);
+};
 
 const trimText = (value: string) => value.replace(/\s+/g, ' ').trim();
 const nodeText = (kode: string | null | undefined, text: string | null | undefined) => trimText(`${kode ? `${kode} - ` : ''}${text ?? ''}`) || '-';
@@ -458,6 +486,113 @@ const targetTriwulanSummary = (items: Indikator[]) =>
             ),
         ),
     );
+
+const toNumberOrNull = (value: number | string | null | undefined): number | null => {
+    if (value === null || value === undefined || value === '') {
+        return null;
+    }
+
+    const parsed = Number(value);
+
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+const optionById = (options: Option[], value: number | string | null | undefined): Option | null => {
+    const id = toNumberOrNull(value);
+
+    if (!id) {
+        return null;
+    }
+
+    return options.find((option) => Number(option.id) === id) ?? null;
+};
+
+const findProgram = (id: number | string | null | undefined): Program | null => {
+    const programId = toNumberOrNull(id);
+
+    if (!programId) {
+        return null;
+    }
+
+    for (const tujuan of props.renstra.tujuan) {
+        for (const sasaran of tujuan.sasaran) {
+            const program = sasaran.programs.find((item) => Number(item.id) === programId);
+
+            if (program) {
+                return program;
+            }
+        }
+    }
+
+    return null;
+};
+
+const findKegiatan = (id: number | string | null | undefined): Kegiatan | null => {
+    const kegiatanId = toNumberOrNull(id);
+
+    if (!kegiatanId) {
+        return null;
+    }
+
+    for (const tujuan of props.renstra.tujuan) {
+        for (const sasaran of tujuan.sasaran) {
+            for (const program of sasaran.programs) {
+                const kegiatan = program.kegiatan.find((item) => Number(item.id) === kegiatanId);
+
+                if (kegiatan) {
+                    return kegiatan;
+                }
+            }
+        }
+    }
+
+    return null;
+};
+
+const selectedProgramRpjmd = computed(() => optionById(props.rpjmdReferenceOptions.program_rpjmd ?? [], form.program_rpjmd_id));
+const selectedProgramMaster = computed(() => optionById(programMasterOptions.value, form.program_pemerintahan_id));
+const selectedKegiatanMaster = computed(() =>
+    optionById(props.masterReferenceOptions.kegiatan_pemerintahan ?? [], form.kegiatan_pemerintahan_id),
+);
+const selectedSubKegiatanMaster = computed(() =>
+    optionById(props.masterReferenceOptions.sub_kegiatan_pemerintahan ?? [], form.sub_kegiatan_pemerintahan_id),
+);
+const selectedParentProgram = computed(() => (form.type === 'kegiatan' ? findProgram(form.parent_id) : null));
+const selectedParentKegiatan = computed(() => (form.type === 'sub_kegiatan' ? findKegiatan(form.parent_id) : null));
+const selectedProgramMasterId = computed(() =>
+    toNumberOrNull(form.program_pemerintahan_id) ??
+    toNumberOrNull(selectedProgramRpjmd.value?.program_pemerintahan_id) ??
+    toNumberOrNull(selectedParentProgram.value?.program_pemerintahan_id),
+);
+const selectedKegiatanMasterId = computed(() => toNumberOrNull(selectedParentKegiatan.value?.kegiatan_pemerintahan_id));
+const kegiatanMasterOptions = computed(() => {
+    const options = props.masterReferenceOptions.kegiatan_pemerintahan ?? [];
+    const programId = selectedProgramMasterId.value;
+
+    if (!programId) {
+        return options;
+    }
+
+    return options.filter((option) => Number(option.program_pemerintahan_id) === programId);
+});
+const subKegiatanMasterOptions = computed(() => {
+    const options = props.masterReferenceOptions.sub_kegiatan_pemerintahan ?? [];
+    const kegiatanId = selectedKegiatanMasterId.value;
+
+    if (!kegiatanId) {
+        return options;
+    }
+
+    return options.filter((option) => Number(option.kegiatan_pemerintahan_id) === kegiatanId);
+});
+const programRpjmdSelectOptions = computed(() => withEmptyOption(props.rpjmdReferenceOptions.program_rpjmd ?? [], 'Tidak dihubungkan'));
+const programMasterSelectOptions = computed(() => withEmptyOption(programMasterOptions.value, 'Tidak memakai master'));
+const kegiatanMasterSelectOptions = computed(() => withEmptyOption(kegiatanMasterOptions.value, 'Tidak memakai master'));
+const subKegiatanMasterSelectOptions = computed(() => withEmptyOption(subKegiatanMasterOptions.value, 'Tidak memakai master'));
+const opdUnitSelectOptions = computed(() => withEmptyOption(opdUnitOptions.value, 'Tidak ditentukan'));
+const satuanSelectOptions = computed(() => withEmptyOption(props.satuanOptions, 'Pilih satuan'));
+const periodeSelectOptions = computed(() => withEmptyOption(props.periodeOptions, 'Pilih periode'));
+const selectedTargetTriwulanSelectOptions = computed(() => withEmptyOption(selectedTargetTriwulanOptions.value, 'Pilih indikator'));
 
 const renstraSummary = computed(() => {
     const summary = {
@@ -706,6 +841,10 @@ function makeBulkRow(values: Partial<BulkRow> & { id?: number | null; type: Node
         urutan: 1,
         reference_field: '',
         reference_value: '',
+        program_pemerintahan_id: '',
+        kegiatan_pemerintahan_id: '',
+        sub_kegiatan_pemerintahan_id: '',
+        opd_unit_id: '',
         saveState: 'idle',
         savedAt: '',
         error: '',
@@ -830,6 +969,7 @@ function buildBulkRows(): BulkRow[] {
                         kode: valueText(program.kode),
                         uraian: valueText(program.nama),
                         pagu_indikatif: valueText(program.pagu_indikatif),
+                        program_pemerintahan_id: valueText(program.program_pemerintahan_id),
                         urutan: program.urutan ?? 1,
                         reference_field: 'program_rpjmd_id',
                         reference_value: valueText(program.program_rpjmd_id),
@@ -884,6 +1024,7 @@ function buildBulkRows(): BulkRow[] {
                             kode: valueText(kegiatan.kode),
                             uraian: valueText(kegiatan.nama),
                             pagu_indikatif: valueText(kegiatan.pagu_indikatif),
+                            kegiatan_pemerintahan_id: valueText(kegiatan.kegiatan_pemerintahan_id),
                             urutan: kegiatan.urutan ?? 1,
                         }),
                     );
@@ -899,6 +1040,8 @@ function buildBulkRows(): BulkRow[] {
                                 kode: valueText(subKegiatan.kode),
                                 uraian: valueText(subKegiatan.nama),
                                 pagu_indikatif: valueText(subKegiatan.pagu_indikatif),
+                                sub_kegiatan_pemerintahan_id: valueText(subKegiatan.sub_kegiatan_pemerintahan_id),
+                                opd_unit_id: valueText(subKegiatan.opd_unit_id),
                                 urutan: subKegiatan.urutan ?? 1,
                             }),
                         );
@@ -940,6 +1083,10 @@ const clearNodeForm = () => {
     form.indikator_sasaran_daerah_id = '';
     form.program_rpjmd_id = '';
     form.indikator_program_rpjmd_id = '';
+    form.program_pemerintahan_id = '';
+    form.kegiatan_pemerintahan_id = '';
+    form.sub_kegiatan_pemerintahan_id = '';
+    form.opd_unit_id = '';
     form.kode = '';
     form.uraian = '';
     form.indikator = '';
@@ -1027,6 +1174,122 @@ const bulkReferenceOptions = (row: BulkRow): Option[] => {
     const referenceKey = row.reference_field.replace('_id', '');
 
     return props.rpjmdReferenceOptions[referenceKey] ?? [];
+};
+
+const bulkProgramRow = (id: number | string | null | undefined): BulkRow | null => {
+    const programId = toNumberOrNull(id);
+
+    if (!programId) {
+        return null;
+    }
+
+    return bulkRows.value.find((row) => row.type === 'program' && Number(row.id) === programId) ?? null;
+};
+
+const bulkKegiatanRow = (id: number | string | null | undefined): BulkRow | null => {
+    const kegiatanId = toNumberOrNull(id);
+
+    if (!kegiatanId) {
+        return null;
+    }
+
+    return bulkRows.value.find((row) => row.type === 'kegiatan' && Number(row.id) === kegiatanId) ?? null;
+};
+
+const programMasterIdForBulkRow = (row: BulkRow): number | null => {
+    if (row.type === 'program') {
+        const programRpjmd = optionById(props.rpjmdReferenceOptions.program_rpjmd ?? [], row.reference_value);
+
+        return toNumberOrNull(row.program_pemerintahan_id) ?? toNumberOrNull(programRpjmd?.program_pemerintahan_id);
+    }
+
+    const parentBulk = bulkProgramRow(row.parent_id);
+    const parentSaved = findProgram(row.parent_id);
+
+    return toNumberOrNull(parentBulk?.program_pemerintahan_id) ?? toNumberOrNull(parentSaved?.program_pemerintahan_id);
+};
+
+const kegiatanMasterIdForBulkRow = (row: BulkRow): number | null => {
+    const parentBulk = bulkKegiatanRow(row.parent_id);
+    const parentSaved = findKegiatan(row.parent_id);
+
+    return toNumberOrNull(parentBulk?.kegiatan_pemerintahan_id) ?? toNumberOrNull(parentSaved?.kegiatan_pemerintahan_id);
+};
+
+const bulkProgramMasterOptions = () => programMasterOptions.value;
+const bulkKegiatanMasterOptions = (row: BulkRow) => {
+    const programId = programMasterIdForBulkRow(row);
+    const options = props.masterReferenceOptions.kegiatan_pemerintahan ?? [];
+
+    return programId ? options.filter((option) => Number(option.program_pemerintahan_id) === programId) : options;
+};
+const bulkSubKegiatanMasterOptions = (row: BulkRow) => {
+    const kegiatanId = kegiatanMasterIdForBulkRow(row);
+    const options = props.masterReferenceOptions.sub_kegiatan_pemerintahan ?? [];
+
+    return kegiatanId ? options.filter((option) => Number(option.kegiatan_pemerintahan_id) === kegiatanId) : options;
+};
+const bulkMasterOptions = (row: BulkRow): Option[] => {
+    if (row.type === 'program') {
+        return bulkProgramMasterOptions();
+    }
+
+    if (row.type === 'kegiatan') {
+        return bulkKegiatanMasterOptions(row);
+    }
+
+    if (row.type === 'sub_kegiatan') {
+        return bulkSubKegiatanMasterOptions(row);
+    }
+
+    return [];
+};
+const bulkMasterValue = (row: BulkRow) => {
+    if (row.type === 'program') {
+        return row.program_pemerintahan_id;
+    }
+
+    if (row.type === 'kegiatan') {
+        return row.kegiatan_pemerintahan_id;
+    }
+
+    if (row.type === 'sub_kegiatan') {
+        return row.sub_kegiatan_pemerintahan_id;
+    }
+
+    return '';
+};
+const applyBulkMasterReference = (row: BulkRow, option: Option | null) => {
+    if (!option) {
+        return;
+    }
+
+    row.kode = valueText(option.kode);
+    row.uraian = valueText(option.nama ?? option.label);
+};
+const setBulkMasterValue = (row: BulkRow, value: number | string | null | undefined) => {
+    if (row.type === 'program') {
+        row.program_pemerintahan_id = valueText(value);
+    } else if (row.type === 'kegiatan') {
+        row.kegiatan_pemerintahan_id = valueText(value);
+    } else if (row.type === 'sub_kegiatan') {
+        row.sub_kegiatan_pemerintahan_id = valueText(value);
+    }
+
+    applyBulkMasterReference(row, optionById(bulkMasterOptions(row), value));
+    scheduleBulkAutosave(row);
+};
+const onBulkReferenceChanged = (row: BulkRow) => {
+    if (row.type === 'program') {
+        const programRpjmd = optionById(props.rpjmdReferenceOptions.program_rpjmd ?? [], row.reference_value);
+
+        if (programRpjmd?.program_pemerintahan_id && !row.program_pemerintahan_id) {
+            row.program_pemerintahan_id = valueText(programRpjmd.program_pemerintahan_id);
+            applyBulkMasterReference(row, optionById(bulkMasterOptions(row), row.program_pemerintahan_id));
+        }
+    }
+
+    scheduleBulkAutosave(row);
 };
 
 const isBulkTextRow = (row: BulkRow) => ['tujuan', 'sasaran', 'program', 'kegiatan', 'sub_kegiatan'].includes(row.type);
@@ -1138,6 +1401,10 @@ const onBulkTypeChanged = (row: BulkRow) => {
             } as Partial<Record<NodeType, string>>
         )[row.type] ?? '';
     row.reference_value = '';
+    row.program_pemerintahan_id = '';
+    row.kegiatan_pemerintahan_id = '';
+    row.sub_kegiatan_pemerintahan_id = '';
+    row.opd_unit_id = '';
     row.kode = '';
     row.uraian = '';
     row.indikator = '';
@@ -1173,6 +1440,10 @@ const bulkRowPayload = (row: BulkRow) => {
         target_text: row.target_text || null,
         pagu: row.pagu || null,
         urutan: row.urutan || null,
+        program_pemerintahan_id: row.program_pemerintahan_id || null,
+        kegiatan_pemerintahan_id: row.kegiatan_pemerintahan_id || null,
+        sub_kegiatan_pemerintahan_id: row.sub_kegiatan_pemerintahan_id || null,
+        opd_unit_id: row.opd_unit_id || null,
     };
 
     if (row.reference_field) {
@@ -1277,6 +1548,10 @@ const editNode = (type: NodeType, id: number, parentId: number | null, node: any
         form.uraian = valueText(node.nama);
         form.pagu_indikatif = valueText(node.pagu_indikatif);
         form.program_rpjmd_id = valueText(node.program_rpjmd_id);
+        form.program_pemerintahan_id = valueText(node.program_pemerintahan_id);
+        form.kegiatan_pemerintahan_id = valueText(node.kegiatan_pemerintahan_id);
+        form.sub_kegiatan_pemerintahan_id = valueText(node.sub_kegiatan_pemerintahan_id);
+        form.opd_unit_id = valueText(node.opd_unit_id);
     } else if (isIndicatorType.value) {
         form.indikator = valueText(node.indikator);
         form.tipe_indikator = valueText(node.tipe_indikator || 'positif');
@@ -1305,6 +1580,75 @@ watch(
         if (!editingNode.value) {
             clearNodeForm();
         }
+    },
+);
+
+watch(
+    () => form.program_rpjmd_id,
+    () => {
+        if (form.type !== 'program') {
+            return;
+        }
+
+        const masterId = selectedProgramRpjmd.value?.program_pemerintahan_id;
+
+        if (masterId && !form.program_pemerintahan_id) {
+            form.program_pemerintahan_id = masterId;
+        }
+    },
+);
+
+watch(
+    () => form.program_pemerintahan_id,
+    () => {
+        if (form.type !== 'program') {
+            return;
+        }
+
+        const reference = selectedProgramMaster.value;
+
+        if (!reference) {
+            return;
+        }
+
+        form.kode = valueText(reference.kode);
+        form.uraian = valueText(reference.nama ?? reference.label);
+    },
+);
+
+watch(
+    () => form.kegiatan_pemerintahan_id,
+    () => {
+        if (form.type !== 'kegiatan') {
+            return;
+        }
+
+        const reference = selectedKegiatanMaster.value;
+
+        if (!reference) {
+            return;
+        }
+
+        form.kode = valueText(reference.kode);
+        form.uraian = valueText(reference.nama ?? reference.label);
+    },
+);
+
+watch(
+    () => form.sub_kegiatan_pemerintahan_id,
+    () => {
+        if (form.type !== 'sub_kegiatan') {
+            return;
+        }
+
+        const reference = selectedSubKegiatanMaster.value;
+
+        if (!reference) {
+            return;
+        }
+
+        form.kode = valueText(reference.kode);
+        form.uraian = valueText(reference.nama ?? reference.label);
     },
 );
 
@@ -1534,17 +1878,17 @@ const triwulanLabel = (triwulan: string) =>
                     @click="viewMode = 'bulk'"
                 >
                     <Save class="size-4" />
-                    Bulk
+                    Tabel Cepat
                 </button>
             </div>
         </section>
 
-        <div :class="viewMode === 'bulk' ? 'grid gap-4' : 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]'">
+        <div :class="viewMode === 'bulk' ? 'grid gap-4' : 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_34rem]'">
             <section v-if="viewMode === 'bulk' && can.manage" class="overflow-hidden rounded-lg border bg-card">
                 <div class="grid gap-4 border-b p-4 xl:grid-cols-[22rem_minmax(0,1fr)]">
                     <aside class="rounded-lg border bg-background p-3">
                         <div>
-                            <p class="text-sm font-semibold text-slate-900">Tambah baris baru</p>
+                            <p class="text-sm font-semibold text-foreground">Tambah baris baru</p>
                             <p class="mt-1 text-xs leading-5 text-muted-foreground">
                                 Tombol tambah ditempatkan di kiri. Lengkapi induk dan field utama, lalu autosave berjalan otomatis.
                             </p>
@@ -1606,7 +1950,7 @@ const triwulanLabel = (triwulan: string) =>
                             <div class="flex min-w-0 items-start gap-2">
                                 <Save class="mt-0.5 size-5 shrink-0 text-emerald-700" />
                                 <div class="min-w-0">
-                                    <h2 class="text-base font-semibold">Bulk Mode Autosave</h2>
+                                    <h2 class="text-base font-semibold">Tabel Input Cepat</h2>
                                     <p class="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
                                         Input dan edit data cascading dalam tabel lebar. Geser tabel ke kanan untuk mengisi kolom lanjutan. Perubahan
                                         disimpan otomatis sekitar 1 detik setelah input berhenti.
@@ -1614,22 +1958,22 @@ const triwulanLabel = (triwulan: string) =>
                                 </div>
                             </div>
                             <div class="shrink-0 rounded-md border bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">
-                                {{ bulkLastSavedAt ? `Terakhir autosave ${bulkLastSavedAt}` : 'Belum ada perubahan bulk' }}
+                                {{ bulkLastSavedAt ? `Terakhir autosave ${bulkLastSavedAt}` : 'Belum ada perubahan tabel' }}
                             </div>
                         </div>
 
                         <div class="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-3">
                             <div>
                                 <p class="text-xs font-semibold uppercase text-muted-foreground">Cara input</p>
-                                <p class="mt-1 text-sm text-slate-800">Tambah baris dari kiri, pilih induk jika dibutuhkan, isi field utama.</p>
+                                <p class="mt-1 text-sm text-foreground">Tambah baris dari kiri, pilih induk jika dibutuhkan, isi field utama.</p>
                             </div>
                             <div>
                                 <p class="text-xs font-semibold uppercase text-muted-foreground">Autosave</p>
-                                <p class="mt-1 text-sm text-slate-800">Status simpan tampil di kolom paling kiri setiap baris.</p>
+                                <p class="mt-1 text-sm text-foreground">Status simpan tampil di kolom paling kiri setiap baris.</p>
                             </div>
                             <div>
                                 <p class="text-xs font-semibold uppercase text-muted-foreground">Layar lebar</p>
-                                <p class="mt-1 text-sm text-slate-800">Panel kanan disembunyikan supaya tabel punya ruang maksimal.</p>
+                                <p class="mt-1 text-sm text-foreground">Panel kanan disembunyikan supaya tabel punya ruang maksimal.</p>
                             </div>
                         </div>
                     </div>
@@ -1637,7 +1981,7 @@ const triwulanLabel = (triwulan: string) =>
 
                 <div v-if="bulkRows.length === 0" class="p-8 text-center text-sm text-muted-foreground">
                     <Layers3 class="mx-auto size-10 text-muted-foreground" />
-                    <p class="mt-3 font-semibold text-slate-900">Belum ada data untuk bulk mode</p>
+                    <p class="mt-3 font-semibold text-foreground">Belum ada data di tabel cepat</p>
                     <p class="mt-1">Buat Tujuan OPD sebagai baris pertama, lalu lanjutkan sasaran, program, kegiatan, dan target.</p>
                     <button
                         type="button"
@@ -1650,7 +1994,7 @@ const triwulanLabel = (triwulan: string) =>
                 </div>
 
                 <div v-else class="max-w-full overflow-x-auto">
-                    <table class="min-w-[2500px] text-left text-sm">
+                    <table class="min-w-[2820px] text-left text-sm">
                         <thead class="sticky top-0 z-10 border-b bg-muted/80 text-xs uppercase text-muted-foreground backdrop-blur">
                             <tr>
                                 <th class="sticky left-0 z-20 min-w-44 border-r bg-muted/95 px-3 py-3 shadow-[8px_0_16px_rgba(15,23,42,0.06)]">
@@ -1663,6 +2007,7 @@ const triwulanLabel = (triwulan: string) =>
                                 <th class="min-w-80 px-3 py-3">Uraian/Nama</th>
                                 <th class="min-w-80 px-3 py-3">Indikator</th>
                                 <th class="min-w-72 px-3 py-3">Referensi RPJMD</th>
+                                <th class="min-w-80 px-3 py-3">Master Resmi</th>
                                 <th class="min-w-56 px-3 py-3">Satuan</th>
                                 <th class="min-w-40 px-3 py-3">Tipe</th>
                                 <th class="min-w-72 px-3 py-3">Formula</th>
@@ -1753,13 +2098,24 @@ const triwulanLabel = (triwulan: string) =>
                                         v-if="bulkReferenceOptions(row).length"
                                         v-model="row.reference_value"
                                         class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700"
-                                        @change="scheduleBulkAutosave(row)"
+                                        @change="onBulkReferenceChanged(row)"
                                     >
                                         <option value="">Tidak dihubungkan</option>
                                         <option v-for="option in bulkReferenceOptions(row)" :key="option.id" :value="option.id">
                                             {{ option.label }}
                                         </option>
                                     </select>
+                                    <span v-else class="text-xs text-muted-foreground">-</span>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <RpjmdRichSelect
+                                        v-if="bulkMasterOptions(row).length"
+                                        :model-value="bulkMasterValue(row)"
+                                        :options="bulkMasterOptions(row)"
+                                        placeholder="Pilih master"
+                                        empty-text="Master belum tersedia"
+                                        @update:model-value="setBulkMasterValue(row, $event)"
+                                    />
                                     <span v-else class="text-xs text-muted-foreground">-</span>
                                 </td>
                                 <td class="px-3 py-3">
@@ -2528,213 +2884,208 @@ const triwulanLabel = (triwulan: string) =>
             </section>
 
             <aside v-if="can.manage && viewMode !== 'bulk'" ref="formPanel" class="grid gap-4 xl:sticky xl:top-4 xl:self-start">
-                <section class="overflow-hidden rounded-lg border bg-card shadow-sm">
-                    <div class="border-b bg-[linear-gradient(135deg,#f8fafc,#ecfdf5)] p-4">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <div
-                                    class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold uppercase text-emerald-800"
-                                >
-                                    <ClipboardList class="size-3.5" />
-                                    Panel Pengisian
-                                </div>
-                                <h2 class="mt-3 text-base font-semibold text-slate-950">
-                                    {{ editingNode ? 'Edit Data Cascading' : 'Tambah Data Cascading' }}
-                                </h2>
-                                <p class="mt-1 text-sm leading-6 text-muted-foreground">
-                                    {{ selectedTypeMeta.helper }}
-                                </p>
-                            </div>
-                            <button
-                                v-if="editingNode"
-                                type="button"
-                                class="inline-flex min-h-9 shrink-0 items-center rounded-md border bg-white px-3 text-xs font-medium hover:bg-muted"
-                                @click="resetNodeForm"
-                            >
-                                Batal edit
-                            </button>
-                        </div>
-
-                        <div class="mt-4 grid gap-2">
-                            <div v-for="item in nodeFormChecklist" :key="item.label" class="flex items-center gap-2 text-xs">
-                                <span
-                                    class="flex size-5 items-center justify-center rounded-full"
-                                    :class="item.complete ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'"
-                                >
-                                    <CheckCircle2 v-if="item.complete" class="size-3.5" />
-                                    <CircleDot v-else class="size-3" />
+                <section class="overflow-hidden rounded-xl border bg-card shadow-sm">
+                    <div class="border-b bg-card p-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex min-w-0 items-center gap-3">
+                                <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                    <ClipboardList class="size-5" />
                                 </span>
-                                <span :class="item.complete ? 'text-slate-700' : 'text-muted-foreground'">{{ item.label }}</span>
+                                <div class="min-w-0">
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ formModeLabel }}</p>
+                                    <h2 class="text-base font-semibold text-foreground">Input Renstra OPD</h2>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="rounded-full border bg-background px-3 py-1 text-xs font-semibold text-foreground">
+                                    {{ selectedTypeMeta.stage }}
+                                </span>
+                                <button
+                                    v-if="editingNode"
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center rounded-md border bg-background px-3 text-xs font-medium transition hover:bg-muted"
+                                    @click="resetNodeForm"
+                                >
+                                    Batal edit
+                                </button>
                             </div>
                         </div>
                     </div>
 
                     <form class="grid gap-4 p-4" @submit.prevent="submitNode">
-                        <div class="grid gap-3">
-                            <div class="flex items-center justify-between gap-3">
-                                <div>
-                                    <h3 class="text-sm font-semibold text-slate-950">1. Pilih jenis data</h3>
-                                    <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                                        Pilih dari urutan kerja, atau klik tombol tambah langsung dari tree di kiri.
-                                    </p>
+                        <div class="rounded-xl border bg-muted/20 p-3">
+                            <div class="grid gap-3 lg:grid-cols-2">
+                                <div class="grid gap-2">
+                                    <label class="text-sm font-semibold text-foreground" for="type">Jenis Data</label>
+                                    <RpjmdRichSelect
+                                        id="type"
+                                        :model-value="form.type"
+                                        :options="typeSelectOptions"
+                                        placeholder="Pilih jenis data"
+                                        empty-text="Jenis data tidak tersedia"
+                                        @update:model-value="onTypeSelected"
+                                    />
+                                    <InputError :message="form.errors.type" />
                                 </div>
-                                <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                                    {{ selectedTypeMeta.stage }}
-                                </span>
-                            </div>
 
-                            <div class="grid gap-3">
-                                <div v-for="group in typeGroups" :key="group.label" class="rounded-md border bg-background p-3">
-                                    <div class="mb-2 flex items-start gap-2">
-                                        <component :is="group.icon" class="mt-0.5 size-4 text-emerald-700" />
-                                        <div>
-                                            <p class="text-xs font-semibold uppercase text-slate-800">{{ group.label }}</p>
-                                            <p class="mt-0.5 text-xs leading-5 text-muted-foreground">{{ group.helper }}</p>
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <button
-                                            v-for="type in group.items"
-                                            :key="type"
-                                            type="button"
-                                            class="min-h-10 rounded-md border px-2 text-left text-xs font-medium transition hover:border-emerald-300 hover:bg-emerald-50"
-                                            :class="
-                                                form.type === type
-                                                    ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-600'
-                                                    : 'bg-white text-slate-700'
-                                            "
-                                            @click="selectNodeType(type)"
-                                        >
-                                            {{ typeOptionMap.get(type)?.label }}
-                                        </button>
+                                <div v-if="needsParent" class="grid gap-2">
+                                    <label class="text-sm font-semibold text-foreground" for="parent_id">
+                                        {{ parentLabel }} <span class="text-red-600">*</span>
+                                    </label>
+                                    <RpjmdRichSelect
+                                        id="parent_id"
+                                        v-model="form.parent_id"
+                                        :options="parentSelectOptions"
+                                        :placeholder="`Pilih ${parentLabel.toLowerCase()}`"
+                                        :empty-text="`${parentLabel} belum tersedia`"
+                                    />
+                                    <InputError :message="form.errors.parent_id" />
+                                </div>
+
+                                <div v-else class="grid gap-2">
+                                    <span class="text-sm font-semibold text-foreground">Induk Data</span>
+                                    <div class="flex min-h-12 items-center rounded-lg border bg-background px-3 text-sm text-muted-foreground">
+                                        Data ini berada di level awal Renstra.
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
+                        <div
+                            v-if="
+                                ['tujuan', 'indikator_tujuan', 'sasaran', 'indikator_sasaran', 'program', 'indikator_program'].includes(form.type)
+                            "
+                            class="grid gap-3 rounded-xl border bg-background p-3"
+                        >
+                            <div class="flex items-center gap-2">
+                                <Link2 class="size-4 text-primary" />
+                                <h3 class="text-sm font-semibold text-foreground">Koneksi RPJMD</h3>
+                            </div>
+
+                            <div v-if="form.type === 'tujuan'" class="grid gap-2">
+                                <label class="text-sm font-medium" for="tujuan_daerah_id">Referensi Tujuan RPJMD</label>
+                                <RpjmdRichSelect
+                                    id="tujuan_daerah_id"
+                                    v-model="form.tujuan_daerah_id"
+                                    :options="tujuanDaerahSelectOptions"
+                                    placeholder="Tidak dihubungkan"
+                                    empty-text="Tujuan RPJMD belum tersedia"
+                                />
+                            </div>
+
+                            <div v-if="form.type === 'indikator_tujuan'" class="grid gap-2">
+                                <label class="text-sm font-medium" for="indikator_tujuan_daerah_id">Referensi Indikator Tujuan RPJMD</label>
+                                <RpjmdRichSelect
+                                    id="indikator_tujuan_daerah_id"
+                                    v-model="form.indikator_tujuan_daerah_id"
+                                    :options="indikatorTujuanDaerahSelectOptions"
+                                    placeholder="Tidak dihubungkan"
+                                    empty-text="Indikator tujuan RPJMD belum tersedia"
+                                />
+                            </div>
+
+                            <div v-if="form.type === 'sasaran'" class="grid gap-2">
+                                <label class="text-sm font-medium" for="sasaran_daerah_id">Referensi Sasaran RPJMD</label>
+                                <RpjmdRichSelect
+                                    id="sasaran_daerah_id"
+                                    v-model="form.sasaran_daerah_id"
+                                    :options="sasaranDaerahSelectOptions"
+                                    placeholder="Tidak dihubungkan"
+                                    empty-text="Sasaran RPJMD belum tersedia"
+                                />
+                            </div>
+
+                            <div v-if="form.type === 'indikator_sasaran'" class="grid gap-2">
+                                <label class="text-sm font-medium" for="indikator_sasaran_daerah_id">Referensi Indikator Sasaran RPJMD</label>
+                                <RpjmdRichSelect
+                                    id="indikator_sasaran_daerah_id"
+                                    v-model="form.indikator_sasaran_daerah_id"
+                                    :options="indikatorSasaranDaerahSelectOptions"
+                                    placeholder="Tidak dihubungkan"
+                                    empty-text="Indikator sasaran RPJMD belum tersedia"
+                                />
+                            </div>
+
+                            <div v-if="form.type === 'program'" class="grid gap-2">
+                                <label class="text-sm font-medium" for="program_rpjmd_id">Referensi Program RPJMD</label>
+                                <RpjmdRichSelect
+                                    id="program_rpjmd_id"
+                                    v-model="form.program_rpjmd_id"
+                                    :options="programRpjmdSelectOptions"
+                                    placeholder="Tidak dihubungkan"
+                                    empty-text="Program RPJMD belum tersedia"
+                                />
+                            </div>
+
+                            <div v-if="form.type === 'indikator_program'" class="grid gap-2">
+                                <label class="text-sm font-medium" for="indikator_program_rpjmd_id">Referensi Indikator Program RPJMD</label>
+                                <RpjmdRichSelect
+                                    id="indikator_program_rpjmd_id"
+                                    v-model="form.indikator_program_rpjmd_id"
+                                    :options="indikatorProgramRpjmdSelectOptions"
+                                    placeholder="Tidak dihubungkan"
+                                    empty-text="Indikator program RPJMD belum tersedia"
+                                />
+                            </div>
+                        </div>
+
+                        <div v-if="form.type === 'program'" class="grid gap-2 rounded-xl border bg-muted/20 p-3">
+                            <label class="text-sm font-medium" for="program_pemerintahan_id">Program Master</label>
+                            <RpjmdRichSelect
+                                id="program_pemerintahan_id"
+                                v-model="form.program_pemerintahan_id"
+                                :options="programMasterSelectOptions"
+                                placeholder="Pilih program master"
+                                empty-text="Master program belum tersedia"
+                            />
+                            <p class="text-xs leading-5 text-muted-foreground">Kode dan nama program mengikuti master resmi yang dipilih.</p>
+                            <InputError :message="form.errors.program_pemerintahan_id" />
+                        </div>
+
+                        <div v-if="form.type === 'kegiatan'" class="grid gap-2 rounded-xl border bg-muted/20 p-3">
+                            <label class="text-sm font-medium" for="kegiatan_pemerintahan_id">Kegiatan Master</label>
+                            <RpjmdRichSelect
+                                id="kegiatan_pemerintahan_id"
+                                v-model="form.kegiatan_pemerintahan_id"
+                                :options="kegiatanMasterSelectOptions"
+                                :disabled="needsParent && !form.parent_id"
+                                placeholder="Pilih kegiatan master"
+                                empty-text="Kegiatan master belum tersedia"
+                            />
+                            <p class="text-xs leading-5 text-muted-foreground">Pilihan difilter mengikuti program induk jika program sudah terhubung ke master.</p>
+                            <InputError :message="form.errors.kegiatan_pemerintahan_id" />
+                        </div>
+
+                        <div v-if="form.type === 'sub_kegiatan'" class="grid gap-3 rounded-xl border bg-muted/20 p-3">
                             <div class="grid gap-2">
-                                <label class="text-sm font-medium" for="type">Jenis Data Terpilih</label>
-                                <select
-                                    id="type"
-                                    v-model="form.type"
-                                    class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                                >
-                                    <option v-for="option in typeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                </select>
-                                <InputError :message="form.errors.type" />
+                                <label class="text-sm font-medium" for="sub_kegiatan_pemerintahan_id">Sub Kegiatan Master</label>
+                                <RpjmdRichSelect
+                                    id="sub_kegiatan_pemerintahan_id"
+                                    v-model="form.sub_kegiatan_pemerintahan_id"
+                                    :options="subKegiatanMasterSelectOptions"
+                                    :disabled="needsParent && !form.parent_id"
+                                    placeholder="Pilih sub kegiatan master"
+                                    empty-text="Sub kegiatan master belum tersedia"
+                                />
+                                <InputError :message="form.errors.sub_kegiatan_pemerintahan_id" />
+                            </div>
+                            <div class="grid gap-2">
+                                <label class="text-sm font-medium" for="opd_unit_id">Unit Pelaksana</label>
+                                <RpjmdRichSelect
+                                    id="opd_unit_id"
+                                    v-model="form.opd_unit_id"
+                                    :options="opdUnitSelectOptions"
+                                    placeholder="Tidak ditentukan"
+                                    empty-text="Unit OPD belum tersedia"
+                                />
+                                <InputError :message="form.errors.opd_unit_id" />
                             </div>
                         </div>
 
-                        <div class="grid gap-3 rounded-md border bg-background p-3">
-                            <div class="flex items-start gap-2">
-                                <Link2 class="mt-0.5 size-4 text-sky-700" />
-                                <div>
-                                    <h3 class="text-sm font-semibold text-slate-950">2. Induk dan referensi</h3>
-                                    <p class="mt-1 text-xs leading-5 text-muted-foreground">{{ parentRequirementText }}</p>
-                                </div>
-                            </div>
-
-                            <div v-if="needsParent" class="grid gap-2">
-                                <label class="text-sm font-medium" for="parent_id">{{ parentLabel }} <span class="text-red-600">*</span></label>
-                                <select
-                                    id="parent_id"
-                                    v-model="form.parent_id"
-                                    class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                                >
-                                    <option value="">Pilih {{ parentLabel.toLowerCase() }}</option>
-                                    <option v-for="option in parentOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                                </select>
-                                <InputError :message="form.errors.parent_id" />
-                            </div>
-                        </div>
-
-                        <div v-if="form.type === 'tujuan'" class="grid gap-2">
-                            <label class="text-sm font-medium" for="tujuan_daerah_id">Referensi Tujuan RPJMD</label>
-                            <select
-                                id="tujuan_daerah_id"
-                                v-model="form.tujuan_daerah_id"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                            >
-                                <option value="">Tidak dihubungkan</option>
-                                <option v-for="option in rpjmdReferenceOptions.tujuan_daerah || []" :key="option.id" :value="option.id">
-                                    {{ option.label }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <div v-if="form.type === 'indikator_tujuan'" class="grid gap-2">
-                            <label class="text-sm font-medium" for="indikator_tujuan_daerah_id">Referensi Indikator Tujuan RPJMD</label>
-                            <select
-                                id="indikator_tujuan_daerah_id"
-                                v-model="form.indikator_tujuan_daerah_id"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                            >
-                                <option value="">Tidak dihubungkan</option>
-                                <option v-for="option in rpjmdReferenceOptions.indikator_tujuan_daerah || []" :key="option.id" :value="option.id">
-                                    {{ option.label }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <div v-if="form.type === 'sasaran'" class="grid gap-2">
-                            <label class="text-sm font-medium" for="sasaran_daerah_id">Referensi Sasaran RPJMD</label>
-                            <select
-                                id="sasaran_daerah_id"
-                                v-model="form.sasaran_daerah_id"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                            >
-                                <option value="">Tidak dihubungkan</option>
-                                <option v-for="option in rpjmdReferenceOptions.sasaran_daerah || []" :key="option.id" :value="option.id">
-                                    {{ option.label }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <div v-if="form.type === 'indikator_sasaran'" class="grid gap-2">
-                            <label class="text-sm font-medium" for="indikator_sasaran_daerah_id">Referensi Indikator Sasaran RPJMD</label>
-                            <select
-                                id="indikator_sasaran_daerah_id"
-                                v-model="form.indikator_sasaran_daerah_id"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                            >
-                                <option value="">Tidak dihubungkan</option>
-                                <option v-for="option in rpjmdReferenceOptions.indikator_sasaran_daerah || []" :key="option.id" :value="option.id">
-                                    {{ option.label }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <div v-if="form.type === 'program'" class="grid gap-2">
-                            <label class="text-sm font-medium" for="program_rpjmd_id">Referensi Program RPJMD</label>
-                            <select
-                                id="program_rpjmd_id"
-                                v-model="form.program_rpjmd_id"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                            >
-                                <option value="">Tidak dihubungkan</option>
-                                <option v-for="option in rpjmdReferenceOptions.program_rpjmd || []" :key="option.id" :value="option.id">
-                                    {{ option.label }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <div v-if="form.type === 'indikator_program'" class="grid gap-2">
-                            <label class="text-sm font-medium" for="indikator_program_rpjmd_id">Referensi Indikator Program RPJMD</label>
-                            <select
-                                id="indikator_program_rpjmd_id"
-                                v-model="form.indikator_program_rpjmd_id"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                            >
-                                <option value="">Tidak dihubungkan</option>
-                                <option v-for="option in rpjmdReferenceOptions.indikator_program_rpjmd || []" :key="option.id" :value="option.id">
-                                    {{ option.label }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <div class="flex items-start gap-2 rounded-md border bg-background p-3">
-                            <FileText class="mt-0.5 size-4 text-amber-700" />
+                        <div class="flex items-start gap-2 rounded-xl border bg-background p-3">
+                            <FileText class="mt-0.5 size-4 text-primary" />
                             <div>
-                                <h3 class="text-sm font-semibold text-slate-950">3. Isi data</h3>
+                                <h3 class="text-sm font-semibold text-foreground">Data Utama</h3>
                                 <p class="mt-1 text-xs leading-5 text-muted-foreground">{{ contentRequirementText }}</p>
                             </div>
                         </div>
@@ -2744,7 +3095,8 @@ const triwulanLabel = (triwulan: string) =>
                             <input
                                 id="kode"
                                 v-model="form.kode"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                :readonly="usesMasterReference && hasSelectedMasterReference"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary read-only:bg-muted read-only:text-muted-foreground"
                                 placeholder="Contoh: T.1, SS.1, PR.1"
                             />
                             <InputError :message="form.errors.kode" />
@@ -2756,7 +3108,8 @@ const triwulanLabel = (triwulan: string) =>
                                 id="uraian"
                                 v-model="form.uraian"
                                 rows="4"
-                                class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-emerald-700"
+                                :readonly="usesMasterReference && hasSelectedMasterReference"
+                                class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-primary read-only:bg-muted read-only:text-muted-foreground"
                             />
                             <InputError :message="form.errors.uraian" />
                         </div>
@@ -2767,7 +3120,7 @@ const triwulanLabel = (triwulan: string) =>
                                 id="indikator"
                                 v-model="form.indikator"
                                 rows="4"
-                                class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-emerald-700"
+                                class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-primary"
                                 placeholder="Tuliskan indikator yang terukur."
                             />
                             <InputError :message="form.errors.indikator" />
@@ -2775,14 +3128,13 @@ const triwulanLabel = (triwulan: string) =>
 
                         <div v-if="isIndicatorType" class="grid gap-2">
                             <label class="text-sm font-medium" for="satuan_indikator_id">Satuan Indikator</label>
-                            <select
+                            <RpjmdRichSelect
                                 id="satuan_indikator_id"
                                 v-model="form.satuan_indikator_id"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                            >
-                                <option value="">Pilih satuan</option>
-                                <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
+                                :options="satuanSelectOptions"
+                                placeholder="Pilih satuan"
+                                empty-text="Satuan belum tersedia"
+                            />
                         </div>
 
                         <div v-if="isIndicatorType" class="grid gap-2">
@@ -2790,7 +3142,7 @@ const triwulanLabel = (triwulan: string) =>
                             <select
                                 id="tipe_indikator"
                                 v-model="form.tipe_indikator"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                             >
                                 <option value="positif">Positif</option>
                                 <option value="negatif">Negatif</option>
@@ -2807,7 +3159,7 @@ const triwulanLabel = (triwulan: string) =>
                                 id="formula"
                                 v-model="form.formula"
                                 rows="3"
-                                class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-emerald-700"
+                                class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-primary"
                                 placeholder="Opsional, contoh: jumlah realisasi / target x 100%"
                             />
                         </div>
@@ -2817,7 +3169,7 @@ const triwulanLabel = (triwulan: string) =>
                             <input
                                 id="sumber_data"
                                 v-model="form.sumber_data"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                                 placeholder="Contoh: Bidang IKP, SIPD, laporan bidang"
                             />
                         </div>
@@ -2829,20 +3181,19 @@ const triwulanLabel = (triwulan: string) =>
                                 v-model="form.pagu_indikatif"
                                 type="number"
                                 step="0.01"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                             />
                         </div>
 
                         <div v-if="isTargetType" class="grid gap-2">
                             <label class="text-sm font-medium" for="periode_tahun_id">Periode Target</label>
-                            <select
+                            <RpjmdRichSelect
                                 id="periode_tahun_id"
                                 v-model="form.periode_tahun_id"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                            >
-                                <option value="">Pilih periode</option>
-                                <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
+                                :options="periodeSelectOptions"
+                                placeholder="Pilih periode"
+                                empty-text="Periode belum tersedia"
+                            />
                             <InputError :message="form.errors.periode_tahun_id" />
                         </div>
 
@@ -2853,7 +3204,7 @@ const triwulanLabel = (triwulan: string) =>
                                 v-model="form.target"
                                 type="number"
                                 step="0.0001"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                             />
                         </div>
 
@@ -2862,7 +3213,7 @@ const triwulanLabel = (triwulan: string) =>
                             <input
                                 id="target_text"
                                 v-model="form.target_text"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                                 placeholder="Opsional, contoh: 100 dokumen"
                             />
                         </div>
@@ -2874,7 +3225,7 @@ const triwulanLabel = (triwulan: string) =>
                                 v-model="form.pagu"
                                 type="number"
                                 step="0.01"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                             />
                         </div>
 
@@ -2885,27 +3236,27 @@ const triwulanLabel = (triwulan: string) =>
                                 v-model="form.urutan"
                                 type="number"
                                 min="1"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                             />
                         </div>
 
                         <button
                             type="submit"
                             :disabled="form.processing"
-                            class="sticky bottom-3 z-10 mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-900/10 hover:bg-emerald-800 disabled:opacity-60"
+                            class="sticky bottom-3 z-10 mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/10 transition hover:bg-primary/90 disabled:opacity-60"
                         >
                             <Save class="size-4" />
-                            {{ editingNode ? 'Perbarui Data Cascading' : 'Simpan Data Cascading' }}
+                            {{ editingNode ? 'Perbarui Data' : 'Simpan Data' }}
                         </button>
                     </form>
                 </section>
 
-                <section class="rounded-lg border bg-card p-4 shadow-sm">
+                <section class="rounded-xl border bg-card p-4 shadow-sm">
                     <form class="grid gap-4" @submit.prevent="submitTargetTriwulan">
                         <div class="flex items-start gap-2">
-                            <Target class="mt-0.5 size-5 text-blue-700" />
+                            <Target class="mt-0.5 size-5 text-primary" />
                             <div>
-                                <h3 class="text-base font-semibold text-slate-950">Target Triwulan Indikator</h3>
+                                <h3 class="text-base font-semibold text-foreground">Target Triwulan Indikator</h3>
                                 <p class="mt-1 text-sm leading-6 text-muted-foreground">
                                     Isi target kinerja dan target anggaran TW I sampai TW IV tanpa scroll horizontal.
                                 </p>
@@ -2928,29 +3279,25 @@ const triwulanLabel = (triwulan: string) =>
 
                         <div class="grid gap-2">
                             <label class="text-sm font-medium" for="target_triwulan_related_id">Indikator</label>
-                            <select
+                            <RpjmdRichSelect
                                 id="target_triwulan_related_id"
                                 v-model="targetTriwulanForm.related_id"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
-                            >
-                                <option value="">Pilih indikator</option>
-                                <option v-for="option in selectedTargetTriwulanOptions" :key="option.id" :value="option.id">
-                                    {{ option.label }}
-                                </option>
-                            </select>
+                                :options="selectedTargetTriwulanSelectOptions"
+                                placeholder="Pilih indikator"
+                                empty-text="Indikator belum tersedia"
+                            />
                             <InputError :message="targetTriwulanForm.errors.related_id" />
                         </div>
 
                         <div class="grid gap-2">
                             <label class="text-sm font-medium" for="target_triwulan_periode">Periode Tahun</label>
-                            <select
+                            <RpjmdRichSelect
                                 id="target_triwulan_periode"
                                 v-model="targetTriwulanForm.periode_tahun_id"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
-                            >
-                                <option value="">Pilih periode</option>
-                                <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
+                                :options="periodeSelectOptions"
+                                placeholder="Pilih periode"
+                                empty-text="Periode belum tersedia"
+                            />
                             <InputError :message="targetTriwulanForm.errors.periode_tahun_id" />
                         </div>
 

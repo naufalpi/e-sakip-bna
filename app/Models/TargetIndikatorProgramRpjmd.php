@@ -12,7 +12,7 @@ class TargetIndikatorProgramRpjmd extends Model
 
     protected $table = 'target_indikator_program_rpjmd';
 
-    protected $fillable = ['indikator_program_rpjmd_id', 'periode_tahun_id', 'target', 'target_text'];
+    protected $fillable = ['indikator_program_rpjmd_id', 'periode_tahun_id', 'jenis_target', 'target', 'target_text'];
 
     public function indikator(): BelongsTo
     {

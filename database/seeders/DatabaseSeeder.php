@@ -68,6 +68,10 @@ class DatabaseSeeder extends Seeder
             ['name' => 'rpjmd.manage', 'label' => 'Kelola RPJMD', 'module' => 'rpjmd'],
             ['name' => 'renstra.view', 'label' => 'Lihat Renstra OPD', 'module' => 'renstra'],
             ['name' => 'renstra.manage', 'label' => 'Kelola Renstra OPD', 'module' => 'renstra'],
+            ['name' => 'rkpd.view', 'label' => 'Lihat RKPD', 'module' => 'rkpd'],
+            ['name' => 'rkpd.manage', 'label' => 'Kelola RKPD', 'module' => 'rkpd'],
+            ['name' => 'renja.view', 'label' => 'Lihat Renja OPD', 'module' => 'renja'],
+            ['name' => 'renja.manage', 'label' => 'Kelola Renja OPD', 'module' => 'renja'],
             ['name' => 'kinerja.view', 'label' => 'Lihat Kinerja', 'module' => 'kinerja'],
             ['name' => 'kinerja.manage', 'label' => 'Kelola Kinerja', 'module' => 'kinerja'],
             ['name' => 'evaluasi.view', 'label' => 'Lihat Evaluasi SAKIP', 'module' => 'evaluasi_sakip'],
@@ -98,17 +102,17 @@ class DatabaseSeeder extends Seeder
             'admin_kabupaten_bagian_organisasi' => [
                 'label' => 'Admin Kabupaten Bagian Organisasi',
                 'description' => 'Monitoring, validasi umum, dan melihat progres OPD.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'users.view', 'periode.view', 'satuan.view', 'strategi.view', 'urusan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'evaluasi.view', 'dokumen.view', 'lkjip.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'users.view', 'periode.view', 'satuan.view', 'strategi.view', 'urusan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'rkpd.view', 'renja.view', 'kinerja.view', 'evaluasi.view', 'dokumen.view', 'lkjip.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_bapperida' => [
                 'label' => 'Admin Kabupaten Bapperida',
                 'description' => 'Input dan kelola data perencanaan kabupaten/RPJMD.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'satuan.view', 'strategi.view', 'strategi.manage', 'urusan.view', 'rpjmd.view', 'rpjmd.manage', 'view_rpjmd', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'satuan.view', 'strategi.view', 'strategi.manage', 'urusan.view', 'rpjmd.view', 'rpjmd.manage', 'view_rpjmd', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'rkpd.view', 'rkpd.manage', 'renja.view', 'kinerja.view', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_inspektorat' => [
                 'label' => 'Admin Kabupaten Inspektorat',
                 'description' => 'Evaluasi kinerja, LKE, LHE, rekomendasi, dan verifikasi tindak lanjut.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'strategi.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'kinerja.view', 'evaluasi.view', 'evaluasi.manage', 'manage_evaluasi', 'verify_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'strategi.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'rkpd.view', 'renja.view', 'kinerja.view', 'evaluasi.view', 'evaluasi.manage', 'manage_evaluasi', 'verify_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_dinkominfo' => [
                 'label' => 'Admin Kabupaten Dinkominfo',
@@ -118,12 +122,12 @@ class DatabaseSeeder extends Seeder
             'admin_opd' => [
                 'label' => 'Admin OPD',
                 'description' => 'Kelola data perencanaan dan kinerja OPD masing-masing.',
-                'permissions' => ['dashboard.view', 'view_dashboard_opd', 'opd.view', 'opd_units.manage', 'periode.view', 'satuan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'renstra.manage', 'view_renstra_opd', 'manage_renstra_opd', 'kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja', 'manage_rencana_aksi', 'input_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'evaluasi.view', 'lkjip.view', 'lkjip.manage', 'laporan.view', 'laporan.manage'],
+                'permissions' => ['dashboard.view', 'view_dashboard_opd', 'opd.view', 'opd_units.manage', 'periode.view', 'satuan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'renstra.manage', 'view_renstra_opd', 'manage_renstra_opd', 'rkpd.view', 'renja.view', 'renja.manage', 'kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja', 'manage_rencana_aksi', 'input_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'evaluasi.view', 'lkjip.view', 'lkjip.manage', 'laporan.view', 'laporan.manage'],
             ],
             'pimpinan' => [
                 'label' => 'Pimpinan',
                 'description' => 'Hanya melihat dashboard, laporan, progres, capaian, dan status evaluasi.',
-                'permissions' => ['dashboard.view', 'view_dashboard_pimpinan', 'rpjmd.view', 'view_rpjmd', 'lkjip.view', 'laporan.view'],
+                'permissions' => ['dashboard.view', 'view_dashboard_pimpinan', 'rpjmd.view', 'view_rpjmd', 'rkpd.view', 'renja.view', 'lkjip.view', 'laporan.view'],
             ],
         ];
 
@@ -158,7 +162,7 @@ class DatabaseSeeder extends Seeder
             Role::where('name', 'super_admin')->value('id'),
         ]);
 
-        foreach (range(((int) date('Y')) - 1, ((int) date('Y')) + 3) as $year) {
+        foreach (range(((int) date('Y')) - 1, ((int) date('Y')) + 4) as $year) {
             PeriodeTahun::updateOrCreate(
                 ['tahun' => $year],
                 [

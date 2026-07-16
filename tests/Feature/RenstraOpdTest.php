@@ -2,14 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Models\BidangUrusan;
 use App\Models\ImportBatch;
 use App\Models\IndikatorOpdProgram;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
+use App\Models\KegiatanPemerintahan;
 use App\Models\Opd;
 use App\Models\OpdProgram;
+use App\Models\OpdUnit;
 use App\Models\PeriodeTahun;
+use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
 use App\Models\RenstraOpd;
 use App\Models\Role;
@@ -19,6 +23,7 @@ use App\Models\RpjmdVisi;
 use App\Models\SasaranDaerah;
 use App\Models\SatuanIndikator;
 use App\Models\StrategiDaerah;
+use App\Models\SubKegiatanPemerintahan;
 use App\Models\TargetIndikatorOpdProgram;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
@@ -254,6 +259,149 @@ class RenstraOpdTest extends TestCase
             'triwulan' => 'tw4',
             'target_text' => '100 persen',
             'target_anggaran' => 1000000,
+        ]);
+    }
+
+    public function test_renstra_program_kegiatan_and_sub_kegiatan_use_master_references(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '2.02', 'nama' => 'Dinas Referensi Renstra', 'status' => 'active']);
+        $unit = OpdUnit::create([
+            'opd_id' => $opd->id,
+            'kode' => '2.02.01',
+            'nama' => 'Unit Pelaksana Renstra',
+            'jenis_unit' => 'uptd',
+            'status' => 'active',
+        ]);
+        $tree = $this->createRpjmdTree();
+        $periode = PeriodeTahun::orderBy('tahun')->firstOrFail();
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $tree['rpjmd']->id,
+            'periode_tahun_id' => $periode->id,
+            'judul' => 'Renstra Referensi Master',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'draft',
+        ]);
+
+        $bidang = BidangUrusan::firstOrFail();
+        $programMaster = ProgramPemerintahan::create([
+            'bidang_urusan_id' => $bidang->id,
+            'kode' => '9.99.01',
+            'nama' => 'Program Master Renstra',
+            'status' => 'active',
+        ]);
+        $kegiatanMaster = KegiatanPemerintahan::create([
+            'program_pemerintahan_id' => $programMaster->id,
+            'kode' => '9.99.01.2.01',
+            'nama' => 'Kegiatan Master Renstra',
+            'status' => 'active',
+        ]);
+        $subKegiatanMaster = SubKegiatanPemerintahan::create([
+            'kegiatan_pemerintahan_id' => $kegiatanMaster->id,
+            'kode' => '9.99.01.2.01.0001',
+            'nama' => 'Sub Kegiatan Master Renstra',
+            'status' => 'active',
+        ]);
+        $otherProgramMaster = ProgramPemerintahan::create([
+            'bidang_urusan_id' => $bidang->id,
+            'kode' => '9.99.02',
+            'nama' => 'Program Master Lain',
+            'status' => 'active',
+        ]);
+        $wrongKegiatanMaster = KegiatanPemerintahan::create([
+            'program_pemerintahan_id' => $otherProgramMaster->id,
+            'kode' => '9.99.02.2.01',
+            'nama' => 'Kegiatan Beda Program',
+            'status' => 'active',
+        ]);
+
+        $tree['program_rpjmd']->update([
+            'program_pemerintahan_id' => $programMaster->id,
+            'kode' => $programMaster->kode,
+        ]);
+
+        $user = User::factory()->create(['opd_id' => $opd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'tujuan',
+                'tujuan_daerah_id' => $tree['tujuan_daerah']->id,
+                'uraian' => 'Tujuan OPD Referensi',
+            ])
+            ->assertRedirect();
+
+        $tujuanOpd = TujuanOpd::where('renstra_opd_id', $renstra->id)->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'sasaran',
+                'parent_id' => $tujuanOpd->id,
+                'sasaran_daerah_id' => $tree['sasaran_daerah']->id,
+                'uraian' => 'Sasaran OPD Referensi',
+            ])
+            ->assertRedirect();
+
+        $sasaranOpd = $tujuanOpd->sasaran()->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'program',
+                'parent_id' => $sasaranOpd->id,
+                'program_rpjmd_id' => $tree['program_rpjmd']->id,
+            ])
+            ->assertRedirect();
+
+        $programOpd = OpdProgram::where('renstra_opd_id', $renstra->id)->firstOrFail();
+
+        $this->assertSame($programMaster->id, $programOpd->program_pemerintahan_id);
+        $this->assertSame('9.99.01', $programOpd->kode);
+        $this->assertSame('Program Master Renstra', $programOpd->nama);
+
+        $this->actingAs($user)
+            ->from(route('renstra-opd.show', $renstra))
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'kegiatan',
+                'parent_id' => $programOpd->id,
+                'kegiatan_pemerintahan_id' => $wrongKegiatanMaster->id,
+            ])
+            ->assertSessionHasErrors('kegiatan_pemerintahan_id');
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'kegiatan',
+                'parent_id' => $programOpd->id,
+                'kegiatan_pemerintahan_id' => $kegiatanMaster->id,
+            ])
+            ->assertRedirect();
+
+        $kegiatanOpd = $programOpd->kegiatan()->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'sub_kegiatan',
+                'parent_id' => $kegiatanOpd->id,
+                'sub_kegiatan_pemerintahan_id' => $subKegiatanMaster->id,
+                'opd_unit_id' => $unit->id,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('opd_kegiatan', [
+            'id' => $kegiatanOpd->id,
+            'kegiatan_pemerintahan_id' => $kegiatanMaster->id,
+            'kode' => '9.99.01.2.01',
+            'nama' => 'Kegiatan Master Renstra',
+        ]);
+
+        $this->assertDatabaseHas('opd_sub_kegiatan', [
+            'opd_kegiatan_id' => $kegiatanOpd->id,
+            'sub_kegiatan_pemerintahan_id' => $subKegiatanMaster->id,
+            'opd_unit_id' => $unit->id,
+            'kode' => '9.99.01.2.01.0001',
+            'nama' => 'Sub Kegiatan Master Renstra',
         ]);
     }
 

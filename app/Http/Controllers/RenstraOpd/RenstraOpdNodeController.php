@@ -8,11 +8,16 @@ use App\Models\IndikatorOpdProgram;
 use App\Models\IndikatorSasaranOpd;
 use App\Models\IndikatorSubKegiatan;
 use App\Models\IndikatorTujuanOpd;
+use App\Models\KegiatanPemerintahan;
 use App\Models\OpdKegiatan;
 use App\Models\OpdProgram;
 use App\Models\OpdSubKegiatan;
+use App\Models\OpdUnit;
+use App\Models\ProgramPemerintahan;
+use App\Models\ProgramRpjmd;
 use App\Models\RenstraOpd;
 use App\Models\SasaranOpd;
+use App\Models\SubKegiatanPemerintahan;
 use App\Models\TargetIndikatorOpdProgram;
 use App\Models\TargetIndikatorSasaranOpd;
 use App\Models\TargetIndikatorTujuanOpd;
@@ -156,12 +161,8 @@ class RenstraOpdNodeController extends Controller
             'program' => OpdProgram::create([
                 'renstra_opd_id' => $renstra->id,
                 'sasaran_opd_id' => $this->sasaran($renstra, $data['parent_id'] ?? null)->id,
-                'program_rpjmd_id' => $data['program_rpjmd_id'] ?? null,
-                'kode' => $data['kode'] ?? null,
-                'nama' => $this->requiredText($data, 'uraian', 'Nama program OPD wajib diisi.'),
-                'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
                 'status' => 'draft',
-                'urutan' => $data['urutan'] ?? 1,
+                ...$this->programPayload($data),
             ]),
             'indikator_program' => IndikatorOpdProgram::create([
                 'opd_program_id' => $this->program($renstra, $data['parent_id'] ?? null)->id,
@@ -182,20 +183,8 @@ class RenstraOpdNodeController extends Controller
                 'target_text' => $data['target_text'] ?? null,
                 'pagu' => $data['pagu'] ?? null,
             ]),
-            'kegiatan' => OpdKegiatan::create([
-                'opd_program_id' => $this->program($renstra, $data['parent_id'] ?? null)->id,
-                'kode' => $data['kode'] ?? null,
-                'nama' => $this->requiredText($data, 'uraian', 'Nama kegiatan OPD wajib diisi.'),
-                'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
-                'urutan' => $data['urutan'] ?? 1,
-            ]),
-            'sub_kegiatan' => OpdSubKegiatan::create([
-                'opd_kegiatan_id' => $this->kegiatan($renstra, $data['parent_id'] ?? null)->id,
-                'kode' => $data['kode'] ?? null,
-                'nama' => $this->requiredText($data, 'uraian', 'Nama sub kegiatan OPD wajib diisi.'),
-                'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
-                'urutan' => $data['urutan'] ?? 1,
-            ]),
+            'kegiatan' => $this->createKegiatan($renstra, $data),
+            'sub_kegiatan' => $this->createSubKegiatan($renstra, $data),
             'indikator_sub_kegiatan' => IndikatorSubKegiatan::create([
                 'opd_sub_kegiatan_id' => $this->subKegiatan($renstra, $data['parent_id'] ?? null)->id,
                 'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
@@ -275,11 +264,7 @@ class RenstraOpdNodeController extends Controller
             'program' => tap($this->program($renstra, $id), function (OpdProgram $program) use ($renstra, $data) {
                 $program->update([
                     'sasaran_opd_id' => filled($data['parent_id'] ?? null) ? $this->sasaran($renstra, $data['parent_id'])->id : $program->sasaran_opd_id,
-                    'program_rpjmd_id' => $data['program_rpjmd_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'nama' => $this->requiredText($data, 'uraian', 'Nama program OPD wajib diisi.'),
-                    'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
+                    ...$this->programPayload($data),
                 ]);
             }),
             'indikator_program' => tap($this->indikatorProgram($renstra, $id), function (IndikatorOpdProgram $indikator) use ($renstra, $data) {
@@ -305,21 +290,19 @@ class RenstraOpdNodeController extends Controller
                 ]);
             }),
             'kegiatan' => tap($this->kegiatan($renstra, $id), function (OpdKegiatan $kegiatan) use ($renstra, $data) {
+                $program = filled($data['parent_id'] ?? null) ? $this->program($renstra, $data['parent_id']) : $kegiatan->program;
+
                 $kegiatan->update([
-                    'opd_program_id' => filled($data['parent_id'] ?? null) ? $this->program($renstra, $data['parent_id'])->id : $kegiatan->opd_program_id,
-                    'kode' => $data['kode'] ?? null,
-                    'nama' => $this->requiredText($data, 'uraian', 'Nama kegiatan OPD wajib diisi.'),
-                    'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
+                    'opd_program_id' => $program->id,
+                    ...$this->kegiatanPayload($program, $data),
                 ]);
             }),
             'sub_kegiatan' => tap($this->subKegiatan($renstra, $id), function (OpdSubKegiatan $subKegiatan) use ($renstra, $data) {
+                $kegiatan = filled($data['parent_id'] ?? null) ? $this->kegiatan($renstra, $data['parent_id']) : $subKegiatan->kegiatan;
+
                 $subKegiatan->update([
-                    'opd_kegiatan_id' => filled($data['parent_id'] ?? null) ? $this->kegiatan($renstra, $data['parent_id'])->id : $subKegiatan->opd_kegiatan_id,
-                    'kode' => $data['kode'] ?? null,
-                    'nama' => $this->requiredText($data, 'uraian', 'Nama sub kegiatan OPD wajib diisi.'),
-                    'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
+                    'opd_kegiatan_id' => $kegiatan->id,
+                    ...$this->subKegiatanPayload($renstra, $kegiatan, $data),
                 ]);
             }),
             'indikator_sub_kegiatan' => tap($this->findNode($renstra, $type, $id), function (IndikatorSubKegiatan $indikator) use ($renstra, $data) {
@@ -335,6 +318,126 @@ class RenstraOpdNodeController extends Controller
                 ]);
             }),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function createKegiatan(RenstraOpd $renstra, array $data): OpdKegiatan
+    {
+        $program = $this->program($renstra, $data['parent_id'] ?? null);
+
+        return $program->kegiatan()->create($this->kegiatanPayload($program, $data));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function createSubKegiatan(RenstraOpd $renstra, array $data): OpdSubKegiatan
+    {
+        $kegiatan = $this->kegiatan($renstra, $data['parent_id'] ?? null);
+
+        return $kegiatan->subKegiatan()->create($this->subKegiatanPayload($renstra, $kegiatan, $data));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function programPayload(array $data): array
+    {
+        $programRpjmd = filled($data['program_rpjmd_id'] ?? null)
+            ? ProgramRpjmd::query()->findOrFail($data['program_rpjmd_id'])
+            : null;
+
+        $programPemerintahanId = $data['program_pemerintahan_id'] ?? $programRpjmd?->program_pemerintahan_id;
+        $reference = filled($programPemerintahanId)
+            ? ProgramPemerintahan::query()->findOrFail($programPemerintahanId)
+            : null;
+
+        if ($programRpjmd?->program_pemerintahan_id && $reference && (int) $programRpjmd->program_pemerintahan_id !== (int) $reference->id) {
+            throw ValidationException::withMessages([
+                'program_pemerintahan_id' => 'Program master tidak sesuai dengan Program RPJMD yang dipilih.',
+            ]);
+        }
+
+        return [
+            'program_rpjmd_id' => $programRpjmd?->id,
+            'program_pemerintahan_id' => $reference?->id,
+            'kode' => $reference?->kode ?? ($data['kode'] ?? null),
+            'nama' => $reference?->nama ?? $this->requiredText($data, 'uraian', 'Nama program OPD wajib diisi.'),
+            'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
+            'urutan' => $data['urutan'] ?? 1,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function kegiatanPayload(OpdProgram $program, array $data): array
+    {
+        $reference = filled($data['kegiatan_pemerintahan_id'] ?? null)
+            ? KegiatanPemerintahan::query()->findOrFail($data['kegiatan_pemerintahan_id'])
+            : null;
+
+        if ($reference && $program->program_pemerintahan_id && (int) $reference->program_pemerintahan_id !== (int) $program->program_pemerintahan_id) {
+            throw ValidationException::withMessages([
+                'kegiatan_pemerintahan_id' => 'Kegiatan master harus berada di bawah program master induk.',
+            ]);
+        }
+
+        return [
+            'kegiatan_pemerintahan_id' => $reference?->id,
+            'kode' => $reference?->kode ?? ($data['kode'] ?? null),
+            'nama' => $reference?->nama ?? $this->requiredText($data, 'uraian', 'Nama kegiatan OPD wajib diisi.'),
+            'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
+            'urutan' => $data['urutan'] ?? 1,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function subKegiatanPayload(RenstraOpd $renstra, OpdKegiatan $kegiatan, array $data): array
+    {
+        $reference = filled($data['sub_kegiatan_pemerintahan_id'] ?? null)
+            ? SubKegiatanPemerintahan::query()->findOrFail($data['sub_kegiatan_pemerintahan_id'])
+            : null;
+
+        if ($reference && $kegiatan->kegiatan_pemerintahan_id && (int) $reference->kegiatan_pemerintahan_id !== (int) $kegiatan->kegiatan_pemerintahan_id) {
+            throw ValidationException::withMessages([
+                'sub_kegiatan_pemerintahan_id' => 'Sub kegiatan master harus berada di bawah kegiatan master induk.',
+            ]);
+        }
+
+        return [
+            'sub_kegiatan_pemerintahan_id' => $reference?->id,
+            'opd_unit_id' => $this->validatedOpdUnitId($renstra, $data['opd_unit_id'] ?? null),
+            'kode' => $reference?->kode ?? ($data['kode'] ?? null),
+            'nama' => $reference?->nama ?? $this->requiredText($data, 'uraian', 'Nama sub kegiatan OPD wajib diisi.'),
+            'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
+            'urutan' => $data['urutan'] ?? 1,
+        ];
+    }
+
+    private function validatedOpdUnitId(RenstraOpd $renstra, mixed $id): ?int
+    {
+        if (blank($id)) {
+            return null;
+        }
+
+        $exists = OpdUnit::query()
+            ->where('opd_id', $renstra->opd_id)
+            ->whereKey($id)
+            ->exists();
+
+        throw_if(! $exists, ValidationException::withMessages([
+            'opd_unit_id' => 'Unit OPD harus berada di bawah OPD Renstra ini.',
+        ]));
+
+        return (int) $id;
     }
 
     private function requiredText(array $data, string $key, string $message): string

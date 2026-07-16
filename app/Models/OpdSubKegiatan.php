@@ -15,7 +15,15 @@ class OpdSubKegiatan extends Model
 
     protected $table = 'opd_sub_kegiatan';
 
-    protected $fillable = ['opd_kegiatan_id', 'kode', 'nama', 'pagu_indikatif', 'urutan'];
+    protected $fillable = [
+        'opd_kegiatan_id',
+        'sub_kegiatan_pemerintahan_id',
+        'opd_unit_id',
+        'kode',
+        'nama',
+        'pagu_indikatif',
+        'urutan',
+    ];
 
     protected function casts(): array
     {
@@ -27,6 +35,16 @@ class OpdSubKegiatan extends Model
     public function kegiatan(): BelongsTo
     {
         return $this->belongsTo(OpdKegiatan::class, 'opd_kegiatan_id');
+    }
+
+    public function subKegiatanPemerintahan(): BelongsTo
+    {
+        return $this->belongsTo(SubKegiatanPemerintahan::class);
+    }
+
+    public function opdUnit(): BelongsTo
+    {
+        return $this->belongsTo(OpdUnit::class);
     }
 
     public function indikator(): HasMany

@@ -9,7 +9,15 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { CheckCircle2, Eye, EyeOff, GitBranch, LoaderCircle, Network, Pencil, Plus, Rows3, Save, Table2, Trash2 } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 
-type Option = { id: number; label: string; description?: string | null; group?: string | null; sasaran_id?: number | null };
+type Option = {
+    id: number;
+    label: string;
+    description?: string | null;
+    group?: string | null;
+    sasaran_id?: number | null;
+    tahun?: number;
+    jenis_target?: 'tahunan' | 'prakiraan_maju';
+};
 type RichSelectOption = {
     id?: number | string;
     value?: number | string;
@@ -35,6 +43,7 @@ type NodeType =
 type Target = {
     id: number;
     periode_tahun: { id: number; tahun: number; nama: string };
+    jenis_target?: 'tahunan' | 'prakiraan_maju' | string | null;
     target?: string | number | null;
     target_text?: string | null;
 };
@@ -227,6 +236,7 @@ const props = defineProps<{
     nodeOptions: Record<string, Option[]>;
     targetTriwulanOptions: Record<string, Option[]>;
     periodeOptions: Option[];
+    targetPeriodOptions: Option[];
     satuanOptions: Option[];
     opdOptions: Option[];
     urusanOptions: Option[];
@@ -530,7 +540,7 @@ const bulkCanSubmit = computed(
 );
 const bulkTableCounterLabel = computed(() =>
     bulkIsTargetType.value
-        ? `${props.periodeOptions.length} tahun target`
+        ? `${targetPeriodOptionsForInput.value.length} tahun target`
         : `${bulkVisibleExistingRows.value.length} tersimpan - ${bulkFilledRows.value} baru`,
 );
 const bulkColumnCount = computed(() => {
@@ -647,6 +657,10 @@ const targetTypeLabels: Record<'target_tujuan' | 'target_sasaran' | 'target_prog
 
 const isAnnualTargetType = (type: NodeType): type is 'target_tujuan' | 'target_sasaran' | 'target_program' =>
     ['target_tujuan', 'target_sasaran', 'target_program'].includes(type);
+const targetPeriodOptionsForInput = computed(() => (props.targetPeriodOptions.length > 0 ? props.targetPeriodOptions : props.periodeOptions));
+const isPrakiraanMajuYear = (year: number) => year > props.rpjmd.tahun_akhir;
+const targetYearLabel = (year: number) => (isPrakiraanMajuYear(year) ? `${year} PM` : String(year));
+const targetYearTitle = (year: number) => (isPrakiraanMajuYear(year) ? `${year} - Prakiraan Maju` : `${year} - Target RPJMD`);
 
 const completeDataNodeTypes = new Set<NodeType>([
     'target_tujuan',
@@ -664,7 +678,7 @@ const decorateParentOptions = (type: NodeType, options: Option[]): RichSelectOpt
         return asRichOptions(options);
     }
 
-    const totalPeriods = props.periodeOptions.length;
+    const totalPeriods = targetPeriodOptionsForInput.value.length;
 
     return options.map((option) => {
         const filledTargets = targetCountByType.value[type].get(Number(option.id)) ?? 0;
@@ -683,7 +697,7 @@ const decorateParentOptions = (type: NodeType, options: Option[]): RichSelectOpt
 const decoratedParentOptions = computed(() => decorateParentOptions(form.type, parentOptions.value));
 const decoratedBulkParentOptions = computed(() => decorateParentOptions(bulkForm.type, bulkParentOptions.value));
 const decoratedTargetTriwulanOptions = computed<RichSelectOption[]>(() => {
-    const totalTargets = props.periodeOptions.length * 4;
+    const totalTargets = targetPeriodOptionsForInput.value.length * 4;
     const counts = targetTriwulanCountByTable.value[targetTriwulanForm.related_table] ?? new Map<number, number>();
 
     return selectedTargetTriwulanOptions.value.map((option) => {
@@ -788,8 +802,18 @@ const bulkShouldRequireSasaranIndikatorTujuan = computed(
 );
 
 const selectedBulkParentId = computed(() => toSelectedNumber(bulkForm.parent_id));
-const periodeLabelById = computed(() => new Map(props.periodeOptions.map((option) => [Number(option.id), option.label])));
+const periodeLabelById = computed(
+    () => new Map([...props.periodeOptions, ...targetPeriodOptionsForInput.value].map((option) => [Number(option.id), option.label])),
+);
+const periodeYearById = computed(
+    () => new Map([...props.periodeOptions, ...targetPeriodOptionsForInput.value].map((option) => [Number(option.id), option.tahun ?? null])),
+);
 const bulkPeriodLabel = (periodeId: number | string | null | undefined) => periodeLabelById.value.get(Number(periodeId)) ?? '-';
+const isPrakiraanMajuPeriod = (periodeId: number | string | null | undefined) => {
+    const year = periodeYearById.value.get(Number(periodeId));
+
+    return typeof year === 'number' && isPrakiraanMajuYear(year);
+};
 const bulkExistingRows = computed<BulkExistingRow[]>(() => {
     const rows: BulkExistingRow[] = [];
 
@@ -1057,6 +1081,12 @@ const rpjmdTargetYears = computed(() => {
         years.add(year);
     }
 
+    targetPeriodOptionsForInput.value.forEach((periode) => {
+        if (periode.tahun) {
+            years.add(periode.tahun);
+        }
+    });
+
     allIndicators.value.forEach((indicator) => {
         indicator.targets.forEach((target) => years.add(target.periode_tahun.tahun));
     });
@@ -1299,7 +1329,7 @@ const valueText = (value: unknown) => (value === null || value === undefined ? '
 const buildTargetBulkRowsFromPeriods = () => {
     const selectedParentId = selectedBulkParentId.value;
 
-    return props.periodeOptions.map((periode, index) => {
+    return targetPeriodOptionsForInput.value.map((periode, index) => {
         const row = emptyBulkRow(index);
         const periodeId = toSelectedNumber(periode.id);
         const existing =
@@ -2421,18 +2451,24 @@ const triwulanLabel = (triwulan: string) =>
                                 <th rowspan="2" class="w-[210px] border border-slate-700 px-3 py-3 text-center align-middle">Tujuan</th>
                                 <th rowspan="2" class="w-[210px] border border-slate-700 px-3 py-3 text-center align-middle">Indikator Tujuan</th>
                                 <th rowspan="2" class="w-[90px] border border-slate-700 px-3 py-3 text-center align-middle">Satuan</th>
-                                <th :colspan="rpjmdTargetYears.length" class="border border-slate-700 px-3 py-3 text-center align-middle">Target</th>
+                                <th :colspan="rpjmdTargetYears.length" class="border border-slate-700 px-3 py-3 text-center align-middle">
+                                    Target / Prakiraan Maju
+                                </th>
                                 <th rowspan="2" class="w-[220px] border border-slate-700 px-3 py-3 text-center align-middle">Sasaran Strategis</th>
                                 <th rowspan="2" class="w-[230px] border border-slate-700 px-3 py-3 text-center align-middle">
                                     Indikator Kinerja Sasaran Strategis
                                 </th>
                                 <th rowspan="2" class="w-[90px] border border-slate-700 px-3 py-3 text-center align-middle">Satuan</th>
-                                <th :colspan="rpjmdTargetYears.length" class="border border-slate-700 px-3 py-3 text-center align-middle">Target</th>
+                                <th :colspan="rpjmdTargetYears.length" class="border border-slate-700 px-3 py-3 text-center align-middle">
+                                    Target / Prakiraan Maju
+                                </th>
                                 <th rowspan="2" class="w-[220px] border border-slate-700 px-3 py-3 text-center align-middle">Strategi</th>
                                 <th rowspan="2" class="w-[230px] border border-slate-700 px-3 py-3 text-center align-middle">Program RPJMD</th>
                                 <th rowspan="2" class="w-[230px] border border-slate-700 px-3 py-3 text-center align-middle">Indikator Program</th>
                                 <th rowspan="2" class="w-[90px] border border-slate-700 px-3 py-3 text-center align-middle">Satuan</th>
-                                <th :colspan="rpjmdTargetYears.length" class="border border-slate-700 px-3 py-3 text-center align-middle">Target</th>
+                                <th :colspan="rpjmdTargetYears.length" class="border border-slate-700 px-3 py-3 text-center align-middle">
+                                    Target / Prakiraan Maju
+                                </th>
                                 <th rowspan="2" class="w-[170px] border border-slate-700 px-3 py-3 text-center align-middle">OPD</th>
                                 <th rowspan="2" class="w-[150px] border border-slate-700 px-3 py-3 text-center align-middle">Status</th>
                             </tr>
@@ -2440,23 +2476,29 @@ const triwulanLabel = (triwulan: string) =>
                                 <th
                                     v-for="year in rpjmdTargetYears"
                                     :key="`target-tujuan-${year}`"
-                                    class="w-[70px] border border-slate-700 px-2 py-2 text-center align-middle"
+                                    class="w-[76px] border border-slate-700 px-2 py-2 text-center align-middle"
+                                    :class="isPrakiraanMajuYear(year) ? 'bg-[#dcecff] text-[#00336C]' : ''"
+                                    :title="targetYearTitle(year)"
                                 >
-                                    {{ year }}
+                                    {{ targetYearLabel(year) }}
                                 </th>
                                 <th
                                     v-for="year in rpjmdTargetYears"
                                     :key="`target-sasaran-${year}`"
-                                    class="w-[70px] border border-slate-700 px-2 py-2 text-center align-middle"
+                                    class="w-[76px] border border-slate-700 px-2 py-2 text-center align-middle"
+                                    :class="isPrakiraanMajuYear(year) ? 'bg-[#dcecff] text-[#00336C]' : ''"
+                                    :title="targetYearTitle(year)"
                                 >
-                                    {{ year }}
+                                    {{ targetYearLabel(year) }}
                                 </th>
                                 <th
                                     v-for="year in rpjmdTargetYears"
                                     :key="`target-program-${year}`"
-                                    class="w-[70px] border border-slate-700 px-2 py-2 text-center align-middle"
+                                    class="w-[76px] border border-slate-700 px-2 py-2 text-center align-middle"
+                                    :class="isPrakiraanMajuYear(year) ? 'bg-[#dcecff] text-[#00336C]' : ''"
+                                    :title="targetYearTitle(year)"
                                 >
-                                    {{ year }}
+                                    {{ targetYearLabel(year) }}
                                 </th>
                             </tr>
                         </thead>
@@ -2471,6 +2513,7 @@ const triwulanLabel = (triwulan: string) =>
                                     v-for="year in rpjmdTargetYears"
                                     :key="`row-target-tujuan-${row.key}-${year}`"
                                     class="border border-slate-300 px-2 py-3 text-center leading-6"
+                                    :class="isPrakiraanMajuYear(year) ? 'bg-blue-50/60 font-medium text-[#00336C]' : ''"
                                 >
                                     {{ row.target_tujuan_by_year[year] || '' }}
                                 </td>
@@ -2481,6 +2524,7 @@ const triwulanLabel = (triwulan: string) =>
                                     v-for="year in rpjmdTargetYears"
                                     :key="`row-target-sasaran-${row.key}-${year}`"
                                     class="border border-slate-300 px-2 py-3 text-center leading-6"
+                                    :class="isPrakiraanMajuYear(year) ? 'bg-blue-50/60 font-medium text-[#00336C]' : ''"
                                 >
                                     {{ row.target_sasaran_by_year[year] || '' }}
                                 </td>
@@ -2492,6 +2536,7 @@ const triwulanLabel = (triwulan: string) =>
                                     v-for="year in rpjmdTargetYears"
                                     :key="`row-target-program-${row.key}-${year}`"
                                     class="border border-slate-300 px-2 py-3 text-center leading-6"
+                                    :class="isPrakiraanMajuYear(year) ? 'bg-blue-50/60 font-medium text-[#00336C]' : ''"
                                 >
                                     {{ row.target_program_by_year[year] || '' }}
                                 </td>
@@ -3236,7 +3281,9 @@ const triwulanLabel = (triwulan: string) =>
                                     class="h-10 rounded-md border bg-background px-3 text-sm"
                                 >
                                     <option value="">Pilih periode</option>
-                                    <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                    <option v-for="option in targetPeriodOptionsForInput" :key="option.id" :value="option.id">
+                                        {{ option.label }}
+                                    </option>
                                 </select>
                                 <InputError :message="form.errors.periode_tahun_id" />
                             </div>
@@ -3345,7 +3392,9 @@ const triwulanLabel = (triwulan: string) =>
                                     class="h-10 rounded-md border bg-background px-3 text-sm"
                                 >
                                     <option value="">Pilih periode</option>
-                                    <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                                    <option v-for="option in targetPeriodOptionsForInput" :key="option.id" :value="option.id">
+                                        {{ option.label }}
+                                    </option>
                                 </select>
                                 <InputError :message="targetTriwulanForm.errors.periode_tahun_id" />
                             </div>
@@ -3673,7 +3722,12 @@ const triwulanLabel = (triwulan: string) =>
                                                 </td>
                                                 <td v-if="bulkIsTargetType" class="px-3 py-2 align-top">
                                                     <div
-                                                        class="inline-flex h-10 items-center rounded-md border bg-slate-50 px-3 text-sm font-semibold text-slate-700"
+                                                        class="inline-flex h-10 items-center rounded-md border px-3 text-sm font-semibold"
+                                                        :class="
+                                                            isPrakiraanMajuPeriod(saved.periode_tahun_id)
+                                                                ? 'border-blue-200 bg-blue-50 text-[#00336C]'
+                                                                : 'border-slate-200 bg-slate-50 text-slate-700'
+                                                        "
                                                     >
                                                         {{ bulkPeriodLabel(saved.periode_tahun_id) }}
                                                     </div>
@@ -3884,7 +3938,12 @@ const triwulanLabel = (triwulan: string) =>
                                                 </td>
                                                 <td v-if="bulkIsTargetType" class="px-3 py-2">
                                                     <div
-                                                        class="inline-flex h-10 items-center rounded-md border bg-slate-50 px-3 text-sm font-semibold text-slate-700"
+                                                        class="inline-flex h-10 items-center rounded-md border px-3 text-sm font-semibold"
+                                                        :class="
+                                                            isPrakiraanMajuPeriod(row.periode_tahun_id)
+                                                                ? 'border-blue-200 bg-blue-50 text-[#00336C]'
+                                                                : 'border-slate-200 bg-slate-50 text-slate-700'
+                                                        "
                                                     >
                                                         {{ bulkPeriodLabel(row.periode_tahun_id) }}
                                                     </div>

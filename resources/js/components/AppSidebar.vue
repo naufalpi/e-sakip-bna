@@ -136,11 +136,23 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     pageComponent: 'Rpjmd/Index',
                     icon: GitBranch,
                 },
+                hasAnyPermission(['rkpd.view', 'rkpd.manage']) && {
+                    title: 'RKPD Kabupaten',
+                    href: '/rkpd',
+                    pageComponent: 'Rkpd/Index',
+                    icon: CalendarDays,
+                },
                 hasAnyPermission(['renstra.view', 'view_renstra_opd', 'renstra.manage', 'manage_renstra_opd']) && {
                     title: 'Renstra OPD',
                     href: '/renstra-opd',
                     pageComponent: 'RenstraOpd/Index',
                     icon: Layers3,
+                },
+                hasAnyPermission(['renja.view', 'renja.manage']) && {
+                    title: 'Renja OPD',
+                    href: '/renja-opd',
+                    pageComponent: 'RenjaOpd/Index',
+                    icon: FileText,
                 },
                 hasAnyPermission(['rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd']) && {
                     title: 'Pohon Kinerja',

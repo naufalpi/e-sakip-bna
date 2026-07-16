@@ -742,6 +742,7 @@ class RpjmdImportApplyService
             'indikator_tujuan_daerah_id' => $indikator->id,
             'periode_tahun_id' => $periode->id,
         ], [
+            'jenis_target' => $this->jenisTarget($periode),
             'target' => $this->text($mapped, ['target', 'target_tujuan', 'target_angka']),
             'target_text' => $this->text($mapped, ['target_text', 'target_teks', 'target_tujuan_text']),
         ]);
@@ -758,6 +759,7 @@ class RpjmdImportApplyService
             'indikator_sasaran_daerah_id' => $indikator->id,
             'periode_tahun_id' => $periode->id,
         ], [
+            'jenis_target' => $this->jenisTarget($periode),
             'target' => $this->text($mapped, ['target', 'target_sasaran', 'target_angka']),
             'target_text' => $this->text($mapped, ['target_text', 'target_teks', 'target_sasaran_text']),
         ]);
@@ -774,9 +776,21 @@ class RpjmdImportApplyService
             'indikator_program_rpjmd_id' => $indikator->id,
             'periode_tahun_id' => $periode->id,
         ], [
+            'jenis_target' => $this->jenisTarget($periode),
             'target' => $this->text($mapped, ['target', 'target_program', 'target_angka']),
             'target_text' => $this->text($mapped, ['target_text', 'target_teks', 'target_program_text']),
         ]);
+    }
+
+    private function jenisTarget(PeriodeTahun $periode): string
+    {
+        $rpjmd = $this->context['rpjmd'] ?? null;
+
+        if (! $rpjmd instanceof Rpjmd) {
+            return 'tahunan';
+        }
+
+        return (int) $periode->tahun > (int) $rpjmd->tahun_akhir ? 'prakiraan_maju' : 'tahunan';
     }
 
     /**

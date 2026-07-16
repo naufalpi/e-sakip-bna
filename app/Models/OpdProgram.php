@@ -19,6 +19,7 @@ class OpdProgram extends Model
         'renstra_opd_id',
         'sasaran_opd_id',
         'program_rpjmd_id',
+        'program_pemerintahan_id',
         'kode',
         'nama',
         'pagu_indikatif',
@@ -46,6 +47,11 @@ class OpdProgram extends Model
     public function programRpjmd(): BelongsTo
     {
         return $this->belongsTo(ProgramRpjmd::class);
+    }
+
+    public function programPemerintahan(): BelongsTo
+    {
+        return $this->belongsTo(ProgramPemerintahan::class);
     }
 
     public function indikator(): HasMany

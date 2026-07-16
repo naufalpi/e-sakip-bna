@@ -8,6 +8,7 @@ use App\Http\Requests\Rpjmd\StoreRpjmdNodeRequest;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
+use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
 use App\Models\ProgramRpjmdOpdPenanggungJawab;
@@ -132,6 +133,7 @@ class RpjmdNodeController extends Controller
                 'indikator_tujuan_daerah_id' => $this->indikatorTujuan($rpjmd, $data['parent_id'] ?? null)->id,
                 'periode_tahun_id' => $this->requiredInt($data, 'periode_tahun_id', 'Periode target wajib dipilih.'),
             ], [
+                'jenis_target' => $this->jenisTarget($rpjmd, (int) $data['periode_tahun_id']),
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
             ]),
@@ -149,6 +151,7 @@ class RpjmdNodeController extends Controller
                 'indikator_sasaran_daerah_id' => $this->indikatorSasaran($rpjmd, $data['parent_id'] ?? null)->id,
                 'periode_tahun_id' => $this->requiredInt($data, 'periode_tahun_id', 'Periode target wajib dipilih.'),
             ], [
+                'jenis_target' => $this->jenisTarget($rpjmd, (int) $data['periode_tahun_id']),
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
             ]),
@@ -176,6 +179,7 @@ class RpjmdNodeController extends Controller
                 'indikator_program_rpjmd_id' => $this->indikatorProgram($rpjmd, $data['parent_id'] ?? null)->id,
                 'periode_tahun_id' => $this->requiredInt($data, 'periode_tahun_id', 'Periode target wajib dipilih.'),
             ], [
+                'jenis_target' => $this->jenisTarget($rpjmd, (int) $data['periode_tahun_id']),
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
             ]),
@@ -281,9 +285,12 @@ class RpjmdNodeController extends Controller
                 ]);
             }),
             'target_tujuan' => tap($this->findNode($rpjmd, $type, $id), function (TargetIndikatorTujuanDaerah $target) use ($rpjmd, $data) {
+                $periodeTahunId = filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id;
+
                 $target->update([
                     'indikator_tujuan_daerah_id' => filled($data['parent_id'] ?? null) ? $this->indikatorTujuan($rpjmd, $data['parent_id'])->id : $target->indikator_tujuan_daerah_id,
-                    'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
+                    'periode_tahun_id' => $periodeTahunId,
+                    'jenis_target' => $this->jenisTarget($rpjmd, $periodeTahunId),
                     'target' => $data['target'] ?? null,
                     'target_text' => $data['target_text'] ?? null,
                 ]);
@@ -305,9 +312,12 @@ class RpjmdNodeController extends Controller
                 ]);
             }),
             'target_sasaran' => tap($this->findNode($rpjmd, $type, $id), function (TargetIndikatorSasaranDaerah $target) use ($rpjmd, $data) {
+                $periodeTahunId = filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id;
+
                 $target->update([
                     'indikator_sasaran_daerah_id' => filled($data['parent_id'] ?? null) ? $this->indikatorSasaran($rpjmd, $data['parent_id'])->id : $target->indikator_sasaran_daerah_id,
-                    'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
+                    'periode_tahun_id' => $periodeTahunId,
+                    'jenis_target' => $this->jenisTarget($rpjmd, $periodeTahunId),
                     'target' => $data['target'] ?? null,
                     'target_text' => $data['target_text'] ?? null,
                 ]);
@@ -339,9 +349,12 @@ class RpjmdNodeController extends Controller
                 ]);
             }),
             'target_program' => tap($this->findNode($rpjmd, $type, $id), function (TargetIndikatorProgramRpjmd $target) use ($rpjmd, $data) {
+                $periodeTahunId = filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id;
+
                 $target->update([
                     'indikator_program_rpjmd_id' => filled($data['parent_id'] ?? null) ? $this->indikatorProgram($rpjmd, $data['parent_id'])->id : $target->indikator_program_rpjmd_id,
-                    'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
+                    'periode_tahun_id' => $periodeTahunId,
+                    'jenis_target' => $this->jenisTarget($rpjmd, $periodeTahunId),
                     'target' => $data['target'] ?? null,
                     'target_text' => $data['target_text'] ?? null,
                 ]);
@@ -500,6 +513,13 @@ class RpjmdNodeController extends Controller
         throw_if(blank($data[$key] ?? null), ValidationException::withMessages([$key => $message]));
 
         return (int) $data[$key];
+    }
+
+    private function jenisTarget(Rpjmd $rpjmd, int $periodeTahunId): string
+    {
+        $tahun = PeriodeTahun::query()->whereKey($periodeTahunId)->value('tahun');
+
+        return $tahun && (int) $tahun > (int) $rpjmd->tahun_akhir ? 'prakiraan_maju' : 'tahunan';
     }
 
     private function visi(Rpjmd $rpjmd, mixed $id): RpjmdVisi

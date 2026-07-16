@@ -12,7 +12,7 @@ class TargetIndikatorSasaranDaerah extends Model
 
     protected $table = 'target_indikator_sasaran_daerah';
 
-    protected $fillable = ['indikator_sasaran_daerah_id', 'periode_tahun_id', 'target', 'target_text'];
+    protected $fillable = ['indikator_sasaran_daerah_id', 'periode_tahun_id', 'jenis_target', 'target', 'target_text'];
 
     public function indikator(): BelongsTo
     {
