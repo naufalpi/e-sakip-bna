@@ -1256,14 +1256,17 @@ const rpjmdCascadingTableRows = computed<RpjmdCascadingRow[]>(() => {
         }
 
         if (!next.indikator_tujuan) {
+            next.satuan_tujuan = '';
             next.target_tujuan_by_year = {};
         }
 
         if (!next.indikator_sasaran) {
+            next.satuan_sasaran = '';
             next.target_sasaran_by_year = {};
         }
 
         if (!next.indikator_program) {
+            next.satuan_program = '';
             next.target_program_by_year = {};
         }
 
