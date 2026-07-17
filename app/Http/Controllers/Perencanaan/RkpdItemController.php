@@ -8,7 +8,6 @@ use App\Http\Requests\Perencanaan\UpdateRkpdItemRequest;
 use App\Models\Rkpd;
 use App\Models\RkpdItem;
 use App\Models\SubKegiatanPemerintahan;
-use App\Services\Perencanaan\RkpdCompilationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -19,7 +18,7 @@ class RkpdItemController extends Controller
         $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'));
 
         $rkpd->items()->create($this->payload($request->validated(), $subKegiatan, [
-            'status' => $request->validated('status') ?: 'draft',
+            'status' => in_array($rkpd->status, ['submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'], true) ? $rkpd->status : 'draft',
             'urutan' => $request->validated('urutan') ?: ((int) $rkpd->items()->max('urutan')) + 1,
         ]));
 
@@ -33,7 +32,7 @@ class RkpdItemController extends Controller
         $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'));
 
         $item->update($this->payload($request->validated(), $subKegiatan, [
-            'status' => $request->validated('status') ?: $item->status,
+            'status' => $item->status,
             'urutan' => $request->validated('urutan') ?: $item->urutan,
         ]));
 
@@ -48,15 +47,6 @@ class RkpdItemController extends Controller
         $item->delete();
 
         return back()->with('success', 'Baris RKPD berhasil dihapus.');
-    }
-
-    public function pullRenja(Request $request, Rkpd $rkpd, RkpdCompilationService $service): RedirectResponse
-    {
-        abort_unless($request->user()->can('update', $rkpd), 403);
-
-        $count = $service->pullApprovedRenja($rkpd);
-
-        return back()->with('success', "{$count} baris Renja OPD berhasil ditarik ke RKPD.");
     }
 
     private function subKegiatan(int $id): SubKegiatanPemerintahan

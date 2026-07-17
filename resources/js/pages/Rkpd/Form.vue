@@ -65,7 +65,7 @@ const submit = () => {
                     Kembali ke RKPD
                 </Link>
                 <h1 class="mt-3 text-2xl font-semibold tracking-normal">{{ title }}</h1>
-                <p class="mt-1 text-sm text-muted-foreground">Identitas dokumen RKPD tahunan sebagai wadah kompilasi Renja OPD.</p>
+                <p class="mt-1 text-sm text-muted-foreground">Identitas dokumen RKPD tahunan yang sudah final dan disahkan.</p>
             </div>
         </div>
 

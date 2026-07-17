@@ -3,7 +3,7 @@ import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, CheckCircle2, ClipboardList, DatabaseZap, FileSpreadsheet, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-vue-next';
+import { ArrowLeft, ClipboardList, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-vue-next';
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 type Option = {
@@ -12,9 +12,12 @@ type Option = {
     kode?: string;
     nama?: string;
     description?: string;
+    display_label?: string;
+    reference_count?: number;
     group?: string;
     program_id?: number | null;
     program_pemerintahan_id?: number | null;
+    program_pemerintahan_ids?: number[];
 };
 type Rkpd = {
     id: number;
@@ -71,11 +74,11 @@ const props = defineProps<{
     rkpd: Rkpd;
     items: Paginator<Row>;
     filters: { search?: string; status?: string; opd_id?: string };
-    summary: { items_count: number; opd_count: number; renja_count: number; total_pagu: number; total_prakiraan_maju: number };
+    summary: { items_count: number; opd_count: number; total_pagu: number; total_prakiraan_maju: number };
     opdOptions: Option[];
     subKegiatanOptions: Option[];
     programRpjmdOptions: Option[];
-    can: { manage: boolean; pullRenja: boolean };
+    can: { manage: boolean };
 }>();
 
 const filterForm = reactive({
@@ -103,7 +106,6 @@ const form = useForm({
     prakiraan_maju_target: '',
     prakiraan_maju_pagu_indikatif: '',
     perangkat_daerah_penanggung_jawab: '',
-    status: 'draft',
     urutan: '',
 });
 
@@ -123,15 +125,50 @@ const relatedProgramRpjmdOptions = computed(() => {
     const programId = selectedSubKegiatan.value?.program_id;
 
     if (!programId) {
-        return props.programRpjmdOptions;
+        return [];
     }
 
-    return props.programRpjmdOptions.filter((option) => Number(option.program_pemerintahan_id || 0) === Number(programId));
+    return props.programRpjmdOptions.filter((option) => {
+        const ids = option.program_pemerintahan_ids?.length ? option.program_pemerintahan_ids : [option.program_pemerintahan_id];
+
+        return ids.some((id) => Number(id || 0) === Number(programId));
+    });
 });
-const programRpjmdSelectOptions = computed(() => [
-    { id: '', label: 'Tidak dihubungkan', description: 'Opsional' },
-    ...relatedProgramRpjmdOptions.value,
-]);
+const autoProgramRpjmd = computed(() => {
+    if (!selectedSubKegiatan.value || relatedProgramRpjmdOptions.value.length === 0) {
+        return null;
+    }
+
+    return selectedProgramRpjmd.value ?? relatedProgramRpjmdOptions.value[0];
+});
+const programRpjmdInfo = computed(() => {
+    if (!selectedSubKegiatan.value) {
+        return {
+            label: 'Pilih sub kegiatan terlebih dahulu',
+            description: 'Program RPJMD akan tampil otomatis bila sub kegiatan sudah dipilih.',
+            tone: 'muted',
+        };
+    }
+
+    if (!autoProgramRpjmd.value) {
+        return {
+            label: 'Belum terhubung ke Program RPJMD',
+            description: 'Program master pada sub kegiatan ini belum dipakai di RPJMD.',
+            tone: 'warning',
+        };
+    }
+
+    return {
+        label: autoProgramRpjmd.value.display_label || autoProgramRpjmd.value.label,
+        description:
+            autoProgramRpjmd.value.reference_count && autoProgramRpjmd.value.reference_count > 1
+                ? `Terhubung ke ${autoProgramRpjmd.value.reference_count} kode program master. Kode aktif mengikuti sub kegiatan yang dipilih.`
+                : relatedProgramRpjmdOptions.value.length > 1
+                  ? `${relatedProgramRpjmdOptions.value.length} program RPJMD terkait. Sistem memakai relasi yang aktif pada baris ini.`
+                  : 'Terisi otomatis dari relasi program master ke RPJMD.',
+        tone: 'linked',
+    };
+});
 
 const scrollToForm = () => {
     nextTick(() => {
@@ -147,13 +184,13 @@ const openManualForm = () => {
 watch(
     () => form.sub_kegiatan_pemerintahan_id,
     () => {
-        const currentStillValid = relatedProgramRpjmdOptions.value.some((option) => String(option.id) === String(form.program_rpjmd_id));
+        const currentStillValid = relatedProgramRpjmdOptions.value.find((option) => String(option.id) === String(form.program_rpjmd_id));
 
         if (form.program_rpjmd_id && currentStillValid) {
             return;
         }
 
-        form.program_rpjmd_id = relatedProgramRpjmdOptions.value.length === 1 ? String(relatedProgramRpjmdOptions.value[0].id) : '';
+        form.program_rpjmd_id = relatedProgramRpjmdOptions.value[0] ? String(relatedProgramRpjmdOptions.value[0].id) : '';
     },
 );
 
@@ -175,7 +212,6 @@ const resetForm = () => {
     editingId.value = null;
     form.reset();
     form.clearErrors();
-    form.status = 'draft';
 };
 
 const closeForm = () => {
@@ -219,7 +255,6 @@ const editItem = (row: Row) => {
     form.prakiraan_maju_target = row.prakiraan_maju_target ?? '';
     form.prakiraan_maju_pagu_indikatif = String(row.prakiraan_maju_pagu_indikatif ?? '');
     form.perangkat_daerah_penanggung_jawab = row.perangkat_daerah_penanggung_jawab ?? '';
-    form.status = row.status;
     form.urutan = String(row.urutan ?? '');
     scrollToForm();
 };
@@ -228,10 +263,6 @@ const destroyItem = async (row: Row) => {
     if (await confirmDelete(`Hapus baris ${row.kode || row.nama_urusan_bidang_program_kegiatan_sub || 'RKPD'}?`)) {
         router.delete(route('rkpd.items.destroy', [props.rkpd.id, row.id]), { preserveScroll: true });
     }
-};
-
-const pullRenja = () => {
-    router.post(route('rkpd.pull-renja', props.rkpd.id), {}, { preserveScroll: true });
 };
 
 const statusLabel = (status: string) =>
@@ -304,11 +335,6 @@ const formatMoney = (value?: number | string | null) => {
                     <p class="mt-1 text-xs text-muted-foreground">perangkat daerah</p>
                 </article>
                 <article class="rounded-xl border bg-white p-4">
-                    <p class="text-xs font-semibold uppercase text-muted-foreground">Renja Sumber</p>
-                    <p class="mt-2 text-2xl font-semibold">{{ summary.renja_count }}</p>
-                    <p class="mt-1 text-xs text-muted-foreground">dokumen OPD</p>
-                </article>
-                <article class="rounded-xl border bg-white p-4">
                     <p class="text-xs font-semibold uppercase text-muted-foreground">Baris Matriks</p>
                     <p class="mt-2 text-2xl font-semibold">{{ summary.items_count }}</p>
                     <p class="mt-1 text-xs text-muted-foreground">program sampai sub kegiatan</p>
@@ -318,83 +344,42 @@ const formatMoney = (value?: number | string | null) => {
                     <p class="mt-2 text-2xl font-semibold">{{ formatMoney(summary.total_pagu) }}</p>
                     <p class="mt-1 text-xs opacity-75">tahun {{ rkpd.tahun }}</p>
                 </article>
+                <article class="rounded-xl border bg-white p-4">
+                    <p class="text-xs font-semibold uppercase text-muted-foreground">Prakiraan Maju</p>
+                    <p class="mt-2 text-2xl font-semibold">{{ formatMoney(summary.total_prakiraan_maju) }}</p>
+                    <p class="mt-1 text-xs text-muted-foreground">tahun berikutnya</p>
+                </article>
             </div>
         </section>
 
-        <section v-if="can.manage" class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
-            <article class="overflow-hidden rounded-xl border bg-card shadow-sm">
-                <div class="border-b px-5 py-4">
-                    <div class="flex items-center gap-3">
-                        <div class="flex size-11 items-center justify-center rounded-xl bg-blue-50 text-[#00336C]">
-                            <ClipboardList class="size-5" />
-                        </div>
-                        <div>
-                            <h2 class="text-base font-semibold">Alur Pengisian RKPD</h2>
-                            <p class="mt-0.5 text-sm text-muted-foreground">RKPD adalah kompilasi Renja OPD tahunan.</p>
-                        </div>
+        <section v-if="can.manage" class="rounded-xl border bg-card p-4 shadow-sm">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex items-start gap-3">
+                    <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#00336C]">
+                        <ClipboardList class="size-5" />
+                    </div>
+                    <div>
+                        <h2 class="text-base font-semibold">Input RKPD Final</h2>
+                        <p class="mt-1 text-sm text-muted-foreground">Masukkan baris sesuai dokumen RKPD yang sudah disahkan.</p>
                     </div>
                 </div>
-
-                <div class="grid gap-3 p-4 md:grid-cols-3">
-                    <div class="rounded-xl border bg-white p-4">
-                        <div class="flex items-center justify-between gap-3">
-                            <span class="rounded-full bg-[#00336C] px-2.5 py-1 text-xs font-semibold text-white">1</span>
-                            <CheckCircle2 class="size-5 text-emerald-600" />
-                        </div>
-                        <h3 class="mt-4 font-semibold">Renja OPD</h3>
-                        <p class="mt-1 text-sm leading-5 text-muted-foreground">OPD mengisi Renja sampai sub kegiatan.</p>
-                    </div>
-                    <div class="rounded-xl border bg-white p-4">
-                        <div class="flex items-center justify-between gap-3">
-                            <span class="rounded-full bg-[#00336C] px-2.5 py-1 text-xs font-semibold text-white">2</span>
-                            <DatabaseZap class="size-5 text-[#00336C]" />
-                        </div>
-                        <h3 class="mt-4 font-semibold">Tarik Data</h3>
-                        <p class="mt-1 text-sm leading-5 text-muted-foreground">Ambil Renja yang sudah disetujui ke RKPD.</p>
-                    </div>
-                    <div class="rounded-xl border bg-white p-4">
-                        <div class="flex items-center justify-between gap-3">
-                            <span class="rounded-full bg-[#00336C] px-2.5 py-1 text-xs font-semibold text-white">3</span>
-                            <FileSpreadsheet class="size-5 text-slate-700" />
-                        </div>
-                        <h3 class="mt-4 font-semibold">Matriks RKPD</h3>
-                        <p class="mt-1 text-sm leading-5 text-muted-foreground">Cek target, pagu, prioritas, dan prakiraan maju.</p>
-                    </div>
-                </div>
-            </article>
-
-            <aside class="rounded-xl border bg-card p-4 shadow-sm">
-                <h2 class="text-base font-semibold">Aksi Input</h2>
-                <p class="mt-1 text-sm text-muted-foreground">Gunakan tarik Renja sebagai jalur utama.</p>
-
-                <div class="mt-4 grid gap-2">
-                    <button
-                        v-if="can.pullRenja"
-                        type="button"
-                        class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#00336C] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#002855]"
-                        @click="pullRenja"
-                    >
-                        <DatabaseZap class="size-4" />
-                        Tarik Renja Approved
-                    </button>
-                    <button
-                        type="button"
-                        class="inline-flex h-11 items-center justify-center gap-2 rounded-xl border bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                        @click="openManualForm"
-                    >
-                        <Plus class="size-4" />
-                        Tambah Manual
-                    </button>
-                </div>
-            </aside>
+                <button
+                    type="button"
+                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#00336C] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002855]"
+                    @click="openManualForm"
+                >
+                    <Plus class="size-4" />
+                    Tambah Baris RKPD
+                </button>
+            </div>
         </section>
 
         <section v-if="can.manage && isFormOpen" ref="formSection" class="overflow-hidden rounded-xl border bg-card shadow-sm">
             <div class="border-b px-5 py-4">
                 <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
-                        <h2 class="text-base font-semibold">{{ editingId ? 'Edit Baris RKPD' : 'Tambah Baris RKPD Manual' }}</h2>
-                        <p class="mt-1 text-sm text-muted-foreground">Isi manual hanya untuk data yang belum berasal dari Renja OPD.</p>
+                        <h2 class="text-base font-semibold">{{ editingId ? 'Edit Baris RKPD' : 'Tambah Baris RKPD' }}</h2>
+                        <p class="mt-1 text-sm text-muted-foreground">Isi sesuai matriks RKPD final.</p>
                     </div>
                     <button type="button" class="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold hover:bg-slate-50" @click="closeForm">
                         <X class="size-4" />
@@ -408,53 +393,54 @@ const formatMoney = (value?: number | string | null) => {
                     <div class="rounded-xl border bg-white p-4">
                         <div class="mb-4 flex items-center gap-2">
                             <span class="flex size-7 items-center justify-center rounded-full bg-[#00336C] text-sm font-semibold text-white">1</span>
-                            <h3 class="font-semibold">Sumber Kegiatan</h3>
+                            <h3 class="font-semibold">Identitas Kegiatan</h3>
                         </div>
-                        <div class="grid gap-4 lg:grid-cols-2">
-                            <label class="grid gap-1.5">
-                                <span class="text-sm font-medium">OPD Penanggung Jawab</span>
-                                <RpjmdRichSelect
-                                    v-model="form.opd_id"
-                                    :options="opdOptions"
-                                    placeholder="Pilih OPD"
-                                    empty-text="OPD tidak tersedia"
-                                    :invalid="Boolean(form.errors.opd_id)"
-                                />
-                                <span v-if="form.errors.opd_id" class="text-xs text-red-600">{{ form.errors.opd_id }}</span>
-                            </label>
+                        <div class="grid gap-4">
+                            <div class="grid gap-4 lg:grid-cols-2">
+                                <label class="grid gap-1.5">
+                                    <span class="text-sm font-medium">OPD Penanggung Jawab</span>
+                                    <RpjmdRichSelect
+                                        v-model="form.opd_id"
+                                        :options="opdOptions"
+                                        placeholder="Pilih OPD"
+                                        empty-text="OPD tidak tersedia"
+                                        :invalid="Boolean(form.errors.opd_id)"
+                                    />
+                                    <span v-if="form.errors.opd_id" class="text-xs text-red-600">{{ form.errors.opd_id }}</span>
+                                </label>
 
-                            <label class="grid gap-1.5">
+                                <label class="grid gap-1.5">
+                                    <span class="text-sm font-medium">Sub Kegiatan</span>
+                                    <RpjmdRichSelect
+                                        v-model="form.sub_kegiatan_pemerintahan_id"
+                                        :options="subKegiatanOptions"
+                                        placeholder="Cari dan pilih sub kegiatan"
+                                        empty-text="Sub kegiatan tidak tersedia"
+                                        :invalid="Boolean(form.errors.sub_kegiatan_pemerintahan_id)"
+                                    />
+                                    <span v-if="form.errors.sub_kegiatan_pemerintahan_id" class="text-xs text-red-600">{{ form.errors.sub_kegiatan_pemerintahan_id }}</span>
+                                </label>
+                            </div>
+
+                            <div class="grid gap-1.5">
                                 <span class="text-sm font-medium">Program RPJMD Terkait</span>
-                                <RpjmdRichSelect
-                                    v-model="form.program_rpjmd_id"
-                                    :options="programRpjmdSelectOptions"
-                                    placeholder="Pilih program RPJMD"
-                                    empty-text="Program RPJMD tidak tersedia"
-                                />
-                                <span v-if="selectedSubKegiatan && relatedProgramRpjmdOptions.length === 0" class="text-xs text-amber-700">
-                                    Belum ada program RPJMD yang memakai program master ini.
-                                </span>
-                                <span v-else-if="selectedSubKegiatan && relatedProgramRpjmdOptions.length > 1" class="text-xs text-muted-foreground">
-                                    Ada {{ relatedProgramRpjmdOptions.length }} program RPJMD terkait. Pilih yang paling sesuai.
-                                </span>
-                            </label>
-
-                            <label class="grid gap-1.5 lg:col-span-2">
-                                <span class="text-sm font-medium">Sub Kegiatan</span>
-                                <RpjmdRichSelect
-                                    v-model="form.sub_kegiatan_pemerintahan_id"
-                                    :options="subKegiatanOptions"
-                                    placeholder="Cari dan pilih sub kegiatan"
-                                    empty-text="Sub kegiatan tidak tersedia"
-                                    :invalid="Boolean(form.errors.sub_kegiatan_pemerintahan_id)"
-                                />
-                                <span v-if="form.errors.sub_kegiatan_pemerintahan_id" class="text-xs text-red-600">{{ form.errors.sub_kegiatan_pemerintahan_id }}</span>
-                            </label>
+                                <div
+                                    class="rounded-xl border px-4 py-3 text-sm"
+                                    :class="{
+                                        'border-sky-200 bg-sky-50 text-[#00336C]': programRpjmdInfo.tone === 'linked',
+                                        'border-amber-200 bg-amber-50 text-amber-900': programRpjmdInfo.tone === 'warning',
+                                        'border-slate-200 bg-slate-50 text-slate-600': programRpjmdInfo.tone === 'muted',
+                                    }"
+                                >
+                                    <p class="font-semibold">{{ programRpjmdInfo.label }}</p>
+                                    <p class="mt-1 text-xs opacity-80">{{ programRpjmdInfo.description }}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <div class="rounded-xl border bg-slate-50 p-4">
-                        <h3 class="font-semibold">Ringkasan Pilihan</h3>
+                        <h3 class="font-semibold">Jalur Data</h3>
                         <div class="mt-4 space-y-3 text-sm">
                             <div>
                                 <p class="text-xs font-semibold uppercase text-muted-foreground">OPD</p>
@@ -471,7 +457,8 @@ const formatMoney = (value?: number | string | null) => {
                             </div>
                             <div>
                                 <p class="text-xs font-semibold uppercase text-muted-foreground">Program RPJMD</p>
-                                <p class="mt-1 font-medium">{{ selectedProgramRpjmd?.label || 'Tidak dihubungkan' }}</p>
+                                <p class="mt-1 font-medium">{{ autoProgramRpjmd?.display_label || autoProgramRpjmd?.label || 'Tidak dihubungkan' }}</p>
+                                <p v-if="autoProgramRpjmd?.description" class="mt-1 text-xs text-muted-foreground">{{ autoProgramRpjmd.description }}</p>
                             </div>
                         </div>
                     </div>
@@ -482,35 +469,63 @@ const formatMoney = (value?: number | string | null) => {
                         <span class="flex size-7 items-center justify-center rounded-full bg-[#00336C] text-sm font-semibold text-white">2</span>
                         <h3 class="font-semibold">Target dan Capaian</h3>
                     </div>
-                    <div class="grid gap-4 lg:grid-cols-4">
-                        <label class="grid gap-1.5 lg:col-span-2">
+                    <div class="grid gap-4 lg:grid-cols-6">
+                        <label class="grid gap-1.5 lg:col-span-3">
                             <span class="text-sm font-medium">Indikator</span>
-                            <textarea v-model="form.indikator" rows="3" class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"></textarea>
+                            <textarea
+                                v-model="form.indikator"
+                                rows="4"
+                                class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                                placeholder="Contoh: Jumlah dokumen perencanaan perangkat daerah"
+                            ></textarea>
                         </label>
-                        <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Target {{ rkpd.tahun }}</span>
-                            <input v-model="form.target" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
-                        </label>
-                        <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Target Akhir Renstra</span>
-                            <input v-model="form.target_akhir_renstra" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
-                        </label>
-                        <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Realisasi Tahun Lalu</span>
-                            <input v-model="form.realisasi_capaian_renja_tahun_lalu" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
-                        </label>
-                        <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Prakiraan Tahun Berjalan</span>
-                            <input v-model="form.prakiraan_capaian_target_renja_tahun_berjalan" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
-                        </label>
-                        <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Prakiraan Maju Target</span>
-                            <input v-model="form.prakiraan_maju_target" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
-                        </label>
-                        <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Urutan</span>
-                            <input v-model="form.urutan" type="number" min="1" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
-                        </label>
+                        <div class="grid gap-4 lg:col-span-3 lg:grid-cols-2">
+                            <label class="grid gap-1.5">
+                                <span class="text-sm font-medium">Target RKPD {{ rkpd.tahun }}</span>
+                                <input
+                                    v-model="form.target"
+                                    type="text"
+                                    class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                                    placeholder="Contoh: 3 Dokumen"
+                                />
+                            </label>
+                            <label class="grid gap-1.5">
+                                <span class="text-sm font-medium">Target Akhir Renstra</span>
+                                <input
+                                    v-model="form.target_akhir_renstra"
+                                    type="text"
+                                    class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                                    placeholder="Target akhir periode"
+                                />
+                            </label>
+                            <label class="grid gap-1.5">
+                                <span class="text-sm font-medium">Realisasi Tahun Lalu</span>
+                                <input
+                                    v-model="form.realisasi_capaian_renja_tahun_lalu"
+                                    type="text"
+                                    class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                                    placeholder="Capaian tahun lalu"
+                                />
+                            </label>
+                            <label class="grid gap-1.5">
+                                <span class="text-sm font-medium">Prakiraan Tahun Berjalan</span>
+                                <input
+                                    v-model="form.prakiraan_capaian_target_renja_tahun_berjalan"
+                                    type="text"
+                                    class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                                    placeholder="Perkiraan capaian tahun ini"
+                                />
+                            </label>
+                            <label class="grid gap-1.5 lg:col-span-2">
+                                <span class="text-sm font-medium">Prakiraan Maju Target</span>
+                                <input
+                                    v-model="form.prakiraan_maju_target"
+                                    type="text"
+                                    class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                                    placeholder="Target tahun berikutnya"
+                                />
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -531,15 +546,6 @@ const formatMoney = (value?: number | string | null) => {
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Sumber Dana</span>
                             <input v-model="form.sumber_dana" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
-                        </label>
-                        <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Status Baris</span>
-                            <select v-model="form.status" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
-                                <option value="draft">Draft</option>
-                                <option value="verified">Terverifikasi</option>
-                                <option value="approved">Disetujui</option>
-                                <option value="locked">Terkunci</option>
-                            </select>
                         </label>
                         <label class="grid gap-1.5 lg:col-span-2">
                             <span class="text-sm font-medium">Lokasi</span>

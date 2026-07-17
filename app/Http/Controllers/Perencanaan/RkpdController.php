@@ -8,7 +8,6 @@ use App\Http\Requests\Perencanaan\UpdateRkpdRequest;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramRpjmd;
-use App\Models\RenjaOpd;
 use App\Models\Rkpd;
 use App\Models\RkpdItem;
 use App\Models\Rpjmd;
@@ -30,7 +29,7 @@ class RkpdController extends Controller
 
         $rkpd = Rkpd::query()
             ->with(['rpjmd:id,judul,tahun_awal,tahun_akhir,status', 'periodeTahun:id,tahun,nama,status'])
-            ->withCount(['items', 'renjaOpd'])
+            ->withCount(['items'])
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $query->where(function (Builder $query) use ($search) {
                     $query->where('judul', 'ilike', "%{$search}%")
@@ -51,7 +50,6 @@ class RkpdController extends Controller
                 'tahun' => $rkpd->tahun,
                 'status' => $rkpd->status,
                 'items_count' => $rkpd->items_count,
-                'renja_opd_count' => $rkpd->renja_opd_count,
                 'rpjmd' => $rkpd->rpjmd ? [
                     'id' => $rkpd->rpjmd->id,
                     'judul' => $rkpd->rpjmd->judul,
@@ -148,7 +146,6 @@ class RkpdController extends Controller
             'programRpjmdOptions' => $canManage ? $this->programRpjmdOptions($rkpd->rpjmd_id) : [],
             'can' => [
                 'manage' => $canManage,
-                'pullRenja' => $canManage,
             ],
         ]);
     }
@@ -277,13 +274,23 @@ class RkpdController extends Controller
     {
         return ProgramRpjmd::query()
             ->when($rpjmdId, fn (Builder $query) => $query->forRpjmd($rpjmdId))
+            ->with('programPemerintahanReferences:id,kode,nama')
             ->orderBy('urutan')
             ->get(['id', 'program_pemerintahan_id', 'kode', 'nama'])
-            ->map(fn (ProgramRpjmd $program) => [
-                'id' => $program->id,
-                'label' => $this->label($program->kode, $program->nama),
-                'program_pemerintahan_id' => $program->program_pemerintahan_id,
-            ])
+            ->map(function (ProgramRpjmd $program) {
+                $programPemerintahanIds = $program->programPemerintahanReferenceIds();
+                $referenceCount = count($programPemerintahanIds);
+
+                return [
+                    'id' => $program->id,
+                    'label' => $referenceCount > 1 ? $program->nama : $this->label($program->kode, $program->nama),
+                    'display_label' => $program->nama,
+                    'description' => $referenceCount > 1 ? "Terhubung ke {$referenceCount} kode program master." : null,
+                    'reference_count' => $referenceCount,
+                    'program_pemerintahan_id' => $program->program_pemerintahan_id,
+                    'program_pemerintahan_ids' => $programPemerintahanIds,
+                ];
+            })
             ->all();
     }
 
@@ -374,12 +381,6 @@ class RkpdController extends Controller
         return [
             'items_count' => (clone $query)->count(),
             'opd_count' => (clone $query)->distinct('opd_id')->count('opd_id'),
-            'renja_count' => RenjaOpd::query()
-                ->where(function ($query) use ($rkpd) {
-                    $query->where('rkpd_id', $rkpd->id)
-                        ->orWhere(fn ($query) => $query->where('periode_tahun_id', $rkpd->periode_tahun_id)->where('tahun', $rkpd->tahun));
-                })
-                ->count(),
             'total_pagu' => (float) (clone $query)->sum('pagu_indikatif'),
             'total_prakiraan_maju' => (float) (clone $query)->sum('prakiraan_maju_pagu_indikatif'),
         ];

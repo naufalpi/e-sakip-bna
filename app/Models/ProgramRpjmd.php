@@ -49,6 +49,32 @@ class ProgramRpjmd extends Model
         return $this->belongsTo(ProgramPemerintahan::class);
     }
 
+    public function programPemerintahanReferences(): BelongsToMany
+    {
+        return $this->belongsToMany(ProgramPemerintahan::class, 'program_rpjmd_program_pemerintahan')
+            ->withTimestamps();
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    public function programPemerintahanReferenceIds(): array
+    {
+        $ids = $this->relationLoaded('programPemerintahanReferences')
+            ? $this->programPemerintahanReferences->pluck('id')
+            : $this->programPemerintahanReferences()->pluck('program_pemerintahan.id');
+
+        if ($ids->isEmpty() && $this->program_pemerintahan_id) {
+            $ids = collect([(int) $this->program_pemerintahan_id]);
+        }
+
+        return $ids
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     public function urusanPemerintahan(): BelongsTo
     {
         return $this->belongsTo(UrusanPemerintahan::class);

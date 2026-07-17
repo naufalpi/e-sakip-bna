@@ -98,7 +98,6 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::delete('target-triwulan-indikator/{target}', [TargetTriwulanIndikatorController::class, 'destroy'])->name('target-triwulan-indikator.destroy');
 
     Route::resource('rkpd', RkpdController::class);
-    Route::post('rkpd/{rkpd}/pull-renja', [RkpdItemController::class, 'pullRenja'])->name('rkpd.pull-renja');
     Route::post('rkpd/{rkpd}/items', [RkpdItemController::class, 'store'])->name('rkpd.items.store');
     Route::put('rkpd/{rkpd}/items/{item}', [RkpdItemController::class, 'update'])->name('rkpd.items.update');
     Route::delete('rkpd/{rkpd}/items/{item}', [RkpdItemController::class, 'destroy'])->name('rkpd.items.destroy');

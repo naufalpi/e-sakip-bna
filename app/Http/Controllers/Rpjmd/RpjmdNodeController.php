@@ -159,7 +159,7 @@ class RpjmdNodeController extends Controller
                 $strategi = $this->optionalStrategiProgram($data);
                 $programPemerintahan = $this->optionalProgramPemerintahan($data);
 
-                ProgramRpjmd::create([
+                $program = ProgramRpjmd::create([
                     'strategi_daerah_id' => $strategi?->id,
                     'sasaran_daerah_id' => $indikatorSasaran->sasaran_daerah_id,
                     'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
@@ -170,6 +170,8 @@ class RpjmdNodeController extends Controller
                     'status' => 'draft',
                     'urutan' => $data['urutan'] ?? 1,
                 ]);
+
+                $this->syncProgramPemerintahanReferences($program, $programPemerintahan, $data);
             }),
             'indikator_program' => IndikatorProgramRpjmd::create([
                 'program_rpjmd_id' => $this->program($rpjmd, $data['parent_id'] ?? null)->id,
@@ -209,6 +211,7 @@ class RpjmdNodeController extends Controller
             'urusan_pemerintahan_id',
             'strategi_daerah_id',
             'program_pemerintahan_id',
+            'program_pemerintahan_ids',
             'peran',
             'is_utama',
         ];
@@ -341,6 +344,8 @@ class RpjmdNodeController extends Controller
                     'nama' => $programPemerintahan?->nama ?? $this->requiredText($data, 'uraian', 'Nama program wajib diisi.'),
                     'urutan' => $data['urutan'] ?? 1,
                 ]);
+
+                $this->syncProgramPemerintahanReferences($program, $programPemerintahan, $data);
             }),
             'indikator_program' => tap($this->indikatorProgram($rpjmd, $id), function (IndikatorProgramRpjmd $indikator) use ($rpjmd, $data) {
                 $indikator->update([
@@ -563,6 +568,64 @@ class RpjmdNodeController extends Controller
         }
 
         return StrategiDaerah::query()->findOrFail($id);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function syncProgramPemerintahanReferences(
+        ProgramRpjmd $program,
+        ?ProgramPemerintahan $programPemerintahan,
+        array $data,
+    ): void {
+        $ids = $this->programPemerintahanReferenceIds($programPemerintahan, $data['program_pemerintahan_ids'] ?? null);
+
+        $program->programPemerintahanReferences()->sync($ids);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function programPemerintahanReferenceIds(?ProgramPemerintahan $programPemerintahan, mixed $rawIds): array
+    {
+        $ids = $this->normalizeIds($rawIds);
+
+        if ($ids !== []) {
+            $validIds = ProgramPemerintahan::query()
+                ->whereIn('id', $ids)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if (count($validIds) !== count($ids)) {
+                throw ValidationException::withMessages([
+                    'program_pemerintahan_ids' => 'Daftar program master tidak valid.',
+                ]);
+            }
+
+            return array_values(array_filter($ids, fn (int $id) => in_array($id, $validIds, true)));
+        }
+
+        if (! $programPemerintahan) {
+            return [];
+        }
+
+        $name = $this->normalizeProgramName($programPemerintahan->nama);
+
+        return ProgramPemerintahan::query()
+            ->where('status', 'active')
+            ->orderBy('kode')
+            ->get(['id', 'nama'])
+            ->filter(fn (ProgramPemerintahan $program) => $this->normalizeProgramName($program->nama) === $name)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function normalizeProgramName(?string $name): string
+    {
+        return strtolower((string) preg_replace('/\s+/', ' ', trim((string) $name)));
     }
 
     private function optionalProgramPemerintahan(

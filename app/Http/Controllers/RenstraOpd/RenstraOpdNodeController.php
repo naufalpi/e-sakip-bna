@@ -349,13 +349,16 @@ class RenstraOpdNodeController extends Controller
         $programRpjmd = filled($data['program_rpjmd_id'] ?? null)
             ? ProgramRpjmd::query()->findOrFail($data['program_rpjmd_id'])
             : null;
+        $programRpjmd?->loadMissing('programPemerintahanReferences');
 
-        $programPemerintahanId = $data['program_pemerintahan_id'] ?? $programRpjmd?->program_pemerintahan_id;
+        $programRpjmdProgramIds = $programRpjmd?->programPemerintahanReferenceIds() ?? [];
+        $programPemerintahanId = $data['program_pemerintahan_id']
+            ?? ($programRpjmdProgramIds[0] ?? $programRpjmd?->program_pemerintahan_id);
         $reference = filled($programPemerintahanId)
             ? ProgramPemerintahan::query()->findOrFail($programPemerintahanId)
             : null;
 
-        if ($programRpjmd?->program_pemerintahan_id && $reference && (int) $programRpjmd->program_pemerintahan_id !== (int) $reference->id) {
+        if ($programRpjmd && $reference && $programRpjmdProgramIds !== [] && ! in_array((int) $reference->id, $programRpjmdProgramIds, true)) {
             throw ValidationException::withMessages([
                 'program_pemerintahan_id' => 'Program master tidak sesuai dengan Program RPJMD yang dipilih.',
             ]);

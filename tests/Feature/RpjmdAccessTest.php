@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BidangUrusan;
 use App\Models\ImportBatch;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
@@ -583,6 +584,52 @@ class RpjmdAccessTest extends TestCase
             'nama' => $programPemerintahan->nama,
             'urusan_pemerintahan_id' => $programPemerintahan->bidangUrusan->urusan_pemerintahan_id,
             'urutan' => 3,
+        ]);
+    }
+
+    public function test_program_rpjmd_links_all_master_programs_with_same_name(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '2.32', 'nama' => 'Dinas Program Lintas Kode', 'status' => 'active']);
+        $rpjmd = $this->createRpjmdWithProgramForOpd($opd, 'RPJMD Program Lintas Kode');
+        $indikatorSasaran = IndikatorSasaranDaerah::whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->firstOrFail();
+        $bidangs = BidangUrusan::query()->orderBy('kode')->take(2)->get();
+        $programName = 'Program Penunjang Urusan Pemerintahan Daerah Kab/Kota';
+        $firstProgram = ProgramPemerintahan::query()->updateOrCreate(
+            ['bidang_urusan_id' => $bidangs[0]->id, 'kode' => '9.99.01'],
+            ['nama' => $programName, 'status' => 'active'],
+        );
+        $secondProgram = ProgramPemerintahan::query()->updateOrCreate(
+            ['bidang_urusan_id' => $bidangs[1]->id, 'kode' => '9.99.02'],
+            ['nama' => $programName, 'status' => 'active'],
+        );
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.store', $rpjmd), [
+                'type' => 'program',
+                'parent_id' => $indikatorSasaran->id,
+                'program_pemerintahan_id' => $firstProgram->id,
+                'status' => 'draft',
+                'urutan' => 4,
+            ])
+            ->assertRedirect();
+
+        $programRpjmd = ProgramRpjmd::query()
+            ->where('indikator_sasaran_daerah_id', $indikatorSasaran->id)
+            ->where('nama', $programName)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('program_rpjmd_program_pemerintahan', [
+            'program_rpjmd_id' => $programRpjmd->id,
+            'program_pemerintahan_id' => $firstProgram->id,
+        ]);
+        $this->assertDatabaseHas('program_rpjmd_program_pemerintahan', [
+            'program_rpjmd_id' => $programRpjmd->id,
+            'program_pemerintahan_id' => $secondProgram->id,
         ]);
     }
 

@@ -3,8 +3,6 @@
 namespace App\Http\Requests\Perencanaan;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
-
 class StoreRkpdItemRequest extends FormRequest
 {
     public function authorize(): bool
@@ -38,7 +36,6 @@ class StoreRkpdItemRequest extends FormRequest
             'prakiraan_maju_target' => ['nullable', 'string', 'max:255'],
             'prakiraan_maju_pagu_indikatif' => ['nullable', 'numeric', 'min:0'],
             'perangkat_daerah_penanggung_jawab' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', 'string', Rule::in(['draft', 'submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'])],
             'urutan' => ['nullable', 'integer', 'between:1,9999'],
         ];
     }

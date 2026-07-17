@@ -13,8 +13,10 @@ type Option = {
     id: number;
     label: string;
     description?: string | null;
+    badge?: string | number | null;
     group?: string | null;
     sasaran_id?: number | null;
+    program_pemerintahan_ids?: number[];
     tahun?: number;
     jenis_target?: 'tahunan' | 'prakiraan_maju';
 };
@@ -83,10 +85,12 @@ type Program = {
     indikator_sasaran_daerah_id?: number | null;
     strategi_daerah_id?: number | null;
     program_pemerintahan_id?: number | null;
+    program_pemerintahan_ids?: number[];
     urusan_pemerintahan_id?: number | null;
     urutan?: number | null;
     strategi?: { id: number; kode?: string | null; strategi: string } | null;
     program_pemerintahan?: { id: number; kode: string; nama: string; bidang_urusan?: { kode: string; nama: string } | null } | null;
+    program_pemerintahan_references?: Array<{ id: number; kode: string; nama: string; bidang_urusan?: { kode: string; nama: string } | null }>;
     urusan_pemerintahan?: { kode: string; nama: string } | null;
     opd_penanggung_jawab: Array<{ pivot_id: number; id: number; nama: string; singkatan?: string | null; peran: string; is_utama: boolean }>;
     indikator: Indikator[];

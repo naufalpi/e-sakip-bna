@@ -31,6 +31,7 @@ type Option = {
     kode?: string | null;
     nama?: string | null;
     program_pemerintahan_id?: number | null;
+    program_pemerintahan_ids?: number[];
     kegiatan_pemerintahan_id?: number | null;
     sub_kegiatan_pemerintahan_id?: number | null;
     bidang_urusan_id?: number | null;
@@ -118,7 +119,7 @@ type Program = {
     program_pemerintahan_id?: number | null;
     urutan?: number | null;
     linked: boolean;
-    program_rpjmd?: { kode: string; nama: string; program_pemerintahan_id?: number | null } | null;
+    program_rpjmd?: { kode: string; nama: string; program_pemerintahan_id?: number | null; program_pemerintahan_ids?: number[] } | null;
     program_pemerintahan?: { kode: string; nama: string } | null;
     indikator: Indikator[];
     kegiatan: Kegiatan[];

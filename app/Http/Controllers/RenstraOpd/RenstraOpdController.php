@@ -151,6 +151,7 @@ class RenstraOpdController extends Controller
             'tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.programs.programRpjmd:id,kode,nama,program_pemerintahan_id',
             'tujuan.sasaran.programs.programRpjmd.programPemerintahan:id,kode,nama,bidang_urusan_id',
+            'tujuan.sasaran.programs.programRpjmd.programPemerintahanReferences:id,kode,nama,bidang_urusan_id',
             'tujuan.sasaran.programs.programPemerintahan:id,kode,nama,bidang_urusan_id',
             'tujuan.sasaran.programs.indikator.indikatorProgramRpjmd:id,kode,indikator',
             'tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
@@ -367,11 +368,13 @@ class RenstraOpdController extends Controller
             'program_rpjmd' => ProgramRpjmd::query()
                 ->forRpjmd($rpjmdId)
                 ->with('programPemerintahan:id,kode,nama,bidang_urusan_id')
+                ->with('programPemerintahanReferences:id,kode,nama,bidang_urusan_id')
                 ->orderBy('urutan')
                 ->get(['id', 'program_pemerintahan_id', 'kode', 'nama'])
                 ->map(fn (ProgramRpjmd $item) => [
                     'id' => $item->id,
                     'program_pemerintahan_id' => $item->program_pemerintahan_id,
+                    'program_pemerintahan_ids' => $item->programPemerintahanReferenceIds(),
                     'label' => $this->nodeLabel($item->kode, $item->nama),
                     'description' => $item->programPemerintahan ? $this->nodeLabel($item->programPemerintahan->kode, $item->programPemerintahan->nama) : null,
                 ])
@@ -527,6 +530,7 @@ class RenstraOpdController extends Controller
                             'kode' => $program->programRpjmd->kode,
                             'nama' => $program->programRpjmd->nama,
                             'program_pemerintahan_id' => $program->programRpjmd->program_pemerintahan_id,
+                            'program_pemerintahan_ids' => $program->programRpjmd->programPemerintahanReferenceIds(),
                         ] : null,
                         'program_pemerintahan' => $program->programPemerintahan ? [
                             'kode' => $program->programPemerintahan->kode,

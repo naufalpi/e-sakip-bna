@@ -13,7 +13,6 @@ type Row = {
     tahun: number;
     status: string;
     items_count: number;
-    renja_opd_count: number;
     rpjmd?: { id: number; judul: string; tahun_awal: number; tahun_akhir: number } | null;
     periode_tahun?: { id: number; tahun: number; nama: string } | null;
 };
@@ -60,8 +59,8 @@ const destroy = async (row: Row) => {
     }
 };
 
-const totalRenja = computed(() => props.items.data.reduce((total, row) => total + row.renja_opd_count, 0));
 const totalRows = computed(() => props.items.data.reduce((total, row) => total + row.items_count, 0));
+const finalCount = computed(() => props.items.data.filter((row) => ['approved', 'locked'].includes(row.status)).length);
 
 const statusLabel = (status: string) =>
     ({
@@ -100,7 +99,7 @@ const statusClass = (status: string) =>
                         </div>
                         <h1 class="mt-3 text-2xl font-semibold tracking-normal">RKPD Kabupaten</h1>
                         <p class="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                            Kompilasi rencana kerja tahunan daerah dari Renja OPD, diturunkan sampai program, kegiatan, sub kegiatan, indikator,
+                            Dokumen RKPD tahunan yang sudah final dan disahkan, diturunkan sampai program, kegiatan, sub kegiatan, indikator,
                             target, pagu, lokasi, sumber dana, prioritas, dan prakiraan maju.
                         </p>
                     </div>
@@ -123,14 +122,14 @@ const statusClass = (status: string) =>
                     <p class="mt-1 text-sm text-muted-foreground">dokumen tahunan</p>
                 </article>
                 <article class="rounded-lg border bg-sky-50 p-4 text-[#00336C]">
-                    <p class="text-xs font-semibold uppercase opacity-70">Renja Terhubung</p>
-                    <p class="mt-2 text-3xl font-semibold">{{ totalRenja }}</p>
-                    <p class="mt-1 text-sm opacity-75">pada halaman ini</p>
-                </article>
-                <article class="rounded-lg border bg-emerald-50 p-4 text-emerald-950">
                     <p class="text-xs font-semibold uppercase opacity-70">Baris Matriks</p>
                     <p class="mt-2 text-3xl font-semibold">{{ totalRows }}</p>
                     <p class="mt-1 text-sm opacity-75">item program sampai sub kegiatan</p>
+                </article>
+                <article class="rounded-lg border bg-emerald-50 p-4 text-emerald-950">
+                    <p class="text-xs font-semibold uppercase opacity-70">RKPD Final</p>
+                    <p class="mt-2 text-3xl font-semibold">{{ finalCount }}</p>
+                    <p class="mt-1 text-sm opacity-75">approved atau terkunci</p>
                 </article>
             </div>
         </section>
@@ -213,7 +212,6 @@ const statusClass = (status: string) =>
                             </td>
                             <td class="px-4 py-4">
                                 <div class="flex flex-wrap gap-2">
-                                    <span class="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-[#00336C]">{{ row.renja_opd_count }} Renja</span>
                                     <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{{ row.items_count }} baris</span>
                                 </div>
                             </td>

@@ -123,6 +123,7 @@ class RpjmdController extends Controller
             'visi.tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.indikator.programs.strategi:id,kode,strategi,status',
             'visi.tujuan.sasaran.indikator.programs.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
+            'visi.tujuan.sasaran.indikator.programs.programPemerintahanReferences.bidangUrusan.urusanPemerintahan:id,kode,nama',
             'visi.tujuan.sasaran.indikator.programs.urusanPemerintahan:id,kode,nama',
             'visi.tujuan.sasaran.indikator.programs.indikator.satuanIndikator:id,nama,simbol',
             'visi.tujuan.sasaran.indikator.programs.indikator.opd:id,kode,nama,singkatan',
@@ -288,19 +289,40 @@ class RpjmdController extends Controller
         return ProgramPemerintahan::query()
             ->with('bidangUrusan.urusanPemerintahan:id,kode,nama')
             ->where('status', 'active')
+            ->orderBy('nama')
             ->orderBy('kode')
             ->get(['id', 'bidang_urusan_id', 'kode', 'nama'])
-            ->map(fn (ProgramPemerintahan $program) => [
-                'id' => $program->id,
-                'label' => "{$program->kode} - {$program->nama}",
-                'description' => $program->bidangUrusan
-                    ? "{$program->bidangUrusan->kode} - {$program->bidangUrusan->nama}"
-                    : null,
-                'group' => $program->bidangUrusan?->urusanPemerintahan
-                    ? "{$program->bidangUrusan->urusanPemerintahan->kode} - {$program->bidangUrusan->urusanPemerintahan->nama}"
-                    : null,
-            ])
+            ->groupBy(fn (ProgramPemerintahan $program) => $this->normalizeProgramName($program->nama))
+            ->map(function ($programs) {
+                $programs = $programs->sortBy('kode')->values();
+                /** @var ProgramPemerintahan $first */
+                $first = $programs->first();
+                $count = $programs->count();
+                $codes = $programs->pluck('kode')->values();
+                $codePreview = $codes->take(4)->implode(', ');
+
+                return [
+                    'id' => $first->id,
+                    'label' => $count > 1 ? $first->nama : "{$first->kode} - {$first->nama}",
+                    'description' => $count > 1
+                        ? "{$count} kode program: {$codePreview}".($count > 4 ? ', ...' : '')
+                        : ($first->bidangUrusan ? "{$first->bidangUrusan->kode} - {$first->bidangUrusan->nama}" : null),
+                    'badge' => $count > 1 ? "{$count} kode" : null,
+                    'group' => $count > 1
+                        ? 'Program lintas bidang'
+                        : ($first->bidangUrusan?->urusanPemerintahan
+                            ? "{$first->bidangUrusan->urusanPemerintahan->kode} - {$first->bidangUrusan->urusanPemerintahan->nama}"
+                            : null),
+                    'program_pemerintahan_ids' => $programs->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
+                ];
+            })
+            ->values()
             ->all();
+    }
+
+    private function normalizeProgramName(?string $name): string
+    {
+        return strtolower((string) preg_replace('/\s+/', ' ', trim((string) $name)));
     }
 
     /**
@@ -614,6 +636,7 @@ class RpjmdController extends Controller
             'strategi_daerah_id' => $program->strategi_daerah_id,
             'urusan_pemerintahan_id' => $program->urusan_pemerintahan_id,
             'program_pemerintahan_id' => $program->program_pemerintahan_id,
+            'program_pemerintahan_ids' => $program->programPemerintahanReferenceIds(),
             'kode' => $program->kode,
             'nama' => $program->nama,
             'status' => $program->status,
@@ -632,6 +655,15 @@ class RpjmdController extends Controller
                     'nama' => $program->programPemerintahan->bidangUrusan->nama,
                 ] : null,
             ] : null,
+            'program_pemerintahan_references' => $program->programPemerintahanReferences->map(fn (ProgramPemerintahan $reference) => [
+                'id' => $reference->id,
+                'kode' => $reference->kode,
+                'nama' => $reference->nama,
+                'bidang_urusan' => $reference->bidangUrusan ? [
+                    'kode' => $reference->bidangUrusan->kode,
+                    'nama' => $reference->bidangUrusan->nama,
+                ] : null,
+            ])->values(),
             'urusan_pemerintahan' => $program->urusanPemerintahan ? [
                 'kode' => $program->urusanPemerintahan->kode,
                 'nama' => $program->urusanPemerintahan->nama,

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -35,5 +36,11 @@ class ProgramPemerintahan extends Model
     public function programRpjmd(): HasMany
     {
         return $this->hasMany(ProgramRpjmd::class);
+    }
+
+    public function programRpjmdReferences(): BelongsToMany
+    {
+        return $this->belongsToMany(ProgramRpjmd::class, 'program_rpjmd_program_pemerintahan')
+            ->withTimestamps();
     }
 }
