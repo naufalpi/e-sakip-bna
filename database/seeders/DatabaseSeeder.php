@@ -8,6 +8,7 @@ use App\Models\PeriodeTahun;
 use App\Models\Permission;
 use App\Models\PredikatEvaluasi;
 use App\Models\Role;
+use App\Models\Rpjmd;
 use App\Models\SatuanIndikator;
 use App\Models\SystemSetting;
 use App\Models\UrusanPemerintahan;
@@ -53,6 +54,7 @@ class DatabaseSeeder extends Seeder
             ['name' => 'users.view', 'label' => 'Lihat User', 'module' => 'user'],
             ['name' => 'users.manage', 'label' => 'Kelola User', 'module' => 'user'],
             ['name' => 'roles.view', 'label' => 'Lihat Role Permission', 'module' => 'role_permission'],
+            ['name' => 'roles.manage', 'label' => 'Kelola Role Permission', 'module' => 'role_permission'],
             ['name' => 'periode.view', 'label' => 'Lihat Periode', 'module' => 'periode'],
             ['name' => 'periode.manage', 'label' => 'Kelola Periode', 'module' => 'periode'],
             ['name' => 'satuan.view', 'label' => 'Lihat Satuan Indikator', 'module' => 'satuan_indikator'],
@@ -107,7 +109,7 @@ class DatabaseSeeder extends Seeder
             'admin_kabupaten_bapperida' => [
                 'label' => 'Admin Kabupaten Bapperida',
                 'description' => 'Input dan kelola data perencanaan kabupaten/RPJMD.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'satuan.view', 'strategi.view', 'strategi.manage', 'urusan.view', 'rpjmd.view', 'rpjmd.manage', 'view_rpjmd', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'rkpd.view', 'rkpd.manage', 'renja.view', 'kinerja.view', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'periode.view', 'periode.manage', 'satuan.view', 'satuan.manage', 'strategi.view', 'strategi.manage', 'urusan.view', 'urusan.manage', 'manage_master_umum', 'rpjmd.view', 'rpjmd.manage', 'view_rpjmd', 'manage_rpjmd', 'renstra.view', 'view_renstra_opd', 'rkpd.view', 'rkpd.manage', 'renja.view', 'kinerja.view', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'lkjip.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_inspektorat' => [
                 'label' => 'Admin Kabupaten Inspektorat',
@@ -117,7 +119,7 @@ class DatabaseSeeder extends Seeder
             'admin_kabupaten_dinkominfo' => [
                 'label' => 'Admin Kabupaten Dinkominfo',
                 'description' => 'Kelola master data umum, OPD, user, dan konfigurasi aplikasi.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'opd.manage', 'opd_units.manage', 'manage_opd', 'users.view', 'users.manage', 'manage_users', 'roles.view', 'manage_roles', 'periode.view', 'periode.manage', 'lock_period', 'satuan.view', 'satuan.manage', 'strategi.view', 'strategi.manage', 'urusan.view', 'urusan.manage', 'manage_master_umum', 'settings.view', 'settings.manage', 'activity_logs.view'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'opd.manage', 'opd_units.manage', 'manage_opd', 'users.view', 'users.manage', 'manage_users', 'roles.view', 'roles.manage', 'manage_roles', 'periode.view', 'periode.manage', 'lock_period', 'satuan.view', 'satuan.manage', 'strategi.view', 'strategi.manage', 'urusan.view', 'urusan.manage', 'manage_master_umum', 'settings.view', 'settings.manage', 'activity_logs.view'],
             ],
             'admin_opd' => [
                 'label' => 'Admin OPD',
@@ -173,6 +175,8 @@ class DatabaseSeeder extends Seeder
                 ],
             );
         }
+
+        $this->seedRpjmdAwal();
 
         foreach ([
             ['nama' => 'Persen', 'simbol' => '%', 'jenis' => 'persentase'],
@@ -413,6 +417,8 @@ class DatabaseSeeder extends Seeder
             ['kode' => '2.09', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PANGAN'],
             ['kode' => '3.25', 'nama' => 'URUSAN PEMERINTAHAN BIDANG KELAUTAN  DAN PERIKANAN'],
             ['kode' => '3.27', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PERTANIAN'],
+            ['kode' => '3.28', 'nama' => 'URUSAN PEMERINTAHAN BIDANG KEHUTANAN'],
+            ['kode' => '3.29', 'nama' => 'URUSAN PEMERINTAHAN BIDANG ENERGI DAN SUMBER DAYA MINERAL'],
             ['kode' => '2.17', 'nama' => 'URUSAN PEMERINTAHAN BIDANG KOPERASI, USAHA KECIL, DAN MENENGAH'],
             ['kode' => '3.30', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PERDAGANGAN'],
             ['kode' => '3.31', 'nama' => 'URUSAN PEMERINTAHAN BIDANG PERINDUSTRIAN'],
@@ -423,6 +429,7 @@ class DatabaseSeeder extends Seeder
             ['kode' => '5.02', 'nama' => 'KEUANGAN'],
             ['kode' => '5.03', 'nama' => 'KEPEGAWAIAN'],
             ['kode' => '5.04', 'nama' => 'PENDIDIKAN DAN PELATIHAN'],
+            ['kode' => '5.06', 'nama' => 'PENGELOLAAN PERBATASAN'],
             ['kode' => '6.01', 'nama' => 'INSPEKTORAT DAERAH'],
             ['kode' => '7.01', 'nama' => 'KECAMATAN'],
             ['kode' => '8.01', 'nama' => 'KESATUAN BANGSA DAN POLITIK'],
@@ -447,5 +454,34 @@ class DatabaseSeeder extends Seeder
                 ],
             );
         }
+    }
+
+    private function seedRpjmdAwal(): void
+    {
+        $periodeReferensi = PeriodeTahun::updateOrCreate(
+            ['tahun' => 2025],
+            [
+                'nama' => 'Tahun 2025',
+                'tanggal_mulai' => '2025-01-01',
+                'tanggal_selesai' => '2025-12-31',
+                'status' => 'draft',
+            ],
+        );
+
+        Rpjmd::updateOrCreate(
+            [
+                'tahun_awal' => 2025,
+                'tahun_akhir' => 2029,
+            ],
+            [
+                'periode_tahun_id' => $periodeReferensi->id,
+                'judul' => 'RPJMD KABUPATEN BANJARNEGARA TAHUN 2025-2029',
+                'nomor_perda' => 'PERATURAN DAERAH KABUPATEN BANJARNEGARA NOMOR 2 TAHUN 2025',
+                'status' => 'draft',
+                'struktur_tujuan_mode' => 'tujuan_lintas_misi',
+                'struktur_sasaran_mode' => 'sasaran_langsung_tujuan',
+                'keterangan' => null,
+            ],
+        );
     }
 }

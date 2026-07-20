@@ -46,7 +46,9 @@ const hasAnyRole = (roles: string[]) => roles.some((role) => hasRole(role));
 const visibleItems = (items: Array<NavItem | false>) => items.filter(Boolean) as NavItem[];
 const notificationUnreadCount = computed(() => page.props.notifications?.unread_count ?? 0);
 const notificationBadge = computed(() => (notificationUnreadCount.value > 99 ? '99+' : notificationUnreadCount.value || undefined));
-const canAccessRolePermission = computed(() => hasAnyRole(['super_admin', 'admin_kabupaten_dinkominfo']));
+const canAccessRolePermission = computed(
+    () => hasRole('super_admin') || (hasRole('admin_kabupaten_dinkominfo') && hasAnyPermission(['roles.view', 'roles.manage', 'manage_roles'])),
+);
 
 const navigationGroups = computed<NavGroup[]>(() =>
     [

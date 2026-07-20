@@ -9,6 +9,7 @@ use App\Models\OpdUnit;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
 use App\Models\Role;
+use App\Models\Rpjmd;
 use App\Models\SatuanIndikator;
 use App\Models\StrategiDaerah;
 use App\Models\SubKegiatanPemerintahan;
@@ -37,7 +38,7 @@ class MasterUmumTest extends TestCase
             'nama' => 'UNSUR PENUNJANG URUSAN PEMERINTAHAN',
         ]);
         $this->assertSame(8, UrusanPemerintahan::query()->whereIn('kode', ['1', '2', '3', '4', '5', '6', '7', '8'])->count());
-        $this->assertSame(40, BidangUrusan::query()->whereIn('kode', [
+        $this->assertSame(43, BidangUrusan::query()->whereIn('kode', [
             '1.01',
             '1.02',
             '1.03',
@@ -65,6 +66,8 @@ class MasterUmumTest extends TestCase
             '3.25',
             '3.26',
             '3.27',
+            '3.28',
+            '3.29',
             '3.30',
             '3.31',
             '3.32',
@@ -75,6 +78,7 @@ class MasterUmumTest extends TestCase
             '5.03',
             '5.04',
             '5.05',
+            '5.06',
             '6.01',
             '7.01',
             '8.01',
@@ -312,8 +316,15 @@ class MasterUmumTest extends TestCase
     public function test_dinkominfo_admin_can_manage_program_kegiatan_references(): void
     {
         $this->seed();
+        $periode = PeriodeTahun::where('status', 'active')->firstOrFail();
+        $rpjmdSeed = Rpjmd::where('tahun_awal', 2025)->where('tahun_akhir', 2029)->firstOrFail();
 
-        $this->assertSame(150, ProgramPemerintahan::query()->count());
+        $this->assertSame('RPJMD KABUPATEN BANJARNEGARA TAHUN 2025-2029', $rpjmdSeed->judul);
+        $this->assertSame('PERATURAN DAERAH KABUPATEN BANJARNEGARA NOMOR 2 TAHUN 2025', $rpjmdSeed->nomor_perda);
+        $this->assertSame(2025, $rpjmdSeed->periodeTahun?->tahun);
+        $this->assertSame($this->expectedProgramReferenceCount(), ProgramPemerintahan::query()->count());
+        $this->assertSame($this->expectedProgramReferenceCount(), ProgramPemerintahan::where('tahun_awal', 2025)->where('tahun_akhir', 2029)->count());
+        $this->assertSame(0, ProgramPemerintahan::where('tahun_awal', 2026)->where('tahun_akhir', 2030)->count());
         $this->assertSame(384, KegiatanPemerintahan::query()->count());
         $this->assertSame(985, SubKegiatanPemerintahan::query()->count());
         $this->assertDatabaseHas('program_pemerintahan', [
@@ -379,6 +390,8 @@ class MasterUmumTest extends TestCase
         $this->actingAs($admin)
             ->post(route('master.program-pemerintahan.store'), [
                 'type' => 'program',
+                'tahun_awal' => 2026,
+                'tahun_akhir' => 2030,
                 'bidang_urusan_id' => $bidang->id,
                 'kode' => '8.01.01.2.01',
                 'nama' => 'Program Referensi Test',
@@ -386,11 +399,26 @@ class MasterUmumTest extends TestCase
             ])
             ->assertRedirect(route('master.program-pemerintahan.index'));
 
-        $program = ProgramPemerintahan::where('kode', '8.01.01.2.01')->firstOrFail();
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.store'), [
+                'type' => 'program',
+                'tahun_awal' => 2031,
+                'tahun_akhir' => 2035,
+                'bidang_urusan_id' => $bidang->id,
+                'kode' => '8.01.01.2.01',
+                'nama' => 'Program Referensi Test Tahun Lain',
+                'status' => 'active',
+            ])
+            ->assertRedirect(route('master.program-pemerintahan.index'));
+
+        $this->assertSame(2, ProgramPemerintahan::where('bidang_urusan_id', $bidang->id)->where('kode', '8.01.01.2.01')->count());
+
+        $program = ProgramPemerintahan::where('tahun_awal', 2026)->where('tahun_akhir', 2030)->where('kode', '8.01.01.2.01')->firstOrFail();
 
         $this->actingAs($admin)
             ->post(route('master.program-pemerintahan.store'), [
                 'type' => 'kegiatan',
+                'periode_tahun_id' => $periode->id,
                 'program_pemerintahan_id' => $program->id,
                 'kode' => '8.01.01.2.01.0001',
                 'nama' => 'Kegiatan Referensi Test',
@@ -403,6 +431,7 @@ class MasterUmumTest extends TestCase
         $this->actingAs($admin)
             ->post(route('master.program-pemerintahan.store'), [
                 'type' => 'sub_kegiatan',
+                'periode_tahun_id' => $periode->id,
                 'kegiatan_pemerintahan_id' => $kegiatan->id,
                 'kode' => '8.01.01.2.01.0001.01',
                 'nama' => 'Sub Kegiatan Referensi Test',
@@ -437,6 +466,8 @@ class MasterUmumTest extends TestCase
 
         $this->actingAs($admin)
             ->put(route('master.program-pemerintahan.update', ['type' => 'program', 'id' => $program->id]), [
+                'tahun_awal' => 2026,
+                'tahun_akhir' => 2030,
                 'bidang_urusan_id' => $bidang->id,
                 'kode' => '8.01.01.2.01',
                 'nama' => 'Program Referensi Test Revisi',
@@ -457,6 +488,8 @@ class MasterUmumTest extends TestCase
         $this->actingAs($admin)
             ->post(route('master.program-pemerintahan.bulk-store'), [
                 'type' => 'program',
+                'tahun_awal' => 2026,
+                'tahun_akhir' => 2030,
                 'bidang_urusan_id' => $bidang->id,
                 'rows' => "8.01.01.2.02 | Program Input Cepat\n8.01.01.2.03 | Program Input Cepat Kedua",
                 'status' => 'active',
@@ -476,6 +509,278 @@ class MasterUmumTest extends TestCase
         $this->actingAs($admin)
             ->get(route('master.urusan-pemerintahan.export'))
             ->assertNotFound();
+    }
+
+    public function test_program_kegiatan_summary_cards_follow_current_context(): void
+    {
+        $this->seed();
+
+        $admin = $this->userWithRole('admin_kabupaten_dinkominfo');
+        $periode = PeriodeTahun::where('tahun', 2026)->firstOrFail();
+        $program = ProgramPemerintahan::where('tahun_awal', 2025)
+            ->where('tahun_akhir', 2029)
+            ->where('kode', '1.01.01')
+            ->firstOrFail();
+        $kegiatan = KegiatanPemerintahan::where('program_pemerintahan_id', $program->id)
+            ->where('periode_tahun_id', $periode->id)
+            ->where('kode', '1.01.01.2.01')
+            ->firstOrFail();
+
+        $programCount = ProgramPemerintahan::where('tahun_awal', 2025)->where('tahun_akhir', 2029)->count();
+        $allKegiatanCount = KegiatanPemerintahan::where('periode_tahun_id', $periode->id)
+            ->whereHas('programPemerintahan', fn ($query) => $query->where('tahun_awal', 2025)->where('tahun_akhir', 2029))
+            ->count();
+        $allSubKegiatanCount = SubKegiatanPemerintahan::where('periode_tahun_id', $periode->id)
+            ->whereHas('kegiatanPemerintahan.programPemerintahan', fn ($query) => $query->where('tahun_awal', 2025)->where('tahun_akhir', 2029))
+            ->count();
+        $programKegiatanCount = KegiatanPemerintahan::where('program_pemerintahan_id', $program->id)
+            ->where('periode_tahun_id', $periode->id)
+            ->count();
+        $programSubKegiatanCount = SubKegiatanPemerintahan::where('periode_tahun_id', $periode->id)
+            ->whereHas('kegiatanPemerintahan', fn ($query) => $query->where('program_pemerintahan_id', $program->id))
+            ->count();
+        $kegiatanSubKegiatanCount = SubKegiatanPemerintahan::where('kegiatan_pemerintahan_id', $kegiatan->id)
+            ->where('periode_tahun_id', $periode->id)
+            ->count();
+
+        $this->actingAs($admin)
+            ->get(route('master.program-pemerintahan.index', [
+                'tahun_awal' => 2025,
+                'tahun_akhir' => 2029,
+                'periode_tahun_id' => $periode->id,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.program_count', $programCount)
+                ->where('summary.kegiatan_count', $allKegiatanCount)
+                ->where('summary.sub_kegiatan_count', $allSubKegiatanCount)
+            );
+
+        $this->actingAs($admin)
+            ->get(route('master.program-pemerintahan.index', [
+                'level' => 'kegiatan',
+                'program_id' => $program->id,
+                'periode_tahun_id' => $periode->id,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.program_count', 1)
+                ->where('summary.kegiatan_count', $programKegiatanCount)
+                ->where('summary.sub_kegiatan_count', $programSubKegiatanCount)
+            );
+
+        $this->actingAs($admin)
+            ->get(route('master.program-pemerintahan.index', [
+                'level' => 'sub_kegiatan',
+                'kegiatan_id' => $kegiatan->id,
+                'periode_tahun_id' => $periode->id,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.program_count', 1)
+                ->where('summary.kegiatan_count', 1)
+                ->where('summary.sub_kegiatan_count', $kegiatanSubKegiatanCount)
+            );
+    }
+
+    public function test_bapperida_admin_can_manage_planning_program_references(): void
+    {
+        $this->seed();
+
+        $admin = $this->userWithRole('admin_kabupaten_bapperida');
+        $bidang = BidangUrusan::where('kode', '8.01')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('master.program-pemerintahan.index', [
+                'tahun_awal' => 2025,
+                'tahun_akhir' => 2029,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Master/ProgramPemerintahan/Index')
+                ->where('can.manage', true)
+            );
+
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.store'), [
+                'type' => 'program',
+                'tahun_awal' => 2025,
+                'tahun_akhir' => 2029,
+                'bidang_urusan_id' => $bidang->id,
+                'kode' => '8.01.99',
+                'nama' => 'PROGRAM REFERENSI PERENCANAAN BAPPERIDA',
+                'status' => 'active',
+            ])
+            ->assertRedirect(route('master.program-pemerintahan.index'));
+
+        $this->assertDatabaseHas('program_pemerintahan', [
+            'tahun_awal' => 2025,
+            'tahun_akhir' => 2029,
+            'bidang_urusan_id' => $bidang->id,
+            'kode' => '8.01.99',
+            'nama' => 'PROGRAM REFERENSI PERENCANAAN BAPPERIDA',
+        ]);
+    }
+
+    public function test_dinkominfo_admin_can_copy_program_references_between_rpjmd_periods(): void
+    {
+        $this->seed();
+
+        $admin = $this->userWithRole('admin_kabupaten_dinkominfo');
+        $source = ProgramPemerintahan::query()
+            ->select(['tahun_awal', 'tahun_akhir'])
+            ->firstOrFail();
+        $targetTahunAwal = (int) $source->tahun_akhir + 1;
+        $targetTahunAkhir = $targetTahunAwal + 4;
+
+        $expectedProgramCount = $this->expectedProgramReferenceCount();
+
+        $this->assertSame($expectedProgramCount, ProgramPemerintahan::where('tahun_awal', $source->tahun_awal)->where('tahun_akhir', $source->tahun_akhir)->count());
+        $this->assertSame(0, ProgramPemerintahan::where('tahun_awal', $targetTahunAwal)->where('tahun_akhir', $targetTahunAkhir)->count());
+
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.copy'), [
+                'source_tahun_awal' => $source->tahun_awal,
+                'source_tahun_akhir' => $source->tahun_akhir,
+                'target_tahun_awal' => $targetTahunAwal,
+                'target_tahun_akhir' => $targetTahunAkhir,
+            ])
+            ->assertRedirect(route('master.program-pemerintahan.index', ['tahun_awal' => $targetTahunAwal, 'tahun_akhir' => $targetTahunAkhir]));
+
+        $this->assertSame($expectedProgramCount, ProgramPemerintahan::where('tahun_awal', $targetTahunAwal)->where('tahun_akhir', $targetTahunAkhir)->count());
+
+        $targetProgram = ProgramPemerintahan::where('tahun_awal', $targetTahunAwal)
+            ->where('tahun_akhir', $targetTahunAkhir)
+            ->where('kode', '1.01.02')
+            ->firstOrFail();
+        $sourceProgram = ProgramPemerintahan::where('tahun_awal', $source->tahun_awal)
+            ->where('tahun_akhir', $source->tahun_akhir)
+            ->where('kode', '1.01.02')
+            ->firstOrFail();
+
+        $this->assertSame($sourceProgram->nama, $targetProgram->nama);
+
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.copy'), [
+                'source_tahun_awal' => $source->tahun_awal,
+                'source_tahun_akhir' => $source->tahun_akhir,
+                'target_tahun_awal' => $targetTahunAwal,
+                'target_tahun_akhir' => $targetTahunAkhir,
+            ])
+            ->assertRedirect(route('master.program-pemerintahan.index', ['tahun_awal' => $targetTahunAwal, 'tahun_akhir' => $targetTahunAkhir]));
+
+        $this->assertSame($expectedProgramCount, ProgramPemerintahan::where('tahun_awal', $targetTahunAwal)->where('tahun_akhir', $targetTahunAkhir)->count());
+    }
+
+    public function test_dinkominfo_admin_can_copy_kegiatan_and_sub_kegiatan_from_previous_year(): void
+    {
+        $this->seed();
+
+        $admin = $this->userWithRole('admin_kabupaten_dinkominfo');
+        $sourcePeriode = PeriodeTahun::where('tahun', 2026)->firstOrFail();
+        $targetPeriode = PeriodeTahun::where('tahun', 2027)->firstOrFail();
+        $program = ProgramPemerintahan::where('tahun_awal', 2025)
+            ->where('tahun_akhir', 2029)
+            ->where('kode', '1.01.02')
+            ->firstOrFail();
+
+        $sourceKegiatanCount = KegiatanPemerintahan::where('program_pemerintahan_id', $program->id)
+            ->where('periode_tahun_id', $sourcePeriode->id)
+            ->count();
+        $sourceSubKegiatanCount = SubKegiatanPemerintahan::where('periode_tahun_id', $sourcePeriode->id)
+            ->whereHas('kegiatanPemerintahan', fn ($query) => $query->where('program_pemerintahan_id', $program->id))
+            ->count();
+
+        $this->assertGreaterThan(0, $sourceKegiatanCount);
+        $this->assertGreaterThan(0, $sourceSubKegiatanCount);
+        $this->assertSame(0, KegiatanPemerintahan::where('program_pemerintahan_id', $program->id)->where('periode_tahun_id', $targetPeriode->id)->count());
+
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.copy-kegiatan-year'), [
+                'program_pemerintahan_id' => $program->id,
+                'source_periode_tahun_id' => $sourcePeriode->id,
+                'target_periode_tahun_id' => $targetPeriode->id,
+            ])
+            ->assertRedirect(route('master.program-pemerintahan.index', [
+                'level' => 'kegiatan',
+                'program_id' => $program->id,
+                'periode_tahun_id' => $targetPeriode->id,
+            ]))
+            ->assertSessionHas('success');
+
+        $this->assertSame($sourceKegiatanCount, KegiatanPemerintahan::where('program_pemerintahan_id', $program->id)->where('periode_tahun_id', $targetPeriode->id)->count());
+        $this->assertSame(
+            $sourceSubKegiatanCount,
+            SubKegiatanPemerintahan::where('periode_tahun_id', $targetPeriode->id)
+                ->whereHas('kegiatanPemerintahan', fn ($query) => $query->where('program_pemerintahan_id', $program->id))
+                ->count(),
+        );
+
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.copy-kegiatan-year'), [
+                'program_pemerintahan_id' => $program->id,
+                'source_periode_tahun_id' => $sourcePeriode->id,
+                'target_periode_tahun_id' => $targetPeriode->id,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame($sourceKegiatanCount, KegiatanPemerintahan::where('program_pemerintahan_id', $program->id)->where('periode_tahun_id', $targetPeriode->id)->count());
+        $this->assertSame(
+            $sourceSubKegiatanCount,
+            SubKegiatanPemerintahan::where('periode_tahun_id', $targetPeriode->id)
+                ->whereHas('kegiatanPemerintahan', fn ($query) => $query->where('program_pemerintahan_id', $program->id))
+                ->count(),
+        );
+    }
+
+    public function test_dinkominfo_admin_can_copy_all_kegiatan_and_sub_kegiatan_to_multiple_years_in_same_rpjmd(): void
+    {
+        $this->seed();
+
+        $admin = $this->userWithRole('admin_kabupaten_dinkominfo');
+        $sourcePeriode = PeriodeTahun::where('tahun', 2026)->firstOrFail();
+        $targetPeriode2027 = PeriodeTahun::where('tahun', 2027)->firstOrFail();
+        $targetPeriode2028 = PeriodeTahun::where('tahun', 2028)->firstOrFail();
+
+        $sourceKegiatanCount = KegiatanPemerintahan::where('periode_tahun_id', $sourcePeriode->id)->count();
+        $sourceSubKegiatanCount = SubKegiatanPemerintahan::where('periode_tahun_id', $sourcePeriode->id)->count();
+
+        $this->assertGreaterThan(0, $sourceKegiatanCount);
+        $this->assertGreaterThan(0, $sourceSubKegiatanCount);
+        $this->assertSame(0, KegiatanPemerintahan::where('periode_tahun_id', $targetPeriode2027->id)->count());
+        $this->assertSame(0, SubKegiatanPemerintahan::where('periode_tahun_id', $targetPeriode2027->id)->count());
+
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.copy-kegiatan-years'), [
+                'tahun_awal' => 2025,
+                'tahun_akhir' => 2029,
+                'source_periode_tahun_id' => $sourcePeriode->id,
+                'target_periode_tahun_ids' => [$targetPeriode2027->id, $targetPeriode2028->id],
+            ])
+            ->assertRedirect(route('master.program-pemerintahan.index', [
+                'tahun_awal' => 2025,
+                'tahun_akhir' => 2029,
+            ]))
+            ->assertSessionHas('success');
+
+        foreach ([$targetPeriode2027, $targetPeriode2028] as $targetPeriode) {
+            $this->assertSame($sourceKegiatanCount, KegiatanPemerintahan::where('periode_tahun_id', $targetPeriode->id)->count());
+            $this->assertSame($sourceSubKegiatanCount, SubKegiatanPemerintahan::where('periode_tahun_id', $targetPeriode->id)->count());
+        }
+
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.copy-kegiatan-years'), [
+                'tahun_awal' => 2025,
+                'tahun_akhir' => 2029,
+                'source_periode_tahun_id' => $sourcePeriode->id,
+                'target_periode_tahun_ids' => [$targetPeriode2027->id, $targetPeriode2028->id],
+            ])
+            ->assertRedirect();
+
+        foreach ([$targetPeriode2027, $targetPeriode2028] as $targetPeriode) {
+            $this->assertSame($sourceKegiatanCount, KegiatanPemerintahan::where('periode_tahun_id', $targetPeriode->id)->count());
+            $this->assertSame($sourceSubKegiatanCount, SubKegiatanPemerintahan::where('periode_tahun_id', $targetPeriode->id)->count());
+        }
     }
 
     public function test_admin_opd_can_manage_own_units_from_master_opd(): void
@@ -693,5 +998,10 @@ class MasterUmumTest extends TestCase
         $user->roles()->sync([Role::where('name', $roleName)->value('id')]);
 
         return $user;
+    }
+
+    private function expectedProgramReferenceCount(): int
+    {
+        return count(file(database_path('seeders/data/program_pemerintahan.tsv'), FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
     }
 }

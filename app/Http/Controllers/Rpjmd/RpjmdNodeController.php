@@ -155,14 +155,14 @@ class RpjmdNodeController extends Controller
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
             ]),
-            'program' => tap($this->indikatorSasaran($rpjmd, $data['parent_id'] ?? null), function (IndikatorSasaranDaerah $indikatorSasaran) use ($data) {
+            'program' => tap($this->sasaran($rpjmd, $data['parent_id'] ?? null), function (SasaranDaerah $sasaran) use ($rpjmd, $data) {
                 $strategi = $this->optionalStrategiProgram($data);
-                $programPemerintahan = $this->optionalProgramPemerintahan($data);
+                $programPemerintahan = $this->optionalProgramPemerintahan($data, null, $rpjmd);
 
                 $program = ProgramRpjmd::create([
                     'strategi_daerah_id' => $strategi?->id,
-                    'sasaran_daerah_id' => $indikatorSasaran->sasaran_daerah_id,
-                    'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
+                    'sasaran_daerah_id' => $sasaran->id,
+                    'indikator_sasaran_daerah_id' => null,
                     'program_pemerintahan_id' => $programPemerintahan?->id,
                     'urusan_pemerintahan_id' => $programPemerintahan?->bidangUrusan?->urusan_pemerintahan_id ?? ($data['urusan_pemerintahan_id'] ?? null),
                     'kode' => $programPemerintahan?->kode ?? ($data['kode'] ?? null),
@@ -326,18 +326,16 @@ class RpjmdNodeController extends Controller
                 ]);
             }),
             'program' => tap($this->program($rpjmd, $id), function (ProgramRpjmd $program) use ($rpjmd, $data) {
-                $indikatorSasaran = filled($data['parent_id'] ?? null)
-                    ? $this->indikatorSasaran($rpjmd, $data['parent_id'])
-                    : $program->indikatorSasaran;
-                $strategi = $indikatorSasaran
-                    ? $this->optionalStrategiProgram($data, $program->strategi_daerah_id)
-                    : null;
-                $programPemerintahan = $this->optionalProgramPemerintahan($data, $program->program_pemerintahan_id);
+                $sasaran = filled($data['parent_id'] ?? null)
+                    ? $this->sasaran($rpjmd, $data['parent_id'])
+                    : $program->sasaran;
+                $strategi = $this->optionalStrategiProgram($data, $program->strategi_daerah_id);
+                $programPemerintahan = $this->optionalProgramPemerintahan($data, $program->program_pemerintahan_id, $rpjmd);
 
                 $program->update([
                     'strategi_daerah_id' => $strategi?->id,
-                    'sasaran_daerah_id' => $indikatorSasaran?->sasaran_daerah_id ?? $program->sasaran_daerah_id,
-                    'indikator_sasaran_daerah_id' => $indikatorSasaran?->id ?? $program->indikator_sasaran_daerah_id,
+                    'sasaran_daerah_id' => $sasaran?->id ?? $program->sasaran_daerah_id,
+                    'indikator_sasaran_daerah_id' => null,
                     'program_pemerintahan_id' => $programPemerintahan?->id,
                     'urusan_pemerintahan_id' => $programPemerintahan?->bidangUrusan?->urusan_pemerintahan_id ?? ($data['urusan_pemerintahan_id'] ?? null),
                     'kode' => $programPemerintahan?->kode ?? ($data['kode'] ?? null),
@@ -593,6 +591,9 @@ class RpjmdNodeController extends Controller
         if ($ids !== []) {
             $validIds = ProgramPemerintahan::query()
                 ->whereIn('id', $ids)
+                ->when($programPemerintahan, fn ($query) => $query
+                    ->where('tahun_awal', $programPemerintahan->tahun_awal)
+                    ->where('tahun_akhir', $programPemerintahan->tahun_akhir))
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
@@ -613,6 +614,8 @@ class RpjmdNodeController extends Controller
         $name = $this->normalizeProgramName($programPemerintahan->nama);
 
         return ProgramPemerintahan::query()
+            ->where('tahun_awal', $programPemerintahan->tahun_awal)
+            ->where('tahun_akhir', $programPemerintahan->tahun_akhir)
             ->where('status', 'active')
             ->orderBy('kode')
             ->get(['id', 'nama'])
@@ -631,6 +634,7 @@ class RpjmdNodeController extends Controller
     private function optionalProgramPemerintahan(
         array $data,
         mixed $fallbackId = null,
+        ?Rpjmd $rpjmd = null,
     ): ?ProgramPemerintahan {
         $id = $data['program_pemerintahan_id'] ?? $fallbackId;
 
@@ -640,6 +644,9 @@ class RpjmdNodeController extends Controller
 
         return ProgramPemerintahan::query()
             ->with('bidangUrusan:id,urusan_pemerintahan_id')
+            ->when($rpjmd, fn ($query) => $query
+                ->where('tahun_awal', $rpjmd->tahun_awal)
+                ->where('tahun_akhir', $rpjmd->tahun_akhir))
             ->findOrFail($id);
     }
 

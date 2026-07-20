@@ -40,12 +40,12 @@ class PohonKinerjaService
             'visi.tujuan.sasaran.indikatorTujuanTerkait:id,tujuan_daerah_id,kode,indikator,urutan',
             'visi.tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
-            'visi.tujuan.sasaran.indikator.programs.strategi:id,kode,strategi',
-            'visi.tujuan.sasaran.indikator.programs.urusanPemerintahan:id,kode,nama',
-            'visi.tujuan.sasaran.indikator.programs.opdPenanggungJawab:id,kode,nama,singkatan',
-            'visi.tujuan.sasaran.indikator.programs.indikator.satuanIndikator:id,nama,simbol',
-            'visi.tujuan.sasaran.indikator.programs.indikator.targets.periodeTahun:id,tahun,nama',
-            'visi.tujuan.sasaran.indikator.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.programs.strategi:id,kode,strategi',
+            'visi.tujuan.sasaran.programs.urusanPemerintahan:id,kode,nama',
+            'visi.tujuan.sasaran.programs.opdPenanggungJawab:id,kode,nama,singkatan',
+            'visi.tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
+            'visi.tujuan.sasaran.programs.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
         ]);
 
         return $this->node(
@@ -247,11 +247,17 @@ class PohonKinerjaService
     private function sasaranDaerahNode(SasaranDaerah $sasaran, ?int $visibleOpdId): ?array
     {
         $indikatorChildren = $sasaran->indikator
-            ->map(fn (IndikatorSasaranDaerah $indikator) => $this->indikatorSasaranDaerahNode($indikator, $visibleOpdId))
+            ->map(fn (IndikatorSasaranDaerah $indikator) => $this->indicatorNode($indikator, 'indikator_sasaran_daerah'))
             ->filter()
             ->values();
+        $programChildren = $sasaran->programs
+            ->when($visibleOpdId, fn (Collection $programs) => $programs->filter(
+                fn (ProgramRpjmd $program) => $program->opdPenanggungJawab->contains('id', $visibleOpdId)
+            ))
+            ->map(fn (ProgramRpjmd $program) => $this->programRpjmdNode($program))
+            ->values();
 
-        if ($visibleOpdId && $indikatorChildren->isEmpty()) {
+        if ($visibleOpdId && $programChildren->isEmpty()) {
             return null;
         }
 
@@ -262,28 +268,11 @@ class PohonKinerjaService
             meta: [
                 'indikator_tujuan_ids' => $sasaran->indikatorTujuanTerkait->pluck('id')->values()->all(),
             ],
-            children: $indikatorChildren->all(),
+            children: [
+                ...$indikatorChildren->all(),
+                ...$programChildren->all(),
+            ],
         );
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function indikatorSasaranDaerahNode(IndikatorSasaranDaerah $indikator, ?int $visibleOpdId): ?array
-    {
-        $programs = $indikator->programs
-            ->when($visibleOpdId, fn (Collection $programs) => $programs->filter(
-                fn (ProgramRpjmd $program) => $program->opdPenanggungJawab->contains('id', $visibleOpdId)
-            ))
-            ->map(fn (ProgramRpjmd $program) => $this->programRpjmdNode($program))
-            ->values()
-            ->all();
-
-        if ($visibleOpdId && count($programs) === 0) {
-            return null;
-        }
-
-        return $this->indicatorNode($indikator, 'indikator_sasaran_daerah', extraChildren: $programs);
     }
 
     /**

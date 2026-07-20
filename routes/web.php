@@ -173,6 +173,9 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
         Route::get('program-pemerintahan/export', [ProgramPemerintahanController::class, 'export'])->name('program-pemerintahan.export');
         Route::post('program-pemerintahan', [ProgramPemerintahanController::class, 'store'])->name('program-pemerintahan.store');
         Route::post('program-pemerintahan/bulk', [ProgramPemerintahanController::class, 'bulkStore'])->name('program-pemerintahan.bulk-store');
+        Route::post('program-pemerintahan/copy', [ProgramPemerintahanController::class, 'copy'])->name('program-pemerintahan.copy');
+        Route::post('program-pemerintahan/copy-kegiatan-year', [ProgramPemerintahanController::class, 'copyKegiatanYear'])->name('program-pemerintahan.copy-kegiatan-year');
+        Route::post('program-pemerintahan/copy-kegiatan-years', [ProgramPemerintahanController::class, 'copyKegiatanYears'])->name('program-pemerintahan.copy-kegiatan-years');
         Route::put('program-pemerintahan/{type}/{id}', [ProgramPemerintahanController::class, 'update'])
             ->whereIn('type', ['program', 'kegiatan', 'sub_kegiatan'])
             ->name('program-pemerintahan.update');

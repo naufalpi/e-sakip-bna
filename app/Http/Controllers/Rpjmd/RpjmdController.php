@@ -18,10 +18,12 @@ use App\Models\RpjmdVisi;
 use App\Models\SasaranDaerah;
 use App\Models\SatuanIndikator;
 use App\Models\StrategiDaerah;
+use App\Models\SystemSetting;
 use App\Models\TujuanDaerah;
 use App\Models\UrusanPemerintahan;
 use App\Models\User;
 use App\Services\Workflow\WorkflowDataService;
+use App\Support\SystemSettingCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -87,8 +89,13 @@ class RpjmdController extends Controller
 
     public function store(StoreRpjmdRequest $request): RedirectResponse
     {
+        $data = $request->validated();
+        $structureDefaults = $this->rpjmdStructureDefaults();
+
         $rpjmd = Rpjmd::create([
-            ...$request->validated(),
+            ...$data,
+            'struktur_tujuan_mode' => $data['struktur_tujuan_mode'] ?? $structureDefaults['struktur_tujuan_mode'],
+            'struktur_sasaran_mode' => $data['struktur_sasaran_mode'] ?? $structureDefaults['struktur_sasaran_mode'],
             'status' => 'draft',
         ]);
 
@@ -121,15 +128,15 @@ class RpjmdController extends Controller
             'visi.tujuan.sasaran.indikator.opd:id,kode,nama,singkatan',
             'visi.tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
-            'visi.tujuan.sasaran.indikator.programs.strategi:id,kode,strategi,status',
-            'visi.tujuan.sasaran.indikator.programs.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
-            'visi.tujuan.sasaran.indikator.programs.programPemerintahanReferences.bidangUrusan.urusanPemerintahan:id,kode,nama',
-            'visi.tujuan.sasaran.indikator.programs.urusanPemerintahan:id,kode,nama',
-            'visi.tujuan.sasaran.indikator.programs.indikator.satuanIndikator:id,nama,simbol',
-            'visi.tujuan.sasaran.indikator.programs.indikator.opd:id,kode,nama,singkatan',
-            'visi.tujuan.sasaran.indikator.programs.indikator.targets.periodeTahun:id,tahun,nama',
-            'visi.tujuan.sasaran.indikator.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
-            'visi.tujuan.sasaran.indikator.programs.opdPenanggungJawab' => fn ($query) => $query->select('opds.id', 'opds.nama', 'opds.singkatan'),
+            'visi.tujuan.sasaran.programs.strategi:id,kode,strategi,status',
+            'visi.tujuan.sasaran.programs.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
+            'visi.tujuan.sasaran.programs.programPemerintahanReferences.bidangUrusan.urusanPemerintahan:id,kode,nama',
+            'visi.tujuan.sasaran.programs.urusanPemerintahan:id,kode,nama',
+            'visi.tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
+            'visi.tujuan.sasaran.programs.indikator.opd:id,kode,nama,singkatan',
+            'visi.tujuan.sasaran.programs.indikator.targets.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'visi.tujuan.sasaran.programs.opdPenanggungJawab' => fn ($query) => $query->select('opds.id', 'opds.nama', 'opds.singkatan'),
         ];
 
         $rpjmd->load($withPreview ? array_merge($baseRelations, $previewRelations) : $baseRelations);
@@ -145,7 +152,7 @@ class RpjmdController extends Controller
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
             'opdOptions' => $manage ? $this->opdOptions() : [],
             'urusanOptions' => $manage ? $this->urusanOptions() : [],
-            'programPemerintahanOptions' => $manage ? $this->programPemerintahanOptions() : [],
+            'programPemerintahanOptions' => $manage ? $this->programPemerintahanOptions($rpjmd) : [],
             'can' => [
                 'manage' => $manage,
                 'review' => $this->canReviewWorkflow($request->user()),
@@ -169,8 +176,6 @@ class RpjmdController extends Controller
                 'tahun_awal' => $rpjmd->tahun_awal,
                 'tahun_akhir' => $rpjmd->tahun_akhir,
                 'status' => $rpjmd->status,
-                'struktur_tujuan_mode' => $rpjmd->struktur_tujuan_mode,
-                'struktur_sasaran_mode' => $rpjmd->struktur_sasaran_mode,
                 'keterangan' => $rpjmd->keterangan,
             ],
             'periodeOptions' => $this->periodeOptions(),
@@ -284,10 +289,12 @@ class RpjmdController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function programPemerintahanOptions(): array
+    private function programPemerintahanOptions(Rpjmd $rpjmd): array
     {
         return ProgramPemerintahan::query()
             ->with('bidangUrusan.urusanPemerintahan:id,kode,nama')
+            ->where('tahun_awal', $rpjmd->tahun_awal)
+            ->where('tahun_akhir', $rpjmd->tahun_akhir)
             ->where('status', 'active')
             ->orderBy('nama')
             ->orderBy('kode')
@@ -378,24 +385,23 @@ class RpjmdController extends Controller
             ));
         $program = ProgramRpjmd::query()
             ->forRpjmd($rpjmd->id)
-            ->with('indikatorSasaran.sasaran.tujuan.visi:id,urutan')
-            ->get(['id', 'indikator_sasaran_daerah_id', 'program_pemerintahan_id', 'kode', 'nama', 'urutan'])
+            ->with('sasaran.tujuan.visi:id,urutan')
+            ->get(['id', 'sasaran_daerah_id', 'indikator_sasaran_daerah_id', 'program_pemerintahan_id', 'kode', 'nama', 'urutan'])
             ->sortBy(fn ($item) => $this->hierarchySortKey(
-                $item->indikatorSasaran?->sasaran?->tujuan?->visi?->urutan,
-                $item->indikatorSasaran?->sasaran?->tujuan?->urutan,
-                $item->indikatorSasaran?->sasaran?->urutan,
-                $item->indikatorSasaran?->urutan,
+                $item->sasaran?->tujuan?->visi?->urutan,
+                $item->sasaran?->tujuan?->urutan,
+                $item->sasaran?->urutan,
                 $item->urutan,
                 $item->id,
             ));
         $indikatorProgram = IndikatorProgramRpjmd::query()
             ->whereHas('program', fn ($query) => $query->forRpjmd($rpjmd->id))
-            ->with('program.indikatorSasaran.sasaran.tujuan.visi:id,urutan')
+            ->with('program.sasaran.tujuan.visi:id,urutan')
             ->get(['id', 'program_rpjmd_id', 'kode', 'indikator', 'urutan'])
             ->sortBy(fn ($item) => $this->hierarchySortKey(
-                $item->program?->indikatorSasaran?->sasaran?->tujuan?->visi?->urutan,
-                $item->program?->indikatorSasaran?->sasaran?->tujuan?->urutan,
-                $item->program?->indikatorSasaran?->sasaran?->urutan,
+                $item->program?->sasaran?->tujuan?->visi?->urutan,
+                $item->program?->sasaran?->tujuan?->urutan,
+                $item->program?->sasaran?->urutan,
                 $item->program?->urutan,
                 $item->urutan,
                 $item->id,
@@ -466,8 +472,8 @@ class RpjmdController extends Controller
                 ->map(fn ($item) => [
                     'id' => $item->id,
                     'label' => $this->nodeLabel($item->kode, $item->nama),
-                    'description' => $this->groupLabel('Sasaran', $item->indikatorSasaran?->sasaran?->sasaran),
-                    'group' => $this->groupLabel('Sasaran', $item->indikatorSasaran?->sasaran?->sasaran),
+                    'description' => $this->groupLabel('Sasaran', $item->sasaran?->sasaran),
+                    'group' => $this->groupLabel('Sasaran', $item->sasaran?->sasaran),
                 ])
                 ->values()
                 ->all(),
@@ -539,9 +545,43 @@ class RpjmdController extends Controller
         return $user->isSuperAdmin() || $user->hasPermission('lock_period');
     }
 
+    /**
+     * @return array{struktur_tujuan_mode: string, struktur_sasaran_mode: string}
+     */
+    private function rpjmdStructureDefaults(): array
+    {
+        return [
+            'struktur_tujuan_mode' => $this->validStructureSetting(
+                'rpjmd.default_struktur_tujuan_mode',
+                ['tujuan_lintas_misi', 'tujuan_per_misi'],
+                'tujuan_lintas_misi',
+            ),
+            'struktur_sasaran_mode' => $this->validStructureSetting(
+                'rpjmd.default_struktur_sasaran_mode',
+                ['sasaran_langsung_tujuan', 'sasaran_melalui_indikator_tujuan', 'campuran'],
+                'sasaran_langsung_tujuan',
+            ),
+        ];
+    }
+
+    /**
+     * @param  array<int, string>  $allowed
+     */
+    private function validStructureSetting(string $key, array $allowed, string $fallback): string
+    {
+        $setting = SystemSetting::query()->where('key', $key)->first(['value']);
+        $value = $setting?->value ?? SystemSettingCatalog::setting($key)['value'] ?? $fallback;
+
+        if (! is_string($value)) {
+            return $fallback;
+        }
+
+        return in_array($value, $allowed, true) ? $value : $fallback;
+    }
+
     private function limitToUserOpd(Builder $query, User $user): void
     {
-        $query->whereHas('visi.tujuan.sasaran.indikator.programs.opdPenanggungJawab', function ($query) use ($user) {
+        $query->whereHas('visi.tujuan.sasaran.programs.opdPenanggungJawab', function ($query) use ($user) {
             $query->where('opds.id', $user->opd_id ?? 0);
         });
     }
@@ -603,10 +643,15 @@ class RpjmdController extends Controller
     {
         $indikator = $sasaran->indikator
             ->map(fn (IndikatorSasaranDaerah $indikator) => $this->serializeIndikator($indikator, true, $visibleOpdId))
-            ->filter(fn (array $indikator) => ! $visibleOpdId || collect($indikator['programs'])->isNotEmpty())
+            ->values();
+        $programs = $sasaran->programs
+            ->when($visibleOpdId, fn ($programs) => $programs->filter(
+                fn (ProgramRpjmd $program) => $program->opdPenanggungJawab->contains('id', $visibleOpdId)
+            ))
+            ->map(fn (ProgramRpjmd $program) => $this->serializeProgram($program))
             ->values();
 
-        if ($visibleOpdId && $indikator->isEmpty()) {
+        if ($visibleOpdId && $programs->isEmpty()) {
             return null;
         }
 
@@ -622,6 +667,7 @@ class RpjmdController extends Controller
                 'urutan' => $indikator->urutan,
             ])->values(),
             'indikator' => $indikator,
+            'programs' => $programs,
         ];
     }
 
@@ -632,6 +678,7 @@ class RpjmdController extends Controller
     {
         return [
             'id' => $program->id,
+            'sasaran_daerah_id' => $program->sasaran_daerah_id,
             'indikator_sasaran_daerah_id' => $program->indikator_sasaran_daerah_id,
             'strategi_daerah_id' => $program->strategi_daerah_id,
             'urusan_pemerintahan_id' => $program->urusan_pemerintahan_id,
@@ -688,15 +735,6 @@ class RpjmdController extends Controller
         bool $withTargets = true,
         ?int $visibleOpdId = null,
     ): array {
-        $programs = $indikator instanceof IndikatorSasaranDaerah
-            ? $indikator->programs
-                ->when($visibleOpdId, fn ($programs) => $programs->filter(
-                    fn (ProgramRpjmd $program) => $program->opdPenanggungJawab->contains('id', $visibleOpdId)
-                ))
-                ->map(fn (ProgramRpjmd $program) => $this->serializeProgram($program))
-                ->values()
-            : collect();
-
         return [
             'id' => $indikator->id,
             'kode' => $indikator->kode,
@@ -741,7 +779,7 @@ class RpjmdController extends Controller
                 'target_angka' => $target->target_angka,
                 'target_text' => $target->target_text,
             ]) : collect(),
-            'programs' => $programs,
+            'programs' => collect(),
         ];
     }
 }

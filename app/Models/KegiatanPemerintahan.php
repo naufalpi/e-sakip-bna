@@ -16,11 +16,17 @@ class KegiatanPemerintahan extends Model
     protected $table = 'kegiatan_pemerintahan';
 
     protected $fillable = [
+        'periode_tahun_id',
         'program_pemerintahan_id',
         'kode',
         'nama',
         'status',
     ];
+
+    public function periodeTahun(): BelongsTo
+    {
+        return $this->belongsTo(PeriodeTahun::class);
+    }
 
     public function programPemerintahan(): BelongsTo
     {

@@ -15,7 +15,7 @@ class RkpdItemController extends Controller
 {
     public function store(StoreRkpdItemRequest $request, Rkpd $rkpd): RedirectResponse
     {
-        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'));
+        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), (int) $rkpd->periode_tahun_id);
 
         $rkpd->items()->create($this->payload($request->validated(), $subKegiatan, [
             'status' => in_array($rkpd->status, ['submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'], true) ? $rkpd->status : 'draft',
@@ -29,7 +29,7 @@ class RkpdItemController extends Controller
     {
         abort_unless((int) $item->rkpd_id === (int) $rkpd->id, 404);
 
-        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'));
+        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), (int) $rkpd->periode_tahun_id);
 
         $item->update($this->payload($request->validated(), $subKegiatan, [
             'status' => $item->status,
@@ -49,10 +49,11 @@ class RkpdItemController extends Controller
         return back()->with('success', 'Baris RKPD berhasil dihapus.');
     }
 
-    private function subKegiatan(int $id): SubKegiatanPemerintahan
+    private function subKegiatan(int $id, int $periodeTahunId): SubKegiatanPemerintahan
     {
         return SubKegiatanPemerintahan::query()
             ->with('kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan')
+            ->where('periode_tahun_id', $periodeTahunId)
             ->findOrFail($id);
     }
 

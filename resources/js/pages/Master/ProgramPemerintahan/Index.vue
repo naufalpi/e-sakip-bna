@@ -4,14 +4,15 @@ import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, ChevronRight, ClipboardList, FileSpreadsheet, FolderTree, Layers3, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
+import { ArrowLeft, ChevronRight, ClipboardList, CopyPlus, FileSpreadsheet, FolderTree, Layers3, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
 import { computed, reactive, ref, watch } from 'vue';
 
 type Option = {
-    id: number;
+    id: number | string;
     label: string;
     description?: string | null;
     group?: string | null;
+    tahun?: number;
 };
 
 type ReferenceType = 'program' | 'kegiatan' | 'sub_kegiatan';
@@ -20,6 +21,10 @@ type ReferenceItem = {
     id: number;
     type: ReferenceType;
     level: string;
+    periode_tahun_id: number | null;
+    tahun_awal?: number | null;
+    tahun_akhir?: number | null;
+    periode_label: string;
     kode: string;
     nama: string;
     status: string;
@@ -34,6 +39,10 @@ type ReferenceItem = {
 
 type ContextItem = {
     id: number;
+    periode_tahun_id: number | null;
+    tahun_awal?: number | null;
+    tahun_akhir?: number | null;
+    periode_label: string;
     kode: string;
     nama: string;
     label: string;
@@ -56,6 +65,9 @@ type Paginator<T> = {
 
 type ReferenceForm = {
     type: ReferenceType;
+    periode_tahun_id: number | string;
+    tahun_awal: number | string;
+    tahun_akhir: number | string;
     bidang_urusan_id: number | string;
     program_pemerintahan_id: number | string;
     kegiatan_pemerintahan_id: number | string;
@@ -67,6 +79,9 @@ type ReferenceForm = {
 
 type BulkForm = {
     type: ReferenceType;
+    periode_tahun_id: number | string;
+    tahun_awal: number | string;
+    tahun_akhir: number | string;
     bidang_urusan_id: number | string;
     program_pemerintahan_id: number | string;
     kegiatan_pemerintahan_id: number | string;
@@ -75,9 +90,23 @@ type BulkForm = {
     redirect_to: string;
 };
 
+type CopyForm = {
+    source_tahun_awal: number | string;
+    source_tahun_akhir: number | string;
+    target_tahun_awal: number | string;
+    target_tahun_akhir: number | string;
+};
+
+type CopyKegiatanPeriodForm = {
+    tahun_awal: number | string;
+    tahun_akhir: number | string;
+    source_periode_tahun_id: number | string;
+    target_periode_tahun_ids: Array<number | string>;
+};
+
 const props = defineProps<{
     items: Paginator<ReferenceItem>;
-    filters: { search?: string; status?: string; bidang_urusan_id?: number | string };
+    filters: { search?: string; status?: string; bidang_urusan_id?: number | string; periode_tahun_id?: number | string; tahun_awal?: number | string; tahun_akhir?: number | string };
     level: ReferenceType;
     context: {
         program?: ContextItem | null;
@@ -89,10 +118,14 @@ const props = defineProps<{
         sub_kegiatan_count: number;
     };
     options: {
+        periode: Option[];
+        programPeriode: Option[];
         bidang: Option[];
         program: Option[];
         kegiatan: Option[];
     };
+    selectedPeriodeId: number;
+    selectedProgramPeriod: { tahun_awal: number; tahun_akhir: number };
     can: { manage: boolean };
 }>();
 
@@ -138,6 +171,9 @@ const levelMeta: Record<
 };
 
 const filterForm = reactive({
+    periode_tahun_id: props.filters.periode_tahun_id ?? props.selectedPeriodeId,
+    tahun_awal: props.filters.tahun_awal ?? props.selectedProgramPeriod.tahun_awal,
+    tahun_akhir: props.filters.tahun_akhir ?? props.selectedProgramPeriod.tahun_akhir,
     search: props.filters.search ?? '',
     status: props.filters.status ?? '',
     bidang_urusan_id: props.filters.bidang_urusan_id ?? '',
@@ -145,6 +181,9 @@ const filterForm = reactive({
 
 const singleForm = useForm<ReferenceForm>({
     type: props.level,
+    periode_tahun_id: props.selectedPeriodeId,
+    tahun_awal: props.selectedProgramPeriod.tahun_awal,
+    tahun_akhir: props.selectedProgramPeriod.tahun_akhir,
     bidang_urusan_id: '',
     program_pemerintahan_id: '',
     kegiatan_pemerintahan_id: '',
@@ -156,6 +195,9 @@ const singleForm = useForm<ReferenceForm>({
 
 const bulkForm = useForm<BulkForm>({
     type: props.level,
+    periode_tahun_id: props.selectedPeriodeId,
+    tahun_awal: props.selectedProgramPeriod.tahun_awal,
+    tahun_akhir: props.selectedProgramPeriod.tahun_akhir,
     bidang_urusan_id: '',
     program_pemerintahan_id: '',
     kegiatan_pemerintahan_id: '',
@@ -164,10 +206,36 @@ const bulkForm = useForm<BulkForm>({
     redirect_to: '',
 });
 
+const copyForm = useForm<CopyForm>({
+    source_tahun_awal: props.selectedProgramPeriod.tahun_awal,
+    source_tahun_akhir: props.selectedProgramPeriod.tahun_akhir,
+    target_tahun_awal: props.selectedProgramPeriod.tahun_akhir + 1,
+    target_tahun_akhir: props.selectedProgramPeriod.tahun_akhir + 5,
+});
+
+const copyKegiatanPeriodForm = useForm<CopyKegiatanPeriodForm>({
+    tahun_awal: props.selectedProgramPeriod.tahun_awal,
+    tahun_akhir: props.selectedProgramPeriod.tahun_akhir,
+    source_periode_tahun_id: '',
+    target_periode_tahun_ids: [],
+});
+
 const editing = reactive<{ type: ReferenceType | null; id: number | null }>({ type: null, id: null });
-const activePanel = ref<'single' | 'bulk' | null>(null);
+const activePanel = ref<'single' | 'bulk' | 'copy' | null>(null);
+const copyMode = ref<'period' | 'year'>('period');
 
 const meta = computed(() => levelMeta[props.level]);
+const programPeriodKey = computed({
+    get: () => `${filterForm.tahun_awal}-${filterForm.tahun_akhir}`,
+    set: (value: string) => {
+        const [tahunAwal, tahunAkhir] = value.split('-').map((item) => Number(item));
+
+        if (tahunAwal && tahunAkhir) {
+            filterForm.tahun_awal = tahunAwal;
+            filterForm.tahun_akhir = tahunAkhir;
+        }
+    },
+});
 const pageTitle = computed(() => {
     if (props.level === 'kegiatan' && props.context.program) {
         return `Kegiatan - ${props.context.program.kode}`;
@@ -200,7 +268,16 @@ const redirectTo = computed(() => {
 });
 
 const queryParams = () => {
-    const params: Record<string, number | string> = { level: props.level };
+    const params: Record<string, number | string> = {
+        level: props.level,
+    };
+
+    if (props.level === 'program') {
+        params.tahun_awal = filterForm.tahun_awal || props.selectedProgramPeriod.tahun_awal;
+        params.tahun_akhir = filterForm.tahun_akhir || props.selectedProgramPeriod.tahun_akhir;
+    } else {
+        params.periode_tahun_id = filterForm.periode_tahun_id || props.selectedPeriodeId;
+    }
 
     if (props.level === 'kegiatan' && props.context.program?.id) {
         params.program_id = props.context.program.id;
@@ -225,12 +302,18 @@ const queryParams = () => {
     return params;
 };
 
-const backToProgramsHref = computed(() => route('master.program-pemerintahan.index'));
+const backToProgramsHref = computed(() =>
+    route('master.program-pemerintahan.index', {
+        tahun_awal: props.selectedProgramPeriod.tahun_awal,
+        tahun_akhir: props.selectedProgramPeriod.tahun_akhir,
+    }),
+);
 const backToKegiatanHref = computed(() =>
     props.context.program
         ? route('master.program-pemerintahan.index', {
               level: 'kegiatan',
               program_id: props.context.program.id,
+              periode_tahun_id: props.selectedPeriodeId,
           })
         : route('master.program-pemerintahan.index'),
 );
@@ -246,6 +329,9 @@ const resetFilters = () => {
     filterForm.search = '';
     filterForm.status = '';
     filterForm.bidang_urusan_id = '';
+    filterForm.periode_tahun_id = props.selectedPeriodeId;
+    filterForm.tahun_awal = props.selectedProgramPeriod.tahun_awal;
+    filterForm.tahun_akhir = props.selectedProgramPeriod.tahun_akhir;
     applyFiltersNow();
 };
 
@@ -257,6 +343,9 @@ const clearParentFields = (form: ReferenceForm | BulkForm) => {
 
 const syncContextToForm = (form: ReferenceForm | BulkForm) => {
     form.type = props.level;
+    form.periode_tahun_id = props.selectedPeriodeId;
+    form.tahun_awal = props.selectedProgramPeriod.tahun_awal;
+    form.tahun_akhir = props.selectedProgramPeriod.tahun_akhir;
     form.redirect_to = redirectTo.value;
     clearParentFields(form);
 
@@ -285,10 +374,36 @@ const resetBulkForm = () => {
     bulkForm.clearErrors();
 };
 
+const resetCopyForm = () => {
+    copyForm.source_tahun_awal = props.selectedProgramPeriod.tahun_awal;
+    copyForm.source_tahun_akhir = props.selectedProgramPeriod.tahun_akhir;
+    copyForm.target_tahun_awal = props.selectedProgramPeriod.tahun_akhir + 1;
+    copyForm.target_tahun_akhir = props.selectedProgramPeriod.tahun_akhir + 5;
+    copyForm.clearErrors();
+};
+
+const periodeInSelectedRpjmd = computed(() =>
+    props.options.periode
+        .filter((periode) => Number(periode.tahun ?? 0) >= Number(props.selectedProgramPeriod.tahun_awal) && Number(periode.tahun ?? 0) <= Number(props.selectedProgramPeriod.tahun_akhir))
+        .sort((a, b) => Number(a.tahun ?? 0) - Number(b.tahun ?? 0)),
+);
+
+const resetCopyKegiatanPeriodForm = () => {
+    const source = periodeInSelectedRpjmd.value[0];
+
+    copyKegiatanPeriodForm.tahun_awal = props.selectedProgramPeriod.tahun_awal;
+    copyKegiatanPeriodForm.tahun_akhir = props.selectedProgramPeriod.tahun_akhir;
+    copyKegiatanPeriodForm.source_periode_tahun_id = source?.id ?? '';
+    copyKegiatanPeriodForm.target_periode_tahun_ids = periodeInSelectedRpjmd.value.filter((periode) => periode.id !== source?.id).map((periode) => periode.id);
+    copyKegiatanPeriodForm.clearErrors();
+};
+
 const closePanels = () => {
     activePanel.value = null;
     resetSingleForm();
     resetBulkForm();
+    resetCopyForm();
+    resetCopyKegiatanPeriodForm();
 };
 
 const openSinglePanel = () => {
@@ -299,6 +414,13 @@ const openSinglePanel = () => {
 const openBulkPanel = () => {
     resetBulkForm();
     activePanel.value = 'bulk';
+};
+
+const openCopyPanel = () => {
+    resetCopyForm();
+    resetCopyKegiatanPeriodForm();
+    copyMode.value = 'period';
+    activePanel.value = 'copy';
 };
 
 const parentValue = computed({
@@ -316,7 +438,9 @@ const canSubmitSingle = computed(() => {
               ? Boolean(props.context.program?.id)
               : Boolean(props.context.kegiatan?.id);
 
-    return props.can.manage && hasParent && singleForm.kode.trim().length > 0 && singleForm.nama.trim().length > 0;
+    const hasScope = props.level === 'program' ? Boolean(singleForm.tahun_awal && singleForm.tahun_akhir) : Boolean(singleForm.periode_tahun_id);
+
+    return props.can.manage && hasScope && hasParent && singleForm.kode.trim().length > 0 && singleForm.nama.trim().length > 0;
 });
 const bulkValidRows = computed(() => bulkForm.rows.split(/\r\n|\r|\n/).filter((line) => line.trim().includes('|')).length);
 const canSubmitBulk = computed(() => {
@@ -327,15 +451,42 @@ const canSubmitBulk = computed(() => {
               ? Boolean(props.context.program?.id)
               : Boolean(props.context.kegiatan?.id);
 
-    return props.can.manage && hasParent && bulkValidRows.value > 0;
+    const hasScope = props.level === 'program' ? Boolean(bulkForm.tahun_awal && bulkForm.tahun_akhir) : Boolean(bulkForm.periode_tahun_id);
+
+    return props.can.manage && hasScope && hasParent && bulkValidRows.value > 0;
 });
+const canSubmitCopy = computed(
+    () =>
+        props.can.manage &&
+        props.level === 'program' &&
+        Boolean(copyForm.source_tahun_awal) &&
+        Boolean(copyForm.source_tahun_akhir) &&
+        Boolean(copyForm.target_tahun_awal) &&
+        Boolean(copyForm.target_tahun_akhir) &&
+        `${copyForm.source_tahun_awal}-${copyForm.source_tahun_akhir}` !== `${copyForm.target_tahun_awal}-${copyForm.target_tahun_akhir}`,
+);
+const canSubmitCopyKegiatanPeriod = computed(
+    () =>
+        props.can.manage &&
+        props.level === 'program' &&
+        Boolean(copyKegiatanPeriodForm.tahun_awal) &&
+        Boolean(copyKegiatanPeriodForm.tahun_akhir) &&
+        Boolean(copyKegiatanPeriodForm.source_periode_tahun_id) &&
+        copyKegiatanPeriodForm.target_periode_tahun_ids.length > 0 &&
+        !copyKegiatanPeriodForm.target_periode_tahun_ids.some((id) => Number(id) === Number(copyKegiatanPeriodForm.source_periode_tahun_id)),
+);
 
 watch(
-    () => [props.level, props.context.program?.id, props.context.kegiatan?.id],
+    () => [props.level, props.context.program?.id, props.context.kegiatan?.id, props.selectedPeriodeId, props.selectedProgramPeriod.tahun_awal, props.selectedProgramPeriod.tahun_akhir],
     () => {
+        filterForm.periode_tahun_id = props.selectedPeriodeId;
+        filterForm.tahun_awal = props.selectedProgramPeriod.tahun_awal;
+        filterForm.tahun_akhir = props.selectedProgramPeriod.tahun_akhir;
         activePanel.value = null;
         resetSingleForm();
         resetBulkForm();
+        resetCopyForm();
+        resetCopyKegiatanPeriodForm();
     },
     { immediate: true },
 );
@@ -343,9 +494,21 @@ watch(
 watch(
     () => props.filters,
     () => {
+        filterForm.periode_tahun_id = props.filters.periode_tahun_id ?? props.selectedPeriodeId;
+        filterForm.tahun_awal = props.filters.tahun_awal ?? props.selectedProgramPeriod.tahun_awal;
+        filterForm.tahun_akhir = props.filters.tahun_akhir ?? props.selectedProgramPeriod.tahun_akhir;
         filterForm.search = props.filters.search ?? '';
         filterForm.status = props.filters.status ?? '';
         filterForm.bidang_urusan_id = props.filters.bidang_urusan_id ?? '';
+    },
+);
+
+watch(
+    () => copyKegiatanPeriodForm.source_periode_tahun_id,
+    (sourcePeriodeTahunId) => {
+        copyKegiatanPeriodForm.target_periode_tahun_ids = copyKegiatanPeriodForm.target_periode_tahun_ids.filter(
+            (targetPeriodeTahunId) => Number(targetPeriodeTahunId) !== Number(sourcePeriodeTahunId),
+        );
     },
 );
 
@@ -355,6 +518,9 @@ const submitSingle = () => {
     }
 
     singleForm.type = props.level;
+    singleForm.periode_tahun_id = props.selectedPeriodeId;
+    singleForm.tahun_awal = props.selectedProgramPeriod.tahun_awal;
+    singleForm.tahun_akhir = props.selectedProgramPeriod.tahun_akhir;
     singleForm.redirect_to = redirectTo.value;
     if (props.level === 'kegiatan' && props.context.program?.id) {
         singleForm.program_pemerintahan_id = props.context.program.id;
@@ -383,6 +549,9 @@ const submitBulk = () => {
     }
 
     bulkForm.type = props.level;
+    bulkForm.periode_tahun_id = props.selectedPeriodeId;
+    bulkForm.tahun_awal = props.selectedProgramPeriod.tahun_awal;
+    bulkForm.tahun_akhir = props.selectedProgramPeriod.tahun_akhir;
     bulkForm.redirect_to = redirectTo.value;
     if (props.level === 'kegiatan' && props.context.program?.id) {
         bulkForm.program_pemerintahan_id = props.context.program.id;
@@ -397,11 +566,55 @@ const submitBulk = () => {
     });
 };
 
+const submitCopyPeriod = () => {
+    if (!canSubmitCopy.value) {
+        return;
+    }
+
+    copyForm.post(route('master.program-pemerintahan.copy'), {
+        preserveScroll: true,
+        onSuccess: closePanels,
+    });
+};
+
+const submitCopyKegiatanPeriod = () => {
+    if (!canSubmitCopyKegiatanPeriod.value) {
+        return;
+    }
+
+    copyKegiatanPeriodForm.tahun_awal = props.selectedProgramPeriod.tahun_awal;
+    copyKegiatanPeriodForm.tahun_akhir = props.selectedProgramPeriod.tahun_akhir;
+    copyKegiatanPeriodForm.post(route('master.program-pemerintahan.copy-kegiatan-years'), {
+        preserveScroll: true,
+        onSuccess: closePanels,
+    });
+};
+
+const submitCopy = () => {
+    if (copyMode.value === 'period') {
+        submitCopyPeriod();
+        return;
+    }
+
+    submitCopyKegiatanPeriod();
+};
+
+const toggleTargetPeriode = (id: number | string) => {
+    const exists = copyKegiatanPeriodForm.target_periode_tahun_ids.some((targetId) => Number(targetId) === Number(id));
+
+    copyKegiatanPeriodForm.target_periode_tahun_ids = exists
+        ? copyKegiatanPeriodForm.target_periode_tahun_ids.filter((targetId) => Number(targetId) !== Number(id))
+        : [...copyKegiatanPeriodForm.target_periode_tahun_ids, id];
+};
+
 const editItem = (item: ReferenceItem) => {
     activePanel.value = 'single';
     editing.type = item.type;
     editing.id = item.id;
     singleForm.type = item.type;
+    singleForm.periode_tahun_id = item.periode_tahun_id ?? props.selectedPeriodeId;
+    singleForm.tahun_awal = item.tahun_awal ?? props.selectedProgramPeriod.tahun_awal;
+    singleForm.tahun_akhir = item.tahun_akhir ?? props.selectedProgramPeriod.tahun_akhir;
     singleForm.bidang_urusan_id = item.type === 'program' ? item.parent_id : '';
     singleForm.program_pemerintahan_id = item.type === 'kegiatan' ? item.parent_id : '';
     singleForm.kegiatan_pemerintahan_id = item.type === 'sub_kegiatan' ? item.parent_id : '';
@@ -492,6 +705,15 @@ const destroy = async (item: ReferenceItem) => {
                     </div>
                     <div v-if="can.manage" class="flex flex-wrap gap-2">
                         <button
+                            v-if="props.level === 'program'"
+                            type="button"
+                            class="inline-flex h-10 items-center gap-2 rounded-xl border border-[#00336C]/20 bg-[#00336C]/5 px-4 text-sm font-semibold text-[#00336C] transition hover:bg-[#00336C]/10"
+                            @click="openCopyPanel"
+                        >
+                            <CopyPlus class="size-4" />
+                            Salin Data
+                        </button>
+                        <button
                             type="button"
                             class="inline-flex h-10 items-center gap-2 rounded-xl bg-[#00336C] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002958]"
                             @click="openSinglePanel"
@@ -514,11 +736,31 @@ const destroy = async (item: ReferenceItem) => {
                     class="relative z-40 grid gap-3"
                     :class="
                         props.level === 'program'
-                            ? 'lg:grid-cols-[minmax(220px,1fr)_minmax(280px,420px)_190px_auto]'
+                            ? 'lg:grid-cols-[220px_minmax(220px,1fr)_minmax(280px,420px)_190px_auto]'
                             : 'lg:grid-cols-[minmax(0,1fr)_220px_auto]'
                     "
                     @submit.prevent="applyFiltersNow"
                 >
+                    <select
+                        v-if="props.level === 'program'"
+                        v-model="programPeriodKey"
+                        class="h-11 min-w-0 rounded-xl border bg-background px-3 text-sm font-semibold outline-none transition focus:ring-2 focus:ring-[#00336C]/25"
+                        aria-label="Filter periode RPJMD program"
+                    >
+                        <option v-for="periode in options.programPeriode" :key="periode.id" :value="periode.id">
+                            {{ periode.label }}
+                        </option>
+                    </select>
+                    <select
+                        v-else
+                        v-model="filterForm.periode_tahun_id"
+                        class="h-11 min-w-0 rounded-xl border bg-background px-3 text-sm font-semibold outline-none transition focus:ring-2 focus:ring-[#00336C]/25"
+                        aria-label="Filter tahun kegiatan"
+                    >
+                        <option v-for="periode in options.periode" :key="periode.id" :value="periode.id">
+                            {{ periode.label }}
+                        </option>
+                    </select>
                     <div class="relative min-w-0">
                         <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                         <input
@@ -647,7 +889,7 @@ const destroy = async (item: ReferenceItem) => {
                         </div>
                     </form>
 
-                    <form v-else class="overflow-visible rounded-2xl border bg-card shadow-sm" @submit.prevent="submitBulk">
+                    <form v-else-if="activePanel === 'bulk'" class="overflow-visible rounded-2xl border bg-card shadow-sm" @submit.prevent="submitBulk">
                         <div class="flex items-center justify-between border-b bg-background p-4">
                             <div class="flex items-center gap-3">
                                 <div
@@ -726,6 +968,155 @@ const destroy = async (item: ReferenceItem) => {
                             >
                                 <ClipboardList class="size-4" />
                                 Simpan Banyak
+                            </button>
+                        </div>
+                    </form>
+
+                    <form v-else-if="activePanel === 'copy'" class="overflow-hidden rounded-2xl border bg-card shadow-sm" @submit.prevent="submitCopy">
+                        <div class="flex items-center justify-between border-b bg-background p-4">
+                            <div class="flex min-w-0 items-center gap-3">
+                                <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#00336C]/10 text-[#00336C]">
+                                    <CopyPlus class="size-5" />
+                                </div>
+                                <div class="min-w-0">
+                                    <h2 class="font-semibold">Salin Data</h2>
+                                    <p class="text-sm text-muted-foreground">Pilih jenis salin sesuai kebutuhan.</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                class="inline-flex size-10 items-center justify-center rounded-xl border bg-background transition hover:bg-muted"
+                                aria-label="Tutup salin data"
+                                @click="closePanels"
+                            >
+                                <X class="size-4" />
+                            </button>
+                        </div>
+
+                        <div class="grid gap-4 p-4">
+                            <div class="grid gap-3 md:grid-cols-2">
+                                <button
+                                    type="button"
+                                    class="rounded-2xl border p-4 text-left transition hover:border-[#00336C]/40 hover:bg-[#00336C]/5"
+                                    :class="copyMode === 'period' ? 'border-[#00336C] bg-[#00336C]/5 shadow-sm' : 'bg-background'"
+                                    @click="copyMode = 'period'"
+                                >
+                                    <div class="text-sm font-semibold text-foreground">Salin Periode RPJMD</div>
+                                    <div class="mt-1 text-xs leading-5 text-muted-foreground">Menyalin daftar program ke periode RPJMD berikutnya.</div>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-2xl border p-4 text-left transition hover:border-[#00336C]/40 hover:bg-[#00336C]/5"
+                                    :class="copyMode === 'year' ? 'border-[#00336C] bg-[#00336C]/5 shadow-sm' : 'bg-background'"
+                                    @click="copyMode = 'year'"
+                                >
+                                    <div class="text-sm font-semibold text-foreground">Salin Kegiatan Tahunan</div>
+                                    <div class="mt-1 text-xs leading-5 text-muted-foreground">Menyalin kegiatan dan sub kegiatan ke beberapa tahun sekaligus.</div>
+                                </button>
+                            </div>
+
+                            <div v-if="copyMode === 'period'" class="grid gap-4 lg:grid-cols-4">
+                                <div class="grid gap-2">
+                                    <label class="text-sm font-medium" for="copy-source-start">Awal Sumber</label>
+                                    <input
+                                        id="copy-source-start"
+                                        v-model="copyForm.source_tahun_awal"
+                                        type="number"
+                                        class="h-11 rounded-xl border bg-background px-3 text-sm font-semibold"
+                                    />
+                                    <InputError :message="copyForm.errors.source_tahun_awal" />
+                                </div>
+                                <div class="grid gap-2">
+                                    <label class="text-sm font-medium" for="copy-source-end">Akhir Sumber</label>
+                                    <input
+                                        id="copy-source-end"
+                                        v-model="copyForm.source_tahun_akhir"
+                                        type="number"
+                                        class="h-11 rounded-xl border bg-background px-3 text-sm font-semibold"
+                                    />
+                                    <InputError :message="copyForm.errors.source_tahun_akhir" />
+                                </div>
+                                <div class="grid gap-2">
+                                    <label class="text-sm font-medium" for="copy-target-start">Awal Tujuan</label>
+                                    <input
+                                        id="copy-target-start"
+                                        v-model="copyForm.target_tahun_awal"
+                                        type="number"
+                                        class="h-11 rounded-xl border bg-background px-3 text-sm font-semibold"
+                                    />
+                                    <InputError :message="copyForm.errors.target_tahun_awal" />
+                                </div>
+                                <div class="grid gap-2">
+                                    <label class="text-sm font-medium" for="copy-target-end">Akhir Tujuan</label>
+                                    <input
+                                        id="copy-target-end"
+                                        v-model="copyForm.target_tahun_akhir"
+                                        type="number"
+                                        class="h-11 rounded-xl border bg-background px-3 text-sm font-semibold"
+                                    />
+                                    <InputError :message="copyForm.errors.target_tahun_akhir" />
+                                </div>
+                            </div>
+
+                            <div v-else class="grid gap-4">
+                                <div class="grid gap-4 lg:grid-cols-[minmax(220px,320px)_minmax(0,1fr)]">
+                                    <div class="grid gap-2">
+                                        <label class="text-sm font-medium" for="copy-kegiatan-source">Tahun Sumber</label>
+                                        <select
+                                            id="copy-kegiatan-source"
+                                            v-model="copyKegiatanPeriodForm.source_periode_tahun_id"
+                                            class="h-11 rounded-xl border bg-background px-3 text-sm font-semibold"
+                                        >
+                                            <option value="">Pilih tahun sumber</option>
+                                            <option v-for="periode in periodeInSelectedRpjmd" :key="periode.id" :value="periode.id">
+                                                {{ periode.label }}
+                                            </option>
+                                        </select>
+                                        <InputError :message="copyKegiatanPeriodForm.errors.source_periode_tahun_id" />
+                                    </div>
+                                    <div class="grid gap-2">
+                                        <div class="text-sm font-medium">Tahun Tujuan</div>
+                                        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                                            <label
+                                                v-for="periode in periodeInSelectedRpjmd"
+                                                :key="periode.id"
+                                                class="flex h-11 items-center gap-2 rounded-xl border bg-background px-3 text-sm font-semibold transition hover:bg-muted/70"
+                                                :class="Number(periode.id) === Number(copyKegiatanPeriodForm.source_periode_tahun_id) ? 'cursor-not-allowed opacity-45' : 'cursor-pointer'"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    class="size-4 rounded border-muted-foreground/30 text-[#00336C] focus:ring-[#00336C]/25"
+                                                    :checked="copyKegiatanPeriodForm.target_periode_tahun_ids.some((id) => Number(id) === Number(periode.id))"
+                                                    :disabled="Number(periode.id) === Number(copyKegiatanPeriodForm.source_periode_tahun_id)"
+                                                    @change="toggleTargetPeriode(periode.id)"
+                                                />
+                                                <span>{{ periode.tahun }}</span>
+                                            </label>
+                                        </div>
+                                        <InputError :message="copyKegiatanPeriodForm.errors.target_periode_tahun_ids" />
+                                    </div>
+                                </div>
+                                <div class="rounded-xl border bg-muted/30 p-3 text-sm leading-6 text-muted-foreground">
+                                    Berlaku untuk semua program pada RPJMD {{ selectedProgramPeriod.tahun_awal }}-{{ selectedProgramPeriod.tahun_akhir }}.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 border-t bg-background p-4">
+                            <button
+                                type="button"
+                                class="inline-flex h-10 items-center rounded-xl border bg-background px-4 text-sm font-semibold transition hover:bg-muted"
+                                @click="closePanels"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="submit"
+                                :disabled="copyMode === 'period' ? !canSubmitCopy || copyForm.processing : !canSubmitCopyKegiatanPeriod || copyKegiatanPeriodForm.processing"
+                                class="inline-flex h-10 items-center gap-2 rounded-xl bg-[#00336C] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002958] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <CopyPlus class="size-4" />
+                                Salin Data
                             </button>
                         </div>
                     </form>

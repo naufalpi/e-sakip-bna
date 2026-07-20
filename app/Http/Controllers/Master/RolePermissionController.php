@@ -109,6 +109,8 @@ class RolePermissionController extends Controller
 
     private function canAccessRolePermissions(User $user): bool
     {
-        return $user->hasAnyRole(['super_admin', 'admin_kabupaten_dinkominfo']);
+        return $user->isSuperAdmin()
+            || ($user->hasRole('admin_kabupaten_dinkominfo')
+                && $user->hasAnyPermission(['roles.manage', 'manage_roles']));
     }
 }

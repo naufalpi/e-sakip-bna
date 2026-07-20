@@ -38,6 +38,7 @@ type CatalogSetting = {
     is_public: boolean;
     description?: string;
     placeholder?: string;
+    options?: Array<{ value: string; label: string }>;
 };
 
 type SettingCatalog = {
@@ -262,6 +263,17 @@ const submit = () => {
                         >
                             <option value="1">Ya / aktif</option>
                             <option value="0">Tidak / nonaktif</option>
+                        </select>
+                        <select
+                            v-else-if="selectedCatalog?.options?.length"
+                            id="value"
+                            v-model="form.value"
+                            class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#00336C] focus:ring-2 focus:ring-blue-100"
+                        >
+                            <option value="">Pilih nilai</option>
+                            <option v-for="option in selectedCatalog.options" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
                         </select>
                         <input
                             v-else

@@ -95,8 +95,8 @@ class ProgramRpjmd extends Model
     public function scopeForRpjmd(Builder $query, int $rpjmdId): Builder
     {
         return $query->where(function (Builder $query) use ($rpjmdId) {
-            $query->whereHas('indikatorSasaran.sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId))
-                ->orWhereHas('sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId));
+            $query->whereHas('sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId))
+                ->orWhereHas('indikatorSasaran.sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId));
         });
     }
 }

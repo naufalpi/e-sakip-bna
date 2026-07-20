@@ -142,7 +142,7 @@ class RkpdController extends Controller
             'filters' => $filters,
             'summary' => $this->summary($rkpd, $user),
             'opdOptions' => $this->opdOptions($user),
-            'subKegiatanOptions' => $canManage ? $this->subKegiatanOptions() : [],
+            'subKegiatanOptions' => $canManage ? $this->subKegiatanOptions((int) $rkpd->periode_tahun_id) : [],
             'programRpjmdOptions' => $canManage ? $this->programRpjmdOptions($rkpd->rpjmd_id) : [],
             'can' => [
                 'manage' => $canManage,
@@ -235,14 +235,15 @@ class RkpdController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function subKegiatanOptions(): array
+    private function subKegiatanOptions(int $periodeTahunId): array
     {
         return SubKegiatanPemerintahan::query()
             ->with('kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama')
+            ->where('periode_tahun_id', $periodeTahunId)
             ->where('status', 'active')
             ->orderBy('kode')
             ->limit(3000)
-            ->get(['id', 'kegiatan_pemerintahan_id', 'kode', 'nama'])
+            ->get(['id', 'periode_tahun_id', 'kegiatan_pemerintahan_id', 'kode', 'nama'])
             ->map(function (SubKegiatanPemerintahan $subKegiatan) {
                 $kegiatan = $subKegiatan->kegiatanPemerintahan;
                 $program = $kegiatan?->programPemerintahan;

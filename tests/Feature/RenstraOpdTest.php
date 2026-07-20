@@ -289,17 +289,21 @@ class RenstraOpdTest extends TestCase
         $bidang = BidangUrusan::firstOrFail();
         $programMaster = ProgramPemerintahan::create([
             'bidang_urusan_id' => $bidang->id,
+            'tahun_awal' => $tree['rpjmd']->tahun_awal,
+            'tahun_akhir' => $tree['rpjmd']->tahun_akhir,
             'kode' => '9.99.01',
             'nama' => 'Program Master Renstra',
             'status' => 'active',
         ]);
         $kegiatanMaster = KegiatanPemerintahan::create([
+            'periode_tahun_id' => $periode->id,
             'program_pemerintahan_id' => $programMaster->id,
             'kode' => '9.99.01.2.01',
             'nama' => 'Kegiatan Master Renstra',
             'status' => 'active',
         ]);
         $subKegiatanMaster = SubKegiatanPemerintahan::create([
+            'periode_tahun_id' => $periode->id,
             'kegiatan_pemerintahan_id' => $kegiatanMaster->id,
             'kode' => '9.99.01.2.01.0001',
             'nama' => 'Sub Kegiatan Master Renstra',
@@ -307,11 +311,14 @@ class RenstraOpdTest extends TestCase
         ]);
         $otherProgramMaster = ProgramPemerintahan::create([
             'bidang_urusan_id' => $bidang->id,
+            'tahun_awal' => $tree['rpjmd']->tahun_awal,
+            'tahun_akhir' => $tree['rpjmd']->tahun_akhir,
             'kode' => '9.99.02',
             'nama' => 'Program Master Lain',
             'status' => 'active',
         ]);
         $wrongKegiatanMaster = KegiatanPemerintahan::create([
+            'periode_tahun_id' => $periode->id,
             'program_pemerintahan_id' => $otherProgramMaster->id,
             'kode' => '9.99.02.2.01',
             'nama' => 'Kegiatan Beda Program',
@@ -703,7 +710,7 @@ class RenstraOpdTest extends TestCase
         $program = ProgramRpjmd::create([
             'strategi_daerah_id' => $strategi->id,
             'sasaran_daerah_id' => $sasaran->id,
-            'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
+            'indikator_sasaran_daerah_id' => null,
             'nama' => 'Program RPJMD',
             'status' => 'approved',
             'urutan' => 1,

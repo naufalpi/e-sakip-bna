@@ -7,8 +7,11 @@ use App\Http\Requests\Master\StoreProgramPemerintahanReferenceRequest;
 use App\Http\Requests\Master\UpdateProgramPemerintahanReferenceRequest;
 use App\Models\BidangUrusan;
 use App\Models\KegiatanPemerintahan;
+use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
+use App\Models\Rpjmd;
 use App\Models\SubKegiatanPemerintahan;
+use App\Services\Master\CopyProgramKegiatanReferenceService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +20,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProgramPemerintahanController extends Controller
@@ -50,13 +54,22 @@ class ProgramPemerintahanController extends Controller
 
         $program ??= $kegiatan?->programPemerintahan;
 
-        $filters = $request->only(['search', 'status', 'bidang_urusan_id']);
+        $selectedProgramPeriod = $this->selectedProgramPeriod($request, $program);
+        $selectedPeriodeId = $this->selectedPeriodeId($request, $kegiatan);
+        $filters = [
+            ...$request->only(['search', 'status', 'bidang_urusan_id', 'tahun_awal', 'tahun_akhir']),
+            'periode_tahun_id' => $selectedPeriodeId,
+            'tahun_awal' => $selectedProgramPeriod['tahun_awal'],
+            'tahun_akhir' => $selectedProgramPeriod['tahun_akhir'],
+        ];
         $items = $this->paginatedItems(
             $filters,
             (int) $request->integer('page', 1),
             $level,
             $program?->id,
             $kegiatan?->id,
+            $selectedPeriodeId,
+            $selectedProgramPeriod,
         );
 
         return Inertia::render('Master/ProgramPemerintahan/Index', [
@@ -67,12 +80,16 @@ class ProgramPemerintahanController extends Controller
                 'program' => $program ? $this->programContext($program) : null,
                 'kegiatan' => $kegiatan ? $this->kegiatanContext($kegiatan) : null,
             ],
-            'summary' => $this->summary($program, $kegiatan),
+            'summary' => $this->summary($selectedPeriodeId, $selectedProgramPeriod, $program, $kegiatan),
             'options' => [
+                'periode' => $this->periodeOptions(),
+                'programPeriode' => $this->programPeriodeOptions(),
                 'bidang' => $this->bidangOptions(),
-                'program' => $this->programOptions(),
-                'kegiatan' => $this->kegiatanOptions(),
+                'program' => $this->programOptions($selectedProgramPeriod),
+                'kegiatan' => $this->kegiatanOptions($selectedPeriodeId),
             ],
+            'selectedPeriodeId' => $selectedPeriodeId,
+            'selectedProgramPeriod' => $selectedProgramPeriod,
             'can' => [
                 'manage' => $request->user()->hasPermission('urusan.manage'),
             ],
@@ -86,17 +103,21 @@ class ProgramPemerintahanController extends Controller
         match ($data['type']) {
             'program' => ProgramPemerintahan::create([
                 'bidang_urusan_id' => $data['bidang_urusan_id'],
+                'tahun_awal' => $data['tahun_awal'],
+                'tahun_akhir' => $data['tahun_akhir'],
                 'kode' => $data['kode'],
                 'nama' => $data['nama'],
                 'status' => $data['status'],
             ]),
             'kegiatan' => KegiatanPemerintahan::create([
+                'periode_tahun_id' => $data['periode_tahun_id'],
                 'program_pemerintahan_id' => $data['program_pemerintahan_id'],
                 'kode' => $data['kode'],
                 'nama' => $data['nama'],
                 'status' => $data['status'],
             ]),
             'sub_kegiatan' => SubKegiatanPemerintahan::create([
+                'periode_tahun_id' => $data['periode_tahun_id'],
                 'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
                 'kode' => $data['kode'],
                 'nama' => $data['nama'],
@@ -113,6 +134,9 @@ class ProgramPemerintahanController extends Controller
 
         $data = $request->validate([
             'type' => ['required', 'in:program,kegiatan,sub_kegiatan'],
+            'periode_tahun_id' => ['required_unless:type,program', 'nullable', 'integer', 'exists:periode_tahun,id'],
+            'tahun_awal' => ['required_if:type,program', 'nullable', 'integer', 'min:2000', 'max:2100'],
+            'tahun_akhir' => ['required_if:type,program', 'nullable', 'integer', 'min:2000', 'max:2100', 'gte:tahun_awal'],
             'bidang_urusan_id' => ['required_if:type,program', 'nullable', 'integer', 'exists:bidang_urusan,id'],
             'program_pemerintahan_id' => ['required_if:type,kegiatan', 'nullable', 'integer', 'exists:program_pemerintahan,id'],
             'kegiatan_pemerintahan_id' => ['required_if:type,sub_kegiatan', 'nullable', 'integer', 'exists:kegiatan_pemerintahan,id'],
@@ -132,19 +156,36 @@ class ProgramPemerintahanController extends Controller
             return back()->with('error', 'Tidak ada baris valid. Gunakan format: kode | nama.');
         }
 
+        if ($data['type'] !== 'program') {
+            $data['periode_tahun_id'] = $this->resolvePeriodeTahunIdFromData($data);
+        }
+
         DB::transaction(function () use ($data, $rows) {
             foreach ($rows as $row) {
                 match ($data['type']) {
                     'program' => ProgramPemerintahan::updateOrCreate(
-                        ['bidang_urusan_id' => $data['bidang_urusan_id'], 'kode' => $row['kode']],
+                        [
+                            'tahun_awal' => $data['tahun_awal'],
+                            'tahun_akhir' => $data['tahun_akhir'],
+                            'bidang_urusan_id' => $data['bidang_urusan_id'],
+                            'kode' => $row['kode'],
+                        ],
                         ['nama' => $row['nama'], 'status' => $data['status']],
                     ),
                     'kegiatan' => KegiatanPemerintahan::updateOrCreate(
-                        ['program_pemerintahan_id' => $data['program_pemerintahan_id'], 'kode' => $row['kode']],
+                        [
+                            'periode_tahun_id' => $data['periode_tahun_id'],
+                            'program_pemerintahan_id' => $data['program_pemerintahan_id'],
+                            'kode' => $row['kode'],
+                        ],
                         ['nama' => $row['nama'], 'status' => $data['status']],
                     ),
                     'sub_kegiatan' => SubKegiatanPemerintahan::updateOrCreate(
-                        ['kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'], 'kode' => $row['kode']],
+                        [
+                            'periode_tahun_id' => $data['periode_tahun_id'],
+                            'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
+                            'kode' => $row['kode'],
+                        ],
                         ['nama' => $row['nama'], 'status' => $data['status']],
                     ),
                 };
@@ -152,6 +193,136 @@ class ProgramPemerintahanController extends Controller
         });
 
         return $this->redirectToContext($request)->with('success', $rows->count().' baris referensi berhasil disimpan.');
+    }
+
+    public function copy(Request $request, CopyProgramKegiatanReferenceService $service): RedirectResponse
+    {
+        abort_unless($request->user()->hasPermission('urusan.manage'), 403);
+
+        $data = $request->validate([
+            'source_tahun_awal' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'source_tahun_akhir' => ['required', 'integer', 'min:2000', 'max:2100', 'gte:source_tahun_awal'],
+            'target_tahun_awal' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'target_tahun_akhir' => ['required', 'integer', 'min:2000', 'max:2100', 'gte:target_tahun_awal'],
+        ], [
+            'source_tahun_akhir.gte' => 'Tahun akhir sumber harus lebih besar atau sama dengan tahun awal.',
+            'target_tahun_akhir.gte' => 'Tahun akhir tujuan harus lebih besar atau sama dengan tahun awal.',
+        ]);
+
+        try {
+            $result = $service->copyProgramPeriod(
+                (int) $data['source_tahun_awal'],
+                (int) $data['source_tahun_akhir'],
+                (int) $data['target_tahun_awal'],
+                (int) $data['target_tahun_akhir'],
+            );
+        } catch (InvalidArgumentException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()
+            ->route('master.program-pemerintahan.index', [
+                'tahun_awal' => $data['target_tahun_awal'],
+                'tahun_akhir' => $data['target_tahun_akhir'],
+            ])
+            ->with(
+                'success',
+                "Salin selesai: {$result['program_created']} program baru ditambahkan untuk periode RPJMD {$data['target_tahun_awal']}-{$data['target_tahun_akhir']}.",
+            );
+    }
+
+    public function copyKegiatanYear(Request $request, CopyProgramKegiatanReferenceService $service): RedirectResponse
+    {
+        abort_unless($request->user()->hasPermission('urusan.manage'), 403);
+
+        $data = $request->validate([
+            'program_pemerintahan_id' => ['required', 'integer', 'exists:program_pemerintahan,id'],
+            'source_periode_tahun_id' => ['required', 'integer', 'exists:periode_tahun,id', 'different:target_periode_tahun_id'],
+            'target_periode_tahun_id' => ['required', 'integer', 'exists:periode_tahun,id'],
+        ], [
+            'source_periode_tahun_id.different' => 'Tahun sumber dan tahun tujuan tidak boleh sama.',
+        ]);
+
+        try {
+            $result = $service->copyKegiatanYear(
+                (int) $data['program_pemerintahan_id'],
+                (int) $data['source_periode_tahun_id'],
+                (int) $data['target_periode_tahun_id'],
+            );
+        } catch (InvalidArgumentException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()
+            ->route('master.program-pemerintahan.index', [
+                'level' => 'kegiatan',
+                'program_id' => $data['program_pemerintahan_id'],
+                'periode_tahun_id' => $data['target_periode_tahun_id'],
+            ])
+            ->with(
+                'success',
+                "Salin selesai: {$result['kegiatan_created']} kegiatan dan {$result['sub_kegiatan_created']} sub kegiatan baru ditambahkan.",
+            );
+    }
+
+    public function copyKegiatanYears(Request $request, CopyProgramKegiatanReferenceService $service): RedirectResponse
+    {
+        abort_unless($request->user()->hasPermission('urusan.manage'), 403);
+
+        $data = $request->validate([
+            'tahun_awal' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'tahun_akhir' => ['required', 'integer', 'min:2000', 'max:2100', 'gte:tahun_awal'],
+            'source_periode_tahun_id' => ['required', 'integer', 'exists:periode_tahun,id'],
+            'target_periode_tahun_ids' => ['required', 'array', 'min:1'],
+            'target_periode_tahun_ids.*' => ['required', 'integer', 'exists:periode_tahun,id'],
+        ], [
+            'tahun_akhir.gte' => 'Tahun akhir RPJMD harus lebih besar atau sama dengan tahun awal.',
+            'target_periode_tahun_ids.required' => 'Pilih minimal satu tahun tujuan.',
+            'target_periode_tahun_ids.min' => 'Pilih minimal satu tahun tujuan.',
+        ]);
+
+        $periodeIds = collect([$data['source_periode_tahun_id'], ...$data['target_periode_tahun_ids']])
+            ->map(fn (int|string $id) => (int) $id)
+            ->unique()
+            ->values();
+        $periodeById = PeriodeTahun::query()
+            ->whereIn('id', $periodeIds)
+            ->get(['id', 'tahun'])
+            ->keyBy('id');
+        $sourcePeriode = $periodeById[(int) $data['source_periode_tahun_id']] ?? null;
+
+        if (! $sourcePeriode || $sourcePeriode->tahun < $data['tahun_awal'] || $sourcePeriode->tahun > $data['tahun_akhir']) {
+            return back()->with('error', 'Tahun sumber harus berada dalam rentang RPJMD yang dipilih.');
+        }
+
+        foreach ($data['target_periode_tahun_ids'] as $targetPeriodeTahunId) {
+            $targetPeriode = $periodeById[(int) $targetPeriodeTahunId] ?? null;
+
+            if (! $targetPeriode || $targetPeriode->tahun < $data['tahun_awal'] || $targetPeriode->tahun > $data['tahun_akhir']) {
+                return back()->with('error', 'Semua tahun tujuan harus berada dalam rentang RPJMD yang dipilih.');
+            }
+        }
+
+        try {
+            $result = $service->copyKegiatanYearsForProgramPeriod(
+                (int) $data['tahun_awal'],
+                (int) $data['tahun_akhir'],
+                (int) $data['source_periode_tahun_id'],
+                array_map('intval', $data['target_periode_tahun_ids']),
+            );
+        } catch (InvalidArgumentException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()
+            ->route('master.program-pemerintahan.index', [
+                'tahun_awal' => $data['tahun_awal'],
+                'tahun_akhir' => $data['tahun_akhir'],
+            ])
+            ->with(
+                'success',
+                "Salin selesai: {$result['kegiatan_created']} kegiatan dan {$result['sub_kegiatan_created']} sub kegiatan baru ditambahkan ke tahun tujuan.",
+            );
     }
 
     public function update(UpdateProgramPemerintahanReferenceRequest $request, string $type, int $id): RedirectResponse
@@ -162,17 +333,21 @@ class ProgramPemerintahanController extends Controller
         match ($type) {
             'program' => $model->update([
                 'bidang_urusan_id' => $data['bidang_urusan_id'],
+                'tahun_awal' => $data['tahun_awal'],
+                'tahun_akhir' => $data['tahun_akhir'],
                 'kode' => $data['kode'],
                 'nama' => $data['nama'],
                 'status' => $data['status'],
             ]),
             'kegiatan' => $model->update([
+                'periode_tahun_id' => $data['periode_tahun_id'],
                 'program_pemerintahan_id' => $data['program_pemerintahan_id'],
                 'kode' => $data['kode'],
                 'nama' => $data['nama'],
                 'status' => $data['status'],
             ]),
             'sub_kegiatan' => $model->update([
+                'periode_tahun_id' => $data['periode_tahun_id'],
                 'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
                 'kode' => $data['kode'],
                 'nama' => $data['nama'],
@@ -208,9 +383,19 @@ class ProgramPemerintahanController extends Controller
     /**
      * @param  array<string, mixed>  $filters
      */
-    private function paginatedItems(array $filters, int $page, string $level, ?int $programId, ?int $kegiatanId): LengthAwarePaginator
-    {
-        $items = $this->allItems($filters, $level, $programId, $kegiatanId);
+    /**
+     * @param  array{tahun_awal: int, tahun_akhir: int}  $programPeriod
+     */
+    private function paginatedItems(
+        array $filters,
+        int $page,
+        string $level,
+        ?int $programId,
+        ?int $kegiatanId,
+        int $periodeTahunId,
+        array $programPeriod,
+    ): LengthAwarePaginator {
+        $items = $this->allItems($filters, $level, $programId, $kegiatanId, $periodeTahunId, $programPeriod);
         $perPage = 15;
 
         return new LengthAwarePaginator(
@@ -228,12 +413,21 @@ class ProgramPemerintahanController extends Controller
     /**
      * @param  array<string, mixed>  $filters
      */
-    private function allItems(array $filters, string $level = 'program', ?int $programId = null, ?int $kegiatanId = null): Collection
-    {
+    /**
+     * @param  array{tahun_awal: int, tahun_akhir: int}  $programPeriod
+     */
+    private function allItems(
+        array $filters,
+        string $level = 'program',
+        ?int $programId = null,
+        ?int $kegiatanId = null,
+        int $periodeTahunId = 0,
+        array $programPeriod = ['tahun_awal' => 0, 'tahun_akhir' => 0],
+    ): Collection {
         $items = match ($level) {
-            'kegiatan' => $this->kegiatanRows($programId),
-            'sub_kegiatan' => $this->subKegiatanRows($kegiatanId),
-            default => $this->programRows($filters['bidang_urusan_id'] ?? null),
+            'kegiatan' => $this->kegiatanRows($programId, $periodeTahunId),
+            'sub_kegiatan' => $this->subKegiatanRows($kegiatanId, $periodeTahunId),
+            default => $this->programRows($filters['bidang_urusan_id'] ?? null, $programPeriod, $periodeTahunId),
         };
 
         return $items
@@ -247,11 +441,16 @@ class ProgramPemerintahanController extends Controller
             ->values();
     }
 
-    private function programRows(mixed $bidangUrusanId = null): Collection
+    /**
+     * @param  array{tahun_awal: int, tahun_akhir: int}  $programPeriod
+     */
+    private function programRows(mixed $bidangUrusanId, array $programPeriod, int $periodeTahunId): Collection
     {
         return ProgramPemerintahan::query()
-            ->with('bidangUrusan.urusanPemerintahan:id,kode,nama')
-            ->withCount('kegiatan')
+            ->with(['bidangUrusan.urusanPemerintahan:id,kode,nama'])
+            ->withCount(['kegiatan' => fn ($query) => $query->where('periode_tahun_id', $periodeTahunId)])
+            ->where('tahun_awal', $programPeriod['tahun_awal'])
+            ->where('tahun_akhir', $programPeriod['tahun_akhir'])
             ->when($bidangUrusanId, fn ($query) => $query->where('bidang_urusan_id', $bidangUrusanId))
             ->orderBy('kode')
             ->get()
@@ -259,6 +458,10 @@ class ProgramPemerintahanController extends Controller
                 'id' => $program->id,
                 'type' => 'program',
                 'level' => 'Program',
+                'periode_tahun_id' => null,
+                'tahun_awal' => $program->tahun_awal,
+                'tahun_akhir' => $program->tahun_akhir,
+                'periode_label' => "{$program->tahun_awal}-{$program->tahun_akhir}",
                 'kode' => $program->kode,
                 'nama' => $program->nama,
                 'status' => $program->status,
@@ -274,6 +477,7 @@ class ProgramPemerintahanController extends Controller
                 'drilldown_url' => route('master.program-pemerintahan.index', [
                     'level' => 'kegiatan',
                     'program_id' => $program->id,
+                    'periode_tahun_id' => $periodeTahunId,
                 ]),
                 'sort_key' => $this->sortKey($program->bidangUrusan?->urusanPemerintahan?->kode, $program->bidangUrusan?->kode, $program->kode),
                 'search_text' => $this->searchText(
@@ -285,11 +489,12 @@ class ProgramPemerintahanController extends Controller
             ]);
     }
 
-    private function kegiatanRows(?int $programId = null): Collection
+    private function kegiatanRows(?int $programId, int $periodeTahunId): Collection
     {
         return KegiatanPemerintahan::query()
-            ->with('programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama')
+            ->with(['periodeTahun:id,tahun,nama', 'programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama'])
             ->withCount('subKegiatan')
+            ->where('periode_tahun_id', $periodeTahunId)
             ->when($programId, fn ($query) => $query->where('program_pemerintahan_id', $programId))
             ->orderBy('kode')
             ->get()
@@ -297,6 +502,8 @@ class ProgramPemerintahanController extends Controller
                 'id' => $kegiatan->id,
                 'type' => 'kegiatan',
                 'level' => 'Kegiatan',
+                'periode_tahun_id' => $kegiatan->periode_tahun_id,
+                'periode_label' => $this->label((string) $kegiatan->periodeTahun?->tahun, $kegiatan->periodeTahun?->nama),
                 'kode' => $kegiatan->kode,
                 'nama' => $kegiatan->nama,
                 'status' => $kegiatan->status,
@@ -315,6 +522,7 @@ class ProgramPemerintahanController extends Controller
                 'drilldown_url' => route('master.program-pemerintahan.index', [
                     'level' => 'sub_kegiatan',
                     'kegiatan_id' => $kegiatan->id,
+                    'periode_tahun_id' => $kegiatan->periode_tahun_id,
                 ]),
                 'sort_key' => $this->sortKey(
                     $kegiatan->programPemerintahan?->bidangUrusan?->kode,
@@ -330,10 +538,11 @@ class ProgramPemerintahanController extends Controller
             ]);
     }
 
-    private function subKegiatanRows(?int $kegiatanId = null): Collection
+    private function subKegiatanRows(?int $kegiatanId, int $periodeTahunId): Collection
     {
         return SubKegiatanPemerintahan::query()
-            ->with('kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama')
+            ->with(['periodeTahun:id,tahun,nama', 'kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama'])
+            ->where('periode_tahun_id', $periodeTahunId)
             ->when($kegiatanId, fn ($query) => $query->where('kegiatan_pemerintahan_id', $kegiatanId))
             ->orderBy('kode')
             ->get()
@@ -341,6 +550,8 @@ class ProgramPemerintahanController extends Controller
                 'id' => $subKegiatan->id,
                 'type' => 'sub_kegiatan',
                 'level' => 'Sub Kegiatan',
+                'periode_tahun_id' => $subKegiatan->periode_tahun_id,
+                'periode_label' => $this->label((string) $subKegiatan->periodeTahun?->tahun, $subKegiatan->periodeTahun?->nama),
                 'kode' => $subKegiatan->kode,
                 'nama' => $subKegiatan->nama,
                 'status' => $subKegiatan->status,
@@ -406,10 +617,61 @@ class ProgramPemerintahanController extends Controller
             ->all();
     }
 
-    private function programOptions(): array
+    private function periodeOptions(): array
+    {
+        return PeriodeTahun::query()
+            ->orderByDesc('tahun')
+            ->get(['id', 'tahun', 'nama', 'status'])
+            ->map(fn (PeriodeTahun $periode) => [
+                'id' => $periode->id,
+                'tahun' => $periode->tahun,
+                'label' => "{$periode->tahun} - {$periode->nama}".($periode->status === 'active' ? ' (Aktif)' : ''),
+            ])
+            ->all();
+    }
+
+    private function programPeriodeOptions(): array
+    {
+        $existing = ProgramPemerintahan::query()
+            ->select(['tahun_awal', 'tahun_akhir'])
+            ->distinct()
+            ->orderByDesc('tahun_awal')
+            ->get()
+            ->map(fn (ProgramPemerintahan $program) => [
+                'id' => "{$program->tahun_awal}-{$program->tahun_akhir}",
+                'label' => "RPJMD {$program->tahun_awal}-{$program->tahun_akhir}",
+                'tahun_awal' => $program->tahun_awal,
+                'tahun_akhir' => $program->tahun_akhir,
+            ]);
+
+        $rpjmd = Rpjmd::query()
+            ->select(['tahun_awal', 'tahun_akhir'])
+            ->distinct()
+            ->orderByDesc('tahun_awal')
+            ->get()
+            ->map(fn (Rpjmd $rpjmd) => [
+                'id' => "{$rpjmd->tahun_awal}-{$rpjmd->tahun_akhir}",
+                'label' => "RPJMD {$rpjmd->tahun_awal}-{$rpjmd->tahun_akhir}",
+                'tahun_awal' => $rpjmd->tahun_awal,
+                'tahun_akhir' => $rpjmd->tahun_akhir,
+            ]);
+
+        return $existing
+            ->merge($rpjmd)
+            ->unique('id')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array{tahun_awal: int, tahun_akhir: int}  $programPeriod
+     */
+    private function programOptions(array $programPeriod): array
     {
         return ProgramPemerintahan::query()
             ->with('bidangUrusan.urusanPemerintahan:id,kode,nama')
+            ->where('tahun_awal', $programPeriod['tahun_awal'])
+            ->where('tahun_akhir', $programPeriod['tahun_akhir'])
             ->where('status', 'active')
             ->orderBy('kode')
             ->get(['id', 'bidang_urusan_id', 'kode', 'nama'])
@@ -425,10 +687,11 @@ class ProgramPemerintahanController extends Controller
             ->all();
     }
 
-    private function kegiatanOptions(): array
+    private function kegiatanOptions(int $periodeTahunId): array
     {
         return KegiatanPemerintahan::query()
             ->with('programPemerintahan:id,kode,nama')
+            ->where('periode_tahun_id', $periodeTahunId)
             ->where('status', 'active')
             ->orderBy('kode')
             ->get(['id', 'program_pemerintahan_id', 'kode', 'nama'])
@@ -455,6 +718,10 @@ class ProgramPemerintahanController extends Controller
     {
         return [
             'id' => $program->id,
+            'periode_tahun_id' => null,
+            'tahun_awal' => $program->tahun_awal,
+            'tahun_akhir' => $program->tahun_akhir,
+            'periode_label' => "{$program->tahun_awal}-{$program->tahun_akhir}",
             'kode' => $program->kode,
             'nama' => $program->nama,
             'label' => $this->label($program->kode, $program->nama),
@@ -472,8 +739,12 @@ class ProgramPemerintahanController extends Controller
      */
     private function kegiatanContext(KegiatanPemerintahan $kegiatan): array
     {
+        $kegiatan->loadMissing('periodeTahun:id,tahun,nama');
+
         return [
             'id' => $kegiatan->id,
+            'periode_tahun_id' => $kegiatan->periode_tahun_id,
+            'periode_label' => $this->label((string) $kegiatan->periodeTahun?->tahun, $kegiatan->periodeTahun?->nama),
             'kode' => $kegiatan->kode,
             'nama' => $kegiatan->nama,
             'label' => $this->label($kegiatan->kode, $kegiatan->nama),
@@ -488,16 +759,55 @@ class ProgramPemerintahanController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function summary(?ProgramPemerintahan $program, ?KegiatanPemerintahan $kegiatan): array
+    /**
+     * @param  array{tahun_awal: int, tahun_akhir: int}  $programPeriod
+     */
+    private function summary(int $periodeTahunId, array $programPeriod, ?ProgramPemerintahan $program, ?KegiatanPemerintahan $kegiatan): array
     {
+        if ($kegiatan) {
+            return [
+                'program_count' => 1,
+                'kegiatan_count' => 1,
+                'sub_kegiatan_count' => SubKegiatanPemerintahan::query()
+                    ->where('kegiatan_pemerintahan_id', $kegiatan->id)
+                    ->where('periode_tahun_id', $periodeTahunId)
+                    ->count(),
+            ];
+        }
+
+        if ($program) {
+            return [
+                'program_count' => 1,
+                'kegiatan_count' => KegiatanPemerintahan::query()
+                    ->where('program_pemerintahan_id', $program->id)
+                    ->where('periode_tahun_id', $periodeTahunId)
+                    ->count(),
+                'sub_kegiatan_count' => SubKegiatanPemerintahan::query()
+                    ->where('periode_tahun_id', $periodeTahunId)
+                    ->whereHas('kegiatanPemerintahan', fn ($query) => $query->where('program_pemerintahan_id', $program->id))
+                    ->count(),
+            ];
+        }
+
         return [
-            'program_count' => ProgramPemerintahan::query()->count(),
-            'kegiatan_count' => $program
-                ? KegiatanPemerintahan::query()->where('program_pemerintahan_id', $program->id)->count()
-                : KegiatanPemerintahan::query()->count(),
-            'sub_kegiatan_count' => $kegiatan
-                ? SubKegiatanPemerintahan::query()->where('kegiatan_pemerintahan_id', $kegiatan->id)->count()
-                : SubKegiatanPemerintahan::query()->count(),
+            'program_count' => ProgramPemerintahan::query()
+                ->where('tahun_awal', $programPeriod['tahun_awal'])
+                ->where('tahun_akhir', $programPeriod['tahun_akhir'])
+                ->count(),
+            'kegiatan_count' => KegiatanPemerintahan::query()
+                ->where('periode_tahun_id', $periodeTahunId)
+                ->whereHas('programPemerintahan', function ($query) use ($programPeriod) {
+                    $query->where('tahun_awal', $programPeriod['tahun_awal'])
+                        ->where('tahun_akhir', $programPeriod['tahun_akhir']);
+                })
+                ->count(),
+            'sub_kegiatan_count' => SubKegiatanPemerintahan::query()
+                ->where('periode_tahun_id', $periodeTahunId)
+                ->whereHas('kegiatanPemerintahan.programPemerintahan', function ($query) use ($programPeriod) {
+                    $query->where('tahun_awal', $programPeriod['tahun_awal'])
+                        ->where('tahun_akhir', $programPeriod['tahun_akhir']);
+                })
+                ->count(),
         ];
     }
 
@@ -510,6 +820,93 @@ class ProgramPemerintahanController extends Controller
         }
 
         return redirect()->route('master.program-pemerintahan.index');
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function resolvePeriodeTahunIdFromData(array $data): int
+    {
+        $periodeTahunId = match ($data['type']) {
+            'sub_kegiatan' => KegiatanPemerintahan::query()
+                ->whereKey($data['kegiatan_pemerintahan_id'] ?? null)
+                ->value('periode_tahun_id'),
+            default => $data['periode_tahun_id'] ?? null,
+        };
+
+        abort_if(blank($periodeTahunId), 422, 'Periode tahun referensi belum dipilih.');
+
+        return (int) $periodeTahunId;
+    }
+
+    private function selectedPeriodeId(Request $request, ?KegiatanPemerintahan $kegiatan): int
+    {
+        if ($kegiatan?->periode_tahun_id) {
+            return (int) $kegiatan->periode_tahun_id;
+        }
+
+        $requested = (int) $request->integer('periode_tahun_id');
+
+        if ($requested && PeriodeTahun::query()->whereKey($requested)->exists()) {
+            return $requested;
+        }
+
+        $periodeId = PeriodeTahun::query()
+            ->where('status', 'active')
+            ->orderByDesc('tahun')
+            ->value('id')
+            ?? PeriodeTahun::query()->orderByDesc('tahun')->value('id');
+
+        abort_if(blank($periodeId), 422, 'Periode tahun belum tersedia.');
+
+        return (int) $periodeId;
+    }
+
+    /**
+     * @return array{tahun_awal: int, tahun_akhir: int}
+     */
+    private function selectedProgramPeriod(Request $request, ?ProgramPemerintahan $program): array
+    {
+        if ($program?->tahun_awal && $program?->tahun_akhir) {
+            return [
+                'tahun_awal' => (int) $program->tahun_awal,
+                'tahun_akhir' => (int) $program->tahun_akhir,
+            ];
+        }
+
+        $tahunAwal = (int) $request->integer('tahun_awal');
+        $tahunAkhir = (int) $request->integer('tahun_akhir');
+
+        if ($tahunAwal && $tahunAkhir && $tahunAkhir >= $tahunAwal) {
+            return [
+                'tahun_awal' => $tahunAwal,
+                'tahun_akhir' => $tahunAkhir,
+            ];
+        }
+
+        $rpjmd = Rpjmd::query()
+            ->orderByDesc('tahun_awal')
+            ->first(['tahun_awal', 'tahun_akhir']);
+
+        if ($rpjmd) {
+            return [
+                'tahun_awal' => (int) $rpjmd->tahun_awal,
+                'tahun_akhir' => (int) $rpjmd->tahun_akhir,
+            ];
+        }
+
+        $tahun = PeriodeTahun::query()
+            ->where('status', 'active')
+            ->orderByDesc('tahun')
+            ->value('tahun')
+            ?? PeriodeTahun::query()->orderByDesc('tahun')->value('tahun');
+
+        abort_if(blank($tahun), 422, 'Periode tahun belum tersedia.');
+
+        return [
+            'tahun_awal' => (int) $tahun,
+            'tahun_akhir' => (int) $tahun + 4,
+        ];
     }
 
     private function label(?string $kode, ?string $nama): string

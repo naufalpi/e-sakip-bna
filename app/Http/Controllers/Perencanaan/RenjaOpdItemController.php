@@ -15,7 +15,7 @@ class RenjaOpdItemController extends Controller
 {
     public function store(StoreRenjaOpdItemRequest $request, RenjaOpd $renjaOpd): RedirectResponse
     {
-        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'));
+        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), (int) $renjaOpd->periode_tahun_id);
 
         $renjaOpd->items()->create($this->payload($request->validated(), $subKegiatan, [
             'status' => $request->validated('status') ?: 'draft',
@@ -29,7 +29,7 @@ class RenjaOpdItemController extends Controller
     {
         abort_unless((int) $item->renja_opd_id === (int) $renjaOpd->id, 404);
 
-        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'));
+        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), (int) $renjaOpd->periode_tahun_id);
 
         $item->update($this->payload($request->validated(), $subKegiatan, [
             'status' => $request->validated('status') ?: $item->status,
@@ -49,10 +49,11 @@ class RenjaOpdItemController extends Controller
         return back()->with('success', 'Baris Renja OPD berhasil dihapus.');
     }
 
-    private function subKegiatan(int $id): SubKegiatanPemerintahan
+    private function subKegiatan(int $id, int $periodeTahunId): SubKegiatanPemerintahan
     {
         return SubKegiatanPemerintahan::query()
             ->with('kegiatanPemerintahan.programPemerintahan')
+            ->where('periode_tahun_id', $periodeTahunId)
             ->findOrFail($id);
     }
 

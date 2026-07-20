@@ -303,19 +303,19 @@ class RpjmdImportApplyService
      */
     private function applyProgram(array $mapped): array
     {
-        $indikatorSasaran = $this->requiredContext('indikator_sasaran', 'Program RPJMD harus berada setelah baris indikator sasaran.');
+        $sasaran = $this->requiredContext('sasaran', 'Program RPJMD harus berada setelah baris sasaran.');
         $strategi = $this->resolveProgramStrategi($mapped);
 
         $text = $this->requiredText($mapped, ['program', 'nama_program', 'uraian', 'nama'], 'Program RPJMD');
         $kode = $this->text($mapped, ['kode', 'kode_program']);
         $identity = $kode
-            ? ['kode' => $kode, 'indikator_sasaran_daerah_id' => $indikatorSasaran->id]
-            : ['nama' => $text, 'indikator_sasaran_daerah_id' => $indikatorSasaran->id];
+            ? ['kode' => $kode, 'sasaran_daerah_id' => $sasaran->id]
+            : ['nama' => $text, 'sasaran_daerah_id' => $sasaran->id];
 
         $program = ProgramRpjmd::updateOrCreate($identity, [
             'strategi_daerah_id' => $strategi?->id,
-            'sasaran_daerah_id' => $indikatorSasaran->sasaran_daerah_id,
-            'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
+            'sasaran_daerah_id' => $sasaran->id,
+            'indikator_sasaran_daerah_id' => null,
             'nama' => $text,
             'status' => $this->status($mapped, 'draft'),
             'urutan' => $this->order($mapped),

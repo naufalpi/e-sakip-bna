@@ -23,7 +23,7 @@ class SystemSettingController extends Controller
 
         $filters = $request->only(['search', 'group', 'type', 'is_public']);
 
-        $items = SystemSetting::query()
+        $items = $this->visibleSettingsQuery($request)
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $query->where(function (Builder $query) use ($search) {
                     $query->where('key', 'ilike', "%{$search}%")
@@ -38,13 +38,13 @@ class SystemSettingController extends Controller
             ->orderBy('key')
             ->paginate(10)
             ->withQueryString()
-            ->through(fn (SystemSetting $setting) => $this->serialize($setting));
+            ->through(fn (SystemSetting $setting) => $this->serialize($setting, $request));
 
         return Inertia::render('Master/SystemSetting/Index', [
             'items' => $items,
             'filters' => $filters,
-            'groupSummaries' => $this->groupSummaries(),
-            'groupOptions' => $this->groupOptions(),
+            'groupSummaries' => $this->groupSummaries($request),
+            'groupOptions' => $this->groupOptions($request),
             'typeOptions' => $this->typeOptions(),
             'can' => [
                 'manage' => $request->user()->hasPermission('settings.manage'),
@@ -59,15 +59,19 @@ class SystemSettingController extends Controller
         return Inertia::render('Master/SystemSetting/Form', [
             'mode' => 'create',
             'item' => null,
-            'groupOptions' => $this->groupOptions(),
+            'groupOptions' => $this->groupOptions($request),
             'typeOptions' => $this->typeOptions(),
-            'settingCatalog' => $this->settingCatalog(),
+            'settingCatalog' => $this->settingCatalog($request),
         ]);
     }
 
     public function store(StoreSystemSettingRequest $request): RedirectResponse
     {
-        $data = $this->normalizedData($request->validated());
+        $validated = $request->validated();
+        abort_unless($this->canManageSettingKey($request, $validated['key']), 403);
+        $this->validateCatalogOption($validated['key'], $validated['value'] ?? null);
+
+        $data = $this->normalizedData($validated);
         SystemSetting::create($data);
 
         return redirect()->route('master.system-settings.index')->with('success', 'Pengaturan sistem berhasil ditambahkan.');
@@ -75,34 +79,39 @@ class SystemSettingController extends Controller
 
     public function edit(Request $request, SystemSetting $systemSetting): Response
     {
-        abort_unless($request->user()->hasPermission('settings.manage'), 403);
+        abort_unless($this->canManageSettingKey($request, $systemSetting->key), 403);
 
         return Inertia::render('Master/SystemSetting/Form', [
             'mode' => 'edit',
-            'item' => $this->serialize($systemSetting),
-            'groupOptions' => $this->groupOptions(),
+            'item' => $this->serialize($systemSetting, $request),
+            'groupOptions' => $this->groupOptions($request),
             'typeOptions' => $this->typeOptions(),
-            'settingCatalog' => $this->settingCatalog(),
+            'settingCatalog' => $this->settingCatalog($request),
         ]);
     }
 
     public function update(UpdateSystemSettingRequest $request, SystemSetting $systemSetting): RedirectResponse
     {
-        $systemSetting->update($this->normalizedData($request->validated()));
+        $validated = $request->validated();
+        abort_unless($this->canManageSettingKey($request, $systemSetting->key), 403);
+        abort_unless($this->canManageSettingKey($request, $validated['key']), 403);
+        $this->validateCatalogOption($validated['key'], $validated['value'] ?? null);
+
+        $systemSetting->update($this->normalizedData($validated));
 
         return redirect()->route('master.system-settings.index')->with('success', 'Pengaturan sistem berhasil diperbarui.');
     }
 
     public function destroy(Request $request, SystemSetting $systemSetting): RedirectResponse
     {
-        abort_unless($request->user()->hasPermission('settings.manage'), 403);
+        abort_unless($this->canManageSettingKey($request, $systemSetting->key), 403);
 
         $systemSetting->delete();
 
         return redirect()->route('master.system-settings.index')->with('success', 'Pengaturan sistem berhasil dihapus.');
     }
 
-    private function serialize(SystemSetting $setting): array
+    private function serialize(SystemSetting $setting, Request $request): array
     {
         $group = SystemSettingCatalog::group($setting->group);
         $catalog = SystemSettingCatalog::setting($setting->key);
@@ -120,6 +129,7 @@ class SystemSettingController extends Controller
             'is_public' => $setting->is_public,
             'description' => $catalog['description'] ?? null,
             'placeholder' => $catalog['placeholder'] ?? null,
+            'can_update' => $this->canManageSettingKey($request, $setting->key),
         ];
     }
 
@@ -176,11 +186,14 @@ class SystemSettingController extends Controller
         return (string) $value;
     }
 
-    private function groupOptions(): array
+    private function groupOptions(Request $request): array
     {
-        $catalogOptions = collect(SystemSettingCatalog::groupOptions());
+        $catalogSettings = collect($this->visibleCatalogSettings($request));
+        $catalogGroupKeys = $catalogSettings->pluck('group')->unique();
+        $catalogOptions = collect(SystemSettingCatalog::groupOptions())
+            ->filter(fn (array $group) => $catalogGroupKeys->contains($group['value']));
 
-        $databaseOptions = SystemSetting::query()
+        $databaseOptions = $this->visibleSettingsQuery($request)
             ->select('group')
             ->distinct()
             ->orderBy('group')
@@ -201,15 +214,19 @@ class SystemSettingController extends Controller
         return SystemSettingCatalog::typeOptions();
     }
 
-    private function groupSummaries(): array
+    private function groupSummaries(Request $request): array
     {
-        $counts = SystemSetting::query()
+        $counts = $this->visibleSettingsQuery($request)
             ->select('group')
             ->selectRaw('count(*) as aggregate')
             ->groupBy('group')
             ->pluck('aggregate', 'group');
+        $visibleCatalogGroups = collect($this->visibleCatalogSettings($request))
+            ->pluck('group')
+            ->unique();
 
         $catalogGroups = collect(SystemSettingCatalog::groups())
+            ->filter(fn (array $group, string $key) => $visibleCatalogGroups->contains($key))
             ->map(fn (array $group, string $key) => [
                 'key' => $key,
                 'label' => $group['label'],
@@ -233,11 +250,60 @@ class SystemSettingController extends Controller
             ->all();
     }
 
-    private function settingCatalog(): array
+    private function settingCatalog(Request $request): array
     {
         return [
             'groups' => SystemSettingCatalog::groups(),
-            'settings' => SystemSettingCatalog::settings(),
+            'settings' => $this->visibleCatalogSettings($request),
         ];
+    }
+
+    private function visibleSettingsQuery(Request $request): Builder
+    {
+        return SystemSetting::query()
+            ->when(
+                ! $request->user()->isSuperAdmin(),
+                fn (Builder $query) => $query->whereNotIn('key', SystemSettingCatalog::superAdminOnlyKeys()),
+            );
+    }
+
+    private function visibleCatalogSettings(Request $request): array
+    {
+        if ($request->user()->isSuperAdmin()) {
+            return SystemSettingCatalog::settings();
+        }
+
+        return collect(SystemSettingCatalog::settings())
+            ->reject(fn (array $setting) => (bool) ($setting['super_admin_only'] ?? false))
+            ->all();
+    }
+
+    private function canManageSettingKey(Request $request, string $key): bool
+    {
+        if (! $request->user()->hasPermission('settings.manage')) {
+            return false;
+        }
+
+        if (in_array($key, SystemSettingCatalog::superAdminOnlyKeys(), true)) {
+            return $request->user()->isSuperAdmin();
+        }
+
+        return true;
+    }
+
+    private function validateCatalogOption(string $key, ?string $value): void
+    {
+        $catalog = SystemSettingCatalog::setting($key);
+        $options = $catalog['options'] ?? [];
+
+        if ($options === [] || $value === null || $value === '') {
+            return;
+        }
+
+        $allowed = collect($options)->pluck('value')->all();
+
+        if (! in_array($value, $allowed, true)) {
+            throw ValidationException::withMessages(['value' => 'Nilai tidak tersedia dalam opsi pengaturan ini.']);
+        }
     }
 }

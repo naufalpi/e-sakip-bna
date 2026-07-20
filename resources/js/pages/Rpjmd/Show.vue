@@ -82,6 +82,7 @@ type Program = {
     kode?: string | null;
     nama: string;
     status: string;
+    sasaran_daerah_id?: number | null;
     indikator_sasaran_daerah_id?: number | null;
     strategi_daerah_id?: number | null;
     program_pemerintahan_id?: number | null;
@@ -104,6 +105,7 @@ type Sasaran = {
     indikator_tujuan_ids: number[];
     indikator_tujuan_terkait: Array<{ id: number; indikator: string; urutan?: number | null }>;
     indikator: Indikator[];
+    programs: Program[];
 };
 
 type Tujuan = {
@@ -340,7 +342,7 @@ const parentKeyByType: Partial<Record<NodeType, string>> = {
     sasaran: 'tujuan',
     indikator_sasaran: 'sasaran',
     target_sasaran: 'indikator_sasaran',
-    program: 'indikator_sasaran',
+    program: 'sasaran',
     indikator_program: 'program',
     target_program: 'indikator_program',
     program_opd: 'program',
@@ -617,10 +619,8 @@ const targetCountByType = computed<Record<'target_tujuan' | 'target_sasaran' | '
             tujuan.indikator.forEach((indikator) => counts.target_tujuan.set(indikator.id, indikator.targets.length));
             tujuan.sasaran.forEach((sasaran) => {
                 sasaran.indikator.forEach((indikator) => counts.target_sasaran.set(indikator.id, indikator.targets.length));
-                sasaran.indikator.forEach((indikatorSasaran) => {
-                    indikatorSasaran.programs.forEach((program) => {
-                        program.indikator.forEach((indikator) => counts.target_program.set(indikator.id, indikator.targets.length));
-                    });
+                sasaran.programs.forEach((program) => {
+                    program.indikator.forEach((indikator) => counts.target_program.set(indikator.id, indikator.targets.length));
                 });
             });
         });
@@ -641,10 +641,8 @@ const targetTriwulanCountByTable = computed<Record<string, Map<number, number>>>
             tujuan.indikator.forEach((indikator) => counts.indikator_tujuan_daerah.set(indikator.id, indikator.target_triwulan.length));
             tujuan.sasaran.forEach((sasaran) => {
                 sasaran.indikator.forEach((indikator) => counts.indikator_sasaran_daerah.set(indikator.id, indikator.target_triwulan.length));
-                sasaran.indikator.forEach((indikatorSasaran) => {
-                    indikatorSasaran.programs.forEach((program) => {
-                        program.indikator.forEach((indikator) => counts.indikator_program_rpjmd.set(indikator.id, indikator.target_triwulan.length));
-                    });
+                sasaran.programs.forEach((program) => {
+                    program.indikator.forEach((indikator) => counts.indikator_program_rpjmd.set(indikator.id, indikator.target_triwulan.length));
                 });
             });
         });
@@ -937,59 +935,55 @@ const bulkExistingRows = computed<BulkExistingRow[]>(() => {
                     );
                 }
 
-                sasaran.indikator.forEach((indikatorSasaran) => {
-                    indikatorSasaran.programs.forEach((program) => {
-                        if (bulkForm.type === 'program') {
+                sasaran.programs.forEach((program) => {
+                    if (bulkForm.type === 'program') {
+                        rows.push({
+                            id: program.id,
+                            type: 'program',
+                            parent_id: sasaran.id,
+                            parent_label: nodeText(sasaran.kode, sasaran.sasaran),
+                            kode: program.kode,
+                            uraian: program.nama,
+                            strategi_daerah_id: program.strategi_daerah_id ?? null,
+                            strategi: program.strategi ? nodeText(program.strategi.kode, program.strategi.strategi) : null,
+                            program_pemerintahan_id: program.program_pemerintahan_id ?? null,
+                            program_pemerintahan: program.program_pemerintahan
+                                ? nodeText(program.program_pemerintahan.kode, program.program_pemerintahan.nama)
+                                : null,
+                            urusan_pemerintahan_id: program.urusan_pemerintahan_id ?? null,
+                            urusan: program.urusan_pemerintahan ? nodeText(program.urusan_pemerintahan.kode, program.urusan_pemerintahan.nama) : null,
+                            urutan: program.urutan ?? null,
+                        });
+                    }
+
+                    if (bulkForm.type === 'indikator_program') {
+                        program.indikator.forEach((indikator) =>
+                            pushIndicator('indikator_program', indikator, program.id, nodeText(program.kode, program.nama)),
+                        );
+                    }
+
+                    if (bulkForm.type === 'target_program') {
+                        program.indikator.forEach((indikator) =>
+                            indikator.targets.forEach((target) =>
+                                pushTarget('target_program', target, indikator.id, nodeText(indikator.kode, indikator.indikator)),
+                            ),
+                        );
+                    }
+
+                    if (bulkForm.type === 'program_opd') {
+                        program.opd_penanggung_jawab.forEach((opd) => {
                             rows.push({
-                                id: program.id,
-                                type: 'program',
-                                parent_id: indikatorSasaran.id,
-                                parent_label: nodeText(indikatorSasaran.kode, indikatorSasaran.indikator),
-                                kode: program.kode,
-                                uraian: program.nama,
-                                strategi_daerah_id: program.strategi_daerah_id ?? null,
-                                strategi: program.strategi ? nodeText(program.strategi.kode, program.strategi.strategi) : null,
-                                program_pemerintahan_id: program.program_pemerintahan_id ?? null,
-                                program_pemerintahan: program.program_pemerintahan
-                                    ? nodeText(program.program_pemerintahan.kode, program.program_pemerintahan.nama)
-                                    : null,
-                                urusan_pemerintahan_id: program.urusan_pemerintahan_id ?? null,
-                                urusan: program.urusan_pemerintahan
-                                    ? nodeText(program.urusan_pemerintahan.kode, program.urusan_pemerintahan.nama)
-                                    : null,
-                                urutan: program.urutan ?? null,
+                                id: opd.pivot_id,
+                                type: 'program_opd',
+                                parent_id: program.id,
+                                parent_label: nodeText(program.kode, program.nama),
+                                opd_id: opd.id,
+                                opd: opd.singkatan ? `${opd.singkatan} - ${opd.nama}` : opd.nama,
+                                peran: opd.peran,
+                                is_utama: opd.is_utama,
                             });
-                        }
-
-                        if (bulkForm.type === 'indikator_program') {
-                            program.indikator.forEach((indikator) =>
-                                pushIndicator('indikator_program', indikator, program.id, nodeText(program.kode, program.nama)),
-                            );
-                        }
-
-                        if (bulkForm.type === 'target_program') {
-                            program.indikator.forEach((indikator) =>
-                                indikator.targets.forEach((target) =>
-                                    pushTarget('target_program', target, indikator.id, nodeText(indikator.kode, indikator.indikator)),
-                                ),
-                            );
-                        }
-
-                        if (bulkForm.type === 'program_opd') {
-                            program.opd_penanggung_jawab.forEach((opd) => {
-                                rows.push({
-                                    id: opd.pivot_id,
-                                    type: 'program_opd',
-                                    parent_id: program.id,
-                                    parent_label: nodeText(program.kode, program.nama),
-                                    opd_id: opd.id,
-                                    opd: opd.singkatan ? `${opd.singkatan} - ${opd.nama}` : opd.nama,
-                                    peran: opd.peran,
-                                    is_utama: opd.is_utama,
-                                });
-                            });
-                        }
-                    });
+                        });
+                    }
                 });
             });
         });
@@ -1067,10 +1061,8 @@ const allIndicators = computed(() => {
             indicators.push(...tujuan.indikator);
             tujuan.sasaran.forEach((sasaran) => {
                 indicators.push(...sasaran.indikator);
-                sasaran.indikator.forEach((indikatorSasaran) => {
-                    indikatorSasaran.programs.forEach((program) => {
-                        indicators.push(...program.indikator);
-                    });
+                sasaran.programs.forEach((program) => {
+                    indicators.push(...program.indikator);
                 });
             });
         });
@@ -1162,7 +1154,7 @@ const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
             tujuan.sasaran.forEach((sasaran) => {
                 const tujuanIndicatorsForSasaran = relatedTujuanIndicators(tujuan, sasaran);
 
-                if (sasaran.indikator.length === 0) {
+                if (sasaran.indikator.length === 0 && sasaran.programs.length === 0) {
                     addAlignedRows(
                         `sasaran-${sasaran.id}`,
                         {
@@ -1177,42 +1169,40 @@ const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
                     );
                 }
 
-                sasaran.indikator.forEach((indikatorSasaran) => {
-                    const sasaranIndicatorRows = indicatorPreviewRows([indikatorSasaran]);
+                const sasaranIndicatorRows = indicatorPreviewRows(sasaran.indikator);
 
-                    if (indikatorSasaran.programs.length === 0) {
-                        addAlignedRows(
-                            `indikator-sasaran-${indikatorSasaran.id}`,
-                            {
-                                visi: visi.visi,
-                                misi: misiSummary(tujuan),
-                                tujuan: nodeText(tujuan.kode, tujuan.tujuan),
-                                sasaran: nodeText(sasaran.kode, sasaran.sasaran),
-                            },
-                            indicatorPreviewRows(tujuanIndicatorsForSasaran),
-                            sasaranIndicatorRows,
-                            [],
-                        );
-                    }
+                if (sasaran.programs.length === 0 && sasaran.indikator.length > 0) {
+                    addAlignedRows(
+                        `indikator-sasaran-${sasaran.id}`,
+                        {
+                            visi: visi.visi,
+                            misi: misiSummary(tujuan),
+                            tujuan: nodeText(tujuan.kode, tujuan.tujuan),
+                            sasaran: nodeText(sasaran.kode, sasaran.sasaran),
+                        },
+                        indicatorPreviewRows(tujuanIndicatorsForSasaran),
+                        sasaranIndicatorRows,
+                        [],
+                    );
+                }
 
-                    indikatorSasaran.programs.forEach((program) => {
-                        addAlignedRows(
-                            `program-${program.id}`,
-                            {
-                                visi: visi.visi,
-                                misi: misiSummary(tujuan),
-                                tujuan: nodeText(tujuan.kode, tujuan.tujuan),
-                                sasaran: nodeText(sasaran.kode, sasaran.sasaran),
-                                strategi: program.strategi ? nodeText(program.strategi.kode, program.strategi.strategi) : '-',
-                                program: nodeText(program.kode, program.nama),
-                                opd_penanggung_jawab: joinItems(program.opd_penanggung_jawab.map((opd) => opd.singkatan || opd.nama)),
-                                status_keterhubungan: program.opd_penanggung_jawab.length > 0 ? 'Terhubung OPD' : 'Belum ada OPD',
-                            },
-                            indicatorPreviewRows(tujuanIndicatorsForSasaran),
-                            sasaranIndicatorRows,
-                            indicatorPreviewRows(program.indikator),
-                        );
-                    });
+                sasaran.programs.forEach((program) => {
+                    addAlignedRows(
+                        `program-${program.id}`,
+                        {
+                            visi: visi.visi,
+                            misi: misiSummary(tujuan),
+                            tujuan: nodeText(tujuan.kode, tujuan.tujuan),
+                            sasaran: nodeText(sasaran.kode, sasaran.sasaran),
+                            strategi: program.strategi ? nodeText(program.strategi.kode, program.strategi.strategi) : '-',
+                            program: nodeText(program.kode, program.nama),
+                            opd_penanggung_jawab: joinItems(program.opd_penanggung_jawab.map((opd) => opd.singkatan || opd.nama)),
+                            status_keterhubungan: program.opd_penanggung_jawab.length > 0 ? 'Terhubung OPD' : 'Belum ada OPD',
+                        },
+                        indicatorPreviewRows(tujuanIndicatorsForSasaran),
+                        sasaranIndicatorRows,
+                        indicatorPreviewRows(program.indikator),
+                    );
                 });
             });
         });
@@ -2893,9 +2883,12 @@ const triwulanLabel = (triwulan: string) =>
                                                             </span>
                                                         </div>
 
-                                                        <div v-if="indikator.programs.length" class="mt-3 space-y-3">
+                                                        <div
+                                                            v-if="sasaran.programs.length && indikator.id === sasaran.indikator[0]?.id"
+                                                            class="mt-3 space-y-3"
+                                                        >
                                                             <div
-                                                                v-for="program in indikator.programs"
+                                                                v-for="program in sasaran.programs"
                                                                 :key="program.id"
                                                                 class="rounded-md border bg-white p-3"
                                                             >
@@ -2923,7 +2916,7 @@ const triwulanLabel = (triwulan: string) =>
                                                                             type="button"
                                                                             class="rounded-md p-1 hover:bg-muted"
                                                                             title="Edit program"
-                                                                            @click="editNode('program', program.id, indikator.id, program)"
+                                                                            @click="editNode('program', program.id, sasaran.id, program)"
                                                                         >
                                                                             <Pencil class="size-4" />
                                                                         </button>

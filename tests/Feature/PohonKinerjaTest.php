@@ -131,7 +131,7 @@ class PohonKinerjaTest extends TestCase
         $program = ProgramRpjmd::create([
             'strategi_daerah_id' => $strategi->id,
             'sasaran_daerah_id' => $sasaran->id,
-            'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
+            'indikator_sasaran_daerah_id' => null,
             'nama' => 'Program RPJMD',
             'status' => 'approved',
             'urutan' => 1,

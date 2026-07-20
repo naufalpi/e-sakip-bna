@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\BidangUrusan;
 use App\Models\KegiatanPemerintahan;
+use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
 use App\Models\SubKegiatanPemerintahan;
 use Illuminate\Database\Seeder;
@@ -15,16 +16,19 @@ class ProgramKegiatanReferenceSeeder extends Seeder
     public function run(): void
     {
         DB::transaction(function () {
-            $programIds = $this->seedProgram();
-            $kegiatanIds = $this->seedKegiatan($programIds);
-            $this->seedSubKegiatan($kegiatanIds);
+            $periodeId = $this->periodeTahunId();
+            $rpjmdRange = $this->rpjmdRange();
+            $programIds = $this->seedProgram($rpjmdRange);
+            $kegiatanIds = $this->seedKegiatan($periodeId, $programIds);
+            $this->seedSubKegiatan($periodeId, $kegiatanIds);
         });
     }
 
     /**
+     * @param  array{tahun_awal: int, tahun_akhir: int}  $rpjmdRange
      * @return array<string, int>
      */
-    private function seedProgram(): array
+    private function seedProgram(array $rpjmdRange): array
     {
         $bidangIds = BidangUrusan::query()->pluck('id', 'kode');
         $programIds = [];
@@ -39,6 +43,8 @@ class ProgramKegiatanReferenceSeeder extends Seeder
 
             $program = ProgramPemerintahan::query()->updateOrCreate(
                 [
+                    'tahun_awal' => $rpjmdRange['tahun_awal'],
+                    'tahun_akhir' => $rpjmdRange['tahun_akhir'],
                     'bidang_urusan_id' => $bidangId,
                     'kode' => $row['kode'],
                 ],
@@ -58,7 +64,7 @@ class ProgramKegiatanReferenceSeeder extends Seeder
      * @param  array<string, int>  $programIds
      * @return array<string, int>
      */
-    private function seedKegiatan(array $programIds): array
+    private function seedKegiatan(int $periodeId, array $programIds): array
     {
         $kegiatanIds = [];
 
@@ -72,6 +78,7 @@ class ProgramKegiatanReferenceSeeder extends Seeder
 
             $kegiatan = KegiatanPemerintahan::query()->updateOrCreate(
                 [
+                    'periode_tahun_id' => $periodeId,
                     'program_pemerintahan_id' => $programId,
                     'kode' => $row['kode'],
                 ],
@@ -90,7 +97,7 @@ class ProgramKegiatanReferenceSeeder extends Seeder
     /**
      * @param  array<string, int>  $kegiatanIds
      */
-    private function seedSubKegiatan(array $kegiatanIds): void
+    private function seedSubKegiatan(int $periodeId, array $kegiatanIds): void
     {
         foreach ($this->readTsv('sub_kegiatan_pemerintahan.tsv') as $row) {
             $kegiatanKode = $this->prefixKode($row['kode'], 5);
@@ -102,6 +109,7 @@ class ProgramKegiatanReferenceSeeder extends Seeder
 
             SubKegiatanPemerintahan::query()->updateOrCreate(
                 [
+                    'periode_tahun_id' => $periodeId,
                     'kegiatan_pemerintahan_id' => $kegiatanId,
                     'kode' => $row['kode'],
                 ],
@@ -111,6 +119,57 @@ class ProgramKegiatanReferenceSeeder extends Seeder
                 ],
             );
         }
+    }
+
+    private function periodeTahunId(): int
+    {
+        $periode = PeriodeTahun::query()
+            ->where('status', 'active')
+            ->orderByDesc('tahun')
+            ->first(['id'])
+            ?? PeriodeTahun::query()->orderByDesc('tahun')->first(['id']);
+
+        if (! $periode) {
+            throw new RuntimeException('Periode tahun belum tersedia untuk seeder program/kegiatan.');
+        }
+
+        return (int) $periode->id;
+    }
+
+    /**
+     * @return array{tahun_awal: int, tahun_akhir: int}
+     */
+    private function rpjmdRange(): array
+    {
+        $rpjmd = DB::table('rpjmd')
+            ->where('tahun_awal', 2025)
+            ->where('tahun_akhir', 2029)
+            ->first(['tahun_awal', 'tahun_akhir'])
+            ?? DB::table('rpjmd')
+                ->orderByDesc('tahun_awal')
+                ->first(['tahun_awal', 'tahun_akhir']);
+
+        if ($rpjmd) {
+            return [
+                'tahun_awal' => (int) $rpjmd->tahun_awal,
+                'tahun_akhir' => (int) $rpjmd->tahun_akhir,
+            ];
+        }
+
+        $tahun = PeriodeTahun::query()
+            ->where('status', 'active')
+            ->orderByDesc('tahun')
+            ->value('tahun')
+            ?? PeriodeTahun::query()->orderByDesc('tahun')->value('tahun');
+
+        if (! $tahun) {
+            throw new RuntimeException('Periode RPJMD belum bisa ditentukan untuk seeder program.');
+        }
+
+        return [
+            'tahun_awal' => (int) $tahun,
+            'tahun_akhir' => (int) $tahun + 4,
+        ];
     }
 
     /**

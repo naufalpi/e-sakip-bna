@@ -8,8 +8,6 @@ type RpjmdForm = {
     nomor_perda: string;
     tahun_awal: number | string;
     tahun_akhir: number | string;
-    struktur_tujuan_mode: string;
-    struktur_sasaran_mode: string;
     keterangan: string;
 };
 
@@ -25,8 +23,6 @@ const form = useForm<RpjmdForm>({
     nomor_perda: props.rpjmd?.nomor_perda ?? '',
     tahun_awal: props.rpjmd?.tahun_awal ?? new Date().getFullYear(),
     tahun_akhir: props.rpjmd?.tahun_akhir ?? new Date().getFullYear() + 5,
-    struktur_tujuan_mode: props.rpjmd?.struktur_tujuan_mode ?? 'tujuan_lintas_misi',
-    struktur_sasaran_mode: props.rpjmd?.struktur_sasaran_mode ?? 'sasaran_langsung_tujuan',
     keterangan: props.rpjmd?.keterangan ?? '',
 });
 
@@ -78,23 +74,6 @@ const submit = () => {
                     <label class="text-sm font-medium" for="tahun_akhir">Tahun Akhir</label>
                     <input id="tahun_akhir" v-model="form.tahun_akhir" type="number" class="h-9 rounded-md border bg-background px-3 text-sm" />
                     <InputError :message="form.errors.tahun_akhir" />
-                </div>
-                <div class="grid gap-2">
-                    <label class="text-sm font-medium" for="struktur_tujuan_mode">Pola Tujuan</label>
-                    <select id="struktur_tujuan_mode" v-model="form.struktur_tujuan_mode" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="tujuan_lintas_misi">Tujuan lintas misi</option>
-                        <option value="tujuan_per_misi">Tujuan per misi</option>
-                    </select>
-                    <InputError :message="form.errors.struktur_tujuan_mode" />
-                </div>
-                <div class="grid gap-2">
-                    <label class="text-sm font-medium" for="struktur_sasaran_mode">Pola Sasaran</label>
-                    <select id="struktur_sasaran_mode" v-model="form.struktur_sasaran_mode" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="sasaran_langsung_tujuan">Sasaran langsung ke tujuan</option>
-                        <option value="sasaran_melalui_indikator_tujuan">Sasaran melalui indikator tujuan</option>
-                        <option value="campuran">Campuran</option>
-                    </select>
-                    <InputError :message="form.errors.struktur_sasaran_mode" />
                 </div>
                 <div class="grid gap-2 md:col-span-2">
                     <label class="text-sm font-medium" for="keterangan">Keterangan</label>

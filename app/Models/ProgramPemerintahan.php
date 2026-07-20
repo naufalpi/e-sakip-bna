@@ -18,9 +18,16 @@ class ProgramPemerintahan extends Model
 
     protected $fillable = [
         'bidang_urusan_id',
+        'tahun_awal',
+        'tahun_akhir',
         'kode',
         'nama',
         'status',
+    ];
+
+    protected $casts = [
+        'tahun_awal' => 'integer',
+        'tahun_akhir' => 'integer',
     ];
 
     public function bidangUrusan(): BelongsTo

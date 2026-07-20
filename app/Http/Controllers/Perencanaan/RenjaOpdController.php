@@ -148,7 +148,7 @@ class RenjaOpdController extends Controller
             'renja' => $this->serializeRenja($renjaOpd),
             'items' => $items,
             'filters' => $filters,
-            'subKegiatanOptions' => $canManage ? $this->subKegiatanOptions() : [],
+            'subKegiatanOptions' => $canManage ? $this->subKegiatanOptions((int) $renjaOpd->periode_tahun_id) : [],
             'can' => [
                 'manage' => $canManage,
             ],
@@ -281,14 +281,15 @@ class RenjaOpdController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function subKegiatanOptions(): array
+    private function subKegiatanOptions(int $periodeTahunId): array
     {
         return SubKegiatanPemerintahan::query()
             ->with('kegiatanPemerintahan.programPemerintahan:id,kode,nama')
+            ->where('periode_tahun_id', $periodeTahunId)
             ->where('status', 'active')
             ->orderBy('kode')
             ->limit(3000)
-            ->get(['id', 'kegiatan_pemerintahan_id', 'kode', 'nama'])
+            ->get(['id', 'periode_tahun_id', 'kegiatan_pemerintahan_id', 'kode', 'nama'])
             ->map(function (SubKegiatanPemerintahan $subKegiatan) {
                 $kegiatan = $subKegiatan->kegiatanPemerintahan;
                 $program = $kegiatan?->programPemerintahan;

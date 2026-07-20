@@ -266,16 +266,19 @@ class DemoDataSeeder extends Seeder
      */
     private function rpjmd(PeriodeTahun $periode, array $satuan, array $urusan, array $opds): array
     {
-        $tahunAwal = $periode->tahun;
-        $tahunAkhir = $periode->tahun + 4;
+        $tahunAwal = 2025;
+        $tahunAkhir = 2029;
+        $periodeReferensi = PeriodeTahun::query()->where('tahun', 2025)->first(['id']) ?? $periode;
 
         $rpjmd = Rpjmd::query()->updateOrCreate(
-            ['judul' => 'RPJMD Kabupaten Banjarnegara '.$tahunAwal.'-'.$tahunAkhir],
             [
-                'periode_tahun_id' => $periode->id,
-                'nomor_perda' => 'Perda Nomor 1 Tahun '.$tahunAwal,
                 'tahun_awal' => $tahunAwal,
                 'tahun_akhir' => $tahunAkhir,
+            ],
+            [
+                'periode_tahun_id' => $periodeReferensi->id,
+                'judul' => 'RPJMD KABUPATEN BANJARNEGARA TAHUN 2025-2029',
+                'nomor_perda' => 'PERATURAN DAERAH KABUPATEN BANJARNEGARA NOMOR 2 TAHUN 2025',
                 'status' => 'approved',
                 'struktur_tujuan_mode' => 'tujuan_lintas_misi',
                 'struktur_sasaran_mode' => 'sasaran_langsung_tujuan',
@@ -371,6 +374,8 @@ class DemoDataSeeder extends Seeder
         $programReference = ProgramPemerintahan::query()
             ->with('bidangUrusan:id,urusan_pemerintahan_id')
             ->where('kode', '5.01.01')
+            ->where('tahun_awal', $tahunAwal)
+            ->where('tahun_akhir', $tahunAkhir)
             ->first();
 
         $program = ProgramRpjmd::query()->updateOrCreate(
@@ -378,7 +383,7 @@ class DemoDataSeeder extends Seeder
             [
                 'strategi_daerah_id' => $strategi->id,
                 'sasaran_daerah_id' => $sasaran->id,
-                'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
+                'indikator_sasaran_daerah_id' => null,
                 'program_pemerintahan_id' => $programReference?->id,
                 'urusan_pemerintahan_id' => $programReference?->bidangUrusan?->urusan_pemerintahan_id ?? $urusan['umum']->id,
                 'nama' => $programReference?->nama ?? 'Program Penguatan Akuntabilitas Kinerja Pemerintah Daerah',

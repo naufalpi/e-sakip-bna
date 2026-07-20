@@ -30,6 +30,7 @@ type Setting = {
     value: string;
     is_public: boolean;
     description: string | null;
+    can_update: boolean;
 };
 
 type GroupSummary = {
@@ -108,6 +109,7 @@ const groupIcon = (group: string) => {
         notifikasi: Bell,
         pelaporan: FileText,
         publik: Globe2,
+        rpjmd: Workflow,
         siklus_sakip: SlidersHorizontal,
         workflow: Workflow,
     };
@@ -289,7 +291,7 @@ const groupIcon = (group: string) => {
                                     </span>
                                 </td>
                                 <td class="px-4 py-4 text-right">
-                                    <div v-if="can.manage" class="inline-flex gap-2">
+                                    <div v-if="can.manage && item.can_update" class="inline-flex gap-2">
                                         <Link
                                             :href="route('master.system-settings.edit', item.id)"
                                             class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-white hover:shadow-sm"

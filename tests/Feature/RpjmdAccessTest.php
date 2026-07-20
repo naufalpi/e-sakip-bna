@@ -19,6 +19,7 @@ use App\Models\RpjmdVisi;
 use App\Models\SasaranDaerah;
 use App\Models\SatuanIndikator;
 use App\Models\StrategiDaerah;
+use App\Models\SystemSetting;
 use App\Models\TargetIndikatorTujuanDaerah;
 use App\Models\TujuanDaerah;
 use App\Models\User;
@@ -49,6 +50,8 @@ class RpjmdAccessTest extends TestCase
             ->assertRedirect();
 
         $rpjmd = Rpjmd::where('judul', 'RPJMD Kabupaten Banjarnegara 2026-2031')->firstOrFail();
+        $this->assertSame('tujuan_lintas_misi', $rpjmd->struktur_tujuan_mode);
+        $this->assertSame('sasaran_langsung_tujuan', $rpjmd->struktur_sasaran_mode);
 
         $this->actingAs($user)
             ->post(route('rpjmd.nodes.store', $rpjmd), [
@@ -62,6 +65,73 @@ class RpjmdAccessTest extends TestCase
             'rpjmd_id' => $rpjmd->id,
             'visi' => 'Banjarnegara maju dan berdaya saing',
         ]);
+    }
+
+    public function test_bapperida_cannot_override_rpjmd_structure_modes_from_create_request(): void
+    {
+        $this->seed();
+
+        SystemSetting::where('key', 'rpjmd.default_struktur_tujuan_mode')
+            ->firstOrFail()
+            ->update(['value' => 'tujuan_lintas_misi']);
+        SystemSetting::where('key', 'rpjmd.default_struktur_sasaran_mode')
+            ->firstOrFail()
+            ->update(['value' => 'sasaran_langsung_tujuan']);
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.store'), [
+                'judul' => 'RPJMD Struktur Tidak Boleh Diubah Admin',
+                'tahun_awal' => 2025,
+                'tahun_akhir' => 2029,
+                'struktur_tujuan_mode' => 'tujuan_per_misi',
+                'struktur_sasaran_mode' => 'campuran',
+            ])
+            ->assertRedirect();
+
+        $rpjmd = Rpjmd::where('judul', 'RPJMD Struktur Tidak Boleh Diubah Admin')->firstOrFail();
+
+        $this->assertSame('tujuan_lintas_misi', $rpjmd->struktur_tujuan_mode);
+        $this->assertSame('sasaran_langsung_tujuan', $rpjmd->struktur_sasaran_mode);
+    }
+
+    public function test_only_super_admin_can_manage_rpjmd_structure_settings(): void
+    {
+        $this->seed();
+
+        $setting = SystemSetting::where('key', 'rpjmd.default_struktur_tujuan_mode')->firstOrFail();
+        $dinkominfo = User::factory()->create();
+        $dinkominfo->roles()->sync([Role::where('name', 'admin_kabupaten_dinkominfo')->value('id')]);
+        $superAdmin = User::factory()->create();
+        $superAdmin->roles()->sync([Role::where('name', 'super_admin')->value('id')]);
+
+        $this->actingAs($dinkominfo)
+            ->put(route('master.system-settings.update', $setting), [
+                'group' => 'rpjmd',
+                'key' => 'rpjmd.default_struktur_tujuan_mode',
+                'label' => 'Pola Tujuan Default',
+                'type' => 'string',
+                'value' => 'tujuan_per_misi',
+                'is_public' => false,
+            ])
+            ->assertForbidden();
+
+        $this->assertSame('tujuan_lintas_misi', $setting->refresh()->value);
+
+        $this->actingAs($superAdmin)
+            ->put(route('master.system-settings.update', $setting), [
+                'group' => 'rpjmd',
+                'key' => 'rpjmd.default_struktur_tujuan_mode',
+                'label' => 'Pola Tujuan Default',
+                'type' => 'string',
+                'value' => 'tujuan_per_misi',
+                'is_public' => false,
+            ])
+            ->assertRedirect(route('master.system-settings.index'));
+
+        $this->assertSame('tujuan_per_misi', $setting->refresh()->value);
     }
 
     public function test_bapperida_can_bulk_create_rpjmd_nodes(): void
@@ -523,13 +593,13 @@ class RpjmdAccessTest extends TestCase
         $this->assertCount(2, $program->fresh()->opdPenanggungJawab);
     }
 
-    public function test_program_rpjmd_is_created_from_indikator_sasaran_with_optional_strategi_reference(): void
+    public function test_program_rpjmd_is_created_from_sasaran_with_optional_strategi_reference(): void
     {
         $this->seed();
 
         $opd = Opd::create(['kode' => '2.03', 'nama' => 'Dinas Program', 'status' => 'active']);
         $rpjmd = $this->createRpjmdWithProgramForOpd($opd, 'RPJMD Program Baru');
-        $indikatorSasaran = IndikatorSasaranDaerah::whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->firstOrFail();
+        $sasaran = SasaranDaerah::whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->firstOrFail();
         $strategi = StrategiDaerah::firstOrFail();
 
         $user = User::factory()->create();
@@ -538,7 +608,7 @@ class RpjmdAccessTest extends TestCase
         $this->actingAs($user)
             ->post(route('rpjmd.nodes.store', $rpjmd), [
                 'type' => 'program',
-                'parent_id' => $indikatorSasaran->id,
+                'parent_id' => $sasaran->id,
                 'strategi_daerah_id' => $strategi->id,
                 'uraian' => 'Program Peningkatan Akuntabilitas Kinerja',
                 'status' => 'draft',
@@ -547,8 +617,8 @@ class RpjmdAccessTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseHas('program_rpjmd', [
-            'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
-            'sasaran_daerah_id' => $indikatorSasaran->sasaran_daerah_id,
+            'indikator_sasaran_daerah_id' => null,
+            'sasaran_daerah_id' => $sasaran->id,
             'strategi_daerah_id' => $strategi->id,
             'nama' => 'Program Peningkatan Akuntabilitas Kinerja',
             'urutan' => 2,
@@ -561,8 +631,13 @@ class RpjmdAccessTest extends TestCase
 
         $opd = Opd::create(['kode' => '2.31', 'nama' => 'Dinas Program Referensi', 'status' => 'active']);
         $rpjmd = $this->createRpjmdWithProgramForOpd($opd, 'RPJMD Program Referensi');
-        $indikatorSasaran = IndikatorSasaranDaerah::whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->firstOrFail();
-        $programPemerintahan = ProgramPemerintahan::with('bidangUrusan.urusanPemerintahan')->firstOrFail();
+        $sasaran = SasaranDaerah::whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->firstOrFail();
+        $bidang = BidangUrusan::query()->firstOrFail();
+        $programPemerintahan = ProgramPemerintahan::query()->updateOrCreate(
+            ['tahun_awal' => $rpjmd->tahun_awal, 'tahun_akhir' => $rpjmd->tahun_akhir, 'bidang_urusan_id' => $bidang->id, 'kode' => '9.98.01'],
+            ['nama' => 'Program Referensi RPJMD', 'status' => 'active'],
+        );
+        $programPemerintahan->load('bidangUrusan.urusanPemerintahan');
 
         $user = User::factory()->create();
         $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
@@ -570,7 +645,7 @@ class RpjmdAccessTest extends TestCase
         $this->actingAs($user)
             ->post(route('rpjmd.nodes.store', $rpjmd), [
                 'type' => 'program',
-                'parent_id' => $indikatorSasaran->id,
+                'parent_id' => $sasaran->id,
                 'program_pemerintahan_id' => $programPemerintahan->id,
                 'status' => 'draft',
                 'urutan' => 3,
@@ -578,7 +653,8 @@ class RpjmdAccessTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseHas('program_rpjmd', [
-            'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
+            'indikator_sasaran_daerah_id' => null,
+            'sasaran_daerah_id' => $sasaran->id,
             'program_pemerintahan_id' => $programPemerintahan->id,
             'kode' => $programPemerintahan->kode,
             'nama' => $programPemerintahan->nama,
@@ -593,15 +669,15 @@ class RpjmdAccessTest extends TestCase
 
         $opd = Opd::create(['kode' => '2.32', 'nama' => 'Dinas Program Lintas Kode', 'status' => 'active']);
         $rpjmd = $this->createRpjmdWithProgramForOpd($opd, 'RPJMD Program Lintas Kode');
-        $indikatorSasaran = IndikatorSasaranDaerah::whereHas('sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->firstOrFail();
+        $sasaran = SasaranDaerah::whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->firstOrFail();
         $bidangs = BidangUrusan::query()->orderBy('kode')->take(2)->get();
         $programName = 'Program Penunjang Urusan Pemerintahan Daerah Kab/Kota';
         $firstProgram = ProgramPemerintahan::query()->updateOrCreate(
-            ['bidang_urusan_id' => $bidangs[0]->id, 'kode' => '9.99.01'],
+            ['tahun_awal' => $rpjmd->tahun_awal, 'tahun_akhir' => $rpjmd->tahun_akhir, 'bidang_urusan_id' => $bidangs[0]->id, 'kode' => '9.99.01'],
             ['nama' => $programName, 'status' => 'active'],
         );
         $secondProgram = ProgramPemerintahan::query()->updateOrCreate(
-            ['bidang_urusan_id' => $bidangs[1]->id, 'kode' => '9.99.02'],
+            ['tahun_awal' => $rpjmd->tahun_awal, 'tahun_akhir' => $rpjmd->tahun_akhir, 'bidang_urusan_id' => $bidangs[1]->id, 'kode' => '9.99.02'],
             ['nama' => $programName, 'status' => 'active'],
         );
 
@@ -611,7 +687,7 @@ class RpjmdAccessTest extends TestCase
         $this->actingAs($user)
             ->post(route('rpjmd.nodes.store', $rpjmd), [
                 'type' => 'program',
-                'parent_id' => $indikatorSasaran->id,
+                'parent_id' => $sasaran->id,
                 'program_pemerintahan_id' => $firstProgram->id,
                 'status' => 'draft',
                 'urutan' => 4,
@@ -619,7 +695,7 @@ class RpjmdAccessTest extends TestCase
             ->assertRedirect();
 
         $programRpjmd = ProgramRpjmd::query()
-            ->where('indikator_sasaran_daerah_id', $indikatorSasaran->id)
+            ->where('sasaran_daerah_id', $sasaran->id)
             ->where('nama', $programName)
             ->firstOrFail();
 
@@ -1064,7 +1140,7 @@ class RpjmdAccessTest extends TestCase
         $program = ProgramRpjmd::create([
             'strategi_daerah_id' => $strategi->id,
             'sasaran_daerah_id' => $sasaran->id,
-            'indikator_sasaran_daerah_id' => $indikatorSasaran->id,
+            'indikator_sasaran_daerah_id' => null,
             'nama' => "Program {$judul}",
             'status' => 'approved',
             'urutan' => 1,

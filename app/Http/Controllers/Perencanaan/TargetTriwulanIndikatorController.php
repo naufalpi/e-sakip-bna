@@ -105,8 +105,8 @@ class TargetTriwulanIndikatorController extends Controller
             'indikator_tujuan_daerah' => $this->rpjmdFromTujuan($related->tujuan),
             'indikator_sasaran_daerah' => $this->rpjmdFromTujuan($related->sasaran->tujuan),
             'indikator_program_rpjmd' => $this->rpjmdFromTujuan(
-                $related->program->indikatorSasaran?->sasaran?->tujuan
-                    ?? $related->program->sasaran?->tujuan
+                $related->program->sasaran?->tujuan
+                    ?? $related->program->indikatorSasaran?->sasaran?->tujuan
             ),
             'indikator_tujuan_opd' => $related->tujuan->renstra,
             'indikator_sasaran_opd' => $related->sasaran->tujuan->renstra,

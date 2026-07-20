@@ -15,6 +15,10 @@ class SystemSettingCatalog
                 'label' => 'Siklus SAKIP',
                 'description' => 'Tahun aktif, periode realisasi, triwulan berjalan, dan aturan kunci data.',
             ],
+            'rpjmd' => [
+                'label' => 'Struktur RPJMD',
+                'description' => 'Pola struktur tujuan dan sasaran RPJMD yang ditetapkan super admin.',
+            ],
             'publik' => [
                 'label' => 'Portal Publik',
                 'description' => 'Kontrol tampilan data yang dibuka untuk masyarakat.',
@@ -175,6 +179,35 @@ class SystemSettingCatalog
                 'is_public' => false,
                 'description' => 'Mencegah input realisasi sebelum target kinerja disetujui.',
                 'placeholder' => '1',
+            ],
+            'rpjmd.default_struktur_tujuan_mode' => [
+                'group' => 'rpjmd',
+                'label' => 'Pola Tujuan Default',
+                'type' => 'string',
+                'value' => 'tujuan_lintas_misi',
+                'is_public' => false,
+                'description' => 'Pola tujuan yang otomatis dipakai saat admin membuat RPJMD baru.',
+                'placeholder' => 'tujuan_lintas_misi',
+                'options' => [
+                    ['value' => 'tujuan_lintas_misi', 'label' => 'Tujuan lintas misi'],
+                    ['value' => 'tujuan_per_misi', 'label' => 'Tujuan per misi'],
+                ],
+                'super_admin_only' => true,
+            ],
+            'rpjmd.default_struktur_sasaran_mode' => [
+                'group' => 'rpjmd',
+                'label' => 'Pola Sasaran Default',
+                'type' => 'string',
+                'value' => 'sasaran_langsung_tujuan',
+                'is_public' => false,
+                'description' => 'Pola sasaran yang otomatis dipakai saat admin membuat RPJMD baru.',
+                'placeholder' => 'sasaran_langsung_tujuan',
+                'options' => [
+                    ['value' => 'sasaran_langsung_tujuan', 'label' => 'Sasaran langsung ke tujuan'],
+                    ['value' => 'sasaran_melalui_indikator_tujuan', 'label' => 'Sasaran melalui indikator tujuan'],
+                    ['value' => 'campuran', 'label' => 'Campuran'],
+                ],
+                'super_admin_only' => true,
             ],
             'publik.portal_enabled' => [
                 'group' => 'publik',
@@ -489,6 +522,15 @@ class SystemSettingCatalog
     public static function setting(string $key): ?array
     {
         return self::settings()[$key] ?? null;
+    }
+
+    public static function superAdminOnlyKeys(): array
+    {
+        return collect(self::settings())
+            ->filter(fn (array $setting) => (bool) ($setting['super_admin_only'] ?? false))
+            ->keys()
+            ->values()
+            ->all();
     }
 
     public static function groupOptions(): array

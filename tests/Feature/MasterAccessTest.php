@@ -158,4 +158,68 @@ class MasterAccessTest extends TestCase
             ])
             ->assertForbidden();
     }
+
+    public function test_seeded_role_permissions_follow_current_business_responsibilities(): void
+    {
+        $this->seed();
+
+        $bapperidaPermissions = Role::where('name', 'admin_kabupaten_bapperida')
+            ->firstOrFail()
+            ->permissions()
+            ->pluck('name')
+            ->all();
+
+        $this->assertContains('periode.manage', $bapperidaPermissions);
+        $this->assertContains('satuan.manage', $bapperidaPermissions);
+        $this->assertContains('urusan.manage', $bapperidaPermissions);
+        $this->assertContains('rpjmd.manage', $bapperidaPermissions);
+        $this->assertContains('rkpd.manage', $bapperidaPermissions);
+
+        $dinkominfoPermissions = Role::where('name', 'admin_kabupaten_dinkominfo')
+            ->firstOrFail()
+            ->permissions()
+            ->pluck('name')
+            ->all();
+
+        $this->assertContains('roles.view', $dinkominfoPermissions);
+        $this->assertContains('roles.manage', $dinkominfoPermissions);
+        $this->assertContains('users.manage', $dinkominfoPermissions);
+        $this->assertContains('settings.manage', $dinkominfoPermissions);
+
+        $pimpinanPermissions = Role::where('name', 'pimpinan')
+            ->firstOrFail()
+            ->permissions()
+            ->pluck('name')
+            ->all();
+
+        $this->assertContains('dashboard.view', $pimpinanPermissions);
+        $this->assertNotContains('rpjmd.manage', $pimpinanPermissions);
+        $this->assertNotContains('users.manage', $pimpinanPermissions);
+        $this->assertNotContains('roles.manage', $pimpinanPermissions);
+    }
+
+    public function test_dinkominfo_requires_manage_permission_to_update_role_permissions(): void
+    {
+        $this->seed();
+
+        $dinkominfoRole = Role::where('name', 'admin_kabupaten_dinkominfo')->firstOrFail();
+        $dinkominfoRole->permissions()->detach(
+            Permission::whereIn('name', ['roles.manage', 'manage_roles'])->pluck('id')->all()
+        );
+
+        $admin = User::factory()->create();
+        $admin->roles()->sync([$dinkominfoRole->id]);
+
+        $role = Role::where('name', 'admin_opd')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('master.role-permission.index'))
+            ->assertOk();
+
+        $this->actingAs($admin)
+            ->patch(route('master.role-permission.update', $role), [
+                'permission_ids' => [],
+            ])
+            ->assertForbidden();
+    }
 }
