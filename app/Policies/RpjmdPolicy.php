@@ -25,9 +25,7 @@ class RpjmdPolicy
             return filled($user->opd_id)
                 && Rpjmd::query()
                     ->whereKey($rpjmd->id)
-                    ->whereHas('visi.tujuan.sasaran.programs.opdPenanggungJawab', function ($query) use ($user) {
-                        $query->where('opds.id', $user->opd_id);
-                    })
+                    ->whereHas('visi.tujuan.sasaran.programs', fn ($query) => $query->relevantForOpd((int) $user->opd_id))
                     ->exists();
         }
 

@@ -252,7 +252,7 @@ class PohonKinerjaService
             ->values();
         $programChildren = $sasaran->programs
             ->when($visibleOpdId, fn (Collection $programs) => $programs->filter(
-                fn (ProgramRpjmd $program) => $program->opdPenanggungJawab->contains('id', $visibleOpdId)
+                fn (ProgramRpjmd $program) => $program->isRelevantForOpd($visibleOpdId)
             ))
             ->map(fn (ProgramRpjmd $program) => $this->programRpjmdNode($program))
             ->values();

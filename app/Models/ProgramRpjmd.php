@@ -107,4 +107,78 @@ class ProgramRpjmd extends Model
                 ->orWhereHas('indikatorSasaran.sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId));
         });
     }
+
+    public function scopeRelevantForOpd(Builder $query, int $opdId): Builder
+    {
+        return $query->where(function (Builder $query) use ($opdId): void {
+            $query
+                ->whereHas('opdPenanggungJawab', fn (Builder $query) => $query->whereKey($opdId))
+                ->orWhere(function (Builder $query) use ($opdId): void {
+                    $query
+                        ->where(function (Builder $query): void {
+                            $query
+                                ->where('is_penanggung_jawab_manual', false)
+                                ->orWhereNull('is_penanggung_jawab_manual');
+                        })
+                        ->where(function (Builder $query) use ($opdId): void {
+                            $query
+                                ->whereHas('programPemerintahan.bidangUrusan.opdPengampu', fn (Builder $query) => $query->whereKey($opdId))
+                                ->orWhereHas('programPemerintahanReferences.bidangUrusan.opdPengampu', fn (Builder $query) => $query->whereKey($opdId))
+                                ->orWhereHas('programPemerintahan', fn (Builder $query) => $this->applyProgramPenunjangFilter($query))
+                                ->orWhereHas('programPemerintahanReferences', fn (Builder $query) => $this->applyProgramPenunjangFilter($query));
+                        });
+                });
+        });
+    }
+
+    public function isRelevantForOpd(int $opdId): bool
+    {
+        if ($this->opdPenanggungJawab->contains('id', $opdId)) {
+            return true;
+        }
+
+        if ($this->is_penanggung_jawab_manual) {
+            return false;
+        }
+
+        $this->loadMissing([
+            'programPemerintahan.bidangUrusan.opdPengampu',
+            'programPemerintahanReferences.bidangUrusan.opdPengampu',
+        ]);
+
+        $references = collect()
+            ->when($this->programPemerintahan, fn ($references) => $references->push($this->programPemerintahan))
+            ->merge($this->programPemerintahanReferences)
+            ->unique('id')
+            ->values();
+
+        if ($references->contains(fn (ProgramPemerintahan $program) => $this->isProgramPenunjang($program->nama))) {
+            return true;
+        }
+
+        return $references
+            ->pluck('bidangUrusan')
+            ->filter()
+            ->flatMap(fn ($bidang) => $bidang->opdPengampu)
+            ->contains('id', $opdId);
+    }
+
+    private function applyProgramPenunjangFilter(Builder $query): Builder
+    {
+        return $query
+            ->whereRaw('LOWER(nama) LIKE ?', ['%program penunjang urusan pemerintahan daerah%'])
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereRaw('LOWER(nama) LIKE ?', ['%kabupaten/kota%'])
+                    ->orWhereRaw('LOWER(nama) LIKE ?', ['%kab/kota%']);
+            });
+    }
+
+    private function isProgramPenunjang(?string $name): bool
+    {
+        $normalized = strtolower((string) preg_replace('/\s+/', ' ', trim((string) $name)));
+
+        return str_contains($normalized, 'program penunjang urusan pemerintahan daerah')
+            && (str_contains($normalized, 'kabupaten/kota') || str_contains($normalized, 'kab/kota'));
+    }
 }

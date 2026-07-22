@@ -363,7 +363,7 @@ class RenstraOpdController extends Controller
         $programRpjmdQuery = fn () => ProgramRpjmd::query()
             ->forRpjmd($renstra->rpjmd_id)
             ->when($this->shouldRestrictRpjmdProgramReferences($renstra, $user), fn (Builder $query) => $query
-                ->whereHas('opdPenanggungJawab', fn (Builder $query) => $query->whereKey($renstra->opd_id)));
+                ->relevantForOpd((int) $renstra->opd_id));
 
         return [
             'tujuan_daerah' => TujuanDaerah::query()->forRpjmd($renstra->rpjmd_id)->orderBy('urutan')->get(['id', 'kode', 'tujuan'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->tujuan)])->values()->all(),
@@ -388,7 +388,7 @@ class RenstraOpdController extends Controller
                 ->whereHas('program', fn (Builder $query) => $query
                     ->forRpjmd($renstra->rpjmd_id)
                     ->when($this->shouldRestrictRpjmdProgramReferences($renstra, $user), fn (Builder $query) => $query
-                        ->whereHas('opdPenanggungJawab', fn (Builder $query) => $query->whereKey($renstra->opd_id))))
+                        ->relevantForOpd((int) $renstra->opd_id)))
                 ->orderBy('urutan')
                 ->get(['id', 'kode', 'indikator'])
                 ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])

@@ -638,9 +638,7 @@ class RpjmdController extends Controller
 
     private function limitToUserOpd(Builder $query, User $user): void
     {
-        $query->whereHas('visi.tujuan.sasaran.programs.opdPenanggungJawab', function ($query) use ($user) {
-            $query->where('opds.id', $user->opd_id ?? 0);
-        });
+        $query->whereHas('visi.tujuan.sasaran.programs', fn (Builder $query) => $query->relevantForOpd((int) ($user->opd_id ?? 0)));
     }
 
     /**
@@ -703,7 +701,7 @@ class RpjmdController extends Controller
             ->values();
         $programs = $sasaran->programs
             ->when($visibleOpdId, fn ($programs) => $programs->filter(
-                fn (ProgramRpjmd $program) => $program->opdPenanggungJawab->contains('id', $visibleOpdId)
+                fn (ProgramRpjmd $program) => $program->isRelevantForOpd($visibleOpdId)
             ))
             ->map(fn (ProgramRpjmd $program) => $this->serializeProgram($program))
             ->values();

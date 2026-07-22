@@ -501,7 +501,7 @@ class RenstraOpdNodeController extends Controller
         return ProgramRpjmd::query()
             ->forRpjmd($renstra->rpjmd_id)
             ->when($this->shouldRestrictRpjmdProgramReferences($renstra), fn (Builder $query) => $query
-                ->whereHas('opdPenanggungJawab', fn (Builder $query) => $query->whereKey($renstra->opd_id)));
+                ->relevantForOpd((int) $renstra->opd_id));
     }
 
     private function shouldRestrictRpjmdProgramReferences(RenstraOpd $renstra): bool

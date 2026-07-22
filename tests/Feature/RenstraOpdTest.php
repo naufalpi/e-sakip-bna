@@ -174,6 +174,118 @@ class RenstraOpdTest extends TestCase
         ]);
     }
 
+    public function test_admin_opd_gets_automatic_rpjmd_programs_from_bidang_urusan_pengampu(): void
+    {
+        $this->seed();
+
+        $ownOpd = Opd::create(['kode' => '2.16.auto', 'nama' => 'Dinas Kominfo Otomatis', 'singkatan' => 'Diskominfo', 'status' => 'active']);
+        $otherOpd = Opd::create(['kode' => '2.20.auto', 'nama' => 'Dinas Statistik Otomatis', 'singkatan' => 'Statistik', 'status' => 'active']);
+        $urusanId = BidangUrusan::query()->value('urusan_pemerintahan_id');
+        $ownBidang = BidangUrusan::create([
+            'urusan_pemerintahan_id' => $urusanId,
+            'kode' => '9.91',
+            'nama' => 'URUSAN PEMERINTAHAN BIDANG KOMUNIKASI OTOMATIS',
+            'status' => 'active',
+        ]);
+        $otherBidang = BidangUrusan::create([
+            'urusan_pemerintahan_id' => $urusanId,
+            'kode' => '9.92',
+            'nama' => 'URUSAN PEMERINTAHAN BIDANG STATISTIK OTOMATIS',
+            'status' => 'active',
+        ]);
+        $ownBidang->opdPengampu()->sync([
+            $ownOpd->id => ['peran' => 'pengampu_urusan', 'is_utama' => true],
+        ]);
+        $otherBidang->opdPengampu()->sync([
+            $otherOpd->id => ['peran' => 'pengampu_urusan', 'is_utama' => true],
+        ]);
+
+        $tree = $this->createRpjmdTree();
+        $ownMasterProgram = ProgramPemerintahan::create([
+            'bidang_urusan_id' => $ownBidang->id,
+            'tahun_awal' => $tree['rpjmd']->tahun_awal,
+            'tahun_akhir' => $tree['rpjmd']->tahun_akhir,
+            'kode' => '9.91.01',
+            'nama' => 'Program Otomatis Kominfo',
+            'status' => 'active',
+        ]);
+        $otherMasterProgram = ProgramPemerintahan::create([
+            'bidang_urusan_id' => $otherBidang->id,
+            'tahun_awal' => $tree['rpjmd']->tahun_awal,
+            'tahun_akhir' => $tree['rpjmd']->tahun_akhir,
+            'kode' => '9.92.01',
+            'nama' => 'Program Otomatis Statistik',
+            'status' => 'active',
+        ]);
+        $ownProgram = ProgramRpjmd::create([
+            'sasaran_daerah_id' => $tree['sasaran_daerah']->id,
+            'program_pemerintahan_id' => $ownMasterProgram->id,
+            'kode' => $ownMasterProgram->kode,
+            'nama' => $ownMasterProgram->nama,
+            'status' => 'approved',
+            'is_penanggung_jawab_manual' => false,
+            'urutan' => 2,
+        ]);
+        $ownProgram->programPemerintahanReferences()->sync([$ownMasterProgram->id]);
+        $otherProgram = ProgramRpjmd::create([
+            'sasaran_daerah_id' => $tree['sasaran_daerah']->id,
+            'program_pemerintahan_id' => $otherMasterProgram->id,
+            'kode' => $otherMasterProgram->kode,
+            'nama' => $otherMasterProgram->nama,
+            'status' => 'approved',
+            'is_penanggung_jawab_manual' => false,
+            'urutan' => 3,
+        ]);
+        $otherProgram->programPemerintahanReferences()->sync([$otherMasterProgram->id]);
+
+        $this->assertSame(0, $ownProgram->opdPenanggungJawab()->count());
+
+        $renstra = RenstraOpd::create([
+            'opd_id' => $ownOpd->id,
+            'rpjmd_id' => $tree['rpjmd']->id,
+            'judul' => 'Renstra Program Otomatis',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'draft',
+        ]);
+        $tujuan = TujuanOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'tujuan' => 'Tujuan OPD',
+            'urutan' => 1,
+        ]);
+        $sasaran = SasaranOpd::create([
+            'tujuan_opd_id' => $tujuan->id,
+            'sasaran' => 'Sasaran OPD',
+            'urutan' => 1,
+        ]);
+        $user = User::factory()->create(['opd_id' => $ownOpd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.show', $renstra))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('RenstraOpd/Show')
+                ->where('rpjmdReferenceOptions.program_rpjmd', fn ($options) => collect($options)->pluck('id')->contains($ownProgram->id)
+                    && ! collect($options)->pluck('id')->contains($otherProgram->id))
+            );
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'program',
+                'parent_id' => $sasaran->id,
+                'program_rpjmd_id' => $ownProgram->id,
+                'urutan' => 1,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('opd_program', [
+            'renstra_opd_id' => $renstra->id,
+            'program_rpjmd_id' => $ownProgram->id,
+            'program_pemerintahan_id' => $ownMasterProgram->id,
+        ]);
+    }
+
     public function test_cascading_opd_can_link_to_rpjmd_and_save_yearly_targets(): void
     {
         $this->seed();
