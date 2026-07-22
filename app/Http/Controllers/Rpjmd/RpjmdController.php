@@ -296,8 +296,19 @@ class RpjmdController extends Controller
      */
     private function programPemerintahanOptions(Rpjmd $rpjmd): array
     {
+        $allOpdIds = Opd::query()
+            ->where('status', 'active')
+            ->orderBy('nama')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
         return ProgramPemerintahan::query()
-            ->with('bidangUrusan.urusanPemerintahan:id,kode,nama')
+            ->with([
+                'bidangUrusan.urusanPemerintahan:id,kode,nama',
+                'bidangUrusan.opdPengampu' => fn ($query) => $query->select('opds.id', 'opds.kode', 'opds.nama', 'opds.singkatan'),
+            ])
             ->where('tahun_awal', $rpjmd->tahun_awal)
             ->where('tahun_akhir', $rpjmd->tahun_akhir)
             ->where('status', 'active')
@@ -305,13 +316,43 @@ class RpjmdController extends Controller
             ->orderBy('kode')
             ->get(['id', 'bidang_urusan_id', 'kode', 'nama'])
             ->groupBy(fn (ProgramPemerintahan $program) => $this->normalizeProgramName($program->nama))
-            ->map(function ($programs) {
+            ->map(function ($programs) use ($allOpdIds) {
                 $programs = $programs->sortBy('kode')->values();
                 /** @var ProgramPemerintahan $first */
                 $first = $programs->first();
                 $count = $programs->count();
                 $codes = $programs->pluck('kode')->values();
                 $codePreview = $codes->take(4)->implode(', ');
+                $isPenunjang = $programs->contains(fn (ProgramPemerintahan $program) => str_contains(
+                    $this->normalizeProgramName($program->nama),
+                    'program penunjang urusan pemerintahan daerah',
+                ));
+                $opdIds = $isPenunjang
+                    ? $allOpdIds
+                    : $programs
+                        ->pluck('bidangUrusan')
+                        ->filter()
+                        ->flatMap(fn ($bidang) => $bidang->opdPengampu->pluck('id'))
+                        ->map(fn ($id) => (int) $id)
+                        ->unique()
+                        ->values()
+                        ->all();
+                $opdLabels = $programs
+                    ->pluck('bidangUrusan')
+                    ->filter()
+                    ->flatMap(fn ($bidang) => $bidang->opdPengampu)
+                    ->map(fn (Opd $opd) => $opd->singkatan ?: $opd->nama)
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+                $bidangLabels = $programs
+                    ->pluck('bidangUrusan')
+                    ->filter()
+                    ->map(fn ($bidang) => "{$bidang->kode} - ".preg_replace('/^URUSAN PEMERINTAHAN BIDANG\s+/i', '', $bidang->nama))
+                    ->unique()
+                    ->values()
+                    ->all();
 
                 return [
                     'id' => $first->id,
@@ -326,6 +367,12 @@ class RpjmdController extends Controller
                             ? "{$first->bidangUrusan->urusanPemerintahan->kode} - {$first->bidangUrusan->urusanPemerintahan->nama}"
                             : null),
                     'program_pemerintahan_ids' => $programs->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
+                    'cakupan_pengampu' => $isPenunjang ? 'semua_opd' : 'opd_tertentu',
+                    'opd_ids' => $opdIds,
+                    'pengampu_label' => $isPenunjang
+                        ? 'Semua Perangkat Daerah'
+                        : ($opdLabels === [] ? 'PD pengampu bidang belum diatur' : implode('; ', $opdLabels)),
+                    'bidang_labels' => $bidangLabels,
                 ];
             })
             ->values()
@@ -697,6 +744,7 @@ class RpjmdController extends Controller
             'kode' => $program->kode,
             'nama' => $program->nama,
             'status' => $program->status,
+            'is_penanggung_jawab_manual' => (bool) $program->is_penanggung_jawab_manual,
             'urutan' => $program->urutan,
             'strategi' => $program->strategi ? [
                 'id' => $program->strategi->id,

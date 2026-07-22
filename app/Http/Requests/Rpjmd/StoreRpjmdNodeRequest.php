@@ -60,6 +60,7 @@ class StoreRpjmdNodeRequest extends FormRequest
             'target_text' => ['nullable', 'string', 'max:255'],
             'peran' => ['nullable', 'string', 'max:50'],
             'is_utama' => ['nullable', 'boolean'],
+            'is_penanggung_jawab_manual' => ['nullable', 'boolean'],
             'urutan' => ['nullable', 'integer', 'min:1', 'max:999'],
         ];
     }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
 import RpjmdNodeTypePicker from '@/components/RpjmdNodeTypePicker.vue';
+import RpjmdOpdMultiSelect from '@/components/RpjmdOpdMultiSelect.vue';
 import RpjmdPerformanceTreeDiagram from '@/components/RpjmdPerformanceTreeDiagram.vue';
 import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
@@ -17,6 +18,10 @@ type Option = {
     group?: string | null;
     sasaran_id?: number | null;
     program_pemerintahan_ids?: number[];
+    opd_ids?: number[];
+    cakupan_pengampu?: 'opd_tertentu' | 'semua_opd';
+    pengampu_label?: string | null;
+    bidang_labels?: string[];
     tahun?: number;
     jenis_target?: 'tahunan' | 'prakiraan_maju';
 };
@@ -97,6 +102,7 @@ type Program = {
     program_pemerintahan?: { id: number; kode: string; nama: string; bidang_urusan?: { kode: string; nama: string } | null } | null;
     program_pemerintahan_references?: Array<{ id: number; kode: string; nama: string; bidang_urusan?: { kode: string; nama: string } | null }>;
     urusan_pemerintahan?: { kode: string; nama: string } | null;
+    is_penanggung_jawab_manual?: boolean;
     opd_penanggung_jawab: Array<{ pivot_id: number; id: number; nama: string; singkatan?: string | null; peran: string; is_utama: boolean }>;
     indikator: Indikator[];
 };
@@ -188,6 +194,7 @@ type BulkRow = {
     opd_id: number | string;
     opd_ids: Array<number | string>;
     cakupan_pengampu: 'opd_tertentu' | 'semua_opd';
+    is_penanggung_jawab_manual: boolean;
     urusan_pemerintahan_id: number | string;
     strategi_daerah_id: number | string;
     program_pemerintahan_id: number | string;
@@ -235,6 +242,7 @@ type BulkExistingRow = {
     opd_id?: number | null;
     opd_ids?: number[];
     cakupan_pengampu?: 'opd_tertentu' | 'semua_opd' | null;
+    is_penanggung_jawab_manual?: boolean | null;
     peran?: string | null;
     is_utama?: boolean | null;
     periode?: string | number | null;
@@ -275,10 +283,24 @@ const typeOptions: Array<{ value: NodeType; label: string }> = [
     { value: 'program', label: 'Program RPJMD' },
     { value: 'indikator_program', label: 'Indikator Program' },
     { value: 'target_program', label: 'Target Indikator Program' },
-    { value: 'program_opd', label: 'OPD Penanggung Jawab Program' },
 ];
 
-const nodeTypeLabel = (type: NodeType) => typeOptions.find((option) => option.value === type)?.label ?? 'Data Cascading';
+const nodeTypeLabels: Record<NodeType, string> = {
+    visi: 'Visi',
+    misi: 'Misi',
+    tujuan: 'Tujuan Daerah',
+    indikator_tujuan: 'Indikator Tujuan',
+    target_tujuan: 'Target Indikator Tujuan',
+    sasaran: 'Sasaran Daerah',
+    indikator_sasaran: 'Indikator Sasaran',
+    target_sasaran: 'Target Indikator Sasaran',
+    program: 'Program RPJMD',
+    indikator_program: 'Indikator Program',
+    target_program: 'Target Indikator Program',
+    program_opd: 'OPD Penanggung Jawab Program',
+};
+
+const nodeTypeLabel = (type: NodeType) => nodeTypeLabels[type] ?? 'Data Cascading';
 
 const typeMeta: Record<NodeType, { description: string; placeholder: string; helper: string }> = {
     visi: {
@@ -378,6 +400,7 @@ const form = useForm({
     opd_id: '' as number | string,
     opd_ids: [] as Array<number | string>,
     cakupan_pengampu: 'opd_tertentu' as 'opd_tertentu' | 'semua_opd',
+    is_penanggung_jawab_manual: false,
     urusan_pemerintahan_id: '' as number | string,
     strategi_daerah_id: '' as number | string,
     program_pemerintahan_id: '' as number | string,
@@ -408,6 +431,7 @@ const emptyBulkRow = (index = 0): BulkRow => ({
     opd_id: '',
     opd_ids: [],
     cakupan_pengampu: 'opd_tertentu',
+    is_penanggung_jawab_manual: false,
     urusan_pemerintahan_id: '',
     strategi_daerah_id: '',
     program_pemerintahan_id: '',
@@ -434,6 +458,7 @@ const bulkForm = useForm({
     satuan_indikator_id: '' as number | string,
     opd_ids: [] as Array<number | string>,
     cakupan_pengampu: 'opd_tertentu' as 'opd_tertentu' | 'semua_opd',
+    is_penanggung_jawab_manual: false,
     urusan_pemerintahan_id: '' as number | string,
     strategi_daerah_id: '' as number | string,
     program_pemerintahan_id: '' as number | string,
@@ -542,6 +567,10 @@ const cleanBidangName = (value?: string | null) =>
         .replace(/^urusan pemerintahan bidang\s+/i, '')
         .trim();
 const programPengampuBidangLabel = (program?: Program | null) => {
+    if (program?.opd_penanggung_jawab?.length) {
+        return program.opd_penanggung_jawab.map((opd) => opd.singkatan || opd.nama).join('; ');
+    }
+
     const references = programReferenceItems(program);
 
     if (references.some((reference) => isProgramPenunjang(reference.nama))) {
@@ -565,6 +594,97 @@ const programPengampuBidangLabel = (program?: Program | null) => {
 const selectedFormProgramNode = computed(() => programById.value.get(Number(form.parent_id)));
 const selectedBulkProgramNode = computed(() => programById.value.get(Number(bulkForm.parent_id)));
 const formProgramPengampuLabel = computed(() => programPengampuBidangLabel(selectedFormProgramNode.value));
+const programPemerintahanOptionById = computed(() => new Map(props.programPemerintahanOptions.map((option) => [Number(option.id), option])));
+const opdOptionById = computed(() => new Map(props.opdOptions.map((option) => [Number(option.id), option])));
+const allOpdOptionIds = computed(() => props.opdOptions.map((option) => option.id));
+const normalizedSelectValue = (value: unknown): number | string | '' => (typeof value === 'number' || typeof value === 'string' ? value : '');
+const programMasterOption = (id: number | string | null | undefined) => programPemerintahanOptionById.value.get(Number(id)) ?? null;
+const programMasterPengampuLabel = (id: number | string | null | undefined) =>
+    programMasterOption(id)?.pengampu_label ?? 'PD penanggung jawab belum terdeteksi';
+const opdSummaryLabel = (ids: Array<number | string> | undefined) => {
+    const labels = (ids ?? []).map((id) => opdOptionById.value.get(Number(id))?.label).filter(Boolean) as string[];
+
+    if (labels.length === 0) {
+        return 'Belum ada OPD dipilih';
+    }
+
+    if (labels.length <= 2) {
+        return labels.join(', ');
+    }
+
+    return `${labels.slice(0, 2).join(', ')} +${labels.length - 2} OPD`;
+};
+const recommendedProgramOpdIds = (id: number | string | null | undefined) => {
+    const option = programMasterOption(id);
+
+    if (!option) {
+        return [];
+    }
+
+    if (option.cakupan_pengampu === 'semua_opd') {
+        return [...allOpdOptionIds.value];
+    }
+
+    return [...(option.opd_ids ?? [])];
+};
+const applyRecommendedProgramOpd = (row: BulkRow, programId: unknown = row.program_pemerintahan_id) => {
+    const selectedProgramId = normalizedSelectValue(programId);
+
+    row.program_pemerintahan_id = selectedProgramId;
+    row.cakupan_pengampu = programMasterOption(selectedProgramId)?.cakupan_pengampu ?? 'opd_tertentu';
+
+    if (!row.is_penanggung_jawab_manual) {
+        row.opd_ids = recommendedProgramOpdIds(selectedProgramId);
+    }
+};
+const applyRecommendedProgramOpdToForm = (programId: unknown = form.program_pemerintahan_id) => {
+    const selectedProgramId = normalizedSelectValue(programId);
+
+    form.program_pemerintahan_id = selectedProgramId;
+    form.cakupan_pengampu = programMasterOption(selectedProgramId)?.cakupan_pengampu ?? 'opd_tertentu';
+
+    if (!form.is_penanggung_jawab_manual) {
+        form.opd_ids = recommendedProgramOpdIds(selectedProgramId);
+    }
+};
+const handleBulkProgramMasterChange = (row: BulkRow, programId: unknown, afterChange: () => void) => {
+    applyRecommendedProgramOpd(row, programId);
+    afterChange();
+};
+const enableManualProgramForm = () => {
+    form.is_penanggung_jawab_manual = true;
+
+    if (form.opd_ids.length === 0) {
+        form.opd_ids = recommendedProgramOpdIds(form.program_pemerintahan_id);
+    }
+};
+const useAutomaticProgramForm = () => {
+    form.is_penanggung_jawab_manual = false;
+    form.opd_ids = recommendedProgramOpdIds(form.program_pemerintahan_id);
+    form.cakupan_pengampu = programMasterOption(form.program_pemerintahan_id)?.cakupan_pengampu ?? 'opd_tertentu';
+};
+const enableManualProgramRow = (row: BulkRow, afterChange: () => void) => {
+    row.is_penanggung_jawab_manual = true;
+
+    if (row.opd_ids.length === 0) {
+        row.opd_ids = recommendedProgramOpdIds(row.program_pemerintahan_id);
+    }
+
+    afterChange();
+};
+const useAutomaticProgramRow = (row: BulkRow, afterChange: () => void) => {
+    row.is_penanggung_jawab_manual = false;
+    row.opd_ids = recommendedProgramOpdIds(row.program_pemerintahan_id);
+    row.cakupan_pengampu = programMasterOption(row.program_pemerintahan_id)?.cakupan_pengampu ?? 'opd_tertentu';
+    afterChange();
+};
+const programPenanggungJawabModeLabel = (isManual: boolean) => (isManual ? 'Manual' : 'Otomatis');
+const programPenanggungJawabDisplayLabel = (row: BulkRow, fallback?: string | null) =>
+    row.is_penanggung_jawab_manual
+        ? row.opd_ids.length > 0
+            ? opdSummaryLabel(row.opd_ids)
+            : fallback || 'Belum ada OPD dipilih'
+        : programMasterPengampuLabel(row.program_pemerintahan_id) || fallback || '-';
 const bulkProgramPengampuLabel = computed(() => {
     if (selectedBulkProgramNode.value) {
         return programPengampuBidangLabel(selectedBulkProgramNode.value);
@@ -645,7 +765,7 @@ const bulkColumnCount = computed(() => {
     }
 
     if (bulkIsProgramType.value) {
-        count += 1;
+        count += 2;
     }
 
     if (bulkIsTargetType.value) {
@@ -1044,6 +1164,9 @@ const bulkExistingRows = computed<BulkExistingRow[]>(() => {
                             program_pemerintahan: program.program_pemerintahan
                                 ? nodeText(program.program_pemerintahan.kode, program.program_pemerintahan.nama)
                                 : null,
+                            opd: joinItems(program.opd_penanggung_jawab.map((opd) => opd.singkatan || opd.nama)),
+                            opd_ids: program.opd_penanggung_jawab.map((opd) => opd.id),
+                            is_penanggung_jawab_manual: Boolean(program.is_penanggung_jawab_manual),
                             urusan_pemerintahan_id: program.urusan_pemerintahan_id ?? null,
                             urusan: program.urusan_pemerintahan ? nodeText(program.urusan_pemerintahan.kode, program.urusan_pemerintahan.nama) : null,
                             urutan: program.urutan ?? null,
@@ -1395,6 +1518,7 @@ const clearNodeForm = () => {
     form.opd_id = '';
     form.opd_ids = [];
     form.cakupan_pengampu = 'opd_tertentu';
+    form.is_penanggung_jawab_manual = false;
     form.urusan_pemerintahan_id = '';
     form.strategi_daerah_id = '';
     form.program_pemerintahan_id = '';
@@ -1590,6 +1714,7 @@ const bulkExistingToFormRow = (row: BulkExistingRow): BulkRow => ({
     opd_id: valueText(row.opd_id),
     opd_ids: [...(row.opd_ids ?? [])],
     cakupan_pengampu: row.cakupan_pengampu === 'semua_opd' ? 'semua_opd' : 'opd_tertentu',
+    is_penanggung_jawab_manual: Boolean(row.is_penanggung_jawab_manual),
     urusan_pemerintahan_id: valueText(row.urusan_pemerintahan_id),
     strategi_daerah_id: valueText(row.strategi_daerah_id),
     program_pemerintahan_id: valueText(row.program_pemerintahan_id),
@@ -1617,6 +1742,7 @@ const savedBulkSnapshot = (row: BulkRow) =>
         opd_id: valueText(row.opd_id),
         opd_ids: [...row.opd_ids],
         cakupan_pengampu: row.cakupan_pengampu,
+        is_penanggung_jawab_manual: Boolean(row.is_penanggung_jawab_manual),
         urusan_pemerintahan_id: valueText(row.urusan_pemerintahan_id),
         strategi_daerah_id: valueText(row.strategi_daerah_id),
         program_pemerintahan_id: valueText(row.program_pemerintahan_id),
@@ -1739,6 +1865,8 @@ const editNode = (type: NodeType, id: number, parentId: number | null, node: any
         form.strategi_daerah_id = valueText(node.strategi_daerah_id);
         form.urusan_pemerintahan_id = valueText(node.urusan_pemerintahan_id);
         form.program_pemerintahan_id = valueText(node.program_pemerintahan_id);
+        form.opd_ids = [...(node.opd_penanggung_jawab?.map((opd: { id: number }) => opd.id) ?? node.opd_ids ?? [])];
+        form.is_penanggung_jawab_manual = Boolean(node.is_penanggung_jawab_manual);
     } else if (isIndicatorType.value) {
         form.indikator = valueText(node.indikator);
         form.satuan_indikator_id = valueText(node.satuan_indikator_id);
@@ -1789,6 +1917,8 @@ watch(
         if (form.type === 'program') {
             form.strategi_daerah_id = '';
             form.program_pemerintahan_id = '';
+            form.is_penanggung_jawab_manual = false;
+            form.opd_ids = [];
         }
     },
 );
@@ -1814,6 +1944,8 @@ watch(
             bulkForm.rows.forEach((row) => {
                 row.strategi_daerah_id = '';
                 row.program_pemerintahan_id = '';
+                row.is_penanggung_jawab_manual = false;
+                row.opd_ids = [];
             });
         }
     },
@@ -1833,6 +1965,7 @@ watch(
         bulkForm.satuan_indikator_id = '';
         bulkForm.opd_ids = [];
         bulkForm.cakupan_pengampu = 'opd_tertentu';
+        bulkForm.is_penanggung_jawab_manual = false;
         bulkForm.urusan_pemerintahan_id = '';
         bulkForm.strategi_daerah_id = '';
         bulkForm.program_pemerintahan_id = '';
@@ -1899,6 +2032,7 @@ const normalizedBulkRowsForStore = (rows: BulkRow[]) =>
         return {
             ...row,
             cakupan_pengampu: isAutomaticProgramPengampu ? 'opd_tertentu' : cakupanPengampu,
+            is_penanggung_jawab_manual: bulkForm.type === 'program' ? Boolean(row.is_penanggung_jawab_manual) : false,
             opd_id: isAutomaticProgramPengampu ? '' : row.opd_id,
             opd_ids: isAutomaticProgramPengampu ? [] : row.opd_ids,
             target_text: '',
@@ -1936,6 +2070,7 @@ const savedBulkPayload = (row: BulkExistingRow) => {
         opd_id: isAutomaticProgramPengampu ? '' : editable.opd_id,
         opd_ids: isAutomaticProgramPengampu ? [] : editable.opd_ids,
         cakupan_pengampu: isAutomaticProgramPengampu ? 'opd_tertentu' : cakupanPengampu,
+        is_penanggung_jawab_manual: row.type === 'program' ? Boolean(editable.is_penanggung_jawab_manual) : false,
         urusan_pemerintahan_id: editable.urusan_pemerintahan_id,
         strategi_daerah_id: editable.strategi_daerah_id,
         program_pemerintahan_id: editable.program_pemerintahan_id,
@@ -2182,6 +2317,7 @@ watch(
         bulkForm.is_utama,
         bulkForm.opd_ids.join(','),
         bulkForm.cakupan_pengampu,
+        bulkForm.is_penanggung_jawab_manual,
         bulkForm.misi_ids.join(','),
         bulkForm.indikator_tujuan_ids.join(','),
     ],
@@ -3057,14 +3193,6 @@ const triwulanLabel = (triwulan: string) =>
                                                                     >
                                                                         {{ opd.singkatan || opd.nama }} -
                                                                         {{ opd.is_utama ? 'Utama' : opd.peran }}
-                                                                        <button
-                                                                            v-if="can.manage"
-                                                                            type="button"
-                                                                            class="font-semibold text-blue-900 hover:text-slate-900"
-                                                                            @click="editNode('program_opd', opd.pivot_id, program.id, opd)"
-                                                                        >
-                                                                            Edit
-                                                                        </button>
                                                                     </span>
                                                                 </div>
 
@@ -3278,8 +3406,61 @@ const triwulanLabel = (triwulan: string) =>
                                     :options="programPemerintahanOptions"
                                     placeholder="Cari dan pilih program"
                                     empty-text="Master program belum tersedia"
+                                    @update:model-value="(value) => applyRecommendedProgramOpdToForm(value)"
                                 />
                                 <InputError :message="form.errors.program_pemerintahan_id" />
+                            </div>
+
+                            <div v-if="isProgramType" class="grid gap-2">
+                                <div class="flex items-center justify-between gap-3">
+                                    <label class="text-sm font-medium">PD Penanggung Jawab</label>
+                                    <span class="rounded-full border px-2.5 py-1 text-xs font-semibold text-slate-600">
+                                        {{ programPenanggungJawabModeLabel(form.is_penanggung_jawab_manual) }}
+                                    </span>
+                                </div>
+                                <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                                    <template v-if="!form.is_penanggung_jawab_manual">
+                                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">PD Pengampu Bidang</div>
+                                                <div class="mt-1 text-sm font-semibold leading-5 text-slate-900">
+                                                    {{ programMasterPengampuLabel(form.program_pemerintahan_id) }}
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                class="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-[#00336C] disabled:cursor-not-allowed disabled:opacity-50"
+                                                :disabled="!form.program_pemerintahan_id"
+                                                @click="enableManualProgramForm"
+                                            >
+                                                Ubah Manual
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <template v-else>
+                                        <div class="grid gap-3">
+                                            <RpjmdOpdMultiSelect
+                                                v-model="form.opd_ids"
+                                                :options="opdOptions"
+                                                placeholder="Pilih OPD penanggung jawab"
+                                                empty-text="Master OPD belum tersedia"
+                                            />
+                                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                <p class="text-xs font-medium leading-5 text-muted-foreground">
+                                                    Default: {{ programMasterPengampuLabel(form.program_pemerintahan_id) }}
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex h-8 items-center justify-center rounded-lg px-3 text-xs font-semibold text-[#00336C] transition hover:bg-blue-50"
+                                                    @click="useAutomaticProgramForm"
+                                                >
+                                                    Gunakan Otomatis
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                                <InputError :message="form.errors.opd_ids" />
                             </div>
 
                             <div v-if="isIndicatorType" class="grid gap-2">
@@ -3702,6 +3883,7 @@ const triwulanLabel = (triwulan: string) =>
                                                     {{ bulkIsProgramIndicatorType ? 'PD Pengampu Bidang' : 'OPD / PD Penanggung Jawab' }}
                                                 </th>
                                                 <th v-if="bulkIsProgramType" class="min-w-56 px-3 py-2">Strategi</th>
+                                                <th v-if="bulkIsProgramType" class="min-w-80 px-3 py-2">PD Penanggung Jawab</th>
                                                 <th v-if="bulkIsTargetType" class="min-w-40 px-3 py-2">Periode</th>
                                                 <th v-if="bulkIsTargetType" class="min-w-64 px-3 py-2">Target</th>
                                                 <th v-if="bulkIsProgramOpdType" class="min-w-80 px-3 py-2">OPD</th>
@@ -3763,7 +3945,12 @@ const triwulanLabel = (triwulan: string) =>
                                                         :options="programPemerintahanOptions"
                                                         placeholder="Pilih program"
                                                         empty-text="Master program belum tersedia"
-                                                        @update:model-value="markSavedBulkChanged(saved)"
+                                                        @update:model-value="
+                                                            (value) =>
+                                                                handleBulkProgramMasterChange(editableSavedBulkRow(saved), value, () =>
+                                                                    markSavedBulkChanged(saved),
+                                                                )
+                                                        "
                                                     />
                                                 </td>
                                                 <td v-if="bulkIsIndicatorType" class="px-3 py-2 align-top">
@@ -3858,6 +4045,54 @@ const triwulanLabel = (triwulan: string) =>
                                                             {{ option.label }}
                                                         </option>
                                                     </select>
+                                                </td>
+                                                <td v-if="bulkIsProgramType" class="px-3 py-2 align-top">
+                                                    <div class="min-w-80 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+                                                        <div class="mb-2 flex items-center justify-between gap-2">
+                                                            <span class="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                                                {{
+                                                                    programPenanggungJawabModeLabel(
+                                                                        editableSavedBulkRow(saved).is_penanggung_jawab_manual,
+                                                                    )
+                                                                }}
+                                                            </span>
+                                                            <button
+                                                                v-if="!editableSavedBulkRow(saved).is_penanggung_jawab_manual"
+                                                                type="button"
+                                                                class="text-xs font-semibold text-[#00336C] transition hover:text-blue-700"
+                                                                @click="
+                                                                    enableManualProgramRow(editableSavedBulkRow(saved), () =>
+                                                                        markSavedBulkChanged(saved),
+                                                                    )
+                                                                "
+                                                            >
+                                                                Ubah Manual
+                                                            </button>
+                                                            <button
+                                                                v-else
+                                                                type="button"
+                                                                class="text-xs font-semibold text-[#00336C] transition hover:text-blue-700"
+                                                                @click="
+                                                                    useAutomaticProgramRow(editableSavedBulkRow(saved), () =>
+                                                                        markSavedBulkChanged(saved),
+                                                                    )
+                                                                "
+                                                            >
+                                                                Gunakan Otomatis
+                                                            </button>
+                                                        </div>
+                                                        <RpjmdOpdMultiSelect
+                                                            v-if="editableSavedBulkRow(saved).is_penanggung_jawab_manual"
+                                                            v-model="editableSavedBulkRow(saved).opd_ids"
+                                                            :options="opdOptions"
+                                                            placeholder="Pilih OPD"
+                                                            empty-text="Master OPD belum tersedia"
+                                                            @update:model-value="markSavedBulkChanged(saved)"
+                                                        />
+                                                        <p v-else class="text-sm font-semibold leading-5 text-slate-800">
+                                                            {{ programPenanggungJawabDisplayLabel(editableSavedBulkRow(saved), saved.opd) }}
+                                                        </p>
+                                                    </div>
                                                 </td>
                                                 <td v-if="bulkIsTargetType" class="px-3 py-2 align-top">
                                                     <div
@@ -3986,7 +4221,9 @@ const triwulanLabel = (triwulan: string) =>
                                                         :options="programPemerintahanOptions"
                                                         placeholder="Pilih program"
                                                         empty-text="Master program belum tersedia"
-                                                        @update:model-value="markNewBulkChanged(row)"
+                                                        @update:model-value="
+                                                            (value) => handleBulkProgramMasterChange(row, value, () => markNewBulkChanged(row))
+                                                        "
                                                     />
                                                 </td>
                                                 <td v-if="bulkIsIndicatorType" class="px-3 py-2">
@@ -4081,6 +4318,42 @@ const triwulanLabel = (triwulan: string) =>
                                                             {{ option.label }}
                                                         </option>
                                                     </select>
+                                                </td>
+                                                <td v-if="bulkIsProgramType" class="px-3 py-2">
+                                                    <div class="min-w-80 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+                                                        <div class="mb-2 flex items-center justify-between gap-2">
+                                                            <span class="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                                                {{ programPenanggungJawabModeLabel(row.is_penanggung_jawab_manual) }}
+                                                            </span>
+                                                            <button
+                                                                v-if="!row.is_penanggung_jawab_manual"
+                                                                type="button"
+                                                                class="text-xs font-semibold text-[#00336C] transition hover:text-blue-700"
+                                                                @click="enableManualProgramRow(row, () => markNewBulkChanged(row))"
+                                                            >
+                                                                Ubah Manual
+                                                            </button>
+                                                            <button
+                                                                v-else
+                                                                type="button"
+                                                                class="text-xs font-semibold text-[#00336C] transition hover:text-blue-700"
+                                                                @click="useAutomaticProgramRow(row, () => markNewBulkChanged(row))"
+                                                            >
+                                                                Gunakan Otomatis
+                                                            </button>
+                                                        </div>
+                                                        <RpjmdOpdMultiSelect
+                                                            v-if="row.is_penanggung_jawab_manual"
+                                                            v-model="row.opd_ids"
+                                                            :options="opdOptions"
+                                                            placeholder="Pilih OPD"
+                                                            empty-text="Master OPD belum tersedia"
+                                                            @update:model-value="markNewBulkChanged(row)"
+                                                        />
+                                                        <p v-else class="text-sm font-semibold leading-5 text-slate-800">
+                                                            {{ programPenanggungJawabDisplayLabel(row) }}
+                                                        </p>
+                                                    </div>
                                                 </td>
                                                 <td v-if="bulkIsTargetType" class="px-3 py-2">
                                                     <div

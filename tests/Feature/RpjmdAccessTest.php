@@ -593,6 +593,51 @@ class RpjmdAccessTest extends TestCase
         $this->assertCount(2, $program->fresh()->opdPenanggungJawab);
     }
 
+    public function test_program_rpjmd_can_save_opd_penanggung_jawab_from_program_form(): void
+    {
+        $this->seed();
+
+        $opdA = Opd::create(['kode' => '2.81', 'nama' => 'Dinas Program A', 'status' => 'active']);
+        $opdB = Opd::create(['kode' => '2.82', 'nama' => 'Dinas Program B', 'status' => 'active']);
+        $rpjmd = $this->createRpjmdWithProgramForOpd($opdA, 'RPJMD Program Dengan OPD');
+        $sasaran = SasaranDaerah::whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->firstOrFail();
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.store', $rpjmd), [
+                'type' => 'program',
+                'parent_id' => $sasaran->id,
+                'uraian' => 'Program langsung memilih PD penanggung jawab',
+                'is_penanggung_jawab_manual' => true,
+                'opd_ids' => [$opdA->id, $opdB->id],
+                'urutan' => 8,
+            ])
+            ->assertRedirect();
+
+        $program = ProgramRpjmd::where('nama', 'Program langsung memilih PD penanggung jawab')->firstOrFail();
+
+        $this->assertDatabaseHas('program_rpjmd', [
+            'id' => $program->id,
+            'is_penanggung_jawab_manual' => true,
+        ]);
+
+        $this->assertDatabaseHas('program_rpjmd_opd_penanggung_jawab', [
+            'program_rpjmd_id' => $program->id,
+            'opd_id' => $opdA->id,
+            'peran' => 'penanggung_jawab',
+            'is_utama' => true,
+        ]);
+
+        $this->assertDatabaseHas('program_rpjmd_opd_penanggung_jawab', [
+            'program_rpjmd_id' => $program->id,
+            'opd_id' => $opdB->id,
+            'peran' => 'penanggung_jawab',
+            'is_utama' => true,
+        ]);
+    }
+
     public function test_indikator_program_pengampu_is_resolved_from_program_bidang_urusan(): void
     {
         $this->seed();
@@ -627,6 +672,13 @@ class RpjmdAccessTest extends TestCase
             ->assertRedirect();
 
         $program = ProgramRpjmd::where('nama', 'PROGRAM PENGEMBANGAN SUMBER DAYA MANUSIA')->firstOrFail();
+
+        $this->assertFalse($program->is_penanggung_jawab_manual);
+        $this->assertDatabaseHas('program_rpjmd_opd_penanggung_jawab', [
+            'program_rpjmd_id' => $program->id,
+            'opd_id' => $opdPengampu->id,
+            'peran' => 'penanggung_jawab',
+        ]);
 
         $this->actingAs($user)
             ->post(route('rpjmd.nodes.store', $rpjmd), [
@@ -1261,6 +1313,7 @@ class RpjmdAccessTest extends TestCase
             'indikator_sasaran_daerah_id' => null,
             'nama' => "Program {$judul}",
             'status' => 'approved',
+            'is_penanggung_jawab_manual' => true,
             'urutan' => 1,
         ]);
 

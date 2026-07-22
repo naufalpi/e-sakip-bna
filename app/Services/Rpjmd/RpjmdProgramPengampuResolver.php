@@ -70,6 +70,34 @@ class RpjmdProgramPengampuResolver
         $program->indikator->each(fn (IndikatorProgramRpjmd $indikator) => $this->syncForIndikator($indikator));
     }
 
+    /**
+     * @return array<int, int>
+     */
+    public function resolveOpdPenanggungJawabIds(ProgramRpjmd $program): array
+    {
+        $resolved = $this->resolveForProgram($program);
+
+        if ($resolved['cakupan_pengampu'] === 'semua_opd') {
+            return Opd::query()
+                ->where('status', 'active')
+                ->orderBy('nama')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        return $resolved['opd_ids'];
+    }
+
+    /**
+     * @param  array<int, int>  $opdIds
+     */
+    public function syncProgramPenanggungJawab(ProgramRpjmd $program, array $opdIds): void
+    {
+        $program->opdPenanggungJawab()->sync($this->programPenanggungJawabPayload($opdIds));
+    }
+
     public function labelForIndikator(IndikatorProgramRpjmd $indikator): string
     {
         if (($indikator->cakupan_pengampu ?: 'opd_tertentu') === 'semua_opd') {
@@ -126,6 +154,23 @@ class RpjmdProgramPengampuResolver
             ->mapWithKeys(fn (int $opdId) => [
                 $opdId => [
                     'peran' => 'pengampu_data',
+                    'is_utama' => true,
+                ],
+            ])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $opdIds
+     * @return array<int, array{peran: string, is_utama: bool}>
+     */
+    private function programPenanggungJawabPayload(array $opdIds): array
+    {
+        return collect($opdIds)
+            ->unique()
+            ->mapWithKeys(fn (int $opdId) => [
+                $opdId => [
+                    'peran' => 'penanggung_jawab',
                     'is_utama' => true,
                 ],
             ])

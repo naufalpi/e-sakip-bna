@@ -171,11 +171,14 @@ class RpjmdNodeController extends Controller
                     'kode' => $programPemerintahan?->kode ?? ($data['kode'] ?? null),
                     'nama' => $programPemerintahan?->nama ?? $this->requiredText($data, 'uraian', 'Nama program wajib diisi.'),
                     'status' => 'draft',
+                    'is_penanggung_jawab_manual' => $this->penanggungJawabManual($data),
                     'urutan' => $data['urutan'] ?? 1,
                 ]);
 
                 $this->syncProgramPemerintahanReferences($program, $programPemerintahan, $data);
-                $this->pengampuResolver->syncForProgramIndicators($program->refresh());
+                $program = $program->refresh();
+                $this->syncProgramOpdPenanggungJawab($program, $data);
+                $this->pengampuResolver->syncForProgramIndicators($program);
             }),
             'indikator_program' => tap(IndikatorProgramRpjmd::create([
                 'program_rpjmd_id' => $this->program($rpjmd, $data['parent_id'] ?? null)->id,
@@ -189,13 +192,17 @@ class RpjmdNodeController extends Controller
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
             ]),
-            'program_opd' => ProgramRpjmdOpdPenanggungJawab::updateOrCreate([
-                'program_rpjmd_id' => $this->program($rpjmd, $data['parent_id'] ?? null)->id,
-                'opd_id' => $this->requiredInt($data, 'opd_id', 'OPD penanggung jawab wajib dipilih.'),
-                'peran' => $data['peran'] ?? 'penanggung_jawab',
-            ], [
-                'is_utama' => (bool) ($data['is_utama'] ?? true),
-            ]),
+            'program_opd' => tap($this->program($rpjmd, $data['parent_id'] ?? null), function (ProgramRpjmd $program) use ($data) {
+                $program->update(['is_penanggung_jawab_manual' => true]);
+
+                ProgramRpjmdOpdPenanggungJawab::updateOrCreate([
+                    'program_rpjmd_id' => $program->id,
+                    'opd_id' => $this->requiredInt($data, 'opd_id', 'OPD penanggung jawab wajib dipilih.'),
+                    'peran' => $data['peran'] ?? 'penanggung_jawab',
+                ], [
+                    'is_utama' => (bool) ($data['is_utama'] ?? true),
+                ]);
+            }),
         };
     }
 
@@ -220,6 +227,7 @@ class RpjmdNodeController extends Controller
             'program_pemerintahan_ids',
             'peran',
             'is_utama',
+            'is_penanggung_jawab_manual',
         ];
 
         foreach ($inheritKeys as $key) {
@@ -346,11 +354,14 @@ class RpjmdNodeController extends Controller
                     'urusan_pemerintahan_id' => $programPemerintahan?->bidangUrusan?->urusan_pemerintahan_id ?? ($data['urusan_pemerintahan_id'] ?? null),
                     'kode' => $programPemerintahan?->kode ?? ($data['kode'] ?? null),
                     'nama' => $programPemerintahan?->nama ?? $this->requiredText($data, 'uraian', 'Nama program wajib diisi.'),
+                    'is_penanggung_jawab_manual' => $this->penanggungJawabManual($data, (bool) $program->is_penanggung_jawab_manual),
                     'urutan' => $data['urutan'] ?? 1,
                 ]);
 
                 $this->syncProgramPemerintahanReferences($program, $programPemerintahan, $data);
-                $this->pengampuResolver->syncForProgramIndicators($program->refresh());
+                $program = $program->refresh();
+                $this->syncProgramOpdPenanggungJawab($program, $data);
+                $this->pengampuResolver->syncForProgramIndicators($program);
             }),
             'indikator_program' => tap($this->indikatorProgram($rpjmd, $id), function (IndikatorProgramRpjmd $indikator) use ($rpjmd, $data) {
                 $indikator->update([
@@ -372,8 +383,14 @@ class RpjmdNodeController extends Controller
                 ]);
             }),
             'program_opd' => tap($this->findNode($rpjmd, $type, $id), function (ProgramRpjmdOpdPenanggungJawab $pivot) use ($rpjmd, $data) {
+                $program = filled($data['parent_id'] ?? null)
+                    ? $this->program($rpjmd, $data['parent_id'])
+                    : $pivot->program;
+
+                $program->update(['is_penanggung_jawab_manual' => true]);
+
                 $pivot->update([
-                    'program_rpjmd_id' => filled($data['parent_id'] ?? null) ? $this->program($rpjmd, $data['parent_id'])->id : $pivot->program_rpjmd_id,
+                    'program_rpjmd_id' => $program->id,
                     'opd_id' => filled($data['opd_id'] ?? null) ? (int) $data['opd_id'] : $pivot->opd_id,
                     'peran' => $data['peran'] ?? $pivot->peran,
                     'is_utama' => array_key_exists('is_utama', $data) ? (bool) $data['is_utama'] : (bool) $pivot->is_utama,
@@ -608,6 +625,30 @@ class RpjmdNodeController extends Controller
         $ids = $this->programPemerintahanReferenceIds($programPemerintahan, $data['program_pemerintahan_ids'] ?? null);
 
         $program->programPemerintahanReferences()->sync($ids);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function syncProgramOpdPenanggungJawab(ProgramRpjmd $program, array $data): void
+    {
+        $opdIds = $program->is_penanggung_jawab_manual
+            ? $this->normalizeIds($data['opd_ids'] ?? [])
+            : $this->pengampuResolver->resolveOpdPenanggungJawabIds($program);
+
+        $this->pengampuResolver->syncProgramPenanggungJawab($program, $opdIds);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function penanggungJawabManual(array $data, bool $fallback = false): bool
+    {
+        if (! array_key_exists('is_penanggung_jawab_manual', $data)) {
+            return $fallback;
+        }
+
+        return filter_var($data['is_penanggung_jawab_manual'], FILTER_VALIDATE_BOOLEAN);
     }
 
     /**

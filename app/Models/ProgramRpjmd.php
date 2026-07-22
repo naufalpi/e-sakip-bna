@@ -26,8 +26,16 @@ class ProgramRpjmd extends Model
         'kode',
         'nama',
         'status',
+        'is_penanggung_jawab_manual',
         'urutan',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_penanggung_jawab_manual' => 'boolean',
+        ];
+    }
 
     public function strategi(): BelongsTo
     {

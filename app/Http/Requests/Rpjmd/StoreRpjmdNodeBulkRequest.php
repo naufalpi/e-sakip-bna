@@ -51,6 +51,7 @@ class StoreRpjmdNodeBulkRequest extends FormRequest
             'program_pemerintahan_ids.*' => ['integer', 'exists:program_pemerintahan,id'],
             'peran' => ['nullable', 'string', 'max:50'],
             'is_utama' => ['nullable', 'boolean'],
+            'is_penanggung_jawab_manual' => ['nullable', 'boolean'],
             'rows' => ['required', 'array', 'min:1', 'max:100'],
             'rows.*.parent_id' => ['nullable', 'integer'],
             'rows.*.misi_ids' => ['nullable', 'array'],
@@ -81,6 +82,7 @@ class StoreRpjmdNodeBulkRequest extends FormRequest
             'rows.*.target_text' => ['nullable', 'string', 'max:255'],
             'rows.*.peran' => ['nullable', 'string', 'max:50'],
             'rows.*.is_utama' => ['nullable', 'boolean'],
+            'rows.*.is_penanggung_jawab_manual' => ['nullable', 'boolean'],
             'rows.*.urutan' => ['nullable', 'integer', 'min:1', 'max:999'],
         ];
     }
