@@ -371,17 +371,23 @@ class RenstraOpdController extends Controller
             'sasaran_daerah' => SasaranDaerah::query()->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd($renstra->rpjmd_id))->orderBy('urutan')->get(['id', 'kode', 'sasaran'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all(),
             'indikator_sasaran_daerah' => IndikatorSasaranDaerah::query()->whereHas('sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($renstra->rpjmd_id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
             'program_rpjmd' => $programRpjmdQuery()
-                ->with('programPemerintahan:id,kode,nama,bidang_urusan_id')
-                ->with('programPemerintahanReferences:id,kode,nama,bidang_urusan_id')
+                ->with('programPemerintahan.bidangUrusan.opdPengampu:id')
+                ->with('programPemerintahanReferences.bidangUrusan.opdPengampu:id')
                 ->orderBy('urutan')
                 ->get(['id', 'program_pemerintahan_id', 'kode', 'nama'])
-                ->map(fn (ProgramRpjmd $item) => [
-                    'id' => $item->id,
-                    'program_pemerintahan_id' => $item->program_pemerintahan_id,
-                    'program_pemerintahan_ids' => $item->programPemerintahanReferenceIds(),
-                    'label' => $this->nodeLabel($item->kode, $item->nama),
-                    'description' => $item->programPemerintahan ? $this->nodeLabel($item->programPemerintahan->kode, $item->programPemerintahan->nama) : null,
-                ])
+                ->map(function (ProgramRpjmd $item) use ($renstra, $user) {
+                    $preferredReference = $item->preferredProgramPemerintahanReferenceForOpd(
+                        $this->shouldRestrictRpjmdProgramReferences($renstra, $user) ? (int) $renstra->opd_id : null,
+                    );
+
+                    return [
+                        'id' => $item->id,
+                        'program_pemerintahan_id' => $preferredReference?->id ?? $item->program_pemerintahan_id,
+                        'program_pemerintahan_ids' => $item->programPemerintahanReferenceIds(),
+                        'label' => $this->nodeLabel($preferredReference?->kode ?? $item->kode, $preferredReference?->nama ?? $item->nama),
+                        'description' => $preferredReference ? $this->nodeLabel($preferredReference->kode, $preferredReference->nama) : null,
+                    ];
+                })
                 ->values()
                 ->all(),
             'indikator_program_rpjmd' => IndikatorProgramRpjmd::query()

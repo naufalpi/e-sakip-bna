@@ -286,6 +286,111 @@ class RenstraOpdTest extends TestCase
         ]);
     }
 
+    public function test_admin_opd_renstra_uses_opd_specific_master_code_for_penunjang_program(): void
+    {
+        $this->seed();
+
+        $kominfo = Opd::create([
+            'kode' => '2.16.2.20.2.21.99.0000',
+            'nama' => 'Dinas Kominfo Khusus Penunjang',
+            'singkatan' => 'Diskominfo',
+            'status' => 'active',
+        ]);
+        $bidangPendidikan = BidangUrusan::where('kode', '1.01')->firstOrFail();
+        $bidangKominfo = BidangUrusan::where('kode', '2.16')->firstOrFail();
+        $bidangKominfo->opdPengampu()->syncWithoutDetaching([
+            $kominfo->id => ['peran' => 'pengampu_urusan', 'is_utama' => true],
+        ]);
+
+        $tree = $this->createRpjmdTree();
+        $namaProgram = 'PROGRAM PENUNJANG URUSAN PEMERINTAHAN DAERAH KABUPATEN/KOTA';
+        $programPendidikan = ProgramPemerintahan::updateOrCreate([
+            'bidang_urusan_id' => $bidangPendidikan->id,
+            'tahun_awal' => $tree['rpjmd']->tahun_awal,
+            'tahun_akhir' => $tree['rpjmd']->tahun_akhir,
+            'kode' => '1.01.01',
+        ], [
+            'nama' => $namaProgram,
+            'status' => 'active',
+        ]);
+        $programKominfo = ProgramPemerintahan::updateOrCreate([
+            'bidang_urusan_id' => $bidangKominfo->id,
+            'tahun_awal' => $tree['rpjmd']->tahun_awal,
+            'tahun_akhir' => $tree['rpjmd']->tahun_akhir,
+            'kode' => '2.16.01',
+        ], [
+            'nama' => $namaProgram,
+            'status' => 'active',
+        ]);
+        $programRpjmd = ProgramRpjmd::create([
+            'sasaran_daerah_id' => $tree['sasaran_daerah']->id,
+            'program_pemerintahan_id' => $programPendidikan->id,
+            'kode' => $programPendidikan->kode,
+            'nama' => $programPendidikan->nama,
+            'status' => 'approved',
+            'is_penanggung_jawab_manual' => false,
+            'urutan' => 2,
+        ]);
+        $programRpjmd->programPemerintahanReferences()->sync([
+            $programPendidikan->id,
+            $programKominfo->id,
+        ]);
+
+        $this->assertSame(0, $programRpjmd->opdPenanggungJawab()->count());
+
+        $renstra = RenstraOpd::create([
+            'opd_id' => $kominfo->id,
+            'rpjmd_id' => $tree['rpjmd']->id,
+            'judul' => 'Renstra Kominfo Penunjang',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'draft',
+        ]);
+        $tujuan = TujuanOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'tujuan' => 'Tujuan OPD',
+            'urutan' => 1,
+        ]);
+        $sasaran = SasaranOpd::create([
+            'tujuan_opd_id' => $tujuan->id,
+            'sasaran' => 'Sasaran OPD',
+            'urutan' => 1,
+        ]);
+        $user = User::factory()->create(['opd_id' => $kominfo->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.show', $renstra))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('RenstraOpd/Show')
+                ->where('rpjmdReferenceOptions.program_rpjmd', function ($options) use ($programRpjmd, $programKominfo) {
+                    $option = collect($options)->firstWhere('id', $programRpjmd->id);
+
+                    return $option
+                        && (int) $option['program_pemerintahan_id'] === $programKominfo->id
+                        && str_starts_with($option['label'], '2.16.01 - ');
+                })
+            );
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'program',
+                'parent_id' => $sasaran->id,
+                'program_rpjmd_id' => $programRpjmd->id,
+                'urutan' => 1,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('opd_program', [
+            'renstra_opd_id' => $renstra->id,
+            'program_rpjmd_id' => $programRpjmd->id,
+            'program_pemerintahan_id' => $programKominfo->id,
+            'kode' => '2.16.01',
+            'nama' => $namaProgram,
+        ]);
+    }
+
     public function test_cascading_opd_can_link_to_rpjmd_and_save_yearly_targets(): void
     {
         $this->seed();

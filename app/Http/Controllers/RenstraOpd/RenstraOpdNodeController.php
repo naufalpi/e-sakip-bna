@@ -339,8 +339,14 @@ class RenstraOpdNodeController extends Controller
         $programRpjmd?->loadMissing('programPemerintahanReferences');
 
         $programRpjmdProgramIds = $programRpjmd?->programPemerintahanReferenceIds() ?? [];
-        $programPemerintahanId = $data['program_pemerintahan_id']
-            ?? ($programRpjmdProgramIds[0] ?? $programRpjmd?->program_pemerintahan_id);
+        $preferredProgramPemerintahan = $programRpjmd?->preferredProgramPemerintahanReferenceForOpd(
+            filled($renstra->opd_id) ? (int) $renstra->opd_id : null,
+        );
+        $programPemerintahanId = $programRpjmd && $this->shouldRestrictRpjmdProgramReferences($renstra) && $preferredProgramPemerintahan
+            ? $preferredProgramPemerintahan->id
+            : (filled($data['program_pemerintahan_id'] ?? null)
+            ? $data['program_pemerintahan_id']
+            : ($preferredProgramPemerintahan?->id ?? ($programRpjmdProgramIds[0] ?? $programRpjmd?->program_pemerintahan_id)));
         $reference = filled($programPemerintahanId)
             ? ProgramPemerintahan::query()->findOrFail($programPemerintahanId)
             : null;

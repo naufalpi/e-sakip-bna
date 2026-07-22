@@ -163,6 +163,51 @@ class ProgramRpjmd extends Model
             ->contains('id', $opdId);
     }
 
+    public function preferredProgramPemerintahanReferenceForOpd(?int $opdId = null): ?ProgramPemerintahan
+    {
+        $this->loadMissing([
+            'programPemerintahan.bidangUrusan.opdPengampu',
+            'programPemerintahanReferences.bidangUrusan.opdPengampu',
+        ]);
+
+        $references = collect()
+            ->when($this->programPemerintahan, fn ($references) => $references->push($this->programPemerintahan))
+            ->merge($this->programPemerintahanReferences)
+            ->unique('id')
+            ->sortBy('kode')
+            ->values();
+
+        if ($references->isEmpty()) {
+            return null;
+        }
+
+        if (! $opdId) {
+            return $references->first();
+        }
+
+        $opd = Opd::query()->find($opdId, ['id', 'kode']);
+        $opdBidangCodes = $this->bidangCodesFromOpdCode($opd?->kode);
+
+        if ($opdBidangCodes !== []) {
+            $matchedByCode = $references
+                ->map(fn (ProgramPemerintahan $program) => [
+                    'program' => $program,
+                    'position' => array_search($this->bidangCodeFromProgramCode($program->kode), $opdBidangCodes, true),
+                ])
+                ->filter(fn (array $item) => $item['position'] !== false)
+                ->sortBy(fn (array $item) => str_pad((string) $item['position'], 3, '0', STR_PAD_LEFT).'-'.$item['program']->kode)
+                ->first();
+
+            if ($matchedByCode) {
+                return $matchedByCode['program'];
+            }
+        }
+
+        return $references->first(
+            fn (ProgramPemerintahan $program) => $program->bidangUrusan?->opdPengampu->contains('id', $opdId),
+        ) ?? $references->first();
+    }
+
     private function applyProgramPenunjangFilter(Builder $query): Builder
     {
         return $query
@@ -180,5 +225,38 @@ class ProgramRpjmd extends Model
 
         return str_contains($normalized, 'program penunjang urusan pemerintahan daerah')
             && (str_contains($normalized, 'kabupaten/kota') || str_contains($normalized, 'kab/kota'));
+    }
+
+    private function bidangCodeFromProgramCode(?string $code): ?string
+    {
+        $parts = explode('.', (string) $code);
+
+        if (count($parts) < 2) {
+            return null;
+        }
+
+        return $parts[0].'.'.$parts[1];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function bidangCodesFromOpdCode(?string $code): array
+    {
+        $parts = explode('.', (string) $code);
+        $codes = [];
+
+        for ($index = 0; $index + 1 < count($parts); $index += 2) {
+            $first = $parts[$index];
+            $second = $parts[$index + 1];
+
+            if (! preg_match('/^[1-8]$/', $first) || ! preg_match('/^\d{2}$/', $second)) {
+                continue;
+            }
+
+            $codes[] = $first.'.'.$second;
+        }
+
+        return array_values(array_unique($codes));
     }
 }
