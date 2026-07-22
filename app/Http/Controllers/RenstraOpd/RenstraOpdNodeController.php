@@ -5,6 +5,7 @@ namespace App\Http\Controllers\RenstraOpd;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RenstraOpd\StoreRenstraOpdNodeRequest;
 use App\Models\IndikatorOpdProgram;
+use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranOpd;
 use App\Models\IndikatorSubKegiatan;
 use App\Models\IndikatorTujuanOpd;
@@ -22,6 +23,7 @@ use App\Models\TargetIndikatorOpdProgram;
 use App\Models\TargetIndikatorSasaranOpd;
 use App\Models\TargetIndikatorTujuanOpd;
 use App\Models\TujuanOpd;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -162,19 +164,9 @@ class RenstraOpdNodeController extends Controller
                 'renstra_opd_id' => $renstra->id,
                 'sasaran_opd_id' => $this->sasaran($renstra, $data['parent_id'] ?? null)->id,
                 'status' => 'draft',
-                ...$this->programPayload($data),
+                ...$this->programPayload($renstra, $data),
             ]),
-            'indikator_program' => IndikatorOpdProgram::create([
-                'opd_program_id' => $this->program($renstra, $data['parent_id'] ?? null)->id,
-                'indikator_program_rpjmd_id' => $data['indikator_program_rpjmd_id'] ?? null,
-                'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                'kode' => $data['kode'] ?? null,
-                'indikator' => $this->requiredText($data, 'indikator', 'Indikator program OPD wajib diisi.'),
-                'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                'formula' => $data['formula'] ?? null,
-                'sumber_data' => $data['sumber_data'] ?? null,
-                'urutan' => $data['urutan'] ?? 1,
-            ]),
+            'indikator_program' => $this->createIndikatorProgram($renstra, $data),
             'target_program' => TargetIndikatorOpdProgram::updateOrCreate([
                 'indikator_opd_program_id' => $this->indikatorProgram($renstra, $data['parent_id'] ?? null)->id,
                 'periode_tahun_id' => $this->requiredInt($data, 'periode_tahun_id', 'Periode target wajib dipilih.'),
@@ -264,20 +256,15 @@ class RenstraOpdNodeController extends Controller
             'program' => tap($this->program($renstra, $id), function (OpdProgram $program) use ($renstra, $data) {
                 $program->update([
                     'sasaran_opd_id' => filled($data['parent_id'] ?? null) ? $this->sasaran($renstra, $data['parent_id'])->id : $program->sasaran_opd_id,
-                    ...$this->programPayload($data),
+                    ...$this->programPayload($renstra, $data),
                 ]);
             }),
             'indikator_program' => tap($this->indikatorProgram($renstra, $id), function (IndikatorOpdProgram $indikator) use ($renstra, $data) {
+                $program = filled($data['parent_id'] ?? null) ? $this->program($renstra, $data['parent_id']) : $indikator->program;
+
                 $indikator->update([
-                    'opd_program_id' => filled($data['parent_id'] ?? null) ? $this->program($renstra, $data['parent_id'])->id : $indikator->opd_program_id,
-                    'indikator_program_rpjmd_id' => $data['indikator_program_rpjmd_id'] ?? null,
-                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator program OPD wajib diisi.'),
-                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                    'formula' => $data['formula'] ?? null,
-                    'sumber_data' => $data['sumber_data'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
+                    'opd_program_id' => $program->id,
+                    ...$this->indikatorProgramPayload($renstra, $program, $data),
                 ]);
             }),
             'target_program' => tap($this->findNode($renstra, $type, $id), function (TargetIndikatorOpdProgram $target) use ($renstra, $data) {
@@ -344,10 +331,10 @@ class RenstraOpdNodeController extends Controller
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    private function programPayload(array $data): array
+    private function programPayload(RenstraOpd $renstra, array $data): array
     {
         $programRpjmd = filled($data['program_rpjmd_id'] ?? null)
-            ? ProgramRpjmd::query()->findOrFail($data['program_rpjmd_id'])
+            ? $this->programRpjmdReference($renstra, $data['program_rpjmd_id'])
             : null;
         $programRpjmd?->loadMissing('programPemerintahanReferences');
 
@@ -370,6 +357,38 @@ class RenstraOpdNodeController extends Controller
             'kode' => $reference?->kode ?? ($data['kode'] ?? null),
             'nama' => $reference?->nama ?? $this->requiredText($data, 'uraian', 'Nama program OPD wajib diisi.'),
             'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
+            'urutan' => $data['urutan'] ?? 1,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function createIndikatorProgram(RenstraOpd $renstra, array $data): IndikatorOpdProgram
+    {
+        $program = $this->program($renstra, $data['parent_id'] ?? null);
+
+        return $program->indikator()->create($this->indikatorProgramPayload($renstra, $program, $data));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function indikatorProgramPayload(RenstraOpd $renstra, OpdProgram $program, array $data): array
+    {
+        $indikatorProgramRpjmd = filled($data['indikator_program_rpjmd_id'] ?? null)
+            ? $this->indikatorProgramRpjmdReference($renstra, $program, $data['indikator_program_rpjmd_id'])
+            : null;
+
+        return [
+            'indikator_program_rpjmd_id' => $indikatorProgramRpjmd?->id,
+            'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+            'kode' => $data['kode'] ?? null,
+            'indikator' => $this->requiredText($data, 'indikator', 'Indikator program OPD wajib diisi.'),
+            'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
+            'formula' => $data['formula'] ?? null,
+            'sumber_data' => $data['sumber_data'] ?? null,
             'urutan' => $data['urutan'] ?? 1,
         ];
     }
@@ -441,6 +460,55 @@ class RenstraOpdNodeController extends Controller
         ]));
 
         return (int) $id;
+    }
+
+    private function programRpjmdReference(RenstraOpd $renstra, mixed $id): ProgramRpjmd
+    {
+        $program = $this->accessibleProgramRpjmdQuery($renstra)
+            ->whereKey($id)
+            ->first();
+
+        throw_if(! $program, ValidationException::withMessages([
+            'program_rpjmd_id' => 'Program RPJMD tidak tersedia untuk OPD Renstra ini.',
+        ]));
+
+        return $program;
+    }
+
+    private function indikatorProgramRpjmdReference(RenstraOpd $renstra, OpdProgram $program, mixed $id): IndikatorProgramRpjmd
+    {
+        $indikator = IndikatorProgramRpjmd::query()
+            ->whereKey($id)
+            ->whereHas('program', fn (Builder $query) => $query
+                ->whereIn('id', $this->accessibleProgramRpjmdQuery($renstra)->select('program_rpjmd.id')))
+            ->first();
+
+        throw_if(! $indikator, ValidationException::withMessages([
+            'indikator_program_rpjmd_id' => 'Indikator program RPJMD tidak tersedia untuk OPD Renstra ini.',
+        ]));
+
+        if ($program->program_rpjmd_id && (int) $indikator->program_rpjmd_id !== (int) $program->program_rpjmd_id) {
+            throw ValidationException::withMessages([
+                'indikator_program_rpjmd_id' => 'Indikator program RPJMD harus berada pada Program RPJMD yang sama.',
+            ]);
+        }
+
+        return $indikator;
+    }
+
+    private function accessibleProgramRpjmdQuery(RenstraOpd $renstra): Builder
+    {
+        return ProgramRpjmd::query()
+            ->forRpjmd($renstra->rpjmd_id)
+            ->when($this->shouldRestrictRpjmdProgramReferences($renstra), fn (Builder $query) => $query
+                ->whereHas('opdPenanggungJawab', fn (Builder $query) => $query->whereKey($renstra->opd_id)));
+    }
+
+    private function shouldRestrictRpjmdProgramReferences(RenstraOpd $renstra): bool
+    {
+        $user = request()->user();
+
+        return $user?->hasRole('admin_opd') && filled($renstra->opd_id);
     }
 
     private function requiredText(array $data, string $key, string $message): string

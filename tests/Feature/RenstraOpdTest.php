@@ -21,6 +21,7 @@ use App\Models\Rpjmd;
 use App\Models\RpjmdMisi;
 use App\Models\RpjmdVisi;
 use App\Models\SasaranDaerah;
+use App\Models\SasaranOpd;
 use App\Models\SatuanIndikator;
 use App\Models\StrategiDaerah;
 use App\Models\SubKegiatanPemerintahan;
@@ -98,6 +99,79 @@ class RenstraOpdTest extends TestCase
         $this->actingAs($user)
             ->get(route('renstra-opd.show', $otherRenstra))
             ->assertForbidden();
+    }
+
+    public function test_admin_opd_only_gets_and_saves_relevant_rpjmd_programs_for_renstra(): void
+    {
+        $this->seed();
+
+        $ownOpd = Opd::create(['kode' => '1.91', 'nama' => 'Dinas Pemilik Renstra', 'status' => 'active']);
+        $otherOpd = Opd::create(['kode' => '1.92', 'nama' => 'Dinas Program Lain', 'status' => 'active']);
+        $tree = $this->createRpjmdTree();
+        $renstra = RenstraOpd::create([
+            'opd_id' => $ownOpd->id,
+            'rpjmd_id' => $tree['rpjmd']->id,
+            'judul' => 'Renstra Filter Program RPJMD',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'draft',
+        ]);
+        $tujuan = TujuanOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'tujuan' => 'Tujuan OPD',
+            'urutan' => 1,
+        ]);
+        $sasaran = SasaranOpd::create([
+            'tujuan_opd_id' => $tujuan->id,
+            'sasaran' => 'Sasaran OPD',
+            'urutan' => 1,
+        ]);
+        $otherProgram = ProgramRpjmd::create([
+            'sasaran_daerah_id' => $tree['sasaran_daerah']->id,
+            'nama' => 'Program RPJMD OPD Lain',
+            'status' => 'approved',
+            'urutan' => 2,
+        ]);
+        $otherProgram->opdPenanggungJawab()->sync([
+            $otherOpd->id => ['peran' => 'penanggung_jawab', 'is_utama' => true],
+        ]);
+
+        $user = User::factory()->create(['opd_id' => $ownOpd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.show', $renstra))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('RenstraOpd/Show')
+                ->where('rpjmdReferenceOptions.program_rpjmd', fn ($options) => collect($options)->pluck('id')->contains($tree['program_rpjmd']->id)
+                    && ! collect($options)->pluck('id')->contains($otherProgram->id))
+            );
+
+        $this->actingAs($user)
+            ->from(route('renstra-opd.show', $renstra))
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'program',
+                'parent_id' => $sasaran->id,
+                'program_rpjmd_id' => $otherProgram->id,
+                'urutan' => 1,
+            ])
+            ->assertRedirect(route('renstra-opd.show', $renstra))
+            ->assertSessionHasErrors('program_rpjmd_id');
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'program',
+                'parent_id' => $sasaran->id,
+                'program_rpjmd_id' => $tree['program_rpjmd']->id,
+                'urutan' => 1,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('opd_program', [
+            'renstra_opd_id' => $renstra->id,
+            'program_rpjmd_id' => $tree['program_rpjmd']->id,
+        ]);
     }
 
     public function test_cascading_opd_can_link_to_rpjmd_and_save_yearly_targets(): void
@@ -287,14 +361,7 @@ class RenstraOpdTest extends TestCase
         ]);
 
         $bidang = BidangUrusan::firstOrFail();
-        $programMaster = ProgramPemerintahan::create([
-            'bidang_urusan_id' => $bidang->id,
-            'tahun_awal' => $tree['rpjmd']->tahun_awal,
-            'tahun_akhir' => $tree['rpjmd']->tahun_akhir,
-            'kode' => '9.99.01',
-            'nama' => 'Program Master Renstra',
-            'status' => 'active',
-        ]);
+        $programMaster = $tree['program_master'];
         $kegiatanMaster = KegiatanPemerintahan::create([
             'periode_tahun_id' => $periode->id,
             'program_pemerintahan_id' => $programMaster->id,
@@ -323,11 +390,6 @@ class RenstraOpdTest extends TestCase
             'kode' => '9.99.02.2.01',
             'nama' => 'Kegiatan Beda Program',
             'status' => 'active',
-        ]);
-
-        $tree['program_rpjmd']->update([
-            'program_pemerintahan_id' => $programMaster->id,
-            'kode' => $programMaster->kode,
         ]);
 
         $user = User::factory()->create(['opd_id' => $opd->id]);
@@ -366,7 +428,7 @@ class RenstraOpdTest extends TestCase
 
         $this->assertSame($programMaster->id, $programOpd->program_pemerintahan_id);
         $this->assertSame('9.99.01', $programOpd->kode);
-        $this->assertSame('Program Master Renstra', $programOpd->nama);
+        $this->assertSame('Program Master RPJMD', $programOpd->nama);
 
         $this->actingAs($user)
             ->from(route('renstra-opd.show', $renstra))
@@ -467,8 +529,8 @@ class RenstraOpdTest extends TestCase
 
         $this->assertDatabaseHas('opd_program', [
             'id' => $program->id,
-            'kode' => 'P1A',
-            'nama' => 'Program Hasil Autosave',
+            'kode' => '9.99.01',
+            'nama' => 'Program Master RPJMD',
             'pagu_indikatif' => 2500000,
             'urutan' => 2,
         ]);
@@ -707,14 +769,32 @@ class RenstraOpdTest extends TestCase
         $sasaran = SasaranDaerah::create(['tujuan_daerah_id' => $tujuan->id, 'sasaran' => 'Sasaran Daerah', 'urutan' => 1]);
         $indikatorSasaran = IndikatorSasaranDaerah::create(['sasaran_daerah_id' => $sasaran->id, 'indikator' => 'Indikator Sasaran Daerah', 'urutan' => 1]);
         $strategi = StrategiDaerah::create(['strategi' => 'Strategi Daerah', 'status' => 'active']);
+        $bidang = BidangUrusan::query()->firstOrFail();
+        $masterProgram = ProgramPemerintahan::create([
+            'bidang_urusan_id' => $bidang->id,
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'kode' => '9.99.01',
+            'nama' => 'Program Master RPJMD',
+            'status' => 'active',
+        ]);
         $program = ProgramRpjmd::create([
             'strategi_daerah_id' => $strategi->id,
             'sasaran_daerah_id' => $sasaran->id,
             'indikator_sasaran_daerah_id' => null,
+            'program_pemerintahan_id' => $masterProgram->id,
             'nama' => 'Program RPJMD',
             'status' => 'approved',
             'urutan' => 1,
         ]);
+        $program->programPemerintahanReferences()->sync([$masterProgram->id]);
+        $program->opdPenanggungJawab()->sync(
+            Opd::query()
+                ->where('status', 'active')
+                ->pluck('id')
+                ->mapWithKeys(fn ($opdId) => [(int) $opdId => ['peran' => 'penanggung_jawab', 'is_utama' => true]])
+                ->all()
+        );
         $indikatorProgram = IndikatorProgramRpjmd::create(['program_rpjmd_id' => $program->id, 'indikator' => 'Indikator Program RPJMD', 'urutan' => 1]);
 
         return [
@@ -723,6 +803,7 @@ class RenstraOpdTest extends TestCase
             'indikator_tujuan' => $indikatorTujuan,
             'sasaran_daerah' => $sasaran,
             'indikator_sasaran' => $indikatorSasaran,
+            'program_master' => $masterProgram,
             'program_rpjmd' => $program,
             'indikator_program' => $indikatorProgram,
         ];

@@ -168,7 +168,7 @@ class RenstraOpdController extends Controller
             'renstra' => $this->serializeRenstra($renstraOpd),
             'nodeOptions' => $manage ? $this->nodeOptions($renstraOpd) : [],
             'targetTriwulanOptions' => $manage ? $this->targetTriwulanOptions($renstraOpd) : [],
-            'rpjmdReferenceOptions' => $manage ? $this->rpjmdReferenceOptions($renstraOpd->rpjmd_id) : [],
+            'rpjmdReferenceOptions' => $manage ? $this->rpjmdReferenceOptions($renstraOpd, $request->user()) : [],
             'masterReferenceOptions' => $manage ? $this->masterReferenceOptions($renstraOpd) : [],
             'periodeOptions' => $manage ? $this->periodeOptions() : [],
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
@@ -358,15 +358,19 @@ class RenstraOpdController extends Controller
     /**
      * @return array<string, array<int, array<string, mixed>>>
      */
-    private function rpjmdReferenceOptions(int $rpjmdId): array
+    private function rpjmdReferenceOptions(RenstraOpd $renstra, User $user): array
     {
+        $programRpjmdQuery = fn () => ProgramRpjmd::query()
+            ->forRpjmd($renstra->rpjmd_id)
+            ->when($this->shouldRestrictRpjmdProgramReferences($renstra, $user), fn (Builder $query) => $query
+                ->whereHas('opdPenanggungJawab', fn (Builder $query) => $query->whereKey($renstra->opd_id)));
+
         return [
-            'tujuan_daerah' => TujuanDaerah::query()->forRpjmd($rpjmdId)->orderBy('urutan')->get(['id', 'kode', 'tujuan'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->tujuan)])->values()->all(),
-            'indikator_tujuan_daerah' => IndikatorTujuanDaerah::query()->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'sasaran_daerah' => SasaranDaerah::query()->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId))->orderBy('urutan')->get(['id', 'kode', 'sasaran'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all(),
-            'indikator_sasaran_daerah' => IndikatorSasaranDaerah::query()->whereHas('sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($rpjmdId))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'program_rpjmd' => ProgramRpjmd::query()
-                ->forRpjmd($rpjmdId)
+            'tujuan_daerah' => TujuanDaerah::query()->forRpjmd($renstra->rpjmd_id)->orderBy('urutan')->get(['id', 'kode', 'tujuan'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->tujuan)])->values()->all(),
+            'indikator_tujuan_daerah' => IndikatorTujuanDaerah::query()->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd($renstra->rpjmd_id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
+            'sasaran_daerah' => SasaranDaerah::query()->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd($renstra->rpjmd_id))->orderBy('urutan')->get(['id', 'kode', 'sasaran'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all(),
+            'indikator_sasaran_daerah' => IndikatorSasaranDaerah::query()->whereHas('sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($renstra->rpjmd_id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
+            'program_rpjmd' => $programRpjmdQuery()
                 ->with('programPemerintahan:id,kode,nama,bidang_urusan_id')
                 ->with('programPemerintahanReferences:id,kode,nama,bidang_urusan_id')
                 ->orderBy('urutan')
@@ -380,8 +384,22 @@ class RenstraOpdController extends Controller
                 ])
                 ->values()
                 ->all(),
-            'indikator_program_rpjmd' => IndikatorProgramRpjmd::query()->whereHas('program', fn (Builder $query) => $query->forRpjmd($rpjmdId))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
+            'indikator_program_rpjmd' => IndikatorProgramRpjmd::query()
+                ->whereHas('program', fn (Builder $query) => $query
+                    ->forRpjmd($renstra->rpjmd_id)
+                    ->when($this->shouldRestrictRpjmdProgramReferences($renstra, $user), fn (Builder $query) => $query
+                        ->whereHas('opdPenanggungJawab', fn (Builder $query) => $query->whereKey($renstra->opd_id))))
+                ->orderBy('urutan')
+                ->get(['id', 'kode', 'indikator'])
+                ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
+                ->values()
+                ->all(),
         ];
+    }
+
+    private function shouldRestrictRpjmdProgramReferences(RenstraOpd $renstra, User $user): bool
+    {
+        return $user->hasRole('admin_opd') && filled($renstra->opd_id);
     }
 
     /**
