@@ -593,6 +593,124 @@ class RpjmdAccessTest extends TestCase
         $this->assertCount(2, $program->fresh()->opdPenanggungJawab);
     }
 
+    public function test_indikator_program_pengampu_is_resolved_from_program_bidang_urusan(): void
+    {
+        $this->seed();
+
+        $bidang = BidangUrusan::where('kode', '5.04')->firstOrFail();
+        $opdPengampu = $bidang->opdPengampu()->firstOrFail();
+        $rpjmd = $this->createRpjmdWithProgramForOpd($opdPengampu, 'RPJMD Pengampu Indikator Program');
+        $sasaran = SasaranDaerah::whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->firstOrFail();
+        $programPemerintahan = ProgramPemerintahan::query()->updateOrCreate(
+            [
+                'tahun_awal' => $rpjmd->tahun_awal,
+                'tahun_akhir' => $rpjmd->tahun_akhir,
+                'bidang_urusan_id' => $bidang->id,
+                'kode' => '5.04.02',
+            ],
+            [
+                'nama' => 'PROGRAM PENGEMBANGAN SUMBER DAYA MANUSIA',
+                'status' => 'active',
+            ],
+        );
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.store', $rpjmd), [
+                'type' => 'program',
+                'parent_id' => $sasaran->id,
+                'program_pemerintahan_id' => $programPemerintahan->id,
+                'urutan' => 1,
+            ])
+            ->assertRedirect();
+
+        $program = ProgramRpjmd::where('nama', 'PROGRAM PENGEMBANGAN SUMBER DAYA MANUSIA')->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.store', $rpjmd), [
+                'type' => 'indikator_program',
+                'parent_id' => $program->id,
+                'indikator' => 'Indikator program mengikuti pengampu bidang',
+                'cakupan_pengampu' => 'semua_opd',
+                'opd_id' => Opd::whereKeyNot($opdPengampu->id)->value('id'),
+                'urutan' => 1,
+            ])
+            ->assertRedirect();
+
+        $indikator = IndikatorProgramRpjmd::where('indikator', 'Indikator program mengikuti pengampu bidang')->firstOrFail();
+
+        $this->assertSame('opd_tertentu', $indikator->cakupan_pengampu);
+        $this->assertSame($opdPengampu->id, $indikator->opd_id);
+        $this->assertDatabaseHas('indikator_program_rpjmd_opd_pengampu', [
+            'indikator_program_rpjmd_id' => $indikator->id,
+            'opd_id' => $opdPengampu->id,
+            'peran' => 'pengampu_data',
+        ]);
+    }
+
+    public function test_indikator_program_penunjang_is_resolved_as_semua_opd(): void
+    {
+        $this->seed();
+
+        $opd = Opd::firstOrFail();
+        $rpjmd = $this->createRpjmdWithProgramForOpd($opd, 'RPJMD Pengampu Penunjang');
+        $sasaran = SasaranDaerah::whereHas('tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->firstOrFail();
+        $bidangs = BidangUrusan::query()->orderBy('kode')->take(2)->get();
+        $programName = 'Program Penunjang Urusan Pemerintahan Daerah Kabupaten/Kota';
+        $firstProgram = ProgramPemerintahan::query()->updateOrCreate(
+            [
+                'tahun_awal' => $rpjmd->tahun_awal,
+                'tahun_akhir' => $rpjmd->tahun_akhir,
+                'bidang_urusan_id' => $bidangs[0]->id,
+                'kode' => '9.99.01',
+            ],
+            ['nama' => $programName, 'status' => 'active'],
+        );
+        ProgramPemerintahan::query()->updateOrCreate(
+            [
+                'tahun_awal' => $rpjmd->tahun_awal,
+                'tahun_akhir' => $rpjmd->tahun_akhir,
+                'bidang_urusan_id' => $bidangs[1]->id,
+                'kode' => '9.99.02',
+            ],
+            ['nama' => $programName, 'status' => 'active'],
+        );
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.store', $rpjmd), [
+                'type' => 'program',
+                'parent_id' => $sasaran->id,
+                'program_pemerintahan_id' => $firstProgram->id,
+                'urutan' => 1,
+            ])
+            ->assertRedirect();
+
+        $program = ProgramRpjmd::where('nama', $programName)->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.store', $rpjmd), [
+                'type' => 'indikator_program',
+                'parent_id' => $program->id,
+                'indikator' => 'Persentase tingkat ketercapaian kinerja perangkat daerah',
+                'opd_id' => $opd->id,
+                'urutan' => 1,
+            ])
+            ->assertRedirect();
+
+        $semuaOpd = IndikatorProgramRpjmd::where('indikator', 'Persentase tingkat ketercapaian kinerja perangkat daerah')->firstOrFail();
+
+        $this->assertSame('semua_opd', $semuaOpd->cakupan_pengampu);
+        $this->assertNull($semuaOpd->opd_id);
+        $this->assertDatabaseMissing('indikator_program_rpjmd_opd_pengampu', [
+            'indikator_program_rpjmd_id' => $semuaOpd->id,
+        ]);
+    }
+
     public function test_program_rpjmd_is_created_from_sasaran_with_optional_strategi_reference(): void
     {
         $this->seed();

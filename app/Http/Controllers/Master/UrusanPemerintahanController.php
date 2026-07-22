@@ -8,6 +8,7 @@ use App\Http\Requests\Master\StoreUrusanPemerintahanRequest;
 use App\Http\Requests\Master\UpdateBidangUrusanRequest;
 use App\Http\Requests\Master\UpdateUrusanPemerintahanRequest;
 use App\Models\BidangUrusan;
+use App\Models\Opd;
 use App\Models\UrusanPemerintahan;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -25,7 +26,16 @@ class UrusanPemerintahanController extends Controller
         $filters = $request->only(['search', 'status']);
 
         $items = UrusanPemerintahan::query()
-            ->with(['bidangUrusan' => fn ($query) => $query->withCount('program')->orderBy('kode')])
+            ->with([
+                'bidangUrusan' => fn ($query) => $query
+                    ->withCount('program')
+                    ->with([
+                        'opdPengampu' => fn ($query) => $query
+                            ->select('opds.id', 'opds.kode', 'opds.nama', 'opds.singkatan')
+                            ->orderBy('opds.nama'),
+                    ])
+                    ->orderBy('kode'),
+            ])
             ->withCount('opds')
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $query->where(function (Builder $query) use ($search) {
@@ -53,6 +63,7 @@ class UrusanPemerintahanController extends Controller
             ],
             'options' => [
                 'urusan' => $this->urusanOptions(),
+                'opds' => $this->opdOptions(),
             ],
             'can' => [
                 'manage' => $request->user()->hasPermission('urusan.manage'),
@@ -108,6 +119,30 @@ class UrusanPemerintahanController extends Controller
         return back()->with('success', 'Bidang urusan berhasil diperbarui.');
     }
 
+    public function updateBidangPengampu(Request $request, BidangUrusan $bidangUrusan): RedirectResponse
+    {
+        abort_unless($request->user()->hasPermission('urusan.manage'), 403);
+
+        $data = $request->validate([
+            'opd_ids' => ['array'],
+            'opd_ids.*' => ['integer', 'exists:opds,id'],
+        ]);
+
+        $syncPayload = collect($data['opd_ids'] ?? [])
+            ->unique()
+            ->mapWithKeys(fn (int $opdId) => [
+                $opdId => [
+                    'peran' => 'pengampu_urusan',
+                    'is_utama' => true,
+                ],
+            ])
+            ->all();
+
+        $bidangUrusan->opdPengampu()->sync($syncPayload);
+
+        return back()->with('success', 'PD pengampu bidang berhasil diperbarui.');
+    }
+
     public function destroy(Request $request, UrusanPemerintahan $urusanPemerintahan): RedirectResponse
     {
         abort_unless($request->user()->hasPermission('urusan.manage'), 403);
@@ -155,6 +190,19 @@ class UrusanPemerintahanController extends Controller
                     'nama' => $bidang->nama,
                     'status' => $bidang->status,
                     'program_count' => $bidang->program_count ?? 0,
+                    'opd_pengampu_count' => $bidang->opdPengampu->count(),
+                    'opd_pengampu' => $bidang->opdPengampu
+                        ->map(fn (Opd $opd) => [
+                            'id' => $opd->id,
+                            'kode' => $opd->kode,
+                            'nama' => $opd->nama,
+                            'singkatan' => $opd->singkatan,
+                            'label' => $this->opdLabel($opd),
+                            'peran' => $opd->pivot->peran,
+                            'is_utama' => (bool) $opd->pivot->is_utama,
+                        ])
+                        ->values()
+                        ->all(),
                 ])
                 ->values()
                 ->all(),
@@ -172,5 +220,26 @@ class UrusanPemerintahanController extends Controller
                 'label' => trim($urusan->kode.' - '.$urusan->nama),
             ])
             ->all();
+    }
+
+    private function opdOptions(): array
+    {
+        return Opd::query()
+            ->where('status', 'active')
+            ->orderBy('nama')
+            ->get(['id', 'kode', 'nama', 'singkatan'])
+            ->map(fn (Opd $opd) => [
+                'id' => $opd->id,
+                'kode' => $opd->kode,
+                'nama' => $opd->nama,
+                'singkatan' => $opd->singkatan,
+                'label' => $this->opdLabel($opd),
+            ])
+            ->all();
+    }
+
+    private function opdLabel(Opd $opd): string
+    {
+        return trim(($opd->singkatan ? $opd->singkatan.' - ' : '').$opd->nama);
     }
 }

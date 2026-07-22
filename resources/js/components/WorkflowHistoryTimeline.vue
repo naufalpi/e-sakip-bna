@@ -36,6 +36,7 @@ const actionLabel = (action: string) =>
         revision: 'Permintaan revisi',
         reject: 'Penolakan',
         lock: 'Penguncian',
+        unlock: 'Pembukaan kunci',
     })[action] ?? action;
 </script>
 

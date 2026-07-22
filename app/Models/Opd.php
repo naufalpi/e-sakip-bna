@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -30,6 +31,13 @@ class Opd extends Model
     public function urusanPemerintahan(): BelongsTo
     {
         return $this->belongsTo(UrusanPemerintahan::class);
+    }
+
+    public function bidangUrusanPengampu(): BelongsToMany
+    {
+        return $this->belongsToMany(BidangUrusan::class, 'bidang_urusan_opd_pengampu')
+            ->withPivot(['id', 'peran', 'is_utama'])
+            ->withTimestamps();
     }
 
     public function units(): HasMany

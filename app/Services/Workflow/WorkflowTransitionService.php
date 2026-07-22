@@ -85,6 +85,14 @@ class WorkflowTransitionService
 
     private function authorizeAction(Model $model, string $module, string $action, User $actor): void
     {
+        if ($action === 'unlock') {
+            if ($actor->isSuperAdmin()) {
+                return;
+            }
+
+            throw new AuthorizationException('Anda tidak berwenang membuka kunci data ini.');
+        }
+
         if ($this->isLocked($model) && ! $actor->isSuperAdmin()) {
             throw new AuthorizationException('Data sudah terkunci dan tidak dapat diproses.');
         }
@@ -130,6 +138,7 @@ class WorkflowTransitionService
             'approve' => ['submitted', 'verified'],
             'reject', 'revision' => ['submitted', 'verified'],
             'lock' => ['approved'],
+            'unlock' => ['locked'],
             default => [],
         };
 
@@ -149,6 +158,7 @@ class WorkflowTransitionService
             'reject' => 'rejected',
             'revision' => 'revision',
             'lock' => 'locked',
+            'unlock' => 'revision',
             default => throw new AuthorizationException('Aksi workflow tidak valid.'),
         };
     }

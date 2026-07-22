@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
-type WorkflowAction = 'submit' | 'verify' | 'approve' | 'revision' | 'reject' | 'lock';
+type WorkflowAction = 'submit' | 'verify' | 'approve' | 'revision' | 'reject' | 'lock' | 'unlock';
 type WorkflowActionItem = {
     action: WorkflowAction;
     label: string;
@@ -25,10 +25,12 @@ const props = withDefaults(
         canManage: boolean;
         canReview: boolean;
         canLock?: boolean;
+        canUnlock?: boolean;
         showVerify?: boolean;
     }>(),
     {
         canLock: false,
+        canUnlock: false,
         showVerify: true,
     },
 );
@@ -163,6 +165,20 @@ const actions = computed(() => {
             notePlaceholder: 'Contoh: Dikunci setelah persetujuan final.',
             noteRequired: false,
             confirmClassName: 'bg-slate-900 text-white hover:bg-slate-800',
+        });
+    }
+
+    if (props.canUnlock && props.status === 'locked') {
+        items.push({
+            action: 'unlock',
+            label: 'Buka Kunci',
+            className: 'border text-amber-700 hover:bg-amber-50',
+            title: 'Buka Kunci Data',
+            description: 'Status data akan kembali menjadi revisi agar perubahan resmi dapat dilakukan dan tercatat di riwayat workflow.',
+            noteLabel: 'Alasan buka kunci',
+            notePlaceholder: 'Tuliskan dasar atau alasan resmi pembukaan kunci.',
+            noteRequired: true,
+            confirmClassName: 'bg-amber-600 text-white hover:bg-amber-700',
         });
     }
 

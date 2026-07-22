@@ -21,6 +21,7 @@ use App\Models\TargetIndikatorProgramRpjmd;
 use App\Models\TargetIndikatorSasaranDaerah;
 use App\Models\TargetIndikatorTujuanDaerah;
 use App\Models\TujuanDaerah;
+use App\Services\Rpjmd\RpjmdProgramPengampuResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,8 @@ use Illuminate\Validation\ValidationException;
 
 class RpjmdNodeController extends Controller
 {
+    public function __construct(private readonly RpjmdProgramPengampuResolver $pengampuResolver) {}
+
     public function store(StoreRpjmdNodeRequest $request, Rpjmd $rpjmd): RedirectResponse
     {
         $this->authorize('update', $rpjmd);
@@ -172,11 +175,12 @@ class RpjmdNodeController extends Controller
                 ]);
 
                 $this->syncProgramPemerintahanReferences($program, $programPemerintahan, $data);
+                $this->pengampuResolver->syncForProgramIndicators($program->refresh());
             }),
-            'indikator_program' => IndikatorProgramRpjmd::create([
+            'indikator_program' => tap(IndikatorProgramRpjmd::create([
                 'program_rpjmd_id' => $this->program($rpjmd, $data['parent_id'] ?? null)->id,
-                ...$this->indicatorPayload($data, 'Indikator program wajib diisi.'),
-            ]),
+                ...$this->indicatorProgramPayload($data, 'Indikator program wajib diisi.'),
+            ]), fn (IndikatorProgramRpjmd $indikator) => $this->syncIndikatorProgramOpdPengampu($indikator)),
             'target_program' => TargetIndikatorProgramRpjmd::updateOrCreate([
                 'indikator_program_rpjmd_id' => $this->indikatorProgram($rpjmd, $data['parent_id'] ?? null)->id,
                 'periode_tahun_id' => $this->requiredInt($data, 'periode_tahun_id', 'Periode target wajib dipilih.'),
@@ -208,6 +212,8 @@ class RpjmdNodeController extends Controller
             'indikator_tujuan_ids',
             'periode_tahun_id',
             'satuan_indikator_id',
+            'opd_ids',
+            'cakupan_pengampu',
             'urusan_pemerintahan_id',
             'strategi_daerah_id',
             'program_pemerintahan_id',
@@ -344,12 +350,15 @@ class RpjmdNodeController extends Controller
                 ]);
 
                 $this->syncProgramPemerintahanReferences($program, $programPemerintahan, $data);
+                $this->pengampuResolver->syncForProgramIndicators($program->refresh());
             }),
             'indikator_program' => tap($this->indikatorProgram($rpjmd, $id), function (IndikatorProgramRpjmd $indikator) use ($rpjmd, $data) {
                 $indikator->update([
                     'program_rpjmd_id' => filled($data['parent_id'] ?? null) ? $this->program($rpjmd, $data['parent_id'])->id : $indikator->program_rpjmd_id,
-                    ...$this->indicatorPayload($data, 'Indikator program wajib diisi.'),
+                    ...$this->indicatorProgramPayload($data, 'Indikator program wajib diisi.'),
                 ]);
+
+                $this->syncIndikatorProgramOpdPengampu($indikator->refresh());
             }),
             'target_program' => tap($this->findNode($rpjmd, $type, $id), function (TargetIndikatorProgramRpjmd $target) use ($rpjmd, $data) {
                 $periodeTahunId = filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id;
@@ -400,6 +409,26 @@ class RpjmdNodeController extends Controller
             'sumber_data' => $data['sumber_data'] ?? null,
             'urutan' => $data['urutan'] ?? 1,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function indicatorProgramPayload(array $data, string $requiredMessage): array
+    {
+        $payload = $this->indicatorPayload($data, $requiredMessage);
+
+        return [
+            ...$payload,
+            'cakupan_pengampu' => 'opd_tertentu',
+            'opd_id' => null,
+        ];
+    }
+
+    private function syncIndikatorProgramOpdPengampu(IndikatorProgramRpjmd $indikator): void
+    {
+        $this->pengampuResolver->syncForIndikator($indikator);
     }
 
     /**

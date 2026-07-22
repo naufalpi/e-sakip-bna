@@ -194,6 +194,7 @@ class DatabaseSeeder extends Seeder
 
         $this->seedUrusanDanBidang();
         $this->call(OpdSeeder::class);
+        $this->call(BidangUrusanOpdPengampuSeeder::class);
         $this->call(OperationalUserSeeder::class);
         $this->call(ProgramKegiatanReferenceSeeder::class);
 

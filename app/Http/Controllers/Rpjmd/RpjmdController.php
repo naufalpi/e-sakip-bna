@@ -22,6 +22,7 @@ use App\Models\SystemSetting;
 use App\Models\TujuanDaerah;
 use App\Models\UrusanPemerintahan;
 use App\Models\User;
+use App\Services\Rpjmd\RpjmdProgramPengampuResolver;
 use App\Services\Workflow\WorkflowDataService;
 use App\Support\SystemSettingCatalog;
 use Illuminate\Database\Eloquent\Builder;
@@ -32,6 +33,8 @@ use Inertia\Response;
 
 class RpjmdController extends Controller
 {
+    public function __construct(private readonly RpjmdProgramPengampuResolver $pengampuResolver) {}
+
     public function index(Request $request): Response
     {
         $this->authorize('viewAny', Rpjmd::class);
@@ -134,6 +137,7 @@ class RpjmdController extends Controller
             'visi.tujuan.sasaran.programs.urusanPemerintahan:id,kode,nama',
             'visi.tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
             'visi.tujuan.sasaran.programs.indikator.opd:id,kode,nama,singkatan',
+            'visi.tujuan.sasaran.programs.indikator.opdPengampu' => fn ($query) => $query->select('opds.id', 'opds.kode', 'opds.nama', 'opds.singkatan'),
             'visi.tujuan.sasaran.programs.indikator.targets.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.programs.opdPenanggungJawab' => fn ($query) => $query->select('opds.id', 'opds.nama', 'opds.singkatan'),
@@ -157,6 +161,7 @@ class RpjmdController extends Controller
                 'manage' => $manage,
                 'review' => $this->canReviewWorkflow($request->user()),
                 'lock' => $this->canLockWorkflow($request->user()),
+                'unlock' => $this->canUnlockWorkflow($request->user()),
             ],
             'workflow' => $workflowDataService->forModel($rpjmd, 'rpjmd'),
         ]);
@@ -545,6 +550,11 @@ class RpjmdController extends Controller
         return $user->isSuperAdmin() || $user->hasPermission('lock_period');
     }
 
+    private function canUnlockWorkflow(User $user): bool
+    {
+        return $user->isSuperAdmin();
+    }
+
     /**
      * @return array{struktur_tujuan_mode: string, struktur_sasaran_mode: string}
      */
@@ -735,12 +745,20 @@ class RpjmdController extends Controller
         bool $withTargets = true,
         ?int $visibleOpdId = null,
     ): array {
+        $isProgramIndicator = $indikator instanceof IndikatorProgramRpjmd;
+        $opdPengampu = $isProgramIndicator && $indikator->relationLoaded('opdPengampu')
+            ? $indikator->opdPengampu
+            : collect();
+
         return [
             'id' => $indikator->id,
             'kode' => $indikator->kode,
             'indikator' => $indikator->indikator,
             'satuan_indikator_id' => $indikator->satuan_indikator_id,
             'opd_id' => $indikator->opd_id,
+            'cakupan_pengampu' => $isProgramIndicator ? ($indikator->cakupan_pengampu ?: 'opd_tertentu') : null,
+            'opd_ids' => $opdPengampu->pluck('id')->values(),
+            'pengampu_label' => $isProgramIndicator ? $this->pengampuResolver->labelForIndikator($indikator) : null,
             'definisi_operasional' => $indikator->definisi_operasional,
             'alasan_pemilihan' => $indikator->alasan_pemilihan,
             'formulasi_pengukuran' => $indikator->formulasi_pengukuran,
@@ -757,6 +775,15 @@ class RpjmdController extends Controller
                 'nama' => $indikator->opd->nama,
                 'singkatan' => $indikator->opd->singkatan,
             ] : null,
+            'opd_pengampu' => $opdPengampu->map(fn (Opd $opd) => [
+                'pivot_id' => $opd->pivot->id,
+                'id' => $opd->id,
+                'kode' => $opd->kode,
+                'nama' => $opd->nama,
+                'singkatan' => $opd->singkatan,
+                'peran' => $opd->pivot->peran,
+                'is_utama' => (bool) $opd->pivot->is_utama,
+            ])->values(),
             'targets' => $withTargets ? $indikator->targets->map(fn ($target) => [
                 'id' => $target->id,
                 'periode_tahun' => [

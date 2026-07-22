@@ -166,6 +166,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
         Route::resource('strategi-daerah', StrategiDaerahController::class)->parameters(['strategi-daerah' => 'strategiDaerah'])->except(['show']);
         Route::get('urusan-pemerintahan/export', [UrusanPemerintahanController::class, 'export'])->name('urusan-pemerintahan.export');
         Route::post('urusan-pemerintahan/bidang', [UrusanPemerintahanController::class, 'storeBidang'])->name('urusan-pemerintahan.bidang.store');
+        Route::put('urusan-pemerintahan/bidang/{bidangUrusan}/pengampu', [UrusanPemerintahanController::class, 'updateBidangPengampu'])->name('urusan-pemerintahan.bidang-pengampu.update');
         Route::put('urusan-pemerintahan/bidang/{bidangUrusan}', [UrusanPemerintahanController::class, 'updateBidang'])->name('urusan-pemerintahan.bidang.update');
         Route::delete('urusan-pemerintahan/bidang/{bidangUrusan}', [UrusanPemerintahanController::class, 'destroyBidang'])->name('urusan-pemerintahan.bidang.destroy');
         Route::resource('urusan-pemerintahan', UrusanPemerintahanController::class)->parameters(['urusan-pemerintahan' => 'urusanPemerintahan'])->except(['show']);

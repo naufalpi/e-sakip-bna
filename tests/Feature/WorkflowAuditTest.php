@@ -245,6 +245,62 @@ class WorkflowAuditTest extends TestCase
         ]);
     }
 
+    public function test_super_admin_can_unlock_locked_rpjmd_for_official_revision(): void
+    {
+        $this->seed();
+
+        [, $periode, , $reviewer, $superAdmin] = $this->actors();
+        $rpjmd = Rpjmd::create([
+            'periode_tahun_id' => $periode->id,
+            'judul' => 'RPJMD Terkunci',
+            'tahun_awal' => $periode->tahun,
+            'tahun_akhir' => $periode->tahun + 4,
+            'status' => 'locked',
+        ]);
+
+        $this->actingAs($reviewer)
+            ->post(route('workflow.transition', ['module' => 'rpjmd', 'id' => $rpjmd->id]), [
+                'action' => 'unlock',
+                'note' => 'Coba buka kunci.',
+            ])
+            ->assertForbidden();
+
+        $this->assertSame('locked', $rpjmd->fresh()->status);
+
+        $this->actingAs($superAdmin)
+            ->post(route('workflow.transition', ['module' => 'rpjmd', 'id' => $rpjmd->id]), [
+                'action' => 'unlock',
+            ])
+            ->assertSessionHasErrors('note');
+
+        $this->assertSame('locked', $rpjmd->fresh()->status);
+
+        $this->actingAs($superAdmin)
+            ->post(route('workflow.transition', ['module' => 'rpjmd', 'id' => $rpjmd->id]), [
+                'action' => 'unlock',
+                'note' => 'Perubahan resmi berdasarkan hasil evaluasi dokumen.',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame('revision', $rpjmd->fresh()->status);
+        $this->assertDatabaseHas('workflow_submissions', [
+            'related_table' => 'rpjmd',
+            'related_id' => $rpjmd->id,
+            'module' => 'rpjmd',
+            'status' => 'revision',
+        ]);
+        $this->assertDatabaseHas('workflow_histories', [
+            'related_table' => 'rpjmd',
+            'related_id' => $rpjmd->id,
+            'module' => 'rpjmd',
+            'action' => 'unlock',
+            'from_status' => 'locked',
+            'to_status' => 'revision',
+            'actor_id' => $superAdmin->id,
+            'notes' => 'Perubahan resmi berdasarkan hasil evaluasi dokumen.',
+        ]);
+    }
+
     public function test_workflow_requires_note_for_revision_and_rejection(): void
     {
         $this->seed();

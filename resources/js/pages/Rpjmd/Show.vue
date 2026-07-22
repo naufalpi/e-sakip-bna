@@ -64,6 +64,9 @@ type Indikator = {
     indikator: string;
     satuan_indikator_id?: number | null;
     opd_id?: number | null;
+    opd_ids?: number[];
+    cakupan_pengampu?: 'opd_tertentu' | 'semua_opd' | null;
+    pengampu_label?: string | null;
     definisi_operasional?: string | null;
     alasan_pemilihan?: string | null;
     formulasi_pengukuran?: string | null;
@@ -72,6 +75,7 @@ type Indikator = {
     urutan?: number | null;
     satuan?: { nama: string; simbol?: string | null } | null;
     opd?: { id: number; kode: string; nama: string; singkatan?: string | null } | null;
+    opd_pengampu?: Array<{ pivot_id: number; id: number; kode: string; nama: string; singkatan?: string | null; peran: string; is_utama: boolean }>;
     targets: Target[];
     target_triwulan: TargetTriwulan[];
     programs: Program[];
@@ -182,6 +186,8 @@ type BulkRow = {
     periode_tahun_id: number | string;
     satuan_indikator_id: number | string;
     opd_id: number | string;
+    opd_ids: Array<number | string>;
+    cakupan_pengampu: 'opd_tertentu' | 'semua_opd';
     urusan_pemerintahan_id: number | string;
     strategi_daerah_id: number | string;
     program_pemerintahan_id: number | string;
@@ -227,6 +233,8 @@ type BulkExistingRow = {
     target_text?: string | null;
     opd?: string | null;
     opd_id?: number | null;
+    opd_ids?: number[];
+    cakupan_pengampu?: 'opd_tertentu' | 'semua_opd' | null;
     peran?: string | null;
     is_utama?: boolean | null;
     periode?: string | number | null;
@@ -251,6 +259,7 @@ const props = defineProps<{
         manage: boolean;
         review: boolean;
         lock: boolean;
+        unlock: boolean;
     };
 }>();
 
@@ -367,6 +376,8 @@ const form = useForm({
     periode_tahun_id: '' as number | string,
     satuan_indikator_id: '' as number | string,
     opd_id: '' as number | string,
+    opd_ids: [] as Array<number | string>,
+    cakupan_pengampu: 'opd_tertentu' as 'opd_tertentu' | 'semua_opd',
     urusan_pemerintahan_id: '' as number | string,
     strategi_daerah_id: '' as number | string,
     program_pemerintahan_id: '' as number | string,
@@ -395,6 +406,8 @@ const emptyBulkRow = (index = 0): BulkRow => ({
     periode_tahun_id: '',
     satuan_indikator_id: '',
     opd_id: '',
+    opd_ids: [],
+    cakupan_pengampu: 'opd_tertentu',
     urusan_pemerintahan_id: '',
     strategi_daerah_id: '',
     program_pemerintahan_id: '',
@@ -419,6 +432,8 @@ const bulkForm = useForm({
     indikator_tujuan_ids: [] as Array<number | string>,
     periode_tahun_id: '' as number | string,
     satuan_indikator_id: '' as number | string,
+    opd_ids: [] as Array<number | string>,
+    cakupan_pengampu: 'opd_tertentu' as 'opd_tertentu' | 'semua_opd',
     urusan_pemerintahan_id: '' as number | string,
     strategi_daerah_id: '' as number | string,
     program_pemerintahan_id: '' as number | string,
@@ -488,6 +503,7 @@ const canSubmitNode = computed(
         (!shouldRequireSasaranIndikatorTujuan.value || form.indikator_tujuan_ids.length > 0),
 );
 const isIndicatorType = computed(() => ['indikator_tujuan', 'indikator_sasaran', 'indikator_program'].includes(form.type));
+const isProgramIndicatorType = computed(() => form.type === 'indikator_program');
 const isTargetType = computed(() => ['target_tujuan', 'target_sasaran', 'target_program'].includes(form.type));
 const isTextNodeType = computed(() => ['visi', 'misi', 'tujuan', 'sasaran', 'program'].includes(form.type));
 const isProgramType = computed(() => form.type === 'program');
@@ -502,6 +518,73 @@ const bulkHidesParentSelector = computed(() => ['misi', 'tujuan'].includes(bulkF
 const bulkShouldShowParentSelector = computed(() => bulkNeedsParent.value && !bulkHidesParentSelector.value);
 const bulkInputContextReady = computed(() => !bulkNeedsParent.value || Boolean(bulkForm.parent_id));
 const bulkSelectedParentOption = computed(() => optionById(bulkParentOptions.value, bulkForm.parent_id));
+const allProgramNodes = computed<Program[]>(() =>
+    props.rpjmd.visi.flatMap((visi) => visi.tujuan.flatMap((tujuan) => tujuan.sasaran.flatMap((sasaran) => sasaran.programs))),
+);
+const programById = computed(() => new Map(allProgramNodes.value.map((program) => [program.id, program])));
+const programReferenceItems = (program?: Program | null) => {
+    if (!program) {
+        return [];
+    }
+
+    if (program.program_pemerintahan_references?.length) {
+        return program.program_pemerintahan_references;
+    }
+
+    return program.program_pemerintahan ? [program.program_pemerintahan] : [];
+};
+const isProgramPenunjang = (value?: string | null) =>
+    String(value ?? '')
+        .toLocaleLowerCase('id-ID')
+        .includes('program penunjang urusan pemerintahan daerah');
+const cleanBidangName = (value?: string | null) =>
+    String(value ?? '')
+        .replace(/^urusan pemerintahan bidang\s+/i, '')
+        .trim();
+const programPengampuBidangLabel = (program?: Program | null) => {
+    const references = programReferenceItems(program);
+
+    if (references.some((reference) => isProgramPenunjang(reference.nama))) {
+        return 'Semua Perangkat Daerah';
+    }
+
+    const bidangLabels = Array.from(
+        new Set(
+            references.flatMap((reference) =>
+                reference.bidang_urusan ? [`${reference.bidang_urusan.kode} - ${cleanBidangName(reference.bidang_urusan.nama)}`] : [],
+            ),
+        ),
+    );
+
+    if (bidangLabels.length) {
+        return `PD Pengampu Bidang ${bidangLabels.join('; ')}`;
+    }
+
+    return 'PD Pengampu Bidang Program';
+};
+const selectedFormProgramNode = computed(() => programById.value.get(Number(form.parent_id)));
+const selectedBulkProgramNode = computed(() => programById.value.get(Number(bulkForm.parent_id)));
+const formProgramPengampuLabel = computed(() => programPengampuBidangLabel(selectedFormProgramNode.value));
+const bulkProgramPengampuLabel = computed(() => {
+    if (selectedBulkProgramNode.value) {
+        return programPengampuBidangLabel(selectedBulkProgramNode.value);
+    }
+
+    const selectedProgram = bulkSelectedParentOption.value;
+
+    if (!selectedProgram) {
+        return 'Pilih program induk';
+    }
+
+    const text = `${selectedProgram.label} ${selectedProgram.description ?? ''}`.toLowerCase();
+
+    if (text.includes('program penunjang urusan pemerintahan daerah')) {
+        return 'Semua Perangkat Daerah';
+    }
+
+    return 'PD Pengampu Bidang Program';
+});
+const savedProgramPengampuLabel = (saved: BulkExistingRow) => saved.opd || programPengampuBidangLabel(programById.value.get(Number(saved.parent_id)));
 const bulkHasAdditionalSettings = computed(
     () =>
         (bulkForm.type === 'tujuan' && bulkMisiOptions.value.length > 0) ||
@@ -510,6 +593,7 @@ const bulkHasAdditionalSettings = computed(
         bulkIsProgramType.value,
 );
 const bulkIsIndicatorType = computed(() => ['indikator_tujuan', 'indikator_sasaran', 'indikator_program'].includes(bulkForm.type));
+const bulkIsProgramIndicatorType = computed(() => bulkForm.type === 'indikator_program');
 const bulkIsTargetType = computed(() => ['target_tujuan', 'target_sasaran', 'target_program'].includes(bulkForm.type));
 const bulkIsTextNodeType = computed(() => ['visi', 'misi', 'tujuan', 'sasaran', 'program'].includes(bulkForm.type));
 const bulkIsProgramType = computed(() => bulkForm.type === 'program');
@@ -602,6 +686,7 @@ const optionById = (options: Option[], id: number | string | null | undefined) =
 
     return selectedId ? (options.find((option) => Number(option.id) === selectedId) ?? null) : null;
 };
+const normalizePengampuScope = (value: unknown): 'opd_tertentu' | 'semua_opd' => (value === 'semua_opd' ? 'semua_opd' : 'opd_tertentu');
 const strategiOptions = computed(() => props.nodeOptions.strategi ?? []);
 const bulkStrategiOptions = strategiOptions;
 const formStrategiOptions = strategiOptions;
@@ -834,8 +919,17 @@ const bulkExistingRows = computed<BulkExistingRow[]>(() => {
             formulasi_pengukuran: indicator.formulasi_pengukuran,
             tipe_perhitungan: indicator.tipe_perhitungan || 'non_kumulatif',
             sumber_data: indicator.sumber_data,
-            opd: indicator.opd?.singkatan || indicator.opd?.nama || null,
+            cakupan_pengampu: indicator.cakupan_pengampu ?? 'opd_tertentu',
+            opd:
+                indicator.cakupan_pengampu === 'semua_opd'
+                    ? 'Semua Perangkat Daerah'
+                    : indicator.pengampu_label
+                      ? indicator.pengampu_label
+                      : indicator.opd_pengampu?.length
+                        ? indicator.opd_pengampu.map((opd) => opd.singkatan || opd.nama).join('; ')
+                        : indicator.opd?.singkatan || indicator.opd?.nama || null,
             opd_id: indicator.opd_id ?? null,
+            opd_ids: indicator.opd_ids ?? indicator.opd_pengampu?.map((opd) => opd.id) ?? [],
             urutan: indicator.urutan ?? null,
         });
     };
@@ -1299,6 +1393,8 @@ const clearNodeForm = () => {
     form.periode_tahun_id = '';
     form.satuan_indikator_id = '';
     form.opd_id = '';
+    form.opd_ids = [];
+    form.cakupan_pengampu = 'opd_tertentu';
     form.urusan_pemerintahan_id = '';
     form.strategi_daerah_id = '';
     form.program_pemerintahan_id = '';
@@ -1420,6 +1516,8 @@ const bulkRowHasInput = (row: BulkRow, type: NodeType = bulkForm.type) => {
         row.sumber_data,
         row.target,
         row.opd_id,
+        row.opd_ids.join(','),
+        row.cakupan_pengampu === 'semua_opd' ? 'semua_opd' : '',
         row.program_pemerintahan_id,
     ].some((value) => trimText(valueText(value)).length > 0);
 };
@@ -1490,6 +1588,8 @@ const bulkExistingToFormRow = (row: BulkExistingRow): BulkRow => ({
     periode_tahun_id: valueText(row.periode_tahun_id),
     satuan_indikator_id: valueText(row.satuan_indikator_id),
     opd_id: valueText(row.opd_id),
+    opd_ids: [...(row.opd_ids ?? [])],
+    cakupan_pengampu: row.cakupan_pengampu === 'semua_opd' ? 'semua_opd' : 'opd_tertentu',
     urusan_pemerintahan_id: valueText(row.urusan_pemerintahan_id),
     strategi_daerah_id: valueText(row.strategi_daerah_id),
     program_pemerintahan_id: valueText(row.program_pemerintahan_id),
@@ -1515,6 +1615,8 @@ const savedBulkSnapshot = (row: BulkRow) =>
         periode_tahun_id: valueText(row.periode_tahun_id),
         satuan_indikator_id: valueText(row.satuan_indikator_id),
         opd_id: valueText(row.opd_id),
+        opd_ids: [...row.opd_ids],
+        cakupan_pengampu: row.cakupan_pengampu,
         urusan_pemerintahan_id: valueText(row.urusan_pemerintahan_id),
         strategi_daerah_id: valueText(row.strategi_daerah_id),
         program_pemerintahan_id: valueText(row.program_pemerintahan_id),
@@ -1640,7 +1742,9 @@ const editNode = (type: NodeType, id: number, parentId: number | null, node: any
     } else if (isIndicatorType.value) {
         form.indikator = valueText(node.indikator);
         form.satuan_indikator_id = valueText(node.satuan_indikator_id);
-        form.opd_id = valueText(node.opd_id);
+        form.opd_id = type === 'indikator_program' ? '' : valueText(node.opd_id);
+        form.opd_ids = type === 'indikator_program' ? [] : [...(node.opd_ids ?? [])];
+        form.cakupan_pengampu = 'opd_tertentu';
         form.definisi_operasional = valueText(node.definisi_operasional);
         form.alasan_pemilihan = valueText(node.alasan_pemilihan);
         form.formulasi_pengukuran = valueText(node.formulasi_pengukuran);
@@ -1727,6 +1831,8 @@ watch(
         bulkForm.indikator_tujuan_ids = [];
         bulkForm.periode_tahun_id = '';
         bulkForm.satuan_indikator_id = '';
+        bulkForm.opd_ids = [];
+        bulkForm.cakupan_pengampu = 'opd_tertentu';
         bulkForm.urusan_pemerintahan_id = '';
         bulkForm.strategi_daerah_id = '';
         bulkForm.program_pemerintahan_id = '';
@@ -1787,9 +1893,14 @@ const submitNode = () => {
 const normalizedBulkRowsForStore = (rows: BulkRow[]) =>
     rows.map((row, rowIndex) => {
         const currentIndex = bulkForm.rows.findIndex((item) => item.client_id === row.client_id);
+        const cakupanPengampu = normalizePengampuScope(row.cakupan_pengampu);
+        const isAutomaticProgramPengampu = bulkForm.type === 'indikator_program';
 
         return {
             ...row,
+            cakupan_pengampu: isAutomaticProgramPengampu ? 'opd_tertentu' : cakupanPengampu,
+            opd_id: isAutomaticProgramPengampu ? '' : row.opd_id,
+            opd_ids: isAutomaticProgramPengampu ? [] : row.opd_ids,
             target_text: '',
             urutan: bulkVisibleExistingRows.value.length + (currentIndex >= 0 ? currentIndex : rowIndex) + 1,
         };
@@ -1812,6 +1923,8 @@ const submitBulkNodes = () => {
 
 const savedBulkPayload = (row: BulkExistingRow) => {
     const editable = editableSavedBulkRow(row);
+    const cakupanPengampu = normalizePengampuScope(editable.cakupan_pengampu);
+    const isAutomaticProgramPengampu = row.type === 'indikator_program';
 
     return {
         type: row.type,
@@ -1820,7 +1933,9 @@ const savedBulkPayload = (row: BulkExistingRow) => {
         indikator_tujuan_ids: editable.indikator_tujuan_ids,
         periode_tahun_id: editable.periode_tahun_id,
         satuan_indikator_id: editable.satuan_indikator_id,
-        opd_id: editable.opd_id,
+        opd_id: isAutomaticProgramPengampu ? '' : editable.opd_id,
+        opd_ids: isAutomaticProgramPengampu ? [] : editable.opd_ids,
+        cakupan_pengampu: isAutomaticProgramPengampu ? 'opd_tertentu' : cakupanPengampu,
         urusan_pemerintahan_id: editable.urusan_pemerintahan_id,
         strategi_daerah_id: editable.strategi_daerah_id,
         program_pemerintahan_id: editable.program_pemerintahan_id,
@@ -2065,6 +2180,8 @@ watch(
         bulkForm.urusan_pemerintahan_id,
         bulkForm.peran,
         bulkForm.is_utama,
+        bulkForm.opd_ids.join(','),
+        bulkForm.cakupan_pengampu,
         bulkForm.misi_ids.join(','),
         bulkForm.indikator_tujuan_ids.join(','),
     ],
@@ -2296,6 +2413,7 @@ const triwulanLabel = (triwulan: string) =>
                     :can-manage="can.manage"
                     :can-review="can.review"
                     :can-lock="can.lock"
+                    :can-unlock="can.unlock"
                     :show-verify="false"
                 />
             </div>
@@ -3249,9 +3367,19 @@ const triwulanLabel = (triwulan: string) =>
                                 <InputError :message="form.errors.sumber_data" />
                             </div>
 
-                            <div v-if="isIndicatorType" class="grid gap-2">
+                            <div v-if="isProgramIndicatorType" class="rounded-lg border border-blue-100 bg-blue-50/70 p-3 text-sm text-[#00336C]">
+                                <p class="font-semibold">PD Pengampu Bidang</p>
+                                <p class="mt-1 text-blue-900/75">{{ formProgramPengampuLabel }}</p>
+                            </div>
+
+                            <div v-if="isIndicatorType && !isProgramIndicatorType" class="grid gap-2">
                                 <label class="text-sm font-medium" for="opd_id">OPD / PD Penanggung Jawab</label>
-                                <select id="opd_id" v-model="form.opd_id" class="h-10 rounded-md border bg-background px-3 text-sm">
+                                <select
+                                    id="opd_id"
+                                    v-model="form.opd_id"
+                                    class="h-10 rounded-md border bg-background px-3 text-sm"
+                                    @change="form.opd_ids = form.opd_id ? [form.opd_id] : []"
+                                >
                                     <option value="">Pilih OPD</option>
                                     <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                                 </select>
@@ -3549,7 +3677,9 @@ const triwulanLabel = (triwulan: string) =>
                                             bulkIsTargetType
                                                 ? 'min-w-[760px]'
                                                 : bulkIsIndicatorType
-                                                  ? 'min-w-[2200px]'
+                                                  ? bulkIsProgramIndicatorType
+                                                      ? 'min-w-[2480px]'
+                                                      : 'min-w-[2200px]'
                                                   : bulkIsProgramType
                                                     ? 'min-w-[1320px]'
                                                     : 'min-w-[1100px]'
@@ -3568,7 +3698,9 @@ const triwulanLabel = (triwulan: string) =>
                                                 <th v-if="bulkIsIndicatorType" class="min-w-72 px-3 py-2">Formulasi Pengukuran</th>
                                                 <th v-if="bulkIsIndicatorType" class="min-w-44 px-3 py-2">Tipe Perhitungan</th>
                                                 <th v-if="bulkIsIndicatorType" class="min-w-56 px-3 py-2">Sumber Data</th>
-                                                <th v-if="bulkIsIndicatorType" class="min-w-72 px-3 py-2">OPD / PD Penanggung Jawab</th>
+                                                <th v-if="bulkIsIndicatorType" class="min-w-72 px-3 py-2">
+                                                    {{ bulkIsProgramIndicatorType ? 'PD Pengampu Bidang' : 'OPD / PD Penanggung Jawab' }}
+                                                </th>
                                                 <th v-if="bulkIsProgramType" class="min-w-56 px-3 py-2">Strategi</th>
                                                 <th v-if="bulkIsTargetType" class="min-w-40 px-3 py-2">Periode</th>
                                                 <th v-if="bulkIsTargetType" class="min-w-64 px-3 py-2">Target</th>
@@ -3697,7 +3829,14 @@ const triwulanLabel = (triwulan: string) =>
                                                     />
                                                 </td>
                                                 <td v-if="bulkIsIndicatorType" class="px-3 py-2 align-top">
+                                                    <div
+                                                        v-if="bulkIsProgramIndicatorType"
+                                                        class="min-h-10 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold leading-5 text-[#00336C]"
+                                                    >
+                                                        {{ savedProgramPengampuLabel(saved) }}
+                                                    </div>
                                                     <select
+                                                        v-else
                                                         v-model="editableSavedBulkRow(saved).opd_id"
                                                         class="h-10 w-full rounded-md border bg-background px-3 text-sm"
                                                         @change="markSavedBulkChanged(saved)"
@@ -3913,7 +4052,14 @@ const triwulanLabel = (triwulan: string) =>
                                                     />
                                                 </td>
                                                 <td v-if="bulkIsIndicatorType" class="px-3 py-2">
+                                                    <div
+                                                        v-if="bulkIsProgramIndicatorType"
+                                                        class="min-h-10 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold leading-5 text-[#00336C]"
+                                                    >
+                                                        {{ bulkProgramPengampuLabel }}
+                                                    </div>
                                                     <select
+                                                        v-else
                                                         v-model="row.opd_id"
                                                         class="h-10 w-full rounded-md border bg-background px-3 text-sm"
                                                         @change="markNewBulkChanged(row)"

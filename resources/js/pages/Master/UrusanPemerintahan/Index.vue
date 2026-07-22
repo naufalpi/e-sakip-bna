@@ -4,8 +4,21 @@ import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ChevronDown, Folder, FolderOpen, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
+import { CheckCircle2, ChevronDown, Folder, FolderOpen, Pencil, Plus, Search, Trash2, UserRoundCheck, X } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
+
+type OpdOption = {
+    id: number;
+    kode: string;
+    nama: string;
+    singkatan?: string | null;
+    label: string;
+};
+
+type OpdPengampu = OpdOption & {
+    peran: string;
+    is_utama: boolean;
+};
 
 type BidangUrusan = {
     id: number;
@@ -14,6 +27,8 @@ type BidangUrusan = {
     nama: string;
     status: string;
     program_count: number;
+    opd_pengampu_count: number;
+    opd_pengampu: OpdPengampu[];
 };
 
 type Urusan = {
@@ -55,7 +70,7 @@ const props = defineProps<{
     items: Paginator<Urusan>;
     filters: { search?: string; status?: string };
     stats: { total_urusan: number; total_bidang: number };
-    options: { urusan: Option[] };
+    options: { urusan: Option[]; opds: OpdOption[] };
     can: { manage: boolean };
 }>();
 
@@ -70,13 +85,30 @@ const bidangForm = useForm<BidangForm>({
     nama: '',
     status: 'active',
 });
+const pengampuForm = useForm<{ opd_ids: number[] }>({ opd_ids: [] });
 const editingBidang = reactive<{ id: number | null }>({ id: null });
+const editingPengampu = reactive<{ bidangId: number | null; search: string }>({ bidangId: null, search: '' });
 const collapsedUrusan = reactive<Record<number, boolean>>({});
 
 const selectedUrusan = computed(() => props.options.urusan.find((option) => String(option.id) === String(bidangForm.urusan_pemerintahan_id)));
 const canSubmitBidang = computed(
     () => props.can.manage && Boolean(bidangForm.urusan_pemerintahan_id) && bidangForm.kode.trim() && bidangForm.nama.trim(),
 );
+const filteredOpdOptions = computed(() => {
+    const search = editingPengampu.search.trim().toLocaleLowerCase('id-ID');
+
+    if (!search) {
+        return props.options.opds;
+    }
+
+    return props.options.opds.filter((opd) =>
+        [opd.kode, opd.nama, opd.singkatan, opd.label].some((value) =>
+            String(value ?? '')
+                .toLocaleLowerCase('id-ID')
+                .includes(search),
+        ),
+    );
+});
 
 const applyFilters = () =>
     router.get(route('master.urusan-pemerintahan.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
@@ -113,6 +145,51 @@ const editBidang = (bidang: BidangUrusan) => {
     bidangForm.status = bidang.status;
     bidangForm.clearErrors();
 };
+
+const closePengampuPanel = () => {
+    editingPengampu.bidangId = null;
+    editingPengampu.search = '';
+    pengampuForm.reset();
+    pengampuForm.clearErrors();
+};
+
+const isPengampuPanelOpen = (bidang: BidangUrusan) => editingPengampu.bidangId === bidang.id;
+
+const openPengampuPanel = (bidang: BidangUrusan) => {
+    if (isPengampuPanelOpen(bidang)) {
+        closePengampuPanel();
+        return;
+    }
+
+    editingPengampu.bidangId = bidang.id;
+    editingPengampu.search = '';
+    pengampuForm.clearErrors();
+    pengampuForm.opd_ids = bidang.opd_pengampu.map((opd) => opd.id);
+};
+
+const isOpdPengampuSelected = (id: number) => pengampuForm.opd_ids.includes(id);
+
+const toggleOpdPengampu = (id: number) => {
+    if (isOpdPengampuSelected(id)) {
+        pengampuForm.opd_ids = pengampuForm.opd_ids.filter((opdId) => opdId !== id);
+        return;
+    }
+
+    pengampuForm.opd_ids = [...pengampuForm.opd_ids, id];
+};
+
+const submitPengampu = (bidang: BidangUrusan) => {
+    pengampuForm.put(route('master.urusan-pemerintahan.bidang-pengampu.update', bidang.id), {
+        preserveScroll: true,
+        onSuccess: closePengampuPanel,
+    });
+};
+
+const pengampuShortLabel = (opd: OpdPengampu) => opd.singkatan || opd.nama;
+
+const visiblePengampu = (bidang: BidangUrusan) => bidang.opd_pengampu.slice(0, 3);
+
+const remainingPengampuCount = (bidang: BidangUrusan) => Math.max(bidang.opd_pengampu.length - visiblePengampu(bidang).length, 0);
 
 const submitBidang = () => {
     if (!canSubmitBidang.value) {
@@ -288,52 +365,161 @@ const destroyBidang = async (item: BidangUrusan) => {
                                 <div
                                     v-for="bidang in urusan.bidang_urusan"
                                     :key="bidang.id"
-                                    class="group relative ml-3 flex flex-col gap-2.5 rounded-lg border bg-white p-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] before:absolute before:-left-3 before:top-0 before:h-1/2 before:w-3 before:border-b before:border-l before:border-slate-200 md:flex-row md:items-center md:justify-between"
+                                    class="group relative ml-3 rounded-lg border bg-white p-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] before:absolute before:-left-3 before:top-0 before:h-1/2 before:w-3 before:border-b before:border-l before:border-slate-200"
                                 >
-                                    <div class="flex min-w-0 items-start gap-2.5">
-                                        <div
-                                            class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
-                                        >
-                                            <Folder class="size-4" />
-                                        </div>
-                                        <div class="min-w-0">
-                                            <div class="flex flex-wrap items-center gap-2">
-                                                <span class="font-semibold text-slate-900">{{ bidang.kode }}</span>
-                                                <span
-                                                    class="rounded-full px-2 py-0.5 text-xs font-medium"
-                                                    :class="
-                                                        bidang.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
-                                                    "
-                                                >
-                                                    {{ bidang.status === 'active' ? 'Aktif' : 'Tidak aktif' }}
-                                                </span>
+                                    <div class="flex flex-col gap-2.5 md:flex-row md:items-start md:justify-between">
+                                        <div class="flex min-w-0 items-start gap-2.5">
+                                            <div
+                                                class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"
+                                            >
+                                                <Folder class="size-4" />
                                             </div>
-                                            <p class="mt-0.5 text-sm font-medium leading-snug text-slate-700">{{ bidang.nama }}</p>
-                                            <p class="mt-1 text-xs text-muted-foreground">{{ bidang.program_count }} program</p>
+                                            <div class="min-w-0">
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <span class="font-semibold text-slate-900">{{ bidang.kode }}</span>
+                                                    <span
+                                                        class="rounded-full px-2 py-0.5 text-xs font-medium"
+                                                        :class="
+                                                            bidang.status === 'active'
+                                                                ? 'bg-emerald-100 text-emerald-800'
+                                                                : 'bg-slate-100 text-slate-700'
+                                                        "
+                                                    >
+                                                        {{ bidang.status === 'active' ? 'Aktif' : 'Tidak aktif' }}
+                                                    </span>
+                                                </div>
+                                                <p class="mt-0.5 text-sm font-medium leading-snug text-slate-700">{{ bidang.nama }}</p>
+                                                <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                                                    <span>{{ bidang.program_count }} program</span>
+                                                    <span class="text-slate-300">/</span>
+                                                    <span>{{ bidang.opd_pengampu_count }} PD pengampu</span>
+                                                    <template v-if="bidang.opd_pengampu.length">
+                                                        <span
+                                                            v-for="opd in visiblePengampu(bidang)"
+                                                            :key="opd.id"
+                                                            class="rounded-full bg-blue-50 px-2 py-0.5 font-medium text-[#00336C] ring-1 ring-blue-100"
+                                                        >
+                                                            {{ pengampuShortLabel(opd) }}
+                                                        </span>
+                                                        <span
+                                                            v-if="remainingPengampuCount(bidang)"
+                                                            class="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600"
+                                                        >
+                                                            +{{ remainingPengampuCount(bidang) }}
+                                                        </span>
+                                                    </template>
+                                                    <span v-else class="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
+                                                        Belum ada pengampu
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            v-if="can.manage"
+                                            class="flex shrink-0 overflow-hidden rounded-lg border bg-white opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100"
+                                        >
+                                            <button
+                                                type="button"
+                                                class="inline-flex size-9 items-center justify-center text-slate-600 hover:bg-blue-50 hover:text-[#00336C]"
+                                                title="Atur PD pengampu"
+                                                @click="openPengampuPanel(bidang)"
+                                            >
+                                                <UserRoundCheck class="size-4" />
+                                            </button>
+                                            <span class="h-9 w-px bg-slate-200" />
+                                            <button
+                                                type="button"
+                                                class="inline-flex size-9 items-center justify-center text-slate-600 hover:bg-blue-50 hover:text-[#00336C]"
+                                                title="Edit bidang"
+                                                @click="editBidang(bidang)"
+                                            >
+                                                <Pencil class="size-4" />
+                                            </button>
+                                            <span class="h-9 w-px bg-slate-200" />
+                                            <button
+                                                type="button"
+                                                class="inline-flex size-9 items-center justify-center text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                title="Hapus bidang"
+                                                @click="destroyBidang(bidang)"
+                                            >
+                                                <Trash2 class="size-4" />
+                                            </button>
                                         </div>
                                     </div>
-                                    <div
-                                        v-if="can.manage"
-                                        class="flex shrink-0 overflow-hidden rounded-lg border bg-white opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100"
+                                    <Transition
+                                        enter-active-class="transition duration-200 ease-out"
+                                        enter-from-class="-translate-y-1 opacity-0"
+                                        enter-to-class="translate-y-0 opacity-100"
+                                        leave-active-class="transition duration-150 ease-in"
+                                        leave-from-class="translate-y-0 opacity-100"
+                                        leave-to-class="-translate-y-1 opacity-0"
                                     >
-                                        <button
-                                            type="button"
-                                            class="inline-flex size-9 items-center justify-center text-slate-600 hover:bg-blue-50 hover:text-[#00336C]"
-                                            title="Edit bidang"
-                                            @click="editBidang(bidang)"
-                                        >
-                                            <Pencil class="size-4" />
-                                        </button>
-                                        <span class="h-9 w-px bg-slate-200" />
-                                        <button
-                                            type="button"
-                                            class="inline-flex size-9 items-center justify-center text-red-600 hover:bg-red-50 hover:text-red-700"
-                                            title="Hapus bidang"
-                                            @click="destroyBidang(bidang)"
-                                        >
-                                            <Trash2 class="size-4" />
-                                        </button>
-                                    </div>
+                                        <div v-if="isPengampuPanelOpen(bidang)" class="mt-3 rounded-xl border bg-slate-50 p-3">
+                                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                <div>
+                                                    <p class="text-sm font-semibold text-slate-900">PD Pengampu Bidang</p>
+                                                    <p class="text-xs text-muted-foreground">{{ bidang.kode }} - {{ bidang.nama }}</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex size-8 items-center justify-center rounded-lg border bg-white text-slate-500 hover:bg-muted"
+                                                    title="Tutup"
+                                                    @click="closePengampuPanel"
+                                                >
+                                                    <X class="size-4" />
+                                                </button>
+                                            </div>
+                                            <div class="relative mt-3">
+                                                <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                                                <input
+                                                    v-model="editingPengampu.search"
+                                                    type="search"
+                                                    class="h-10 w-full rounded-xl border bg-white pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]/20"
+                                                    placeholder="Cari nama atau kode OPD"
+                                                />
+                                            </div>
+                                            <div class="mt-3 max-h-64 overflow-y-auto rounded-xl border bg-white p-2">
+                                                <label
+                                                    v-for="opd in filteredOpdOptions"
+                                                    :key="opd.id"
+                                                    class="flex cursor-pointer items-start gap-3 rounded-lg px-2.5 py-2 text-sm transition hover:bg-blue-50"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        class="mt-1 rounded border-slate-300 text-[#00336C] focus:ring-[#00336C]/30"
+                                                        :checked="isOpdPengampuSelected(opd.id)"
+                                                        @change="toggleOpdPengampu(opd.id)"
+                                                    />
+                                                    <span class="min-w-0">
+                                                        <span class="block font-semibold leading-5 text-slate-900">{{
+                                                            opd.singkatan || opd.nama
+                                                        }}</span>
+                                                        <span class="block text-xs leading-4 text-muted-foreground"
+                                                            >{{ opd.kode }} - {{ opd.nama }}</span
+                                                        >
+                                                    </span>
+                                                </label>
+                                                <p v-if="filteredOpdOptions.length === 0" class="px-3 py-6 text-center text-sm text-muted-foreground">
+                                                    OPD tidak ditemukan.
+                                                </p>
+                                            </div>
+                                            <InputError :message="pengampuForm.errors.opd_ids" class="mt-2" />
+                                            <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                <span class="text-xs font-medium text-muted-foreground"
+                                                    >{{ pengampuForm.opd_ids.length }} OPD dipilih</span
+                                                >
+                                                <button
+                                                    type="button"
+                                                    :disabled="pengampuForm.processing"
+                                                    class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#00336C] px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002958] disabled:cursor-not-allowed disabled:opacity-60"
+                                                    @click="submitPengampu(bidang)"
+                                                >
+                                                    <CheckCircle2 class="size-4" />
+                                                    Simpan Pengampu
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </Transition>
                                 </div>
                             </div>
                             <button
@@ -356,7 +542,7 @@ const destroyBidang = async (item: BidangUrusan) => {
                             class="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-[#00336C]"
                             @click="toggleUrusan(urusan.id)"
                         >
-                            <ChevronDown class="-rotate-90 size-4" />
+                            <ChevronDown class="size-4 -rotate-90" />
                             {{ urusan.bidang_count }} bidang disembunyikan
                         </button>
                     </div>

@@ -295,6 +295,72 @@ class MasterUmumTest extends TestCase
         ]);
     }
 
+    public function test_dinkominfo_can_update_bidang_urusan_pengampu(): void
+    {
+        $this->seed();
+
+        $admin = $this->userWithRole('admin_kabupaten_dinkominfo');
+        $urusan = UrusanPemerintahan::create([
+            'kode' => '9',
+            'nama' => 'Urusan Pengampu Test',
+            'status' => 'active',
+        ]);
+        $bidang = BidangUrusan::create([
+            'urusan_pemerintahan_id' => $urusan->id,
+            'kode' => '9.01',
+            'nama' => 'Bidang Pengampu Test',
+            'status' => 'active',
+        ]);
+        $opdA = Opd::create([
+            'urusan_pemerintahan_id' => $urusan->id,
+            'kode' => '9.01.0.00.0.00.01.0000',
+            'nama' => 'OPD Pengampu A',
+            'singkatan' => 'OPA',
+            'jenis' => 'dinas',
+            'status' => 'active',
+        ]);
+        $opdB = Opd::create([
+            'urusan_pemerintahan_id' => $urusan->id,
+            'kode' => '9.01.0.00.0.00.02.0000',
+            'nama' => 'OPD Pengampu B',
+            'singkatan' => 'OPB',
+            'jenis' => 'dinas',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('master.urusan-pemerintahan.bidang-pengampu.update', $bidang), [
+                'opd_ids' => [$opdA->id, $opdB->id],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('bidang_urusan_opd_pengampu', [
+            'bidang_urusan_id' => $bidang->id,
+            'opd_id' => $opdA->id,
+            'peran' => 'pengampu_urusan',
+        ]);
+        $this->assertDatabaseHas('bidang_urusan_opd_pengampu', [
+            'bidang_urusan_id' => $bidang->id,
+            'opd_id' => $opdB->id,
+            'peran' => 'pengampu_urusan',
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('master.urusan-pemerintahan.bidang-pengampu.update', $bidang), [
+                'opd_ids' => [$opdA->id],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('bidang_urusan_opd_pengampu', [
+            'bidang_urusan_id' => $bidang->id,
+            'opd_id' => $opdA->id,
+        ]);
+        $this->assertDatabaseMissing('bidang_urusan_opd_pengampu', [
+            'bidang_urusan_id' => $bidang->id,
+            'opd_id' => $opdB->id,
+        ]);
+    }
+
     public function test_pimpinan_cannot_access_master_umum_pages(): void
     {
         $this->seed();

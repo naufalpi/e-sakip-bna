@@ -86,6 +86,7 @@ class WorkflowNotificationService
             'reject' => $this->registry->label($module).' ditolak',
             'revision' => $this->registry->label($module).' perlu revisi',
             'lock' => $this->registry->label($module).' dikunci',
+            'unlock' => $this->registry->label($module).' dibuka untuk revisi',
             default => $this->registry->label($module).' diperbarui',
         };
     }
@@ -99,6 +100,7 @@ class WorkflowNotificationService
             'reject' => 'workflow_rejected',
             'revision' => 'workflow_revision',
             'lock' => 'workflow_locked',
+            'unlock' => 'workflow_unlocked',
             default => 'workflow_updated',
         };
     }

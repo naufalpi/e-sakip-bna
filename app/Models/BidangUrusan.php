@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -30,5 +31,17 @@ class BidangUrusan extends Model
     public function program(): HasMany
     {
         return $this->hasMany(ProgramPemerintahan::class)->orderBy('kode');
+    }
+
+    public function opdPengampu(): BelongsToMany
+    {
+        return $this->belongsToMany(Opd::class, 'bidang_urusan_opd_pengampu')
+            ->withPivot(['id', 'peran', 'is_utama'])
+            ->withTimestamps();
+    }
+
+    public function pengampu(): HasMany
+    {
+        return $this->hasMany(BidangUrusanOpdPengampu::class);
     }
 }
