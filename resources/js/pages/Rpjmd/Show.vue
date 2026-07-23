@@ -1403,7 +1403,7 @@ const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
                     );
                 }
 
-                sasaran.programs.forEach((program) => {
+                sasaran.programs.forEach((program, programIndex) => {
                     addAlignedRows(
                         `program-${program.id}`,
                         {
@@ -1416,8 +1416,8 @@ const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
                             opd_penanggung_jawab: joinItems(program.opd_penanggung_jawab.map((opd) => opd.singkatan || opd.nama)),
                             status_keterhubungan: program.opd_penanggung_jawab.length > 0 ? 'Terhubung OPD' : 'Belum ada OPD',
                         },
-                        indicatorPreviewRows(tujuanIndicatorsForSasaran),
-                        sasaranIndicatorRows,
+                        programIndex === 0 ? indicatorPreviewRows(tujuanIndicatorsForSasaran) : [],
+                        programIndex === 0 ? sasaranIndicatorRows : [],
                         indicatorPreviewRows(program.indikator),
                     );
                 });
