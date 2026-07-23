@@ -175,7 +175,6 @@ type RpjmdCascadingRow = {
     satuan_program: string;
     target_program_by_year: Record<number, string>;
     opd_penanggung_jawab: string;
-    status_keterhubungan: string;
 };
 type IndicatorPreviewRow = {
     key: string;
@@ -566,6 +565,25 @@ const cleanBidangName = (value?: string | null) =>
     String(value ?? '')
         .replace(/^urusan pemerintahan bidang\s+/i, '')
         .trim();
+const titleBidangName = (value?: string | null) => {
+    const cleaned = cleanBidangName(value);
+
+    if (!cleaned) {
+        return '';
+    }
+
+    return cleaned
+        .toLocaleLowerCase('id-ID')
+        .split(/\s+/)
+        .map((word, index) => {
+            if (index > 0 && ['dan', 'di', 'ke', 'dengan', 'untuk', 'yang', 'serta', 'atau', 'dalam', 'atas'].includes(word)) {
+                return word;
+            }
+
+            return word.charAt(0).toLocaleUpperCase('id-ID') + word.slice(1);
+        })
+        .join(' ');
+};
 const programPengampuBidangLabel = (program?: Program | null) => {
     if (program?.opd_penanggung_jawab?.length) {
         return program.opd_penanggung_jawab.map((opd) => opd.singkatan || opd.nama).join('; ');
@@ -590,6 +608,19 @@ const programPengampuBidangLabel = (program?: Program | null) => {
     }
 
     return 'PD Pengampu Bidang Program';
+};
+const programPdPenanggungJawabLabel = (program?: Program | null) => {
+    const labels = Array.from(
+        new Set(
+            programReferenceItems(program).flatMap((reference) => {
+                const bidangName = titleBidangName(reference.bidang_urusan?.nama);
+
+                return bidangName ? [`PD Pengampu Urusan ${bidangName}`] : [];
+            }),
+        ),
+    );
+
+    return labels.length ? joinItems(labels) : 'PD Pengampu belum terdeteksi';
 };
 const selectedFormProgramNode = computed(() => programById.value.get(Number(form.parent_id)));
 const selectedBulkProgramNode = computed(() => programById.value.get(Number(bulkForm.parent_id)));
@@ -1306,8 +1337,8 @@ const rpjmdTargetYears = computed(() => {
 
     return [...years].sort((a, b) => a - b);
 });
-const rpjmdPreviewColspan = computed(() => 14 + rpjmdTargetYears.value.length * 3);
-const rpjmdPreviewMinWidth = computed(() => `${2200 + rpjmdTargetYears.value.length * 210}px`);
+const rpjmdPreviewColspan = computed(() => 13 + rpjmdTargetYears.value.length * 3);
+const rpjmdPreviewMinWidth = computed(() => `${2080 + rpjmdTargetYears.value.length * 210}px`);
 
 const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
     const rows: RpjmdCascadingRow[] = [];
@@ -1414,8 +1445,7 @@ const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
                                     ? {
                                           strategi: program.strategi ? nodeText(program.strategi.kode, program.strategi.strategi) : '-',
                                           program: nodeText(program.kode, program.nama),
-                                          opd_penanggung_jawab: joinItems(program.opd_penanggung_jawab.map((opd) => opd.singkatan || opd.nama)),
-                                          status_keterhubungan: program.opd_penanggung_jawab.length > 0 ? 'Terhubung OPD' : 'Belum ada OPD',
+                                          opd_penanggung_jawab: programPdPenanggungJawabLabel(program),
                                       }
                                     : {},
                         })),
@@ -1489,10 +1519,6 @@ const rpjmdCascadingTableRows = computed<RpjmdCascadingRow[]>(() => {
             previous.set(key, value);
         });
 
-        if (next.status_keterhubungan === '-') {
-            next.status_keterhubungan = '';
-        }
-
         if (!next.indikator_tujuan) {
             next.satuan_tujuan = '';
             next.target_tujuan_by_year = {};
@@ -1531,7 +1557,6 @@ function emptyRpjmdRow(key: string, values: Partial<RpjmdCascadingRow>): RpjmdCa
         satuan_program: '-',
         target_program_by_year: {},
         opd_penanggung_jawab: '-',
-        status_keterhubungan: '-',
         ...values,
     };
 }
@@ -2756,8 +2781,7 @@ const triwulanLabel = (triwulan: string) =>
                                 <th :colspan="rpjmdTargetYears.length" class="border border-slate-700 px-3 py-3 text-center align-middle">
                                     Target / Prakiraan Maju
                                 </th>
-                                <th rowspan="2" class="w-[170px] border border-slate-700 px-3 py-3 text-center align-middle">OPD</th>
-                                <th rowspan="2" class="w-[150px] border border-slate-700 px-3 py-3 text-center align-middle">Status</th>
+                                <th rowspan="2" class="w-[240px] border border-slate-700 px-3 py-3 text-center align-middle">PD Penanggung Jawab</th>
                             </tr>
                             <tr>
                                 <th
@@ -2828,19 +2852,6 @@ const triwulanLabel = (triwulan: string) =>
                                     {{ row.target_program_by_year[year] || '' }}
                                 </td>
                                 <td class="border border-slate-300 px-3 py-3 leading-6">{{ row.opd_penanggung_jawab }}</td>
-                                <td class="border border-slate-300 px-3 py-3">
-                                    <span
-                                        v-if="row.status_keterhubungan"
-                                        class="inline-flex rounded-full px-2 py-1 text-xs font-medium"
-                                        :class="
-                                            row.status_keterhubungan === 'Terhubung OPD'
-                                                ? 'bg-emerald-100 text-emerald-800'
-                                                : 'bg-amber-100 text-amber-800'
-                                        "
-                                    >
-                                        {{ row.status_keterhubungan }}
-                                    </span>
-                                </td>
                             </tr>
                             <tr v-if="rpjmdCascadingTableRows.length === 0">
                                 <td :colspan="rpjmdPreviewColspan" class="border border-slate-300 px-4 py-10 text-center text-muted-foreground">

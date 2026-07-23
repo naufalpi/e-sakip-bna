@@ -220,8 +220,7 @@ class RpjmdPreviewExcelExportService
                         'base' => $index === 0 ? [
                             'strategi' => $program->strategi ? $this->nodeText($program->strategi->kode, $program->strategi->strategi) : '-',
                             'program' => $this->nodeText($program->kode, $program->nama),
-                            'opd_penanggung_jawab' => $this->joinItems($program->opdPenanggungJawab->map(fn ($opd) => $opd->singkatan ?: $opd->nama)->all()),
-                            'status_keterhubungan' => $program->opdPenanggungJawab->isNotEmpty() ? 'Terhubung OPD' : 'Belum ada OPD',
+                            'opd_penanggung_jawab' => $this->programPdPenanggungJawabLabel($program),
                         ] : [],
                     ]);
             })
@@ -304,6 +303,48 @@ class RpjmdPreviewExcelExportService
         return $this->formatTargetNumber($target->target) ?: $this->valueText($target->target) ?: $this->valueText($target->target_text);
     }
 
+    private function programPdPenanggungJawabLabel(ProgramRpjmd $program): string
+    {
+        $references = collect()
+            ->when($program->programPemerintahan, fn (Collection $references) => $references->push($program->programPemerintahan))
+            ->merge($program->programPemerintahanReferences)
+            ->unique('id')
+            ->values();
+
+        $labels = $references
+            ->pluck('bidangUrusan')
+            ->filter()
+            ->map(fn ($bidang) => $this->titleBidangName($bidang->nama))
+            ->filter()
+            ->unique()
+            ->map(fn (string $bidang) => "PD Pengampu Urusan {$bidang}")
+            ->values()
+            ->all();
+
+        return $labels === [] ? 'PD Pengampu belum terdeteksi' : implode('; ', $labels);
+    }
+
+    private function titleBidangName(?string $value): string
+    {
+        $cleaned = trim((string) preg_replace('/^urusan pemerintahan bidang\s+/i', '', (string) $value));
+
+        if ($cleaned === '') {
+            return '';
+        }
+
+        $smallWords = ['dan', 'di', 'ke', 'dengan', 'untuk', 'yang', 'serta', 'atau', 'dalam', 'atas'];
+
+        return collect(preg_split('/\s+/', strtolower($cleaned)) ?: [])
+            ->map(function (string $word, int $index) use ($smallWords): string {
+                if ($index > 0 && in_array($word, $smallWords, true)) {
+                    return $word;
+                }
+
+                return ucfirst($word);
+            })
+            ->implode(' ');
+    }
+
     private function formatTargetNumber(mixed $value): string
     {
         if ($value === null || $value === '' || ! is_numeric($value)) {
@@ -383,7 +424,6 @@ class RpjmdPreviewExcelExportService
             'satuan_program' => '-',
             'target_program_by_year' => [],
             'opd_penanggung_jawab' => '-',
-            'status_keterhubungan' => '-',
             ...$values,
         ];
     }
@@ -425,10 +465,6 @@ class RpjmdPreviewExcelExportService
                 }
 
                 $previous[$key] = $value;
-            }
-
-            if (($row['status_keterhubungan'] ?? null) === '-') {
-                $row['status_keterhubungan'] = '';
             }
 
             if (blank($row['indikator_tujuan'] ?? null)) {
@@ -508,7 +544,7 @@ class RpjmdPreviewExcelExportService
      */
     private function worksheetXml(Rpjmd $rpjmd, array $years, array $rows): string
     {
-        $lastColumn = $this->columnName(14 + (count($years) * 3));
+        $lastColumn = $this->columnName(13 + (count($years) * 3));
         $lastRow = max(count($rows) + 2, 3);
         $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
@@ -572,7 +608,7 @@ class RpjmdPreviewExcelExportService
             $column++;
         }
 
-        foreach (['OPD', 'Status'] as $label) {
+        foreach (['PD Penanggung Jawab'] as $label) {
             $rowOne[] = $this->inlineCell($this->columnName($column).'1', $label, 1);
             $column++;
         }
@@ -610,7 +646,6 @@ class RpjmdPreviewExcelExportService
         $append((string) ($row['satuan_program'] ?? ''), 3);
         $this->appendTargetCells($append, $rpjmd, $years, $row['target_program_by_year'] ?? []);
         $append((string) ($row['opd_penanggung_jawab'] ?? ''));
-        $append((string) ($row['status_keterhubungan'] ?? ''), $row['status_keterhubungan'] === 'Terhubung OPD' ? 6 : 7);
 
         return '<row r="'.$excelRow.'" ht="54" customHeight="1">'.implode('', $cells).'</row>';
     }
@@ -656,7 +691,7 @@ class RpjmdPreviewExcelExportService
         $merges[] = $this->columnName($column).'1:'.$this->columnName($column + count($years) - 1).'1';
         $column += count($years);
 
-        for ($index = 0; $index < 2; $index++, $column++) {
+        for ($index = 0; $index < 1; $index++, $column++) {
             $merges[] = $this->columnName($column).'1:'.$this->columnName($column).'2';
         }
 
@@ -669,7 +704,7 @@ class RpjmdPreviewExcelExportService
     private function columnsXml(array $years): string
     {
         $widths = [25, 26, 27, 27, 11];
-        $widths = array_merge($widths, array_fill(0, count($years), 12), [27, 30, 11], array_fill(0, count($years), 12), [26, 30, 30, 11], array_fill(0, count($years), 12), [24, 18]);
+        $widths = array_merge($widths, array_fill(0, count($years), 12), [27, 30, 11], array_fill(0, count($years), 12), [26, 30, 30, 11], array_fill(0, count($years), 12), [30]);
         $columns = '';
 
         foreach ($widths as $index => $width) {
