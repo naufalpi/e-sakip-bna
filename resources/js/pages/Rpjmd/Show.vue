@@ -181,6 +181,7 @@ type IndicatorPreviewRow = {
     label: string;
     satuan: string;
     target_by_year: Record<number, string>;
+    pd_penanggung_jawab?: string | null;
 };
 type BulkRow = {
     client_id: string;
@@ -612,10 +613,6 @@ const programPengampuBidangLabel = (program?: Program | null) => {
 const programPdPenanggungJawabLabel = (program?: Program | null) => {
     const references = programReferenceItems(program);
 
-    if (references.some((reference) => isProgramPenunjang(reference.nama))) {
-        return 'Semua Perangkat Daerah';
-    }
-
     const labels = Array.from(
         new Set(
             references.flatMap((reference) => {
@@ -627,6 +624,26 @@ const programPdPenanggungJawabLabel = (program?: Program | null) => {
     );
 
     return labels.length ? joinItems(labels) : 'PD Pengampu belum terdeteksi';
+};
+const programHasPenunjangReference = (program?: Program | null) => programReferenceItems(program).some((reference) => isProgramPenunjang(reference.nama));
+const indicatorProgramPdPenanggungJawabLabel = (indicator: Indikator, program?: Program | null) => {
+    if (indicator.cakupan_pengampu === 'semua_opd') {
+        return 'Semua Perangkat Daerah';
+    }
+
+    if (indicator.pengampu_label && indicator.pengampu_label !== 'Belum terdeteksi') {
+        return indicator.pengampu_label;
+    }
+
+    if (indicator.opd_pengampu?.length) {
+        return indicator.opd_pengampu.map((opd) => opd.singkatan || opd.nama).join('; ');
+    }
+
+    if (programHasPenunjangReference(program)) {
+        return 'PD Pengampu belum ditentukan';
+    }
+
+    return programPdPenanggungJawabLabel(program);
 };
 const selectedFormProgramNode = computed(() => programById.value.get(Number(form.parent_id)));
 const selectedBulkProgramNode = computed(() => programById.value.get(Number(bulkForm.parent_id)));
@@ -722,9 +739,35 @@ const programPenanggungJawabDisplayLabel = (row: BulkRow, fallback?: string | nu
             ? opdSummaryLabel(row.opd_ids)
             : fallback || 'Belum ada OPD dipilih'
         : programMasterPengampuLabel(row.program_pemerintahan_id) || fallback || '-';
+const setIndicatorProgramPengampuScope = (
+    row: Pick<BulkRow, 'cakupan_pengampu' | 'opd_ids'>,
+    scope: 'opd_tertentu' | 'semua_opd',
+    afterChange: () => void,
+) => {
+    row.cakupan_pengampu = scope;
+
+    if (scope === 'semua_opd') {
+        row.opd_ids = [];
+    }
+
+    afterChange();
+};
+const indicatorProgramPengampuHint = (row: Pick<BulkRow, 'cakupan_pengampu' | 'opd_ids'>, fallback?: string | null) => {
+    if (row.cakupan_pengampu === 'semua_opd') {
+        return 'Semua Perangkat Daerah';
+    }
+
+    if (row.opd_ids.length > 0) {
+        return opdSummaryLabel(row.opd_ids);
+    }
+
+    return fallback || 'Otomatis dari PD pengampu bidang';
+};
 const bulkProgramPengampuLabel = computed(() => {
     if (selectedBulkProgramNode.value) {
-        return programPengampuBidangLabel(selectedBulkProgramNode.value);
+        return programHasPenunjangReference(selectedBulkProgramNode.value)
+            ? 'Pilih PD pengampu indikator'
+            : programPdPenanggungJawabLabel(selectedBulkProgramNode.value);
     }
 
     const selectedProgram = bulkSelectedParentOption.value;
@@ -736,12 +779,20 @@ const bulkProgramPengampuLabel = computed(() => {
     const text = `${selectedProgram.label} ${selectedProgram.description ?? ''}`.toLowerCase();
 
     if (text.includes('program penunjang urusan pemerintahan daerah')) {
-        return 'Semua Perangkat Daerah';
+        return 'Pilih PD pengampu indikator';
     }
 
     return 'PD Pengampu Bidang Program';
 });
-const savedProgramPengampuLabel = (saved: BulkExistingRow) => saved.opd || programPengampuBidangLabel(programById.value.get(Number(saved.parent_id)));
+const savedProgramPengampuLabel = (saved: BulkExistingRow) => {
+    if (saved.opd && saved.opd !== 'Belum terdeteksi') {
+        return saved.opd;
+    }
+
+    const program = programById.value.get(Number(saved.parent_id));
+
+    return programHasPenunjangReference(program) ? 'Pilih PD pengampu indikator' : programPdPenanggungJawabLabel(program);
+};
 const bulkHasAdditionalSettings = computed(
     () =>
         (bulkForm.type === 'tujuan' && bulkMisiOptions.value.length > 0) ||
@@ -1261,7 +1312,7 @@ const bulkVisibleExistingRows = computed(() => {
     });
 });
 const misiSummary = (tujuan: Tujuan) => joinItems(tujuan.misi_terkait.map((misi) => misi.misi));
-const emptyIndicatorPreview = (): IndicatorPreviewRow => ({ key: 'empty', label: '-', satuan: '-', target_by_year: {} });
+const emptyIndicatorPreview = (): IndicatorPreviewRow => ({ key: 'empty', label: '-', satuan: '-', target_by_year: {}, pd_penanggung_jawab: null });
 const indicatorSatuan = (item: Indikator) => item.satuan?.simbol || item.satuan?.nama || '-';
 const formatTargetNumber = (value?: string | number | null) => {
     if (value === null || value === undefined || value === '') {
@@ -1288,13 +1339,14 @@ const targetByYear = (item: Indikator) => {
 
     return byYear;
 };
-const indicatorPreviewRows = (items: Indikator[]): IndicatorPreviewRow[] =>
+const indicatorPreviewRows = (items: Indikator[], program?: Program | null): IndicatorPreviewRow[] =>
     items.length
         ? items.map((item) => ({
               key: String(item.id),
               label: nodeText(item.kode, item.indikator),
               satuan: indicatorSatuan(item),
               target_by_year: targetByYear(item),
+              pd_penanggung_jawab: program ? indicatorProgramPdPenanggungJawabLabel(item, program) : null,
           }))
         : [emptyIndicatorPreview()];
 const relatedTujuanIndicators = (tujuan: Tujuan, sasaran: Sasaran) => {
@@ -1443,10 +1495,10 @@ const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
                 if (sasaran.programs.length > 0) {
                     const tujuanIndicatorRows = indicatorPreviewRows(tujuanIndicatorsForSasaran);
                     const programRows = sasaran.programs.flatMap((program) =>
-                        indicatorPreviewRows(program.indikator).map((indikatorProgram, index) => ({
+                        indicatorPreviewRows(program.indikator, program).map((indikatorProgram, index) => ({
                             key: `program-${program.id}-${index}`,
                             indikatorProgram,
-                            opd_penanggung_jawab: programPdPenanggungJawabLabel(program),
+                            opd_penanggung_jawab: indikatorProgram.pd_penanggung_jawab ?? '-',
                             base:
                                 index === 0
                                     ? {
@@ -1933,8 +1985,8 @@ const editNode = (type: NodeType, id: number, parentId: number | null, node: any
         form.indikator = valueText(node.indikator);
         form.satuan_indikator_id = valueText(node.satuan_indikator_id);
         form.opd_id = type === 'indikator_program' ? '' : valueText(node.opd_id);
-        form.opd_ids = type === 'indikator_program' ? [] : [...(node.opd_ids ?? [])];
-        form.cakupan_pengampu = 'opd_tertentu';
+        form.opd_ids = [...(node.opd_ids ?? [])];
+        form.cakupan_pengampu = node.cakupan_pengampu ?? 'opd_tertentu';
         form.definisi_operasional = valueText(node.definisi_operasional);
         form.alasan_pemilihan = valueText(node.alasan_pemilihan);
         form.formulasi_pengukuran = valueText(node.formulasi_pengukuran);
@@ -2089,14 +2141,13 @@ const normalizedBulkRowsForStore = (rows: BulkRow[]) =>
     rows.map((row, rowIndex) => {
         const currentIndex = bulkForm.rows.findIndex((item) => item.client_id === row.client_id);
         const cakupanPengampu = normalizePengampuScope(row.cakupan_pengampu);
-        const isAutomaticProgramPengampu = bulkForm.type === 'indikator_program';
 
         return {
             ...row,
-            cakupan_pengampu: isAutomaticProgramPengampu ? 'opd_tertentu' : cakupanPengampu,
+            cakupan_pengampu: cakupanPengampu,
             is_penanggung_jawab_manual: bulkForm.type === 'program' ? Boolean(row.is_penanggung_jawab_manual) : false,
-            opd_id: isAutomaticProgramPengampu ? '' : row.opd_id,
-            opd_ids: isAutomaticProgramPengampu ? [] : row.opd_ids,
+            opd_id: bulkForm.type === 'indikator_program' ? '' : row.opd_id,
+            opd_ids: row.opd_ids,
             target_text: '',
             urutan: bulkVisibleExistingRows.value.length + (currentIndex >= 0 ? currentIndex : rowIndex) + 1,
         };
@@ -2120,7 +2171,6 @@ const submitBulkNodes = () => {
 const savedBulkPayload = (row: BulkExistingRow) => {
     const editable = editableSavedBulkRow(row);
     const cakupanPengampu = normalizePengampuScope(editable.cakupan_pengampu);
-    const isAutomaticProgramPengampu = row.type === 'indikator_program';
 
     return {
         type: row.type,
@@ -2129,9 +2179,9 @@ const savedBulkPayload = (row: BulkExistingRow) => {
         indikator_tujuan_ids: editable.indikator_tujuan_ids,
         periode_tahun_id: editable.periode_tahun_id,
         satuan_indikator_id: editable.satuan_indikator_id,
-        opd_id: isAutomaticProgramPengampu ? '' : editable.opd_id,
-        opd_ids: isAutomaticProgramPengampu ? [] : editable.opd_ids,
-        cakupan_pengampu: isAutomaticProgramPengampu ? 'opd_tertentu' : cakupanPengampu,
+        opd_id: row.type === 'indikator_program' ? '' : editable.opd_id,
+        opd_ids: editable.opd_ids,
+        cakupan_pengampu: cakupanPengampu,
         is_penanggung_jawab_manual: row.type === 'program' ? Boolean(editable.is_penanggung_jawab_manual) : false,
         urusan_pemerintahan_id: editable.urusan_pemerintahan_id,
         strategi_daerah_id: editable.strategi_daerah_id,
@@ -3605,9 +3655,50 @@ const triwulanLabel = (triwulan: string) =>
                                 <InputError :message="form.errors.sumber_data" />
                             </div>
 
-                            <div v-if="isProgramIndicatorType" class="rounded-lg border border-blue-100 bg-blue-50/70 p-3 text-sm text-[#00336C]">
-                                <p class="font-semibold">PD Pengampu Bidang</p>
-                                <p class="mt-1 text-blue-900/75">{{ formProgramPengampuLabel }}</p>
+                            <div v-if="isProgramIndicatorType" class="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                                <div class="mb-2 inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs font-semibold">
+                                    <button
+                                        type="button"
+                                        class="rounded-md px-2.5 py-1 transition"
+                                        :class="
+                                            form.cakupan_pengampu !== 'semua_opd'
+                                                ? 'bg-[#00336C] text-white shadow-sm'
+                                                : 'text-slate-600 hover:bg-blue-50 hover:text-[#00336C]'
+                                        "
+                                        @click="
+                                            form.cakupan_pengampu = 'opd_tertentu';
+                                            form.clearErrors('cakupan_pengampu');
+                                        "
+                                    >
+                                        PD tertentu
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-md px-2.5 py-1 transition"
+                                        :class="
+                                            form.cakupan_pengampu === 'semua_opd'
+                                                ? 'bg-[#00336C] text-white shadow-sm'
+                                                : 'text-slate-600 hover:bg-blue-50 hover:text-[#00336C]'
+                                        "
+                                        @click="
+                                            form.cakupan_pengampu = 'semua_opd';
+                                            form.opd_ids = [];
+                                            form.clearErrors('cakupan_pengampu');
+                                        "
+                                    >
+                                        Semua PD
+                                    </button>
+                                </div>
+                                <RpjmdOpdMultiSelect
+                                    v-if="form.cakupan_pengampu !== 'semua_opd'"
+                                    v-model="form.opd_ids"
+                                    :options="opdOptions"
+                                    placeholder="Otomatis dari bidang"
+                                    empty-text="Master OPD belum tersedia"
+                                />
+                                <p class="mt-2 text-xs font-medium leading-4 text-slate-500">
+                                    {{ indicatorProgramPengampuHint(form, formProgramPengampuLabel) }}
+                                </p>
                             </div>
 
                             <div v-if="isIndicatorType && !isProgramIndicatorType" class="grid gap-2">
@@ -3936,7 +4027,7 @@ const triwulanLabel = (triwulan: string) =>
                                                 <th v-if="bulkIsIndicatorType" class="min-w-72 px-3 py-2">Formulasi Pengukuran</th>
                                                 <th v-if="bulkIsIndicatorType" class="min-w-44 px-3 py-2">Tipe Perhitungan</th>
                                                 <th v-if="bulkIsIndicatorType" class="min-w-56 px-3 py-2">Sumber Data</th>
-                                                <th v-if="bulkIsIndicatorType" class="min-w-72 px-3 py-2">
+                                                <th v-if="bulkIsIndicatorType" :class="bulkIsProgramIndicatorType ? 'min-w-[420px] px-3 py-2' : 'min-w-72 px-3 py-2'">
                                                     {{ bulkIsProgramIndicatorType ? 'PD Pengampu Bidang' : 'OPD / PD Penanggung Jawab' }}
                                                 </th>
                                                 <th v-if="bulkIsProgramType" class="min-w-56 px-3 py-2">Strategi</th>
@@ -4073,11 +4164,52 @@ const triwulanLabel = (triwulan: string) =>
                                                     />
                                                 </td>
                                                 <td v-if="bulkIsIndicatorType" class="px-3 py-2 align-top">
-                                                    <div
-                                                        v-if="bulkIsProgramIndicatorType"
-                                                        class="min-h-10 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold leading-5 text-[#00336C]"
-                                                    >
-                                                        {{ savedProgramPengampuLabel(saved) }}
+                                                    <div v-if="bulkIsProgramIndicatorType" class="min-w-[420px] rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+                                                        <div class="mb-2 inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs font-semibold">
+                                                            <button
+                                                                type="button"
+                                                                class="rounded-md px-2.5 py-1 transition"
+                                                                :class="
+                                                                    editableSavedBulkRow(saved).cakupan_pengampu !== 'semua_opd'
+                                                                        ? 'bg-[#00336C] text-white shadow-sm'
+                                                                        : 'text-slate-600 hover:bg-blue-50 hover:text-[#00336C]'
+                                                                "
+                                                                @click="
+                                                                    setIndicatorProgramPengampuScope(editableSavedBulkRow(saved), 'opd_tertentu', () =>
+                                                                        markSavedBulkChanged(saved),
+                                                                    )
+                                                                "
+                                                            >
+                                                                PD tertentu
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                class="rounded-md px-2.5 py-1 transition"
+                                                                :class="
+                                                                    editableSavedBulkRow(saved).cakupan_pengampu === 'semua_opd'
+                                                                        ? 'bg-[#00336C] text-white shadow-sm'
+                                                                        : 'text-slate-600 hover:bg-blue-50 hover:text-[#00336C]'
+                                                                "
+                                                                @click="
+                                                                    setIndicatorProgramPengampuScope(editableSavedBulkRow(saved), 'semua_opd', () =>
+                                                                        markSavedBulkChanged(saved),
+                                                                    )
+                                                                "
+                                                            >
+                                                                Semua PD
+                                                            </button>
+                                                        </div>
+                                                        <RpjmdOpdMultiSelect
+                                                            v-if="editableSavedBulkRow(saved).cakupan_pengampu !== 'semua_opd'"
+                                                            v-model="editableSavedBulkRow(saved).opd_ids"
+                                                            :options="opdOptions"
+                                                            placeholder="Otomatis dari bidang"
+                                                            empty-text="Master OPD belum tersedia"
+                                                            @update:model-value="markSavedBulkChanged(saved)"
+                                                        />
+                                                        <p class="mt-2 text-xs font-medium leading-4 text-slate-500">
+                                                            {{ indicatorProgramPengampuHint(editableSavedBulkRow(saved), savedProgramPengampuLabel(saved)) }}
+                                                        </p>
                                                     </div>
                                                     <select
                                                         v-else
@@ -4346,11 +4478,44 @@ const triwulanLabel = (triwulan: string) =>
                                                     />
                                                 </td>
                                                 <td v-if="bulkIsIndicatorType" class="px-3 py-2">
-                                                    <div
-                                                        v-if="bulkIsProgramIndicatorType"
-                                                        class="min-h-10 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold leading-5 text-[#00336C]"
-                                                    >
-                                                        {{ bulkProgramPengampuLabel }}
+                                                    <div v-if="bulkIsProgramIndicatorType" class="min-w-[420px] rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+                                                        <div class="mb-2 inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs font-semibold">
+                                                            <button
+                                                                type="button"
+                                                                class="rounded-md px-2.5 py-1 transition"
+                                                                :class="
+                                                                    row.cakupan_pengampu !== 'semua_opd'
+                                                                        ? 'bg-[#00336C] text-white shadow-sm'
+                                                                        : 'text-slate-600 hover:bg-blue-50 hover:text-[#00336C]'
+                                                                "
+                                                                @click="setIndicatorProgramPengampuScope(row, 'opd_tertentu', () => markNewBulkChanged(row))"
+                                                            >
+                                                                PD tertentu
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                class="rounded-md px-2.5 py-1 transition"
+                                                                :class="
+                                                                    row.cakupan_pengampu === 'semua_opd'
+                                                                        ? 'bg-[#00336C] text-white shadow-sm'
+                                                                        : 'text-slate-600 hover:bg-blue-50 hover:text-[#00336C]'
+                                                                "
+                                                                @click="setIndicatorProgramPengampuScope(row, 'semua_opd', () => markNewBulkChanged(row))"
+                                                            >
+                                                                Semua PD
+                                                            </button>
+                                                        </div>
+                                                        <RpjmdOpdMultiSelect
+                                                            v-if="row.cakupan_pengampu !== 'semua_opd'"
+                                                            v-model="row.opd_ids"
+                                                            :options="opdOptions"
+                                                            placeholder="Otomatis dari bidang"
+                                                            empty-text="Master OPD belum tersedia"
+                                                            @update:model-value="markNewBulkChanged(row)"
+                                                        />
+                                                        <p class="mt-2 text-xs font-medium leading-4 text-slate-500">
+                                                            {{ indicatorProgramPengampuHint(row, bulkProgramPengampuLabel) }}
+                                                        </p>
                                                     </div>
                                                     <select
                                                         v-else

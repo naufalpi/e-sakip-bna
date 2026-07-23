@@ -183,7 +183,7 @@ class RpjmdNodeController extends Controller
             'indikator_program' => tap(IndikatorProgramRpjmd::create([
                 'program_rpjmd_id' => $this->program($rpjmd, $data['parent_id'] ?? null)->id,
                 ...$this->indicatorProgramPayload($data, 'Indikator program wajib diisi.'),
-            ]), fn (IndikatorProgramRpjmd $indikator) => $this->syncIndikatorProgramOpdPengampu($indikator)),
+            ]), fn (IndikatorProgramRpjmd $indikator) => $this->syncIndikatorProgramOpdPengampu($indikator, $data)),
             'target_program' => TargetIndikatorProgramRpjmd::updateOrCreate([
                 'indikator_program_rpjmd_id' => $this->indikatorProgram($rpjmd, $data['parent_id'] ?? null)->id,
                 'periode_tahun_id' => $this->requiredInt($data, 'periode_tahun_id', 'Periode target wajib dipilih.'),
@@ -369,7 +369,7 @@ class RpjmdNodeController extends Controller
                     ...$this->indicatorProgramPayload($data, 'Indikator program wajib diisi.'),
                 ]);
 
-                $this->syncIndikatorProgramOpdPengampu($indikator->refresh());
+                $this->syncIndikatorProgramOpdPengampu($indikator->refresh(), $data);
             }),
             'target_program' => tap($this->findNode($rpjmd, $type, $id), function (TargetIndikatorProgramRpjmd $target) use ($rpjmd, $data) {
                 $periodeTahunId = filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id;
@@ -435,17 +435,27 @@ class RpjmdNodeController extends Controller
     private function indicatorProgramPayload(array $data, string $requiredMessage): array
     {
         $payload = $this->indicatorPayload($data, $requiredMessage);
+        $cakupanPengampu = in_array($data['cakupan_pengampu'] ?? null, ['opd_tertentu', 'semua_opd'], true)
+            ? $data['cakupan_pengampu']
+            : 'opd_tertentu';
 
         return [
             ...$payload,
-            'cakupan_pengampu' => 'opd_tertentu',
+            'cakupan_pengampu' => $cakupanPengampu,
             'opd_id' => null,
         ];
     }
 
-    private function syncIndikatorProgramOpdPengampu(IndikatorProgramRpjmd $indikator): void
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function syncIndikatorProgramOpdPengampu(IndikatorProgramRpjmd $indikator, array $data): void
     {
-        $this->pengampuResolver->syncForIndikator($indikator);
+        $this->pengampuResolver->syncForIndikator(
+            $indikator,
+            array_key_exists('opd_ids', $data) ? $this->normalizeIds($data['opd_ids'] ?? []) : null,
+            $data['cakupan_pengampu'] ?? null,
+        );
     }
 
     /**

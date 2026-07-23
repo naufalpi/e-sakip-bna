@@ -685,7 +685,6 @@ class RpjmdAccessTest extends TestCase
                 'type' => 'indikator_program',
                 'parent_id' => $program->id,
                 'indikator' => 'Indikator program mengikuti pengampu bidang',
-                'cakupan_pengampu' => 'semua_opd',
                 'opd_id' => Opd::whereKeyNot($opdPengampu->id)->value('id'),
                 'urutan' => 1,
             ])
@@ -749,7 +748,8 @@ class RpjmdAccessTest extends TestCase
                 'type' => 'indikator_program',
                 'parent_id' => $program->id,
                 'indikator' => 'Persentase tingkat ketercapaian kinerja perangkat daerah',
-                'opd_id' => $opd->id,
+                'opd_ids' => [$opd->id],
+                'cakupan_pengampu' => 'opd_tertentu',
                 'urutan' => 1,
             ])
             ->assertRedirect();
@@ -760,6 +760,26 @@ class RpjmdAccessTest extends TestCase
         $this->assertNull($semuaOpd->opd_id);
         $this->assertDatabaseMissing('indikator_program_rpjmd_opd_pengampu', [
             'indikator_program_rpjmd_id' => $semuaOpd->id,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.store', $rpjmd), [
+                'type' => 'indikator_program',
+                'parent_id' => $program->id,
+                'indikator' => 'NDR',
+                'opd_ids' => [$opd->id],
+                'urutan' => 2,
+            ])
+            ->assertRedirect();
+
+        $indikatorKhusus = IndikatorProgramRpjmd::where('indikator', 'NDR')->firstOrFail();
+
+        $this->assertSame('opd_tertentu', $indikatorKhusus->cakupan_pengampu);
+        $this->assertSame($opd->id, $indikatorKhusus->opd_id);
+        $this->assertDatabaseHas('indikator_program_rpjmd_opd_pengampu', [
+            'indikator_program_rpjmd_id' => $indikatorKhusus->id,
+            'opd_id' => $opd->id,
+            'peran' => 'pengampu_data',
         ]);
     }
 

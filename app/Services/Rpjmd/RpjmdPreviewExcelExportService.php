@@ -6,6 +6,7 @@ use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
 use App\Models\PeriodeTahun;
+use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
 use App\Models\Rpjmd;
 use App\Models\RpjmdMisi;
@@ -51,6 +52,7 @@ class RpjmdPreviewExcelExportService
             'visi.tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.programs.strategi:id,kode,strategi,status',
             'visi.tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
+            'visi.tujuan.sasaran.programs.indikator.opdPengampu' => fn ($query) => $query->select('opds.id', 'opds.kode', 'opds.nama', 'opds.singkatan'),
             'visi.tujuan.sasaran.programs.indikator.targets.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.programs.opdPenanggungJawab' => fn ($query) => $query->select('opds.id', 'opds.nama', 'opds.singkatan'),
             'visi.tujuan.sasaran.programs.programPemerintahan.bidangUrusan.opdPengampu' => fn ($query) => $query->select('opds.id', 'opds.kode', 'opds.nama', 'opds.singkatan'),
@@ -214,10 +216,10 @@ class RpjmdPreviewExcelExportService
     {
         $programRows = $programs
             ->flatMap(function (ProgramRpjmd $program) {
-                return collect($this->indicatorPreviewRows($program->indikator))
+                return collect($this->indicatorPreviewRows($program->indikator, $program))
                     ->map(fn (array $indikatorProgram, int $index) => [
                         'indikator_program' => $indikatorProgram,
-                        'opd_penanggung_jawab' => $this->programPdPenanggungJawabLabel($program),
+                        'opd_penanggung_jawab' => $indikatorProgram['pd_penanggung_jawab'] ?? '-',
                         'base' => $index === 0 ? [
                             'strategi' => $program->strategi ? $this->nodeText($program->strategi->kode, $program->strategi->strategi) : '-',
                             'program' => $this->nodeText($program->kode, $program->nama),
@@ -258,18 +260,23 @@ class RpjmdPreviewExcelExportService
      * @param  EloquentCollection<int, IndikatorTujuanDaerah|IndikatorSasaranDaerah|IndikatorProgramRpjmd>|Collection<int, IndikatorTujuanDaerah|IndikatorSasaranDaerah|IndikatorProgramRpjmd>  $items
      * @return array<int, array<string, mixed>>
      */
-    private function indicatorPreviewRows(EloquentCollection|Collection $items): array
+    private function indicatorPreviewRows(EloquentCollection|Collection $items, ?ProgramRpjmd $program = null): array
     {
         if ($items->isEmpty()) {
             return [$this->emptyIndicatorPreview()];
         }
 
         return $items
-            ->map(fn (IndikatorTujuanDaerah|IndikatorSasaranDaerah|IndikatorProgramRpjmd $item) => [
-                'label' => $this->nodeText($item->kode, $item->indikator),
-                'satuan' => $item->satuanIndikator?->simbol ?: ($item->satuanIndikator?->nama ?: '-'),
-                'target_by_year' => $this->targetByYear($item),
-            ])
+            ->map(function (IndikatorTujuanDaerah|IndikatorSasaranDaerah|IndikatorProgramRpjmd $item) use ($program) {
+                return [
+                    'label' => $this->nodeText($item->kode, $item->indikator),
+                    'satuan' => $item->satuanIndikator?->simbol ?: ($item->satuanIndikator?->nama ?: '-'),
+                    'target_by_year' => $this->targetByYear($item),
+                    'pd_penanggung_jawab' => $item instanceof IndikatorProgramRpjmd && $program
+                        ? $this->indicatorProgramPdPenanggungJawabLabel($item, $program)
+                        : null,
+                ];
+            })
             ->values()
             ->all();
     }
@@ -312,10 +319,6 @@ class RpjmdPreviewExcelExportService
             ->unique('id')
             ->values();
 
-        if ($references->contains(fn ($reference) => $this->isProgramPenunjang($reference->nama))) {
-            return 'Semua Perangkat Daerah';
-        }
-
         $labels = $references
             ->pluck('bidangUrusan')
             ->filter()
@@ -327,6 +330,73 @@ class RpjmdPreviewExcelExportService
             ->all();
 
         return $labels === [] ? 'PD Pengampu belum terdeteksi' : implode('; ', $labels);
+    }
+
+    private function indicatorProgramPdPenanggungJawabLabel(IndikatorProgramRpjmd $indikator, ProgramRpjmd $program): string
+    {
+        if (($indikator->cakupan_pengampu ?: 'opd_tertentu') === 'semua_opd') {
+            return 'Semua Perangkat Daerah';
+        }
+
+        $indikator->loadMissing('opdPengampu');
+        $opdIds = $indikator->opdPengampu
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        if ($opdIds !== []) {
+            $bidangLabels = $this->bidangLabelsForOpdIds($program, $opdIds);
+
+            if ($bidangLabels !== []) {
+                return implode('; ', $bidangLabels);
+            }
+
+            return $indikator->opdPengampu
+                ->map(fn ($opd) => $opd->singkatan ?: $opd->nama)
+                ->filter()
+                ->implode('; ') ?: 'PD Pengampu belum terdeteksi';
+        }
+
+        if ($this->programReferences($program)->contains(fn ($reference) => $this->isProgramPenunjang($reference->nama))) {
+            return 'PD Pengampu belum ditentukan';
+        }
+
+        return $this->programPdPenanggungJawabLabel($program);
+    }
+
+    /**
+     * @param  array<int, int>  $opdIds
+     * @return array<int, string>
+     */
+    private function bidangLabelsForOpdIds(ProgramRpjmd $program, array $opdIds): array
+    {
+        return $this->programReferences($program)
+            ->pluck('bidangUrusan')
+            ->filter()
+            ->filter(fn ($bidang) => $bidang->opdPengampu
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->intersect($opdIds)
+                ->isNotEmpty())
+            ->map(fn ($bidang) => $this->titleBidangName($bidang->nama))
+            ->filter()
+            ->unique()
+            ->map(fn (string $bidang) => "PD Pengampu Urusan {$bidang}")
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return Collection<int, ProgramPemerintahan>
+     */
+    private function programReferences(ProgramRpjmd $program): Collection
+    {
+        return collect()
+            ->when($program->programPemerintahan, fn (Collection $references) => $references->push($program->programPemerintahan))
+            ->merge($program->programPemerintahanReferences)
+            ->unique('id')
+            ->values();
     }
 
     private function isProgramPenunjang(?string $value): bool
@@ -407,6 +477,7 @@ class RpjmdPreviewExcelExportService
             'label' => '-',
             'satuan' => '-',
             'target_by_year' => [],
+            'pd_penanggung_jawab' => null,
         ];
     }
 

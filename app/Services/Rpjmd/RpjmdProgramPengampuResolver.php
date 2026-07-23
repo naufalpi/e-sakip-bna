@@ -39,14 +39,77 @@ class RpjmdProgramPengampuResolver
         ];
     }
 
-    public function syncForIndikator(IndikatorProgramRpjmd $indikator): void
+    /**
+     * @return array{cakupan_pengampu: string, opd_ids: array<int, int>}
+     */
+    public function resolveForIndikator(IndikatorProgramRpjmd $indikator): array
     {
         $indikator->loadMissing([
             'program.programPemerintahan.bidangUrusan.opdPengampu',
             'program.programPemerintahanReferences.bidangUrusan.opdPengampu',
         ]);
 
-        $resolved = $this->resolveForProgram($indikator->program);
+        $program = $indikator->program;
+        $references = $this->programReferences($program);
+        $isPenunjang = $references->contains(fn (ProgramPemerintahan $reference) => $this->isProgramPenunjang($reference->nama));
+
+        if ($isPenunjang && $this->isAllOpdProgramIndicator($indikator->indikator)) {
+            return [
+                'cakupan_pengampu' => 'semua_opd',
+                'opd_ids' => [],
+            ];
+        }
+
+        if ($isPenunjang) {
+            return [
+                'cakupan_pengampu' => 'opd_tertentu',
+                'opd_ids' => [],
+            ];
+        }
+
+        return $this->resolveForProgramBidang($program);
+    }
+
+    /**
+     * @param  array<int, int>|null  $manualOpdIds
+     */
+    public function syncForIndikator(IndikatorProgramRpjmd $indikator, ?array $manualOpdIds = null, ?string $cakupanPengampu = null): void
+    {
+        $indikator->loadMissing([
+            'opdPengampu',
+            'program.programPemerintahan.bidangUrusan.opdPengampu',
+            'program.programPemerintahanReferences.bidangUrusan.opdPengampu',
+        ]);
+
+        $manualOpdIds = $this->normalizeIds($manualOpdIds ?? []);
+        $existingOpdIds = $indikator->opdPengampu
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+        $isGenericAllOpdIndicator = $this->isGenericAllOpdIndicator($indikator);
+        $resolved = match (true) {
+            $isGenericAllOpdIndicator => [
+                'cakupan_pengampu' => 'semua_opd',
+                'opd_ids' => [],
+            ],
+            $cakupanPengampu === 'semua_opd' => [
+                'cakupan_pengampu' => 'semua_opd',
+                'opd_ids' => [],
+            ],
+            $manualOpdIds !== [] => [
+                'cakupan_pengampu' => 'opd_tertentu',
+                'opd_ids' => $manualOpdIds,
+            ],
+            $cakupanPengampu === 'opd_tertentu' => $this->resolveForIndikator($indikator),
+            ! $isGenericAllOpdIndicator
+                && ($indikator->cakupan_pengampu ?: 'opd_tertentu') !== 'semua_opd'
+                && $existingOpdIds !== [] => [
+                    'cakupan_pengampu' => 'opd_tertentu',
+                    'opd_ids' => $existingOpdIds,
+                ],
+            default => $this->resolveForIndikator($indikator),
+        };
         $opdIds = $resolved['opd_ids'];
 
         $indikator->update([
@@ -104,14 +167,27 @@ class RpjmdProgramPengampuResolver
             return 'Semua Perangkat Daerah';
         }
 
-        $indikator->loadMissing('opdPengampu');
+        $indikator->loadMissing([
+            'opdPengampu',
+            'program.programPemerintahan.bidangUrusan.opdPengampu',
+            'program.programPemerintahanReferences.bidangUrusan.opdPengampu',
+        ]);
 
         $names = $indikator->opdPengampu
             ->map(fn (Opd $opd) => $opd->singkatan ?: $opd->nama)
             ->filter()
             ->values();
 
-        return $names->isEmpty() ? 'Belum terdeteksi' : $names->implode('; ');
+        if ($names->isEmpty()) {
+            return 'Belum terdeteksi';
+        }
+
+        $bidangLabels = $this->bidangLabelsForOpdIds(
+            $indikator->program,
+            $indikator->opdPengampu->pluck('id')->map(fn ($id) => (int) $id)->all(),
+        );
+
+        return $bidangLabels === [] ? $names->implode('; ') : implode('; ', $bidangLabels);
     }
 
     /**
@@ -142,6 +218,110 @@ class RpjmdProgramPengampuResolver
 
         return str_contains($normalized, 'program penunjang urusan pemerintahan daerah')
             && (str_contains($normalized, 'kabupaten/kota') || str_contains($normalized, 'kab/kota'));
+    }
+
+    /**
+     * @return array{cakupan_pengampu: string, opd_ids: array<int, int>}
+     */
+    private function resolveForProgramBidang(ProgramRpjmd $program): array
+    {
+        $opdIds = $this->programReferences($program)
+            ->pluck('bidangUrusan')
+            ->filter()
+            ->flatMap(fn ($bidang) => $bidang->opdPengampu->pluck('id'))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        return [
+            'cakupan_pengampu' => 'opd_tertentu',
+            'opd_ids' => $opdIds,
+        ];
+    }
+
+    private function isAllOpdProgramIndicator(?string $name): bool
+    {
+        $normalized = strtolower((string) preg_replace('/\s+/', ' ', trim((string) $name)));
+
+        return str_contains($normalized, 'persentase tingkat ketercapaian kinerja perangkat daerah')
+            || (
+                str_contains($normalized, 'persentase tingkat pelayanan umum')
+                && str_contains($normalized, 'kepegawaian')
+                && str_contains($normalized, 'keuangan perangkat daerah')
+            );
+    }
+
+    private function isGenericAllOpdIndicator(IndikatorProgramRpjmd $indikator): bool
+    {
+        if (! $this->isAllOpdProgramIndicator($indikator->indikator)) {
+            return false;
+        }
+
+        return $this->programReferences($indikator->program)
+            ->contains(fn (ProgramPemerintahan $reference) => $this->isProgramPenunjang($reference->nama));
+    }
+
+    /**
+     * @param  array<int, int>|null  $ids
+     * @return array<int, int>
+     */
+    private function normalizeIds(?array $ids): array
+    {
+        return collect($ids ?? [])
+            ->filter(fn ($id) => filled($id))
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $opdIds
+     * @return array<int, string>
+     */
+    private function bidangLabelsForOpdIds(ProgramRpjmd $program, array $opdIds): array
+    {
+        if ($opdIds === []) {
+            return [];
+        }
+
+        return $this->programReferences($program)
+            ->pluck('bidangUrusan')
+            ->filter()
+            ->filter(fn ($bidang) => $bidang->opdPengampu
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->intersect($opdIds)
+                ->isNotEmpty())
+            ->map(fn ($bidang) => $this->bidangPengampuLabel($bidang->nama))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function bidangPengampuLabel(?string $name): string
+    {
+        $cleaned = trim((string) preg_replace('/^urusan pemerintahan bidang\s+/i', '', (string) $name));
+
+        if ($cleaned === '') {
+            return '';
+        }
+
+        $smallWords = ['dan', 'di', 'ke', 'dengan', 'untuk', 'yang', 'serta', 'atau', 'dalam', 'atas'];
+        $title = collect(preg_split('/\s+/', strtolower($cleaned)) ?: [])
+            ->map(function (string $word, int $index) use ($smallWords): string {
+                if ($index > 0 && in_array($word, $smallWords, true)) {
+                    return $word;
+                }
+
+                return ucfirst($word);
+            })
+            ->implode(' ');
+
+        return "PD Pengampu Urusan {$title}";
     }
 
     /**
