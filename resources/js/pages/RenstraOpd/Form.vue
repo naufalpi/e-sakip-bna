@@ -2,9 +2,9 @@
 import InputError from '@/components/InputError.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, FileText, GitBranch, Info, Save } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 
-type Option = { id: number; label: string };
+type Option = { id: number; label: string; tahun?: number };
 
 type RenstraForm = {
     opd_id: number | string | null;
@@ -33,7 +33,7 @@ const form = useForm<RenstraForm>({
     judul: props.renstra?.judul ?? '',
     nomor_dokumen: props.renstra?.nomor_dokumen ?? '',
     tahun_awal: props.renstra?.tahun_awal ?? new Date().getFullYear(),
-    tahun_akhir: props.renstra?.tahun_akhir ?? new Date().getFullYear() + 5,
+    tahun_akhir: props.renstra?.tahun_akhir ?? new Date().getFullYear() + 4,
     status: props.renstra?.status ?? 'draft',
     keterangan: props.renstra?.keterangan ?? '',
 });
@@ -51,8 +51,18 @@ const pageTitle = computed(() => (props.mode === 'create' ? 'Tambah Renstra OPD'
 const submitLabel = computed(() => (props.mode === 'create' ? 'Simpan Renstra' : 'Simpan Perubahan'));
 const selectedOpd = computed(() => props.opdOptions.find((option) => String(option.id) === String(form.opd_id)));
 const selectedRpjmd = computed(() => props.rpjmdOptions.find((option) => String(option.id) === String(form.rpjmd_id)));
-const selectedPeriode = computed(() => props.periodeOptions.find((option) => String(option.id) === String(form.periode_tahun_id)));
 const errorCount = computed(() => Object.values(form.errors).filter(Boolean).length);
+const periodeYear = (option: Option) => option.tahun ?? Number(String(option.label).match(/^\d{4}/)?.[0]);
+const periodeByYear = computed(() => new Map(props.periodeOptions.map((option) => [periodeYear(option), option])));
+const autoPeriode = computed(() => periodeByYear.value.get(Number(form.tahun_awal)) ?? null);
+
+watch(
+    () => form.tahun_awal,
+    () => {
+        form.periode_tahun_id = autoPeriode.value?.id ?? '';
+    },
+    { immediate: true },
+);
 
 const yearRangeLabel = computed(() => {
     const start = Number(form.tahun_awal);
@@ -82,7 +92,7 @@ const readinessItems = computed(() => [
     },
     {
         label: 'Periode',
-        value: selectedPeriode.value?.label ?? yearRangeLabel.value,
+        value: yearRangeLabel.value,
         complete: Boolean(form.tahun_awal && form.tahun_akhir),
     },
     {
@@ -226,7 +236,7 @@ const statusClass = (status: string) =>
                         </div>
                     </div>
 
-                    <div class="mt-5 grid gap-4 md:grid-cols-3">
+                    <div class="mt-5 grid gap-4 md:grid-cols-2">
                         <label class="grid gap-2" for="tahun_awal">
                             <span class="text-sm font-medium text-slate-900">Tahun Awal <span class="text-red-600">*</span></span>
                             <input
@@ -252,25 +262,17 @@ const statusClass = (status: string) =>
                             />
                             <InputError :message="form.errors.tahun_akhir" />
                         </label>
-
-                        <label class="grid min-w-0 gap-2" for="periode_tahun_id">
-                            <span class="text-sm font-medium text-slate-900">Periode Referensi</span>
-                            <select
-                                id="periode_tahun_id"
-                                v-model="form.periode_tahun_id"
-                                class="min-h-11 w-full min-w-0 truncate rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                            >
-                                <option value="">Pilih periode</option>
-                                <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
-                            <InputError :message="form.errors.periode_tahun_id" />
-                        </label>
                     </div>
 
                     <div class="mt-4 flex items-start gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
                         <CalendarDays class="mt-0.5 size-4 shrink-0" />
-                        <span>Ringkasan periode: {{ yearRangeLabel }}</span>
+                        <span>
+                            Ringkasan periode: {{ yearRangeLabel }}.
+                            <span v-if="autoPeriode">Acuan sistem otomatis: {{ autoPeriode.label }}.</span>
+                            <span v-else>Periode tahun acuan belum tersedia di master.</span>
+                        </span>
                     </div>
+                    <InputError :message="form.errors.periode_tahun_id" class="mt-2" />
                 </section>
 
                 <section class="rounded-lg border bg-card p-4 shadow-sm sm:p-5">

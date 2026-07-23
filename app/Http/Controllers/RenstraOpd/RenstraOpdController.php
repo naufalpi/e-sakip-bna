@@ -124,7 +124,10 @@ class RenstraOpdController extends Controller
 
     public function store(StoreRenstraOpdRequest $request): RedirectResponse
     {
-        $renstra = RenstraOpd::create($request->validated());
+        $data = $request->validated();
+        $data['periode_tahun_id'] = $this->resolvePeriodeTahunId($data);
+
+        $renstra = RenstraOpd::create($data);
 
         return redirect()->route('renstra-opd.show', $renstra)->with('success', 'Renstra OPD berhasil ditambahkan.');
     }
@@ -166,6 +169,7 @@ class RenstraOpdController extends Controller
 
         return Inertia::render('RenstraOpd/Show', [
             'renstra' => $this->serializeRenstra($renstraOpd),
+            'rpjmdContext' => $this->rpjmdContext($renstraOpd),
             'nodeOptions' => $manage ? $this->nodeOptions($renstraOpd) : [],
             'targetTriwulanOptions' => $manage ? $this->targetTriwulanOptions($renstraOpd) : [],
             'rpjmdReferenceOptions' => $manage ? $this->rpjmdReferenceOptions($renstraOpd, $request->user()) : [],
@@ -207,7 +211,10 @@ class RenstraOpdController extends Controller
 
     public function update(UpdateRenstraOpdRequest $request, RenstraOpd $renstraOpd): RedirectResponse
     {
-        $renstraOpd->update($request->validated());
+        $data = $request->validated();
+        $data['periode_tahun_id'] = $this->resolvePeriodeTahunId($data);
+
+        $renstraOpd->update($data);
 
         return redirect()->route('renstra-opd.show', $renstraOpd)->with('success', 'Renstra OPD berhasil diperbarui.');
     }
@@ -281,8 +288,27 @@ class RenstraOpdController extends Controller
             ->map(fn (PeriodeTahun $periode) => [
                 'id' => $periode->id,
                 'label' => "{$periode->tahun} - {$periode->nama}",
+                'tahun' => $periode->tahun,
             ])
             ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function resolvePeriodeTahunId(array $data): ?int
+    {
+        if (filled($data['periode_tahun_id'] ?? null)) {
+            return (int) $data['periode_tahun_id'];
+        }
+
+        if (! filled($data['tahun_awal'] ?? null)) {
+            return null;
+        }
+
+        return PeriodeTahun::query()
+            ->where('tahun', (int) $data['tahun_awal'])
+            ->value('id');
     }
 
     /**
@@ -484,6 +510,115 @@ class RenstraOpdController extends Controller
     private function nodeLabel(?string $kode, ?string $label): string
     {
         return trim(($kode ? "{$kode} - " : '').str($label ?? '')->limit(90)->toString());
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rpjmdContext(RenstraOpd $renstra): array
+    {
+        if (! filled($renstra->rpjmd_id)) {
+            return [
+                'visi' => [],
+                'misi' => [],
+                'program_groups' => [],
+            ];
+        }
+
+        $rpjmd = Rpjmd::query()
+            ->with([
+                'visi:id,rpjmd_id,visi,urutan',
+                'misi:id,rpjmd_id,kode,misi,urutan',
+            ])
+            ->find($renstra->rpjmd_id, ['id', 'judul', 'tahun_awal', 'tahun_akhir']);
+
+        if (! $rpjmd) {
+            return [
+                'visi' => [],
+                'misi' => [],
+                'program_groups' => [],
+            ];
+        }
+
+        $programs = ProgramRpjmd::query()
+            ->forRpjmd((int) $renstra->rpjmd_id)
+            ->when(filled($renstra->opd_id), fn (Builder $query) => $query->relevantForOpd((int) $renstra->opd_id))
+            ->with([
+                'sasaran:id,tujuan_daerah_id,kode,sasaran,urutan',
+                'sasaran.tujuan:id,rpjmd_visi_id,rpjmd_misi_id,kode,tujuan,urutan',
+                'sasaran.tujuan.misiTerkait:id,kode,misi,urutan',
+                'programPemerintahan:id,kode,nama,bidang_urusan_id',
+                'programPemerintahanReferences:id,kode,nama,bidang_urusan_id',
+            ])
+            ->orderBy('urutan')
+            ->get(['id', 'sasaran_daerah_id', 'program_pemerintahan_id', 'kode', 'nama', 'urutan']);
+
+        return [
+            'visi' => $rpjmd->visi
+                ->map(fn ($visi) => [
+                    'id' => $visi->id,
+                    'visi' => $visi->visi,
+                    'urutan' => $visi->urutan,
+                ])
+                ->values()
+                ->all(),
+            'misi' => $rpjmd->misi
+                ->map(fn ($misi) => [
+                    'id' => $misi->id,
+                    'kode' => $misi->kode,
+                    'misi' => $misi->misi,
+                    'urutan' => $misi->urutan,
+                ])
+                ->values()
+                ->all(),
+            'program_groups' => $programs
+                ->groupBy(fn (ProgramRpjmd $program) => (string) ($program->sasaran_daerah_id ?? "program-{$program->id}"))
+                ->map(function (Collection $items) use ($renstra) {
+                    /** @var ProgramRpjmd $first */
+                    $first = $items->first();
+                    $sasaran = $first?->sasaran;
+                    $tujuan = $sasaran?->tujuan;
+
+                    return [
+                        'tujuan' => $tujuan ? [
+                            'id' => $tujuan->id,
+                            'kode' => $tujuan->kode,
+                            'tujuan' => $tujuan->tujuan,
+                            'misi' => $tujuan->misiTerkait
+                                ->map(fn ($misi) => [
+                                    'id' => $misi->id,
+                                    'kode' => $misi->kode,
+                                    'misi' => $misi->misi,
+                                ])
+                                ->values()
+                                ->all(),
+                        ] : null,
+                        'sasaran' => $sasaran ? [
+                            'id' => $sasaran->id,
+                            'kode' => $sasaran->kode,
+                            'sasaran' => $sasaran->sasaran,
+                        ] : null,
+                        'programs' => $items
+                            ->map(function (ProgramRpjmd $program) use ($renstra) {
+                                $preferredReference = $program->preferredProgramPemerintahanReferenceForOpd(
+                                    filled($renstra->opd_id) ? (int) $renstra->opd_id : null,
+                                );
+
+                                return [
+                                    'id' => $program->id,
+                                    'kode' => $preferredReference?->kode ?? $program->kode,
+                                    'nama' => $preferredReference?->nama ?? $program->nama,
+                                    'rpjmd_kode' => $program->kode,
+                                    'rpjmd_nama' => $program->nama,
+                                ];
+                            })
+                            ->values()
+                            ->all(),
+                    ];
+                })
+                ->values()
+                ->all(),
+        ];
     }
 
     /**

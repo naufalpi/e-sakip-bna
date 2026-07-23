@@ -62,6 +62,9 @@ class RenstraOpdTest extends TestCase
             ->assertRedirect();
 
         $ownRenstra = RenstraOpd::where('opd_id', $opd->id)->firstOrFail();
+        $periodeReferensi = PeriodeTahun::where('tahun', 2026)->firstOrFail();
+
+        $this->assertSame($periodeReferensi->id, $ownRenstra->periode_tahun_id);
 
         $this->actingAs($user)
             ->post(route('renstra-opd.store'), [
