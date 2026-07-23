@@ -1403,24 +1403,51 @@ const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
                     );
                 }
 
-                sasaran.programs.forEach((program, programIndex) => {
-                    addAlignedRows(
-                        `program-${program.id}`,
-                        {
-                            visi: visi.visi,
-                            misi: misiSummary(tujuan),
-                            tujuan: nodeText(tujuan.kode, tujuan.tujuan),
-                            sasaran: nodeText(sasaran.kode, sasaran.sasaran),
-                            strategi: program.strategi ? nodeText(program.strategi.kode, program.strategi.strategi) : '-',
-                            program: nodeText(program.kode, program.nama),
-                            opd_penanggung_jawab: joinItems(program.opd_penanggung_jawab.map((opd) => opd.singkatan || opd.nama)),
-                            status_keterhubungan: program.opd_penanggung_jawab.length > 0 ? 'Terhubung OPD' : 'Belum ada OPD',
-                        },
-                        programIndex === 0 ? indicatorPreviewRows(tujuanIndicatorsForSasaran) : [],
-                        programIndex === 0 ? sasaranIndicatorRows : [],
-                        indicatorPreviewRows(program.indikator),
+                if (sasaran.programs.length > 0) {
+                    const tujuanIndicatorRows = indicatorPreviewRows(tujuanIndicatorsForSasaran);
+                    const programRows = sasaran.programs.flatMap((program) =>
+                        indicatorPreviewRows(program.indikator).map((indikatorProgram, index) => ({
+                            key: `program-${program.id}-${index}`,
+                            indikatorProgram,
+                            base:
+                                index === 0
+                                    ? {
+                                          strategi: program.strategi ? nodeText(program.strategi.kode, program.strategi.strategi) : '-',
+                                          program: nodeText(program.kode, program.nama),
+                                          opd_penanggung_jawab: joinItems(program.opd_penanggung_jawab.map((opd) => opd.singkatan || opd.nama)),
+                                          status_keterhubungan: program.opd_penanggung_jawab.length > 0 ? 'Terhubung OPD' : 'Belum ada OPD',
+                                      }
+                                    : {},
+                        })),
                     );
-                });
+                    const rowCount = Math.max(tujuanIndicatorRows.length, sasaranIndicatorRows.length, programRows.length, 1);
+
+                    for (let index = 0; index < rowCount; index += 1) {
+                        const indikatorTujuan = tujuanIndicatorRows[index] ?? emptyIndicatorPreview();
+                        const indikatorSasaran = sasaranIndicatorRows[index] ?? emptyIndicatorPreview();
+                        const programRow = programRows[index];
+                        const indikatorProgram = programRow?.indikatorProgram ?? emptyIndicatorPreview();
+
+                        rows.push(
+                            emptyRpjmdRow(`sasaran-program-${sasaran.id}-${index}`, {
+                                visi: visi.visi,
+                                misi: misiSummary(tujuan),
+                                tujuan: nodeText(tujuan.kode, tujuan.tujuan),
+                                sasaran: nodeText(sasaran.kode, sasaran.sasaran),
+                                indikator_tujuan: indikatorTujuan.label,
+                                satuan_tujuan: indikatorTujuan.satuan,
+                                target_tujuan_by_year: indikatorTujuan.target_by_year,
+                                indikator_sasaran: indikatorSasaran.label,
+                                satuan_sasaran: indikatorSasaran.satuan,
+                                target_sasaran_by_year: indikatorSasaran.target_by_year,
+                                ...programRow?.base,
+                                indikator_program: indikatorProgram.label,
+                                satuan_program: indikatorProgram.satuan,
+                                target_program_by_year: indikatorProgram.target_by_year,
+                            }),
+                        );
+                    }
+                }
             });
         });
     });
