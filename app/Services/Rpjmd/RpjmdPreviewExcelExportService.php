@@ -217,10 +217,10 @@ class RpjmdPreviewExcelExportService
                 return collect($this->indicatorPreviewRows($program->indikator))
                     ->map(fn (array $indikatorProgram, int $index) => [
                         'indikator_program' => $indikatorProgram,
+                        'opd_penanggung_jawab' => $this->programPdPenanggungJawabLabel($program),
                         'base' => $index === 0 ? [
                             'strategi' => $program->strategi ? $this->nodeText($program->strategi->kode, $program->strategi->strategi) : '-',
                             'program' => $this->nodeText($program->kode, $program->nama),
-                            'opd_penanggung_jawab' => $this->programPdPenanggungJawabLabel($program),
                         ] : [],
                     ]);
             })
@@ -249,6 +249,7 @@ class RpjmdPreviewExcelExportService
                 'indikator_program' => $indikatorProgram['label'],
                 'satuan_program' => $indikatorProgram['satuan'],
                 'target_program_by_year' => $indikatorProgram['target_by_year'],
+                'opd_penanggung_jawab' => $programRow['opd_penanggung_jawab'] ?? '-',
             ]);
         }
     }
@@ -444,7 +445,6 @@ class RpjmdPreviewExcelExportService
             'strategi',
             'program',
             'indikator_program',
-            'opd_penanggung_jawab',
         ];
         $previous = [];
 
@@ -465,6 +465,10 @@ class RpjmdPreviewExcelExportService
                 }
 
                 $previous[$key] = $value;
+            }
+
+            if (($row['opd_penanggung_jawab'] ?? null) === '-') {
+                $row['opd_penanggung_jawab'] = '';
             }
 
             if (blank($row['indikator_tujuan'] ?? null)) {

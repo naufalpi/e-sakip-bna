@@ -1440,12 +1440,12 @@ const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
                         indicatorPreviewRows(program.indikator).map((indikatorProgram, index) => ({
                             key: `program-${program.id}-${index}`,
                             indikatorProgram,
+                            opd_penanggung_jawab: programPdPenanggungJawabLabel(program),
                             base:
                                 index === 0
                                     ? {
                                           strategi: program.strategi ? nodeText(program.strategi.kode, program.strategi.strategi) : '-',
                                           program: nodeText(program.kode, program.nama),
-                                          opd_penanggung_jawab: programPdPenanggungJawabLabel(program),
                                       }
                                     : {},
                         })),
@@ -1474,6 +1474,7 @@ const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
                                 indikator_program: indikatorProgram.label,
                                 satuan_program: indikatorProgram.satuan,
                                 target_program_by_year: indikatorProgram.target_by_year,
+                                opd_penanggung_jawab: programRow?.opd_penanggung_jawab ?? '-',
                             }),
                         );
                     }
@@ -1496,7 +1497,6 @@ const rpjmdCascadingTableRows = computed<RpjmdCascadingRow[]>(() => {
         'strategi',
         'program',
         'indikator_program',
-        'opd_penanggung_jawab',
     ];
     const previous = new Map<keyof RpjmdCascadingRow, string>();
 
@@ -1518,6 +1518,10 @@ const rpjmdCascadingTableRows = computed<RpjmdCascadingRow[]>(() => {
 
             previous.set(key, value);
         });
+
+        if (next.opd_penanggung_jawab === '-') {
+            next.opd_penanggung_jawab = '';
+        }
 
         if (!next.indikator_tujuan) {
             next.satuan_tujuan = '';
