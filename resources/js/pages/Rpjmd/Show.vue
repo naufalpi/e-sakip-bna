@@ -7,7 +7,7 @@ import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import { confirmDelete, toast } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { CheckCircle2, Eye, EyeOff, GitBranch, LoaderCircle, Network, Pencil, Plus, Rows3, Save, Table2, Trash2 } from 'lucide-vue-next';
+import { CheckCircle2, Download, Eye, EyeOff, GitBranch, LoaderCircle, Network, Pencil, Plus, Rows3, Save, Table2, Trash2 } from 'lucide-vue-next'; 
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 
 type Option = {
@@ -2689,28 +2689,37 @@ const triwulanLabel = (triwulan: string) =>
                         <h3 class="text-sm font-semibold">Preview</h3>
                     </div>
                 </div>
-                <div class="inline-flex rounded-md border bg-background p-1">
-                    <button
-                        type="button"
-                        class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
-                        :class="viewMode === 'tree' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
-                        @click="viewMode = 'tree'"
-                    >
-                        <GitBranch class="size-4" />
-                        Tree
-                    </button>
-                    <button
-                        type="button"
-                        class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm"
-                        :class="viewMode === 'table' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'"
-                        @click="viewMode = 'table'"
-                    >
-                        <Table2 class="size-4" />
-                        Tabel
-                    </button>
-                </div>
-            </div>
-        </section>
+                <div class="flex flex-wrap items-center gap-2"> 
+                    <a 
+                        :href="route('rpjmd.preview.export', rpjmd.id)" 
+                        class="inline-flex h-10 items-center justify-center gap-2 rounded-md border bg-white px-3 text-sm font-semibold text-[#00336C] shadow-sm transition hover:border-blue-200 hover:bg-blue-50" 
+                    > 
+                        <Download class="size-4" /> 
+                        Export Excel 
+                    </a> 
+                    <div class="inline-flex rounded-md border bg-background p-1"> 
+                        <button 
+                            type="button" 
+                            class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm" 
+                            :class="viewMode === 'tree' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'" 
+                            @click="viewMode = 'tree'" 
+                        > 
+                            <GitBranch class="size-4" /> 
+                            Tree 
+                        </button> 
+                        <button 
+                            type="button" 
+                            class="inline-flex h-8 items-center gap-2 rounded px-3 text-sm" 
+                            :class="viewMode === 'table' ? 'bg-emerald-700 text-white' : 'text-muted-foreground hover:bg-muted'" 
+                            @click="viewMode = 'table'" 
+                        > 
+                            <Table2 class="size-4" /> 
+                            Tabel 
+                        </button> 
+                    </div> 
+                </div> 
+            </div> 
+        </section> 
 
         <div class="grid min-w-0 gap-4">
             <section v-if="showPreview && viewMode === 'table'" class="min-w-0 overflow-hidden rounded-lg border bg-card">

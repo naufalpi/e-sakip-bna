@@ -22,6 +22,7 @@ use App\Models\SystemSetting;
 use App\Models\TujuanDaerah;
 use App\Models\UrusanPemerintahan;
 use App\Models\User;
+use App\Services\Rpjmd\RpjmdPreviewExcelExportService;
 use App\Services\Rpjmd\RpjmdProgramPengampuResolver;
 use App\Services\Workflow\WorkflowDataService;
 use App\Support\SystemSettingCatalog;
@@ -30,6 +31,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class RpjmdController extends Controller
 {
@@ -164,6 +166,20 @@ class RpjmdController extends Controller
                 'unlock' => $this->canUnlockWorkflow($request->user()),
             ],
             'workflow' => $workflowDataService->forModel($rpjmd, 'rpjmd'),
+        ]);
+    }
+
+    public function exportPreview(Request $request, Rpjmd $rpjmd, RpjmdPreviewExcelExportService $exportService): SymfonyResponse
+    {
+        $this->authorize('view', $rpjmd);
+
+        $visibleOpdId = $this->shouldLimitToUserOpd($request->user()) ? (int) $request->user()->opd_id : null;
+        $export = $exportService->make($rpjmd, $visibleOpdId);
+
+        return response($export['content'], 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$export['filename'].'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
     }
 
