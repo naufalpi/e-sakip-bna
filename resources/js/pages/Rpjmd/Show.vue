@@ -610,9 +610,15 @@ const programPengampuBidangLabel = (program?: Program | null) => {
     return 'PD Pengampu Bidang Program';
 };
 const programPdPenanggungJawabLabel = (program?: Program | null) => {
+    const references = programReferenceItems(program);
+
+    if (references.some((reference) => isProgramPenunjang(reference.nama))) {
+        return 'Semua Perangkat Daerah';
+    }
+
     const labels = Array.from(
         new Set(
-            programReferenceItems(program).flatMap((reference) => {
+            references.flatMap((reference) => {
                 const bidangName = titleBidangName(reference.bidang_urusan?.nama);
 
                 return bidangName ? [`PD Pengampu Urusan ${bidangName}`] : [];

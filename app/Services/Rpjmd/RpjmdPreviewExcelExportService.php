@@ -312,6 +312,10 @@ class RpjmdPreviewExcelExportService
             ->unique('id')
             ->values();
 
+        if ($references->contains(fn ($reference) => $this->isProgramPenunjang($reference->nama))) {
+            return 'Semua Perangkat Daerah';
+        }
+
         $labels = $references
             ->pluck('bidangUrusan')
             ->filter()
@@ -323,6 +327,11 @@ class RpjmdPreviewExcelExportService
             ->all();
 
         return $labels === [] ? 'PD Pengampu belum terdeteksi' : implode('; ', $labels);
+    }
+
+    private function isProgramPenunjang(?string $value): bool
+    {
+        return str_contains(strtolower((string) $value), 'program penunjang urusan pemerintahan daerah');
     }
 
     private function titleBidangName(?string $value): string
