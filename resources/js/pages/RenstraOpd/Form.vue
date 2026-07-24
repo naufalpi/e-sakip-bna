@@ -399,7 +399,7 @@ const statusClass = (status: string) =>
                                 class="flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700"
                                 >3</span
                             >
-                            <span>Lengkapi indikator, target tahunan, dan target triwulan.</span>
+                            <span>Lengkapi indikator dan target tahunan selama periode Renstra.</span>
                         </li>
                     </ol>
                 </section>

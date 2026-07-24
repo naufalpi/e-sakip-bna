@@ -2,23 +2,21 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\HasTargetTriwulan;
 use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class IndikatorSubKegiatan extends Model
+class IndikatorOpdKegiatan extends Model
 {
-    use HasTargetTriwulan;
     use LogsActivity;
     use SoftDeletes;
 
-    protected $table = 'indikator_sub_kegiatan';
+    protected $table = 'indikator_opd_kegiatan';
 
     protected $fillable = [
-        'opd_sub_kegiatan_id',
+        'opd_kegiatan_id',
         'satuan_indikator_id',
         'kode',
         'indikator',
@@ -28,9 +26,9 @@ class IndikatorSubKegiatan extends Model
         'urutan',
     ];
 
-    public function subKegiatan(): BelongsTo
+    public function kegiatan(): BelongsTo
     {
-        return $this->belongsTo(OpdSubKegiatan::class, 'opd_sub_kegiatan_id');
+        return $this->belongsTo(OpdKegiatan::class, 'opd_kegiatan_id');
     }
 
     public function satuanIndikator(): BelongsTo
@@ -40,6 +38,6 @@ class IndikatorSubKegiatan extends Model
 
     public function targets(): HasMany
     {
-        return $this->hasMany(TargetIndikatorSubKegiatan::class);
+        return $this->hasMany(TargetIndikatorOpdKegiatan::class);
     }
 }

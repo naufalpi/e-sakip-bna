@@ -51,8 +51,11 @@ type NodeType =
     | 'indikator_program'
     | 'target_program'
     | 'kegiatan'
+    | 'indikator_kegiatan'
+    | 'target_kegiatan'
     | 'sub_kegiatan'
-    | 'indikator_sub_kegiatan';
+    | 'indikator_sub_kegiatan'
+    | 'target_sub_kegiatan';
 
 type Target = {
     id: number;
@@ -60,15 +63,6 @@ type Target = {
     target?: string | number | null;
     target_text?: string | null;
     pagu?: string | number | null;
-};
-
-type TargetTriwulan = {
-    id: number;
-    periode_tahun: { id: number; tahun: number; nama: string };
-    triwulan: string;
-    target_angka?: string | number | null;
-    target_text?: string | null;
-    target_anggaran?: string | number | null;
 };
 
 type Indikator = {
@@ -86,7 +80,6 @@ type Indikator = {
     linked: boolean;
     satuan?: { nama: string; simbol?: string | null } | null;
     targets?: Target[];
-    target_triwulan?: TargetTriwulan[];
 };
 
 type SubKegiatan = {
@@ -95,6 +88,7 @@ type SubKegiatan = {
     opd_unit_id?: number | null;
     kode?: string | null;
     nama: string;
+    sasaran_sub_kegiatan?: string | null;
     pagu_indikatif?: string | number | null;
     urutan?: number | null;
     sub_kegiatan_pemerintahan?: { kode: string; nama: string; kegiatan_pemerintahan_id?: number | null } | null;
@@ -107,9 +101,11 @@ type Kegiatan = {
     kegiatan_pemerintahan_id?: number | null;
     kode?: string | null;
     nama: string;
+    sasaran_kegiatan?: string | null;
     pagu_indikatif?: string | number | null;
     urutan?: number | null;
     kegiatan_pemerintahan?: { kode: string; nama: string; program_pemerintahan_id?: number | null } | null;
+    indikator: Indikator[];
     sub_kegiatan: SubKegiatan[];
 };
 
@@ -117,6 +113,7 @@ type Program = {
     id: number;
     kode?: string | null;
     nama: string;
+    sasaran_program?: string | null;
     pagu_indikatif?: string | number | null;
     program_rpjmd_id?: number | null;
     program_pemerintahan_id?: number | null;
@@ -189,10 +186,10 @@ type RenstraCascadingRow = {
     program_rpjmd: string;
     indikator_program: string;
     kegiatan: string;
+    indikator_kegiatan: string;
     sub_kegiatan: string;
     indikator_sub_kegiatan: string;
     target_tahunan: string;
-    target_triwulan: string;
     pagu: string;
     status_keterhubungan: string;
 };
@@ -206,6 +203,7 @@ type BulkRow = {
     parent_id: number | string;
     kode: string;
     uraian: string;
+    sasaran_level: string;
     indikator: string;
     satuan_indikator_id: number | string;
     tipe_indikator: string;
@@ -228,6 +226,17 @@ type BulkRow = {
     error: string;
     isNew: boolean;
 };
+type BulkAction = { type: NodeType; label: string; helper: string };
+type BulkInputSection = {
+    key: string;
+    title: string;
+    helper: string;
+    emptyTitle: string;
+    emptyDescription: string;
+    primaryType: NodeType;
+    actions: BulkAction[];
+    rows: BulkRow[];
+};
 type Workflow = {
     status: string;
     histories: Array<{
@@ -247,7 +256,6 @@ const props = defineProps<{
     nodeOptions: Record<string, Option[]>;
     rpjmdReferenceOptions: Record<string, Option[]>;
     masterReferenceOptions: Record<string, Option[]>;
-    targetTriwulanOptions: Record<string, Option[]>;
     periodeOptions: Option[];
     satuanOptions: Option[];
     can: {
@@ -269,8 +277,11 @@ const typeOptions: Array<{ value: NodeType; label: string }> = [
     { value: 'indikator_program', label: 'Indikator Program OPD' },
     { value: 'target_program', label: 'Target Indikator Program' },
     { value: 'kegiatan', label: 'Kegiatan OPD' },
+    { value: 'indikator_kegiatan', label: 'Indikator Kegiatan OPD' },
+    { value: 'target_kegiatan', label: 'Target Indikator Kegiatan' },
     { value: 'sub_kegiatan', label: 'Sub Kegiatan OPD' },
     { value: 'indikator_sub_kegiatan', label: 'Indikator Sub Kegiatan' },
+    { value: 'target_sub_kegiatan', label: 'Target Indikator Sub Kegiatan' },
 ];
 
 const parentKeyByType: Partial<Record<NodeType, string>> = {
@@ -283,8 +294,11 @@ const parentKeyByType: Partial<Record<NodeType, string>> = {
     indikator_program: 'program',
     target_program: 'indikator_program',
     kegiatan: 'program',
+    indikator_kegiatan: 'kegiatan',
+    target_kegiatan: 'indikator_kegiatan',
     sub_kegiatan: 'kegiatan',
     indikator_sub_kegiatan: 'sub_kegiatan',
+    target_sub_kegiatan: 'indikator_sub_kegiatan',
 };
 
 const parentLabels: Record<string, string> = {
@@ -295,7 +309,9 @@ const parentLabels: Record<string, string> = {
     program: 'Program Induk',
     indikator_program: 'Indikator Program',
     kegiatan: 'Kegiatan Induk',
+    indikator_kegiatan: 'Indikator Kegiatan',
     sub_kegiatan: 'Sub Kegiatan Induk',
+    indikator_sub_kegiatan: 'Indikator Sub Kegiatan',
 };
 
 const form = useForm({
@@ -315,6 +331,7 @@ const form = useForm({
     opd_unit_id: '' as number | string,
     kode: '',
     uraian: '',
+    sasaran_level: '',
     indikator: '',
     tipe_indikator: 'positif',
     formula: '',
@@ -326,23 +343,6 @@ const form = useForm({
     urutan: 1,
 });
 
-const targetTriwulanRows = [
-    { triwulan: 'tw1', label: 'TW I' },
-    { triwulan: 'tw2', label: 'TW II' },
-    { triwulan: 'tw3', label: 'TW III' },
-    { triwulan: 'tw4', label: 'TW IV' },
-];
-
-const emptyTargetTriwulanRows = () =>
-    targetTriwulanRows.map((row) => ({ triwulan: row.triwulan, target_text: '', target_angka: '', target_anggaran: '' }));
-
-const targetTriwulanForm = useForm({
-    related_table: 'indikator_tujuan_opd',
-    related_id: '' as number | string,
-    periode_tahun_id: '' as number | string,
-    targets: emptyTargetTriwulanRows(),
-});
-
 const selectedTypeLabel = computed(() => typeOptions.find((type) => type.value === form.type)?.label ?? 'Data Cascading');
 const parentKey = computed(() => parentKeyByType[form.type]);
 const parentOptions = computed(() => (parentKey.value ? (props.nodeOptions[parentKey.value] ?? []) : []));
@@ -351,26 +351,21 @@ const needsParent = computed(() => Boolean(parentKey.value));
 const programMasterOptions = computed(() => props.masterReferenceOptions.program_pemerintahan ?? []);
 const opdUnitOptions = computed(() => props.masterReferenceOptions.opd_units ?? []);
 const withEmptyOption = (options: Option[], label = 'Tidak dipilih'): Option[] => [{ id: '', label }, ...options];
-const isIndicatorType = computed(() => ['indikator_tujuan', 'indikator_sasaran', 'indikator_program', 'indikator_sub_kegiatan'].includes(form.type));
-const isTargetType = computed(() => ['target_tujuan', 'target_sasaran', 'target_program'].includes(form.type));
-const isTextNodeType = computed(() => ['tujuan', 'sasaran', 'program', 'kegiatan', 'sub_kegiatan'].includes(form.type));
+const indicatorNodeTypes: NodeType[] = ['indikator_tujuan', 'indikator_sasaran', 'indikator_program', 'indikator_kegiatan', 'indikator_sub_kegiatan'];
+const targetNodeTypes: NodeType[] = ['target_tujuan', 'target_sasaran', 'target_program', 'target_kegiatan', 'target_sub_kegiatan'];
+const textNodeTypes: NodeType[] = ['tujuan', 'sasaran', 'program', 'kegiatan', 'sub_kegiatan'];
+const isIndicatorType = computed(() => indicatorNodeTypes.includes(form.type));
+const isTargetType = computed(() => targetNodeTypes.includes(form.type));
+const isTextNodeType = computed(() => textNodeTypes.includes(form.type));
 const hasPaguIndikatif = computed(() => ['program', 'kegiatan', 'sub_kegiatan'].includes(form.type));
 const usesMasterReference = computed(() => ['program', 'kegiatan', 'sub_kegiatan'].includes(form.type));
 const hasSelectedMasterReference = computed(() =>
     Boolean(form.program_pemerintahan_id || form.kegiatan_pemerintahan_id || form.sub_kegiatan_pemerintahan_id),
 );
-const targetTriwulanTypeOptions = [
-    { value: 'indikator_tujuan_opd', label: 'Indikator Tujuan OPD' },
-    { value: 'indikator_sasaran_opd', label: 'Indikator Sasaran OPD' },
-    { value: 'indikator_opd_program', label: 'Indikator Program OPD' },
-    { value: 'indikator_sub_kegiatan', label: 'Indikator Sub Kegiatan' },
-];
-const selectedTargetTriwulanOptions = computed(() => props.targetTriwulanOptions[targetTriwulanForm.related_table] ?? []);
 const editingNode = ref<{ type: NodeType; id: number } | null>(null);
 const viewMode = ref<'tree' | 'table' | 'bulk'>('bulk');
 const previewMode = ref<'tree' | 'table'>('tree');
 const isNodeModalOpen = ref(false);
-const isTargetTriwulanModalOpen = ref(false);
 const formPanel = ref<HTMLElement | null>(null);
 const bulkRows = ref<BulkRow[]>([]);
 const bulkSaveTimers = new Map<string, number>();
@@ -426,38 +421,69 @@ const typeMeta: Record<NodeType, { stage: string; helper: string; primaryField: 
     },
     kegiatan: {
         stage: 'Level 4',
-        helper: 'Kegiatan OPD sebagai turunan program.',
+        helper: 'Kegiatan OPD sebagai turunan program, dilengkapi sasaran kegiatan.',
         primaryField: 'Nama kegiatan',
+    },
+    indikator_kegiatan: {
+        stage: 'Level 4A',
+        helper: 'Indikator untuk mengukur sasaran kegiatan OPD.',
+        primaryField: 'Nama indikator',
+    },
+    target_kegiatan: {
+        stage: 'Target',
+        helper: 'Target lima tahunan untuk indikator kegiatan OPD.',
+        primaryField: 'Nilai target',
     },
     sub_kegiatan: {
         stage: 'Level 5',
-        helper: 'Sub kegiatan dengan pagu indikatif sebagai dasar pengukuran anggaran.',
+        helper: 'Sub kegiatan dengan sasaran sub kegiatan dan pagu indikatif.',
         primaryField: 'Nama sub kegiatan',
     },
     indikator_sub_kegiatan: {
         stage: 'Level 5A',
-        helper: 'Indikator teknis untuk sub kegiatan dan target triwulan.',
+        helper: 'Indikator teknis untuk mengukur sasaran sub kegiatan.',
         primaryField: 'Nama indikator',
     },
+    target_sub_kegiatan: {
+        stage: 'Target',
+        helper: 'Target lima tahunan untuk indikator sub kegiatan.',
+        primaryField: 'Nilai target',
+    },
 };
-const directionNodeTypes: NodeType[] = ['tujuan', 'indikator_tujuan', 'target_tujuan', 'sasaran', 'indikator_sasaran', 'target_sasaran'];
-const implementationNodeTypes: NodeType[] = ['program', 'indikator_program', 'target_program', 'kegiatan', 'sub_kegiatan', 'indikator_sub_kegiatan'];
-const directionActions: Array<{ type: NodeType; label: string; helper: string }> = [
+const tujuanNodeTypes: NodeType[] = ['tujuan', 'indikator_tujuan', 'target_tujuan'];
+const sasaranNodeTypes: NodeType[] = ['sasaran', 'indikator_sasaran', 'target_sasaran'];
+const programNodeTypes: NodeType[] = ['program', 'indikator_program', 'target_program'];
+const kegiatanNodeTypes: NodeType[] = ['kegiatan', 'indikator_kegiatan', 'target_kegiatan'];
+const subKegiatanNodeTypes: NodeType[] = ['sub_kegiatan', 'indikator_sub_kegiatan', 'target_sub_kegiatan'];
+const directionNodeTypes: NodeType[] = [...tujuanNodeTypes, ...sasaranNodeTypes];
+const implementationNodeTypes: NodeType[] = [...programNodeTypes, ...kegiatanNodeTypes, ...subKegiatanNodeTypes];
+const tujuanActions: BulkAction[] = [
     { type: 'tujuan', label: 'Tujuan OPD', helper: 'Arah utama OPD' },
     { type: 'indikator_tujuan', label: 'Indikator Tujuan', helper: 'Ukuran tujuan' },
-    { type: 'target_tujuan', label: 'Target Tujuan', helper: 'Target tahunan' },
+    { type: 'target_tujuan', label: 'Target Tujuan', helper: 'Target 5 tahunan' },
+];
+const sasaranActions: BulkAction[] = [
     { type: 'sasaran', label: 'Sasaran OPD', helper: 'Turunan tujuan' },
     { type: 'indikator_sasaran', label: 'Indikator Sasaran', helper: 'Ukuran sasaran' },
-    { type: 'target_sasaran', label: 'Target Sasaran', helper: 'Target tahunan' },
+    { type: 'target_sasaran', label: 'Target Sasaran', helper: 'Target 5 tahunan' },
 ];
-const implementationActions: Array<{ type: NodeType; label: string; helper: string }> = [
+const programActions: BulkAction[] = [
     { type: 'program', label: 'Program OPD', helper: 'Turunan sasaran' },
     { type: 'indikator_program', label: 'Indikator Program', helper: 'Ukuran program' },
-    { type: 'target_program', label: 'Target Program', helper: 'Target dan pagu' },
-    { type: 'kegiatan', label: 'Kegiatan', helper: 'Turunan program' },
-    { type: 'sub_kegiatan', label: 'Sub Kegiatan', helper: 'Unit dan pagu' },
-    { type: 'indikator_sub_kegiatan', label: 'Indikator Sub', helper: 'Ukuran teknis' },
+    { type: 'target_program', label: 'Target Program', helper: 'Target 5 tahunan' },
 ];
+const kegiatanActions: BulkAction[] = [
+    { type: 'kegiatan', label: 'Kegiatan', helper: 'Turunan program' },
+    { type: 'indikator_kegiatan', label: 'Indikator Kegiatan', helper: 'Ukuran kegiatan' },
+    { type: 'target_kegiatan', label: 'Target Kegiatan', helper: 'Target 5 tahunan' },
+];
+const subKegiatanActions: BulkAction[] = [
+    { type: 'sub_kegiatan', label: 'Sub Kegiatan', helper: 'Turunan kegiatan' },
+    { type: 'indikator_sub_kegiatan', label: 'Indikator Sub', helper: 'Ukuran sub kegiatan' },
+    { type: 'target_sub_kegiatan', label: 'Target Sub', helper: 'Target 5 tahunan' },
+];
+const directionActions: BulkAction[] = [...tujuanActions, ...sasaranActions];
+const implementationActions: BulkAction[] = [...programActions, ...kegiatanActions, ...subKegiatanActions];
 const selectedTypeMeta = computed(() => typeMeta[form.type]);
 const typeSelectOptions = computed<Option[]>(() =>
     typeOptions.map((option) => ({
@@ -514,15 +540,6 @@ const targetSummary = (items: Indikator[]) =>
         items.flatMap((item) =>
             (item.targets ?? []).map(
                 (target) => `${item.kode ? `${item.kode} ` : ''}${target.periode_tahun.tahun}: ${target.target_text || target.target || '-'}`,
-            ),
-        ),
-    );
-const targetTriwulanSummary = (items: Indikator[]) =>
-    joinItems(
-        items.flatMap((item) =>
-            (item.target_triwulan ?? []).map(
-                (target) =>
-                    `${item.kode ? `${item.kode} ` : ''}${target.periode_tahun.tahun} ${triwulanLabel(target.triwulan)}: ${target.target_text || target.target_angka || '-'}`,
             ),
         ),
     );
@@ -631,7 +648,6 @@ const subKegiatanMasterSelectOptions = computed(() => withEmptyOption(subKegiata
 const opdUnitSelectOptions = computed(() => withEmptyOption(opdUnitOptions.value, 'Tidak ditentukan'));
 const satuanSelectOptions = computed(() => withEmptyOption(props.satuanOptions, 'Pilih satuan'));
 const periodeSelectOptions = computed(() => withEmptyOption(props.periodeOptions, 'Pilih periode'));
-const selectedTargetTriwulanSelectOptions = computed(() => withEmptyOption(selectedTargetTriwulanOptions.value, 'Pilih indikator'));
 
 const renstraSummary = computed(() => {
     const summary = {
@@ -646,7 +662,6 @@ const renstraSummary = computed(() => {
         indikator: 0,
         indikator_terhubung: 0,
         target_tahunan: 0,
-        target_triwulan: 0,
         pagu_indikatif: 0,
     };
 
@@ -657,7 +672,6 @@ const renstraSummary = computed(() => {
         summary.indikator += tujuan.indikator.length;
         summary.indikator_terhubung += tujuan.indikator.filter((indikator) => indikator.linked).length;
         summary.target_tahunan += tujuan.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
-        summary.target_triwulan += tujuan.indikator.reduce((total, indikator) => total + (indikator.target_triwulan?.length ?? 0), 0);
         summary.sasaran += tujuan.sasaran.length;
 
         tujuan.sasaran.forEach((sasaran) => {
@@ -667,7 +681,6 @@ const renstraSummary = computed(() => {
             summary.indikator += sasaran.indikator.length;
             summary.indikator_terhubung += sasaran.indikator.filter((indikator) => indikator.linked).length;
             summary.target_tahunan += sasaran.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
-            summary.target_triwulan += sasaran.indikator.reduce((total, indikator) => total + (indikator.target_triwulan?.length ?? 0), 0);
             summary.program += sasaran.programs.length;
 
             sasaran.programs.forEach((program) => {
@@ -678,19 +691,17 @@ const renstraSummary = computed(() => {
                 summary.indikator += program.indikator.length;
                 summary.indikator_terhubung += program.indikator.filter((indikator) => indikator.linked).length;
                 summary.target_tahunan += program.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
-                summary.target_triwulan += program.indikator.reduce((total, indikator) => total + (indikator.target_triwulan?.length ?? 0), 0);
                 summary.kegiatan += program.kegiatan.length;
 
                 program.kegiatan.forEach((kegiatan) => {
                     summary.pagu_indikatif += Number(kegiatan.pagu_indikatif ?? 0);
+                    summary.indikator += kegiatan.indikator.length;
+                    summary.target_tahunan += kegiatan.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
                     summary.sub_kegiatan += kegiatan.sub_kegiatan.length;
                     kegiatan.sub_kegiatan.forEach((subKegiatan) => {
                         summary.pagu_indikatif += Number(subKegiatan.pagu_indikatif ?? 0);
                         summary.indikator += subKegiatan.indikator.length;
-                        summary.target_triwulan += subKegiatan.indikator.reduce(
-                            (total, indikator) => total + (indikator.target_triwulan?.length ?? 0),
-                            0,
-                        );
+                        summary.target_tahunan += subKegiatan.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
                     });
                 });
             });
@@ -726,6 +737,63 @@ const hasRpjmdContext = computed(() => props.rpjmdContext.visi.length > 0 || pro
 const rpjmdContextProgramCount = computed(() => props.rpjmdContext.program_groups.reduce((total, group) => total + group.programs.length, 0));
 const directionRows = computed(() => bulkRows.value.filter((row) => directionNodeTypes.includes(row.type)));
 const implementationRows = computed(() => bulkRows.value.filter((row) => implementationNodeTypes.includes(row.type)));
+const tujuanRows = computed(() => bulkRows.value.filter((row) => tujuanNodeTypes.includes(row.type)));
+const sasaranRows = computed(() => bulkRows.value.filter((row) => sasaranNodeTypes.includes(row.type)));
+const programRows = computed(() => bulkRows.value.filter((row) => programNodeTypes.includes(row.type)));
+const kegiatanRows = computed(() => bulkRows.value.filter((row) => kegiatanNodeTypes.includes(row.type)));
+const subKegiatanRows = computed(() => bulkRows.value.filter((row) => subKegiatanNodeTypes.includes(row.type)));
+const bulkInputSections = computed<BulkInputSection[]>(() => [
+    {
+        key: 'tujuan',
+        title: 'Tujuan OPD',
+        helper: 'Tujuan, indikator tujuan, dan target 5 tahunan.',
+        emptyTitle: 'Belum ada tujuan OPD',
+        emptyDescription: 'Mulai dari tujuan OPD, lalu isi indikator dan targetnya.',
+        primaryType: 'tujuan',
+        actions: tujuanActions,
+        rows: tujuanRows.value,
+    },
+    {
+        key: 'sasaran',
+        title: 'Sasaran OPD',
+        helper: 'Sasaran strategis, indikator sasaran, dan target 5 tahunan.',
+        emptyTitle: 'Belum ada sasaran OPD',
+        emptyDescription: 'Tambahkan sasaran setelah tujuan OPD tersedia.',
+        primaryType: 'sasaran',
+        actions: sasaranActions,
+        rows: sasaranRows.value,
+    },
+    {
+        key: 'program',
+        title: 'Program OPD',
+        helper: 'Sasaran program, indikator program, dan target 5 tahunan.',
+        emptyTitle: 'Belum ada program OPD',
+        emptyDescription: 'Tambahkan program setelah sasaran OPD tersedia.',
+        primaryType: 'program',
+        actions: programActions,
+        rows: programRows.value,
+    },
+    {
+        key: 'kegiatan',
+        title: 'Kegiatan OPD',
+        helper: 'Sasaran kegiatan, indikator kegiatan, dan target 5 tahunan.',
+        emptyTitle: 'Belum ada kegiatan OPD',
+        emptyDescription: 'Tambahkan kegiatan setelah program OPD tersedia.',
+        primaryType: 'kegiatan',
+        actions: kegiatanActions,
+        rows: kegiatanRows.value,
+    },
+    {
+        key: 'sub-kegiatan',
+        title: 'Sub Kegiatan OPD',
+        helper: 'Sasaran sub kegiatan, indikator sub kegiatan, dan target 5 tahunan.',
+        emptyTitle: 'Belum ada sub kegiatan OPD',
+        emptyDescription: 'Tambahkan sub kegiatan setelah kegiatan OPD tersedia.',
+        primaryType: 'sub_kegiatan',
+        actions: subKegiatanActions,
+        rows: subKegiatanRows.value,
+    },
+]);
 
 const renstraCascadingRows = computed<RenstraCascadingRow[]>(() => {
     const rows: RenstraCascadingRow[] = [];
@@ -738,7 +806,6 @@ const renstraCascadingRows = computed<RenstraCascadingRow[]>(() => {
                     tujuan_rpjmd: tujuan.linked ? 'Terhubung' : 'Belum terhubung',
                     indikator_tujuan: indicatorSummary(tujuan.indikator),
                     target_tahunan: targetSummary(tujuan.indikator),
-                    target_triwulan: targetTriwulanSummary(tujuan.indikator),
                     status_keterhubungan: tujuan.linked ? 'Terhubung RPJMD' : 'Belum terhubung',
                 }),
             );
@@ -755,7 +822,6 @@ const renstraCascadingRows = computed<RenstraCascadingRow[]>(() => {
                         sasaran_rpjmd: sasaran.linked ? 'Terhubung' : 'Belum terhubung',
                         indikator_sasaran: indicatorSummary(sasaran.indikator),
                         target_tahunan: joinItems([targetSummary(tujuan.indikator), targetSummary(sasaran.indikator)]),
-                        target_triwulan: joinItems([targetTriwulanSummary(tujuan.indikator), targetTriwulanSummary(sasaran.indikator)]),
                         status_keterhubungan: sasaran.linked ? 'Terhubung RPJMD' : 'Belum terhubung',
                     }),
                 );
@@ -779,11 +845,6 @@ const renstraCascadingRows = computed<RenstraCascadingRow[]>(() => {
                                 targetSummary(sasaran.indikator),
                                 targetSummary(program.indikator),
                             ]),
-                            target_triwulan: joinItems([
-                                targetTriwulanSummary(tujuan.indikator),
-                                targetTriwulanSummary(sasaran.indikator),
-                                targetTriwulanSummary(program.indikator),
-                            ]),
                             pagu: formatCurrency(program.pagu_indikatif),
                             status_keterhubungan: program.linked ? 'Terhubung RPJMD' : 'Belum terhubung',
                         }),
@@ -804,15 +865,12 @@ const renstraCascadingRows = computed<RenstraCascadingRow[]>(() => {
                                 program_rpjmd: program.linked ? 'Terhubung' : 'Belum terhubung',
                                 indikator_program: indicatorSummary(program.indikator),
                                 kegiatan: nodeText(kegiatan.kode, kegiatan.nama),
+                                indikator_kegiatan: indicatorSummary(kegiatan.indikator),
                                 target_tahunan: joinItems([
                                     targetSummary(tujuan.indikator),
                                     targetSummary(sasaran.indikator),
                                     targetSummary(program.indikator),
-                                ]),
-                                target_triwulan: joinItems([
-                                    targetTriwulanSummary(tujuan.indikator),
-                                    targetTriwulanSummary(sasaran.indikator),
-                                    targetTriwulanSummary(program.indikator),
+                                    targetSummary(kegiatan.indikator),
                                 ]),
                                 pagu: joinItems([formatCurrency(program.pagu_indikatif), formatCurrency(kegiatan.pagu_indikatif)]),
                                 status_keterhubungan: program.linked ? 'Terhubung RPJMD' : 'Belum terhubung',
@@ -833,18 +891,15 @@ const renstraCascadingRows = computed<RenstraCascadingRow[]>(() => {
                                 program_rpjmd: program.linked ? 'Terhubung' : 'Belum terhubung',
                                 indikator_program: indicatorSummary(program.indikator),
                                 kegiatan: nodeText(kegiatan.kode, kegiatan.nama),
+                                indikator_kegiatan: indicatorSummary(kegiatan.indikator),
                                 sub_kegiatan: nodeText(subKegiatan.kode, subKegiatan.nama),
                                 indikator_sub_kegiatan: indicatorSummary(subKegiatan.indikator),
                                 target_tahunan: joinItems([
                                     targetSummary(tujuan.indikator),
                                     targetSummary(sasaran.indikator),
                                     targetSummary(program.indikator),
-                                ]),
-                                target_triwulan: joinItems([
-                                    targetTriwulanSummary(tujuan.indikator),
-                                    targetTriwulanSummary(sasaran.indikator),
-                                    targetTriwulanSummary(program.indikator),
-                                    targetTriwulanSummary(subKegiatan.indikator),
+                                    targetSummary(kegiatan.indikator),
+                                    targetSummary(subKegiatan.indikator),
                                 ]),
                                 pagu: joinItems([
                                     formatCurrency(program.pagu_indikatif),
@@ -876,10 +931,10 @@ function emptyRenstraRow(key: string, values: Partial<RenstraCascadingRow>): Ren
         program_rpjmd: '-',
         indikator_program: '-',
         kegiatan: '-',
+        indikator_kegiatan: '-',
         sub_kegiatan: '-',
         indikator_sub_kegiatan: '-',
         target_tahunan: '-',
-        target_triwulan: '-',
         pagu: '-',
         status_keterhubungan: '-',
         ...values,
@@ -894,6 +949,7 @@ function makeBulkRow(values: Partial<BulkRow> & { id?: number | null; type: Node
         parent_id: '',
         kode: '',
         uraian: '',
+        sasaran_level: '',
         indikator: '',
         satuan_indikator_id: '',
         tipe_indikator: 'positif',
@@ -1034,6 +1090,7 @@ function buildBulkRows(): BulkRow[] {
                         parent_id: sasaran.id,
                         kode: valueText(program.kode),
                         uraian: valueText(program.nama),
+                        sasaran_level: valueText(program.sasaran_program),
                         pagu_indikatif: valueText(program.pagu_indikatif),
                         program_pemerintahan_id: valueText(program.program_pemerintahan_id),
                         urutan: program.urutan ?? 1,
@@ -1089,11 +1146,46 @@ function buildBulkRows(): BulkRow[] {
                             parent_id: program.id,
                             kode: valueText(kegiatan.kode),
                             uraian: valueText(kegiatan.nama),
+                            sasaran_level: valueText(kegiatan.sasaran_kegiatan),
                             pagu_indikatif: valueText(kegiatan.pagu_indikatif),
                             kegiatan_pemerintahan_id: valueText(kegiatan.kegiatan_pemerintahan_id),
                             urutan: kegiatan.urutan ?? 1,
                         }),
                     );
+
+                    kegiatan.indikator.forEach((indikator) => {
+                        rows.push(
+                            makeBulkRow({
+                                id: indikator.id,
+                                type: 'indikator_kegiatan',
+                                level: 'Indikator Kegiatan',
+                                parent_label: nodeText(kegiatan.kode, kegiatan.nama),
+                                parent_id: kegiatan.id,
+                                kode: valueText(indikator.kode),
+                                indikator: valueText(indikator.indikator),
+                                satuan_indikator_id: valueText(indikator.satuan_indikator_id),
+                                tipe_indikator: valueText(indikator.tipe_indikator || 'positif'),
+                                formula: valueText(indikator.formula),
+                                sumber_data: valueText(indikator.sumber_data),
+                                urutan: indikator.urutan ?? 1,
+                            }),
+                        );
+
+                        (indikator.targets ?? []).forEach((target) => {
+                            rows.push(
+                                makeBulkRow({
+                                    id: target.id,
+                                    type: 'target_kegiatan',
+                                    level: 'Target Kegiatan',
+                                    parent_label: nodeText(indikator.kode, indikator.indikator),
+                                    parent_id: indikator.id,
+                                    periode_tahun_id: target.periode_tahun.id,
+                                    target: valueText(target.target),
+                                    target_text: valueText(target.target_text),
+                                }),
+                            );
+                        });
+                    });
 
                     kegiatan.sub_kegiatan.forEach((subKegiatan) => {
                         rows.push(
@@ -1105,6 +1197,7 @@ function buildBulkRows(): BulkRow[] {
                                 parent_id: kegiatan.id,
                                 kode: valueText(subKegiatan.kode),
                                 uraian: valueText(subKegiatan.nama),
+                                sasaran_level: valueText(subKegiatan.sasaran_sub_kegiatan),
                                 pagu_indikatif: valueText(subKegiatan.pagu_indikatif),
                                 sub_kegiatan_pemerintahan_id: valueText(subKegiatan.sub_kegiatan_pemerintahan_id),
                                 opd_unit_id: valueText(subKegiatan.opd_unit_id),
@@ -1129,6 +1222,21 @@ function buildBulkRows(): BulkRow[] {
                                     urutan: indikator.urutan ?? 1,
                                 }),
                             );
+
+                            (indikator.targets ?? []).forEach((target) => {
+                                rows.push(
+                                    makeBulkRow({
+                                        id: target.id,
+                                        type: 'target_sub_kegiatan',
+                                        level: 'Target Sub Kegiatan',
+                                        parent_label: nodeText(indikator.kode, indikator.indikator),
+                                        parent_id: indikator.id,
+                                        periode_tahun_id: target.periode_tahun.id,
+                                        target: valueText(target.target),
+                                        target_text: valueText(target.target_text),
+                                    }),
+                                );
+                            });
                         });
                     });
                 });
@@ -1155,6 +1263,7 @@ const clearNodeForm = () => {
     form.opd_unit_id = '';
     form.kode = '';
     form.uraian = '';
+    form.sasaran_level = '';
     form.indikator = '';
     form.tipe_indikator = 'positif';
     form.formula = '';
@@ -1178,32 +1287,14 @@ const closeNodeModal = () => {
     clearNodeForm();
 };
 
-const closeTargetTriwulanModal = () => {
-    isTargetTriwulanModalOpen.value = false;
-    targetTriwulanForm.related_id = '';
-    targetTriwulanForm.targets = emptyTargetTriwulanRows();
-    targetTriwulanForm.clearErrors();
-};
-
 const selectNodeType = (type: NodeType, parentId: number | string = '') => {
     editingNode.value = null;
     isNodeModalOpen.value = true;
-    isTargetTriwulanModalOpen.value = false;
     form.type = type;
 
     nextTick(() => {
         clearNodeForm();
         form.parent_id = parentId;
-    });
-};
-
-const selectTargetTriwulan = (relatedTable: string, relatedId: number | string = '') => {
-    isNodeModalOpen.value = false;
-    isTargetTriwulanModalOpen.value = true;
-    targetTriwulanForm.related_table = relatedTable;
-
-    nextTick(() => {
-        targetTriwulanForm.related_id = relatedId;
     });
 };
 
@@ -1373,12 +1464,18 @@ const onBulkReferenceChanged = (row: BulkRow) => {
     scheduleBulkAutosave(row);
 };
 
-const isBulkTextRow = (row: BulkRow) => ['tujuan', 'sasaran', 'program', 'kegiatan', 'sub_kegiatan'].includes(row.type);
-const isBulkIndicatorRow = (row: BulkRow) =>
-    ['indikator_tujuan', 'indikator_sasaran', 'indikator_program', 'indikator_sub_kegiatan'].includes(row.type);
-const isBulkTargetRow = (row: BulkRow) => ['target_tujuan', 'target_sasaran', 'target_program'].includes(row.type);
+const isBulkTextRow = (row: BulkRow) => textNodeTypes.includes(row.type);
+const isBulkIndicatorRow = (row: BulkRow) => indicatorNodeTypes.includes(row.type);
+const isBulkTargetRow = (row: BulkRow) => targetNodeTypes.includes(row.type);
+const hasBulkSasaranLevel = (row: BulkRow) => ['program', 'kegiatan', 'sub_kegiatan'].includes(row.type);
 const hasBulkPaguIndikatif = (row: BulkRow) => ['program', 'kegiatan', 'sub_kegiatan'].includes(row.type);
 const hasBulkPaguTahunan = (row: BulkRow) => row.type === 'target_program';
+const bulkSasaranLabel = (row: BulkRow) =>
+    ({
+        program: 'Sasaran program',
+        kegiatan: 'Sasaran kegiatan',
+        sub_kegiatan: 'Sasaran sub kegiatan',
+    })[row.type] ?? '-';
 const bulkTypeNeedsParent = (type: NodeType) => Boolean(parentKeyByType[type]);
 const bulkRowReadyToSave = (row: BulkRow) => {
     if (!row.type) {
@@ -1488,6 +1585,7 @@ const onBulkTypeChanged = (row: BulkRow) => {
     row.opd_unit_id = '';
     row.kode = '';
     row.uraian = '';
+    row.sasaran_level = '';
     row.indikator = '';
     row.satuan_indikator_id = '';
     row.tipe_indikator = 'positif';
@@ -1510,6 +1608,7 @@ const bulkRowPayload = (row: BulkRow) => {
         parent_id: row.parent_id || null,
         kode: row.kode || null,
         uraian: row.uraian || null,
+        sasaran_level: row.sasaran_level || null,
         indikator: row.indikator || null,
         satuan_indikator_id: row.satuan_indikator_id || null,
         tipe_indikator: row.tipe_indikator || 'positif',
@@ -1614,7 +1713,6 @@ onUnmounted(() => {
 const editNode = (type: NodeType, id: number, parentId: number | null, node: any) => {
     editingNode.value = { type, id };
     isNodeModalOpen.value = true;
-    isTargetTriwulanModalOpen.value = false;
     form.type = type;
     clearNodeForm();
     form.parent_id = parentId ?? '';
@@ -1629,6 +1727,7 @@ const editNode = (type: NodeType, id: number, parentId: number | null, node: any
         form.sasaran_daerah_id = valueText(node.sasaran_daerah_id);
     } else if (['program', 'kegiatan', 'sub_kegiatan'].includes(type)) {
         form.uraian = valueText(node.nama);
+        form.sasaran_level = valueText(node.sasaran_program ?? node.sasaran_kegiatan ?? node.sasaran_sub_kegiatan);
         form.pagu_indikatif = valueText(node.pagu_indikatif);
         form.program_rpjmd_id = valueText(node.program_rpjmd_id);
         form.program_pemerintahan_id = valueText(node.program_pemerintahan_id);
@@ -1733,14 +1832,6 @@ watch(
     },
 );
 
-watch(
-    () => targetTriwulanForm.related_table,
-    () => {
-        targetTriwulanForm.related_id = '';
-        targetTriwulanForm.clearErrors();
-    },
-);
-
 const submitNode = () => {
     const options = {
         preserveScroll: true,
@@ -1762,21 +1853,6 @@ const destroyNode = async (type: NodeType, id: number, label: string) => {
         router.delete(route('renstra-opd.nodes.destroy', [props.renstra.id, type, id]), {
             preserveScroll: true,
         });
-    }
-};
-
-const submitTargetTriwulan = () => {
-    targetTriwulanForm.post(route('target-triwulan-indikator.bulk-store'), {
-        preserveScroll: true,
-        onSuccess: () => {
-            closeTargetTriwulanModal();
-        },
-    });
-};
-
-const destroyTargetTriwulan = async (target: TargetTriwulan) => {
-    if (await confirmDelete('Hapus target triwulan indikator ini?')) {
-        router.delete(route('target-triwulan-indikator.destroy', target.id), { preserveScroll: true });
     }
 };
 
@@ -1816,16 +1892,6 @@ const formatCurrency = (value?: string | number | null) => {
     }).format(Number(value));
 };
 const targetDisplay = (target: Target) => target.target_text || target.target || '-';
-const targetTriwulanDisplay = (target: TargetTriwulan) => target.target_text || target.target_angka || '-';
-const targetTriwulanError = (index: number, field: 'triwulan' | 'target_text' | 'target_angka' | 'target_anggaran') =>
-    targetTriwulanForm.errors[`targets.${index}.${field}`];
-const triwulanLabel = (triwulan: string) =>
-    ({
-        tw1: 'TW I',
-        tw2: 'TW II',
-        tw3: 'TW III',
-        tw4: 'TW IV',
-    })[triwulan] ?? triwulan;
 </script>
 
 <template>
@@ -1909,7 +1975,7 @@ const triwulanLabel = (triwulan: string) =>
                 <div class="text-xs uppercase text-muted-foreground">Indikator dan Target</div>
                 <div class="mt-2 text-2xl font-semibold">{{ renstraSummary.indikator }}</div>
                 <div class="mt-1 text-xs text-muted-foreground">
-                    {{ renstraSummary.target_tahunan }} target tahunan, {{ renstraSummary.target_triwulan }} target triwulan
+                    {{ renstraSummary.target_tahunan }} target 5 tahunan
                 </div>
             </div>
             <div class="rounded-lg border bg-card p-4">
@@ -2067,20 +2133,24 @@ const triwulanLabel = (triwulan: string) =>
 
         <div :class="viewMode === 'bulk' ? 'grid gap-4' : 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_34rem]'">
             <section v-if="viewMode === 'bulk' && can.manage" class="grid gap-4">
-                <section class="overflow-hidden rounded-xl border border-blue-100 bg-card shadow-sm">
+                <section
+                    v-for="section in bulkInputSections"
+                    :key="section.key"
+                    class="overflow-hidden rounded-xl border border-blue-100 bg-card shadow-sm"
+                >
                     <div class="flex flex-col gap-3 border-b bg-white p-4 xl:flex-row xl:items-center xl:justify-between">
                         <div class="flex min-w-0 items-start gap-3">
                             <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#00336C]">
-                                <Target class="size-4" />
+                                <Table2 class="size-4" />
                             </span>
                             <div class="min-w-0">
-                                <h2 class="text-base font-semibold text-slate-950">Tujuan dan Sasaran OPD</h2>
-                                <p class="mt-1 text-sm text-slate-600">Isi arah kinerja OPD dan hubungkan ke RPJMD kabupaten.</p>
+                                <h2 class="text-base font-semibold text-slate-950">{{ section.title }}</h2>
+                                <p class="mt-1 text-sm text-slate-600">{{ section.helper }}</p>
                             </div>
                         </div>
                         <div class="flex flex-wrap gap-2">
                             <button
-                                v-for="action in directionActions"
+                                v-for="action in section.actions"
                                 :key="action.type"
                                 type="button"
                                 class="inline-flex min-h-9 items-center gap-2 rounded-md border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-800 transition hover:border-[#00336C]/35 hover:text-[#00336C]"
@@ -2092,54 +2162,78 @@ const triwulanLabel = (triwulan: string) =>
                         </div>
                     </div>
 
-                    <div v-if="directionRows.length === 0" class="p-8 text-center text-sm text-muted-foreground">
+                    <div v-if="section.rows.length === 0" class="p-8 text-center text-sm text-muted-foreground">
                         <Target class="mx-auto size-10 text-muted-foreground" />
-                        <p class="mt-3 font-semibold text-foreground">Belum ada tujuan dan sasaran OPD</p>
-                        <p class="mt-1">Mulai dari Tujuan OPD, lalu tambahkan indikator, target, dan sasaran.</p>
+                        <p class="mt-3 font-semibold text-foreground">{{ section.emptyTitle }}</p>
+                        <p class="mt-1">{{ section.emptyDescription }}</p>
                         <button
                             type="button"
                             class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-[#00336C] px-4 text-sm font-semibold text-white hover:bg-[#0a4485]"
-                            @click="addBulkRow('tujuan')"
+                            @click="addBulkRow(section.primaryType)"
                         >
                             <Plus class="size-4" />
-                            Tambah Tujuan OPD
+                            Tambah Data
                         </button>
                     </div>
 
                     <div v-else class="max-w-full overflow-x-auto">
-                        <table class="min-w-[1680px] text-left text-sm">
-                            <thead class="border-b bg-muted/70 text-xs uppercase text-muted-foreground">
+                        <table class="min-w-[2860px] text-left text-sm">
+                            <thead class="sticky top-0 z-10 border-b bg-muted/80 text-xs uppercase text-muted-foreground backdrop-blur">
                                 <tr>
-                                    <th class="min-w-36 px-3 py-3">Status</th>
-                                    <th class="min-w-48 px-3 py-3">Jenis Data</th>
-                                    <th class="min-w-64 px-3 py-3">Induk</th>
+                                    <th class="sticky left-0 z-20 min-w-44 border-r bg-muted/95 px-3 py-3 shadow-[8px_0_16px_rgba(15,23,42,0.06)]">
+                                        Status
+                                    </th>
+                                    <th class="min-w-56 px-3 py-3">Jenis Data</th>
+                                    <th class="min-w-80 px-3 py-3">Induk</th>
                                     <th class="min-w-72 px-3 py-3">Referensi RPJMD</th>
-                                    <th class="min-w-28 px-3 py-3">Kode</th>
-                                    <th class="min-w-96 px-3 py-3">Uraian / Indikator</th>
+                                    <th class="min-w-80 px-3 py-3">Master Resmi</th>
+                                    <th class="min-w-32 px-3 py-3">Kode</th>
+                                    <th class="min-w-80 px-3 py-3">Sasaran Level</th>
+                                    <th class="min-w-80 px-3 py-3">Uraian/Nama</th>
+                                    <th class="min-w-80 px-3 py-3">Indikator</th>
                                     <th class="min-w-48 px-3 py-3">Satuan</th>
-                                    <th class="min-w-48 px-3 py-3">Periode</th>
-                                    <th class="min-w-56 px-3 py-3">Target</th>
-                                    <th class="min-w-24 px-3 py-3">Urutan</th>
+                                    <th class="min-w-72 px-3 py-3">Formula</th>
+                                    <th class="min-w-56 px-3 py-3">Sumber Data</th>
+                                    <th class="min-w-44 px-3 py-3">Pagu Indikatif</th>
+                                    <th class="min-w-48 px-3 py-3">Periode Target</th>
+                                    <th class="min-w-40 px-3 py-3">Target Angka</th>
+                                    <th class="min-w-56 px-3 py-3">Target Teks</th>
+                                    <th class="min-w-44 px-3 py-3">Pagu Tahunan</th>
+                                    <th class="min-w-28 px-3 py-3">Urutan</th>
                                     <th class="min-w-28 px-3 py-3">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr
-                                    v-for="row in directionRows"
-                                    :key="`direction-${row.key}`"
-                                    class="border-b align-top last:border-0 hover:bg-muted/30"
-                                >
-                                    <td class="px-3 py-3">
-                                        <span class="inline-flex w-fit rounded-full px-2 py-1 text-xs font-semibold" :class="bulkStatusClass(row)">
-                                            {{ bulkStatusLabel(row) }}
-                                        </span>
-                                        <p v-if="row.error" class="mt-2 max-w-40 text-xs leading-5 text-red-700">{{ row.error }}</p>
+                                <tr v-for="row in section.rows" :key="`${section.key}-${row.key}`" class="border-b align-top last:border-0 hover:bg-muted/30">
+                                    <td class="sticky left-0 z-10 border-r bg-card px-3 py-3 shadow-[8px_0_16px_rgba(15,23,42,0.05)]">
+                                        <div class="grid gap-2">
+                                            <span
+                                                class="inline-flex w-fit rounded-full px-2 py-1 text-xs font-semibold"
+                                                :class="bulkStatusClass(row)"
+                                            >
+                                                {{ bulkStatusLabel(row) }}
+                                            </span>
+                                            <p v-if="row.error" class="max-w-40 text-xs leading-5 text-red-700">{{ row.error }}</p>
+                                        </div>
                                     </td>
                                     <td class="px-3 py-3">
-                                        <div class="font-semibold text-slate-900">{{ row.level }}</div>
-                                        <div class="mt-1 text-xs text-muted-foreground">{{ typeMeta[row.type].primaryField }}</div>
+                                        <select
+                                            v-if="row.isNew"
+                                            v-model="row.type"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-[#00336C]"
+                                            @change="onBulkTypeChanged(row)"
+                                        >
+                                            <option v-for="action in section.actions" :key="action.type" :value="action.type">
+                                                {{ action.label }}
+                                            </option>
+                                        </select>
+                                        <div v-else>
+                                            <div class="font-semibold text-slate-900">{{ row.level }}</div>
+                                            <div class="mt-1 text-xs text-muted-foreground">{{ typeMeta[row.type].primaryField }}</div>
+                                        </div>
                                     </td>
                                     <td class="px-3 py-3">
+                                        <p class="mb-2 text-xs leading-5 text-slate-600">{{ row.parent_label }}</p>
                                         <select
                                             v-if="bulkParentOptions(row).length"
                                             v-model="row.parent_id"
@@ -2168,10 +2262,31 @@ const triwulanLabel = (triwulan: string) =>
                                         <span v-else class="text-xs text-muted-foreground">-</span>
                                     </td>
                                     <td class="px-3 py-3">
+                                        <RpjmdRichSelect
+                                            v-if="bulkMasterOptions(row).length"
+                                            :model-value="bulkMasterValue(row)"
+                                            :options="bulkMasterOptions(row)"
+                                            placeholder="Pilih master"
+                                            empty-text="Master belum tersedia"
+                                            @update:model-value="setBulkMasterValue(row, $event)"
+                                        />
+                                        <span v-else class="text-xs text-muted-foreground">-</span>
+                                    </td>
+                                    <td class="px-3 py-3">
                                         <input
                                             v-model="row.kode"
                                             :disabled="isBulkTargetRow(row)"
                                             class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <textarea
+                                            v-model="row.sasaran_level"
+                                            :disabled="!hasBulkSasaranLevel(row)"
+                                            rows="3"
+                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                            :placeholder="bulkSasaranLabel(row)"
                                             @input="scheduleBulkAutosave(row)"
                                         />
                                     </td>
@@ -2183,18 +2298,14 @@ const triwulanLabel = (triwulan: string) =>
                                             class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C]"
                                             @input="scheduleBulkAutosave(row)"
                                         />
+                                        <span v-else class="text-xs text-muted-foreground">-</span>
+                                    </td>
+                                    <td class="px-3 py-3">
                                         <textarea
-                                            v-else-if="isBulkIndicatorRow(row)"
                                             v-model="row.indikator"
-                                            rows="2"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C]"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                        <input
-                                            v-else
-                                            v-model="row.target_text"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C]"
-                                            placeholder="Target teks"
+                                            :disabled="!isBulkIndicatorRow(row)"
+                                            rows="3"
+                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
                                             @input="scheduleBulkAutosave(row)"
                                         />
                                     </td>
@@ -2208,6 +2319,33 @@ const triwulanLabel = (triwulan: string) =>
                                             <option value="">Pilih satuan</option>
                                             <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                                         </select>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <textarea
+                                            v-model="row.formula"
+                                            :disabled="!isBulkIndicatorRow(row)"
+                                            rows="3"
+                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <input
+                                            v-model="row.sumber_data"
+                                            :disabled="!isBulkIndicatorRow(row)"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <input
+                                            v-model="row.pagu_indikatif"
+                                            :disabled="!hasBulkPaguIndikatif(row)"
+                                            type="number"
+                                            step="0.01"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
                                     </td>
                                     <td class="px-3 py-3">
                                         <select
@@ -2226,6 +2364,24 @@ const triwulanLabel = (triwulan: string) =>
                                             :disabled="!isBulkTargetRow(row)"
                                             type="number"
                                             step="0.0001"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <input
+                                            v-model="row.target_text"
+                                            :disabled="!isBulkTargetRow(row)"
+                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                            @input="scheduleBulkAutosave(row)"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <input
+                                            v-model="row.pagu"
+                                            :disabled="!hasBulkPaguTahunan(row)"
+                                            type="number"
+                                            step="0.01"
                                             class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
                                             @input="scheduleBulkAutosave(row)"
                                         />
@@ -2251,281 +2407,6 @@ const triwulanLabel = (triwulan: string) =>
                                             Hapus
                                         </button>
                                         <span v-else class="text-xs text-muted-foreground">Autosave</span>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-
-                <section class="overflow-hidden rounded-xl border border-blue-100 bg-card shadow-sm">
-                    <div class="flex flex-col gap-3 border-b bg-white p-4 xl:flex-row xl:items-center xl:justify-between">
-                        <div class="flex min-w-0 items-start gap-3">
-                            <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#00336C]">
-                                <Network class="size-4" />
-                            </span>
-                            <div class="min-w-0">
-                                <h2 class="text-base font-semibold text-slate-950">Program, Kegiatan, dan Sub Kegiatan</h2>
-                                <p class="mt-1 text-sm text-slate-600">
-                                    Lanjutkan dari sasaran OPD ke program, kegiatan, sub kegiatan, indikator, dan pagu.
-                                </p>
-                            </div>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            <button
-                                v-for="action in implementationActions"
-                                :key="action.type"
-                                type="button"
-                                class="inline-flex min-h-9 items-center gap-2 rounded-md border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-800 transition hover:border-[#00336C]/35 hover:text-[#00336C]"
-                                @click="addBulkRow(action.type)"
-                            >
-                                <Plus class="size-3.5" />
-                                {{ action.label }}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div v-if="implementationRows.length === 0" class="p-8 text-center text-sm text-muted-foreground">
-                        <Layers3 class="mx-auto size-10 text-muted-foreground" />
-                        <p class="mt-3 font-semibold text-foreground">Belum ada program dan kegiatan OPD</p>
-                        <p class="mt-1">Tambahkan program setelah sasaran OPD tersedia.</p>
-                        <button
-                            type="button"
-                            class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-[#00336C] px-4 text-sm font-semibold text-white hover:bg-[#0a4485]"
-                            @click="addBulkRow('program')"
-                        >
-                            <Plus class="size-4" />
-                            Tambah Program
-                        </button>
-                    </div>
-
-                    <div v-else class="max-w-full overflow-x-auto">
-                        <table class="min-w-[2820px] text-left text-sm">
-                            <thead class="sticky top-0 z-10 border-b bg-muted/80 text-xs uppercase text-muted-foreground backdrop-blur">
-                                <tr>
-                                    <th class="sticky left-0 z-20 min-w-44 border-r bg-muted/95 px-3 py-3 shadow-[8px_0_16px_rgba(15,23,42,0.06)]">
-                                        Status
-                                    </th>
-                                    <th class="min-w-56 px-3 py-3">Jenis Data</th>
-                                    <th class="min-w-72 px-3 py-3">Induk</th>
-                                    <th class="min-w-40 px-3 py-3">Ubah Induk</th>
-                                    <th class="min-w-32 px-3 py-3">Kode</th>
-                                    <th class="min-w-80 px-3 py-3">Uraian/Nama</th>
-                                    <th class="min-w-80 px-3 py-3">Indikator</th>
-                                    <th class="min-w-72 px-3 py-3">Referensi RPJMD</th>
-                                    <th class="min-w-80 px-3 py-3">Master Resmi</th>
-                                    <th class="min-w-56 px-3 py-3">Satuan</th>
-                                    <th class="min-w-40 px-3 py-3">Tipe</th>
-                                    <th class="min-w-72 px-3 py-3">Formula</th>
-                                    <th class="min-w-60 px-3 py-3">Sumber Data</th>
-                                    <th class="min-w-44 px-3 py-3">Pagu Indikatif</th>
-                                    <th class="min-w-52 px-3 py-3">Periode Target</th>
-                                    <th class="min-w-40 px-3 py-3">Target Angka</th>
-                                    <th class="min-w-56 px-3 py-3">Target Teks</th>
-                                    <th class="min-w-44 px-3 py-3">Pagu Tahunan</th>
-                                    <th class="min-w-28 px-3 py-3">Urutan</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="row in implementationRows" :key="row.key" class="border-b align-top last:border-0 hover:bg-muted/30">
-                                    <td class="sticky left-0 z-10 border-r bg-card px-3 py-3 shadow-[8px_0_16px_rgba(15,23,42,0.05)]">
-                                        <div class="grid gap-2">
-                                            <span
-                                                class="inline-flex w-fit rounded-full px-2 py-1 text-xs font-semibold"
-                                                :class="bulkStatusClass(row)"
-                                            >
-                                                {{ bulkStatusLabel(row) }}
-                                            </span>
-                                            <p v-if="row.error" class="max-w-40 text-xs leading-5 text-red-700">{{ row.error }}</p>
-                                            <button
-                                                v-if="row.isNew"
-                                                type="button"
-                                                class="inline-flex min-h-8 w-fit items-center rounded-md border px-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                                                @click="removeBulkDraft(row)"
-                                            >
-                                                Hapus draft
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-if="row.isNew"
-                                            v-model="row.type"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-700"
-                                            @change="onBulkTypeChanged(row)"
-                                        >
-                                            <option v-for="option in implementationActions" :key="option.type" :value="option.type">
-                                                {{ option.label }}
-                                            </option>
-                                        </select>
-                                        <div v-else>
-                                            <div class="font-semibold text-slate-900">{{ row.level }}</div>
-                                            <div class="mt-1 text-xs text-muted-foreground">{{ typeOptionMap.get(row.type)?.label }}</div>
-                                        </div>
-                                    </td>
-                                    <td class="px-3 py-3 text-xs leading-5 text-slate-700">{{ row.parent_label }}</td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-if="bulkParentOptions(row).length"
-                                            v-model="row.parent_id"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="">Pilih induk</option>
-                                            <option v-for="option in bulkParentOptions(row)" :key="option.id" :value="option.id">
-                                                {{ option.label }}
-                                            </option>
-                                        </select>
-                                        <span v-else class="text-xs text-muted-foreground">-</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.kode"
-                                            :disabled="isBulkTargetRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <textarea
-                                            v-model="row.uraian"
-                                            :disabled="!isBulkTextRow(row)"
-                                            rows="3"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <textarea
-                                            v-model="row.indikator"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            rows="3"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-if="bulkReferenceOptions(row).length"
-                                            v-model="row.reference_value"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700"
-                                            @change="onBulkReferenceChanged(row)"
-                                        >
-                                            <option value="">Tidak dihubungkan</option>
-                                            <option v-for="option in bulkReferenceOptions(row)" :key="option.id" :value="option.id">
-                                                {{ option.label }}
-                                            </option>
-                                        </select>
-                                        <span v-else class="text-xs text-muted-foreground">-</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <RpjmdRichSelect
-                                            v-if="bulkMasterOptions(row).length"
-                                            :model-value="bulkMasterValue(row)"
-                                            :options="bulkMasterOptions(row)"
-                                            placeholder="Pilih master"
-                                            empty-text="Master belum tersedia"
-                                            @update:model-value="setBulkMasterValue(row, $event)"
-                                        />
-                                        <span v-else class="text-xs text-muted-foreground">-</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-model="row.satuan_indikator_id"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="">Pilih satuan</option>
-                                            <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                                        </select>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-model="row.tipe_indikator"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="positif">Positif</option>
-                                            <option value="negatif">Negatif</option>
-                                        </select>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <textarea
-                                            v-model="row.formula"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            rows="3"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.sumber_data"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.pagu_indikatif"
-                                            :disabled="!hasBulkPaguIndikatif(row)"
-                                            type="number"
-                                            step="0.01"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-model="row.periode_tahun_id"
-                                            :disabled="!isBulkTargetRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="">Pilih periode</option>
-                                            <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                                        </select>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.target"
-                                            :disabled="!isBulkTargetRow(row)"
-                                            type="number"
-                                            step="0.0001"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.target_text"
-                                            :disabled="!isBulkTargetRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.pagu"
-                                            :disabled="!hasBulkPaguTahunan(row)"
-                                            type="number"
-                                            step="0.01"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.urutan"
-                                            :disabled="isBulkTargetRow(row)"
-                                            type="number"
-                                            min="1"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
                                     </td>
                                 </tr>
                             </tbody>
@@ -2572,6 +2453,7 @@ const triwulanLabel = (triwulan: string) =>
                                     <th class="px-3 py-2">Sasaran</th>
                                     <th class="px-3 py-2">Program</th>
                                     <th class="px-3 py-2">Kegiatan</th>
+                                    <th class="px-3 py-2">Indikator Kegiatan</th>
                                     <th class="px-3 py-2">Sub Kegiatan</th>
                                     <th class="px-3 py-2">Indikator</th>
                                 </tr>
@@ -2582,13 +2464,20 @@ const triwulanLabel = (triwulan: string) =>
                                     <td class="max-w-52 px-3 py-3">{{ row.sasaran }}</td>
                                     <td class="max-w-52 px-3 py-3 font-medium">{{ row.program }}</td>
                                     <td class="max-w-52 px-3 py-3">{{ row.kegiatan }}</td>
+                                    <td class="max-w-60 px-3 py-3">{{ row.indikator_kegiatan }}</td>
                                     <td class="max-w-52 px-3 py-3">{{ row.sub_kegiatan }}</td>
                                     <td class="max-w-60 px-3 py-3">
-                                        {{ row.indikator_program !== '-' ? row.indikator_program : row.indikator_sub_kegiatan }}
+                                        {{
+                                            row.indikator_program !== '-'
+                                                ? row.indikator_program
+                                                : row.indikator_sub_kegiatan !== '-'
+                                                  ? row.indikator_sub_kegiatan
+                                                  : row.indikator_kegiatan
+                                        }}
                                     </td>
                                 </tr>
                                 <tr v-if="compactPreviewRows.length === 0">
-                                    <td colspan="6" class="px-3 py-8 text-center text-slate-500">Belum ada data untuk dipreview.</td>
+                                    <td colspan="7" class="px-3 py-8 text-center text-slate-500">Belum ada data untuk dipreview.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -2651,10 +2540,10 @@ const triwulanLabel = (triwulan: string) =>
                                 <th class="px-4 py-3">Link Program</th>
                                 <th class="px-4 py-3">Indikator Program</th>
                                 <th class="px-4 py-3">Kegiatan</th>
+                                <th class="px-4 py-3">Indikator Kegiatan</th>
                                 <th class="px-4 py-3">Sub Kegiatan</th>
                                 <th class="px-4 py-3">Indikator Sub Kegiatan</th>
                                 <th class="px-4 py-3">Target Tahunan</th>
-                                <th class="px-4 py-3">Target Triwulan</th>
                                 <th class="px-4 py-3">Pagu</th>
                                 <th class="px-4 py-3">Status</th>
                             </tr>
@@ -2671,10 +2560,10 @@ const triwulanLabel = (triwulan: string) =>
                                 <td class="px-4 py-3">{{ row.program_rpjmd }}</td>
                                 <td class="max-w-[280px] px-4 py-3">{{ row.indikator_program }}</td>
                                 <td class="max-w-[260px] px-4 py-3">{{ row.kegiatan }}</td>
+                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_kegiatan }}</td>
                                 <td class="max-w-[260px] px-4 py-3">{{ row.sub_kegiatan }}</td>
                                 <td class="max-w-[280px] px-4 py-3">{{ row.indikator_sub_kegiatan }}</td>
                                 <td class="max-w-[240px] px-4 py-3">{{ row.target_tahunan }}</td>
-                                <td class="max-w-[240px] px-4 py-3">{{ row.target_triwulan }}</td>
                                 <td class="max-w-[240px] px-4 py-3">{{ row.pagu }}</td>
                                 <td class="px-4 py-3">
                                     <span
@@ -2690,7 +2579,7 @@ const triwulanLabel = (triwulan: string) =>
                                 </td>
                             </tr>
                             <tr v-if="renstraCascadingRows.length === 0">
-                                <td colspan="16" class="px-4 py-10 text-center text-muted-foreground">Belum ada data cascading Renstra OPD.</td>
+                                <td colspan="17" class="px-4 py-10 text-center text-muted-foreground">Belum ada data cascading Renstra OPD.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -2795,14 +2684,6 @@ const triwulanLabel = (triwulan: string) =>
                                         </button>
                                         <button
                                             type="button"
-                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
-                                            @click="selectTargetTriwulan('indikator_tujuan_opd', indikator.id)"
-                                        >
-                                            <Plus class="size-3.5" />
-                                            TW
-                                        </button>
-                                        <button
-                                            type="button"
                                             class="rounded-md p-1 hover:bg-muted"
                                             title="Edit indikator"
                                             @click="editNode('indikator_tujuan', indikator.id, tujuan.id, indikator)"
@@ -2833,24 +2714,6 @@ const triwulanLabel = (triwulan: string) =>
                                             @click="editNode('target_tujuan', target.id, indikator.id, target)"
                                         >
                                             Edit
-                                        </button>
-                                    </span>
-                                </div>
-                                <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
-                                    <span
-                                        v-for="target in indikator.target_triwulan"
-                                        :key="target.id"
-                                        class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
-                                    >
-                                        {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}: {{ targetTriwulanDisplay(target) }} -
-                                        {{ formatCurrency(target.target_anggaran) }}
-                                        <button
-                                            v-if="can.manage"
-                                            type="button"
-                                            class="font-semibold text-blue-900 hover:text-red-700"
-                                            @click="destroyTargetTriwulan(target)"
-                                        >
-                                            x
                                         </button>
                                     </span>
                                 </div>
@@ -2933,14 +2796,6 @@ const triwulanLabel = (triwulan: string) =>
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
-                                                    @click="selectTargetTriwulan('indikator_sasaran_opd', indikator.id)"
-                                                >
-                                                    <Plus class="size-3.5" />
-                                                    TW
-                                                </button>
-                                                <button
-                                                    type="button"
                                                     class="rounded-md p-1 hover:bg-muted"
                                                     title="Edit indikator"
                                                     @click="editNode('indikator_sasaran', indikator.id, sasaran.id, indikator)"
@@ -2974,24 +2829,6 @@ const triwulanLabel = (triwulan: string) =>
                                                 </button>
                                             </span>
                                         </div>
-                                        <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
-                                            <span
-                                                v-for="target in indikator.target_triwulan"
-                                                :key="target.id"
-                                                class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
-                                            >
-                                                {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
-                                                {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
-                                                <button
-                                                    v-if="can.manage"
-                                                    type="button"
-                                                    class="font-semibold text-blue-900 hover:text-red-700"
-                                                    @click="destroyTargetTriwulan(target)"
-                                                >
-                                                    x
-                                                </button>
-                                            </span>
-                                        </div>
                                     </div>
 
                                     <div v-for="program in sasaran.programs" :key="program.id" class="rounded-md border bg-white p-3">
@@ -3005,6 +2842,9 @@ const triwulanLabel = (triwulan: string) =>
                                                 </div>
                                                 <div class="mt-1 text-sm font-medium">
                                                     {{ program.kode ? `${program.kode} - ` : '' }}{{ program.nama }}
+                                                </div>
+                                                <div v-if="program.sasaran_program" class="mt-1 text-xs leading-5 text-slate-600">
+                                                    Sasaran program: {{ program.sasaran_program }}
                                                 </div>
                                                 <div class="mt-1 text-xs text-muted-foreground">
                                                     Pagu indikatif: {{ program.pagu_indikatif || '-' }}
@@ -3078,14 +2918,6 @@ const triwulanLabel = (triwulan: string) =>
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
-                                                            @click="selectTargetTriwulan('indikator_opd_program', indikator.id)"
-                                                        >
-                                                            <Plus class="size-3.5" />
-                                                            TW
-                                                        </button>
-                                                        <button
-                                                            type="button"
                                                             class="rounded-md p-1 hover:bg-muted"
                                                             title="Edit indikator"
                                                             @click="editNode('indikator_program', indikator.id, program.id, indikator)"
@@ -3120,24 +2952,6 @@ const triwulanLabel = (triwulan: string) =>
                                                         </button>
                                                     </span>
                                                 </div>
-                                                <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
-                                                    <span
-                                                        v-for="target in indikator.target_triwulan"
-                                                        :key="target.id"
-                                                        class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
-                                                    >
-                                                        {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
-                                                        {{ targetTriwulanDisplay(target) }} - {{ formatCurrency(target.target_anggaran) }}
-                                                        <button
-                                                            v-if="can.manage"
-                                                            type="button"
-                                                            class="font-semibold text-blue-900 hover:text-red-700"
-                                                            @click="destroyTargetTriwulan(target)"
-                                                        >
-                                                            x
-                                                        </button>
-                                                    </span>
-                                                </div>
                                             </div>
 
                                             <div v-for="kegiatan in program.kegiatan" :key="kegiatan.id" class="rounded-md border bg-slate-50 p-3">
@@ -3147,8 +2961,19 @@ const triwulanLabel = (triwulan: string) =>
                                                         <div class="mt-1 text-sm font-medium">
                                                             {{ kegiatan.kode ? `${kegiatan.kode} - ` : '' }}{{ kegiatan.nama }}
                                                         </div>
+                                                        <div v-if="kegiatan.sasaran_kegiatan" class="mt-1 text-xs leading-5 text-slate-600">
+                                                            Sasaran kegiatan: {{ kegiatan.sasaran_kegiatan }}
+                                                        </div>
                                                     </div>
                                                     <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                                                            @click="selectNodeType('indikator_kegiatan', kegiatan.id)"
+                                                        >
+                                                            <Plus class="size-3.5" />
+                                                            Indikator
+                                                        </button>
                                                         <button
                                                             type="button"
                                                             class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
@@ -3175,12 +3000,77 @@ const triwulanLabel = (triwulan: string) =>
                                                         </button>
                                                     </div>
                                                 </div>
+                                                <div v-if="kegiatan.indikator.length" class="mt-2 grid gap-2">
+                                                    <div
+                                                        v-for="indikator in kegiatan.indikator"
+                                                        :key="indikator.id"
+                                                        class="rounded-md bg-white px-3 py-2 text-sm"
+                                                    >
+                                                        <div class="flex items-start justify-between gap-3">
+                                                            <div>
+                                                                <div class="text-xs font-semibold uppercase text-muted-foreground">Indikator Kegiatan</div>
+                                                                <div class="mt-1">
+                                                                    {{ indikator.kode ? `${indikator.kode} - ` : '' }}{{ indikator.indikator }}
+                                                                </div>
+                                                                <div class="mt-1 text-xs text-muted-foreground">
+                                                                    {{ indikator.satuan?.simbol || indikator.satuan?.nama || '-' }}
+                                                                </div>
+                                                            </div>
+                                                            <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+                                                                    @click="selectNodeType('target_kegiatan', indikator.id)"
+                                                                >
+                                                                    <Plus class="size-3.5" />
+                                                                    Target
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    class="rounded-md p-1 hover:bg-muted"
+                                                                    title="Edit indikator kegiatan"
+                                                                    @click="editNode('indikator_kegiatan', indikator.id, kegiatan.id, indikator)"
+                                                                >
+                                                                    <Pencil class="size-4" />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    class="rounded-md p-1 text-red-700 hover:bg-red-50"
+                                                                    title="Hapus indikator kegiatan"
+                                                                    @click="destroyNode('indikator_kegiatan', indikator.id, 'indikator kegiatan')"
+                                                                >
+                                                                    <Trash2 class="size-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
+                                                            <span
+                                                                v-for="target in indikator.targets"
+                                                                :key="target.id"
+                                                                class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                                                            >
+                                                                {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
+                                                                <button
+                                                                    v-if="can.manage"
+                                                                    type="button"
+                                                                    class="font-semibold text-emerald-900 hover:text-slate-900"
+                                                                    @click="editNode('target_kegiatan', target.id, indikator.id, target)"
+                                                                >
+                                                                    Edit
+                                                                </button>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                                 <div v-for="sub in kegiatan.sub_kegiatan" :key="sub.id" class="mt-3 rounded-md border bg-white p-3">
                                                     <div class="flex items-start justify-between gap-3">
                                                         <div>
                                                             <div class="text-xs font-semibold uppercase text-muted-foreground">Sub Kegiatan</div>
                                                             <div class="mt-1 text-sm font-medium">
                                                                 {{ sub.kode ? `${sub.kode} - ` : '' }}{{ sub.nama }}
+                                                            </div>
+                                                            <div v-if="sub.sasaran_sub_kegiatan" class="mt-1 text-xs leading-5 text-slate-600">
+                                                                Sasaran sub kegiatan: {{ sub.sasaran_sub_kegiatan }}
                                                             </div>
                                                         </div>
                                                         <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
@@ -3229,10 +3119,10 @@ const triwulanLabel = (triwulan: string) =>
                                                                     <button
                                                                         type="button"
                                                                         class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
-                                                                        @click="selectTargetTriwulan('indikator_sub_kegiatan', indikator.id)"
+                                                                        @click="selectNodeType('target_sub_kegiatan', indikator.id)"
                                                                     >
                                                                         <Plus class="size-3.5" />
-                                                                        TW
+                                                                        Target
                                                                     </button>
                                                                     <button
                                                                         type="button"
@@ -3258,22 +3148,20 @@ const triwulanLabel = (triwulan: string) =>
                                                                     </button>
                                                                 </div>
                                                             </div>
-                                                            <div v-if="indikator.target_triwulan?.length" class="mt-2 flex flex-wrap gap-2">
+                                                            <div v-if="indikator.targets?.length" class="mt-2 flex flex-wrap gap-2">
                                                                 <span
-                                                                    v-for="target in indikator.target_triwulan"
+                                                                    v-for="target in indikator.targets"
                                                                     :key="target.id"
-                                                                    class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                                                                    class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
                                                                 >
-                                                                    {{ target.periode_tahun.tahun }} {{ triwulanLabel(target.triwulan) }}:
-                                                                    {{ targetTriwulanDisplay(target) }} -
-                                                                    {{ formatCurrency(target.target_anggaran) }}
+                                                                    {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
                                                                     <button
                                                                         v-if="can.manage"
                                                                         type="button"
-                                                                        class="font-semibold text-blue-900 hover:text-red-700"
-                                                                        @click="destroyTargetTriwulan(target)"
+                                                                        class="font-semibold text-emerald-900 hover:text-slate-900"
+                                                                        @click="editNode('target_sub_kegiatan', target.id, indikator.id, target)"
                                                                     >
-                                                                        x
+                                                                        Edit
                                                                     </button>
                                                                 </span>
                                                             </div>
@@ -3291,7 +3179,7 @@ const triwulanLabel = (triwulan: string) =>
             </section>
 
             <aside
-                v-if="can.manage && (isNodeModalOpen || isTargetTriwulanModalOpen)"
+                v-if="can.manage && isNodeModalOpen"
                 ref="formPanel"
                 class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-6"
             >
@@ -3536,6 +3424,19 @@ const triwulanLabel = (triwulan: string) =>
                                 <InputError :message="form.errors.uraian" />
                             </div>
 
+                            <div v-if="['program', 'kegiatan', 'sub_kegiatan'].includes(form.type)" class="grid gap-2">
+                                <label class="text-sm font-medium" for="sasaran_level">
+                                    {{ form.type === 'program' ? 'Sasaran Program' : form.type === 'kegiatan' ? 'Sasaran Kegiatan' : 'Sasaran Sub Kegiatan' }}
+                                </label>
+                                <textarea
+                                    id="sasaran_level"
+                                    v-model="form.sasaran_level"
+                                    rows="3"
+                                    class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-primary"
+                                />
+                                <InputError :message="form.errors.sasaran_level" />
+                            </div>
+
                             <div v-if="isIndicatorType" class="grid gap-2">
                                 <label class="text-sm font-medium" for="indikator">Indikator</label>
                                 <textarea
@@ -3673,123 +3574,6 @@ const triwulanLabel = (triwulan: string) =>
                         </form>
                     </section>
 
-                    <section v-if="isTargetTriwulanModalOpen" class="rounded-2xl border border-blue-100 bg-card p-4 shadow-2xl shadow-slate-950/15">
-                        <form class="grid gap-4" @submit.prevent="submitTargetTriwulan">
-                            <div class="flex items-start justify-between gap-3">
-                                <div class="flex items-start gap-2">
-                                    <Target class="mt-0.5 size-5 text-[#00336C]" />
-                                    <div>
-                                        <h3 class="text-base font-semibold text-foreground">Target Triwulan Indikator</h3>
-                                        <p class="mt-1 text-sm leading-6 text-muted-foreground">
-                                            Isi target kinerja dan target anggaran TW I sampai TW IV.
-                                        </p>
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    class="inline-flex size-9 shrink-0 items-center justify-center rounded-md border bg-background text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-                                    aria-label="Tutup target triwulan"
-                                    @click="closeTargetTriwulanModal"
-                                >
-                                    <X class="size-4" />
-                                </button>
-                            </div>
-
-                            <div class="grid gap-2">
-                                <label class="text-sm font-medium" for="target_triwulan_table">Jenis Indikator</label>
-                                <select
-                                    id="target_triwulan_table"
-                                    v-model="targetTriwulanForm.related_table"
-                                    class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
-                                >
-                                    <option v-for="option in targetTriwulanTypeOptions" :key="option.value" :value="option.value">
-                                        {{ option.label }}
-                                    </option>
-                                </select>
-                                <InputError :message="targetTriwulanForm.errors.related_table" />
-                            </div>
-
-                            <div class="grid gap-2">
-                                <label class="text-sm font-medium" for="target_triwulan_related_id">Indikator</label>
-                                <RpjmdRichSelect
-                                    id="target_triwulan_related_id"
-                                    v-model="targetTriwulanForm.related_id"
-                                    :options="selectedTargetTriwulanSelectOptions"
-                                    placeholder="Pilih indikator"
-                                    empty-text="Indikator belum tersedia"
-                                />
-                                <InputError :message="targetTriwulanForm.errors.related_id" />
-                            </div>
-
-                            <div class="grid gap-2">
-                                <label class="text-sm font-medium" for="target_triwulan_periode">Periode Tahun</label>
-                                <RpjmdRichSelect
-                                    id="target_triwulan_periode"
-                                    v-model="targetTriwulanForm.periode_tahun_id"
-                                    :options="periodeSelectOptions"
-                                    placeholder="Pilih periode"
-                                    empty-text="Periode belum tersedia"
-                                />
-                                <InputError :message="targetTriwulanForm.errors.periode_tahun_id" />
-                            </div>
-
-                            <div class="grid gap-3">
-                                <article
-                                    v-for="(row, index) in targetTriwulanForm.targets"
-                                    :key="row.triwulan"
-                                    class="rounded-md border bg-background p-3"
-                                >
-                                    <div class="mb-3 flex items-center justify-between gap-3">
-                                        <h4 class="text-sm font-semibold text-slate-950">{{ targetTriwulanRows[index].label }}</h4>
-                                        <span class="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">Triwulan</span>
-                                    </div>
-
-                                    <div class="grid gap-3">
-                                        <label class="grid gap-1.5">
-                                            <span class="text-xs font-semibold uppercase text-muted-foreground">Target Angka</span>
-                                            <input
-                                                v-model="row.target_angka"
-                                                type="number"
-                                                step="0.0001"
-                                                class="min-h-11 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
-                                            />
-                                            <InputError :message="targetTriwulanError(index, 'target_angka')" />
-                                        </label>
-
-                                        <label class="grid gap-1.5">
-                                            <span class="text-xs font-semibold uppercase text-muted-foreground">Target Teks</span>
-                                            <input
-                                                v-model="row.target_text"
-                                                class="min-h-11 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
-                                                placeholder="Opsional"
-                                            />
-                                            <InputError :message="targetTriwulanError(index, 'target_text')" />
-                                        </label>
-
-                                        <label class="grid gap-1.5">
-                                            <span class="text-xs font-semibold uppercase text-muted-foreground">Target Anggaran</span>
-                                            <input
-                                                v-model="row.target_anggaran"
-                                                type="number"
-                                                step="0.01"
-                                                class="min-h-11 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-blue-700"
-                                            />
-                                            <InputError :message="targetTriwulanError(index, 'target_anggaran')" />
-                                        </label>
-                                    </div>
-                                </article>
-                            </div>
-
-                            <button
-                                type="submit"
-                                :disabled="targetTriwulanForm.processing || selectedTargetTriwulanOptions.length === 0"
-                                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
-                            >
-                                <Save class="size-4" />
-                                Simpan Target TW I-IV
-                            </button>
-                        </form>
-                    </section>
                 </div>
             </aside>
         </div>

@@ -154,19 +154,18 @@ class PohonKinerjaService
             'tujuan.indikator.indikatorTujuanDaerah:id,kode,indikator',
             'tujuan.indikator.satuanIndikator:id,nama,simbol',
             'tujuan.indikator.targets.periodeTahun:id,tahun,nama',
-            'tujuan.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.sasaranDaerah:id,kode,sasaran',
             'tujuan.sasaran.indikator.indikatorSasaranDaerah:id,kode,indikator',
             'tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
             'tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
-            'tujuan.sasaran.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.programs.programRpjmd:id,kode,nama',
             'tujuan.sasaran.programs.indikator.indikatorProgramRpjmd:id,kode,indikator',
             'tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
             'tujuan.sasaran.programs.indikator.targets.periodeTahun:id,tahun,nama',
-            'tujuan.sasaran.programs.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'tujuan.sasaran.programs.kegiatan.indikator.satuanIndikator:id,nama,simbol',
+            'tujuan.sasaran.programs.kegiatan.indikator.targets.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.satuanIndikator:id,nama,simbol',
-            'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.targetTriwulan.periodeTahun:id,tahun,nama',
+            'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.targets.periodeTahun:id,tahun,nama',
         ]);
     }
 
@@ -309,7 +308,7 @@ class PohonKinerjaService
             id: $tujuan->id,
             label: $this->label($tujuan->kode, $tujuan->tujuan),
             children: [
-                ...$this->indicatorNodes($tujuan->indikator, 'indikator_tujuan_opd', fn (IndikatorTujuanOpd $indikator) => $indikator->indikatorTujuanDaerah ? $this->linkedReference('indikator_tujuan_daerah', $indikator->indikatorTujuanDaerah->id, $indikator->indikatorTujuanDaerah->indikator) : null),
+                ...$this->indicatorNodes($tujuan->indikator, 'indikator_tujuan_opd', fn (IndikatorTujuanOpd $indikator) => $indikator->indikatorTujuanDaerah ? $this->linkedReference('indikator_tujuan_daerah', $indikator->indikatorTujuanDaerah->id, $indikator->indikatorTujuanDaerah->indikator) : null, false),
                 ...$tujuan->sasaran->map(fn (SasaranOpd $sasaran) => $this->sasaranOpdNode($sasaran))->values()->all(),
             ],
             linkedTo: $tujuan->tujuanDaerah ? $this->linkedReference('tujuan_daerah', $tujuan->tujuanDaerah->id, $tujuan->tujuanDaerah->tujuan) : null,
@@ -326,7 +325,7 @@ class PohonKinerjaService
             id: $sasaran->id,
             label: $this->label($sasaran->kode, $sasaran->sasaran),
             children: [
-                ...$this->indicatorNodes($sasaran->indikator, 'indikator_sasaran_opd', fn (IndikatorSasaranOpd $indikator) => $indikator->indikatorSasaranDaerah ? $this->linkedReference('indikator_sasaran_daerah', $indikator->indikatorSasaranDaerah->id, $indikator->indikatorSasaranDaerah->indikator) : null),
+                ...$this->indicatorNodes($sasaran->indikator, 'indikator_sasaran_opd', fn (IndikatorSasaranOpd $indikator) => $indikator->indikatorSasaranDaerah ? $this->linkedReference('indikator_sasaran_daerah', $indikator->indikatorSasaranDaerah->id, $indikator->indikatorSasaranDaerah->indikator) : null, false),
                 ...$sasaran->programs->map(fn (OpdProgram $program) => $this->opdProgramNode($program))->values()->all(),
             ],
             linkedTo: $sasaran->sasaranDaerah ? $this->linkedReference('sasaran_daerah', $sasaran->sasaranDaerah->id, $sasaran->sasaranDaerah->sasaran) : null,
@@ -345,9 +344,10 @@ class PohonKinerjaService
             meta: [
                 'status' => $program->status,
                 'pagu_indikatif' => $program->pagu_indikatif,
+                'sasaran_program' => $program->sasaran_program,
             ],
             children: [
-                ...$this->indicatorNodes($program->indikator, 'indikator_opd_program', fn (IndikatorOpdProgram $indikator) => $indikator->indikatorProgramRpjmd ? $this->linkedReference('indikator_program_rpjmd', $indikator->indikatorProgramRpjmd->id, $indikator->indikatorProgramRpjmd->indikator) : null),
+                ...$this->indicatorNodes($program->indikator, 'indikator_opd_program', fn (IndikatorOpdProgram $indikator) => $indikator->indikatorProgramRpjmd ? $this->linkedReference('indikator_program_rpjmd', $indikator->indikatorProgramRpjmd->id, $indikator->indikatorProgramRpjmd->indikator) : null, false),
                 ...$program->kegiatan->map(fn (OpdKegiatan $kegiatan) => $this->opdKegiatanNode($kegiatan))->values()->all(),
             ],
             linkedTo: $program->programRpjmd ? $this->linkedReference('program_rpjmd', $program->programRpjmd->id, $program->programRpjmd->nama) : null,
@@ -363,11 +363,17 @@ class PohonKinerjaService
             type: 'opd_kegiatan',
             id: $kegiatan->id,
             label: $this->label($kegiatan->kode, $kegiatan->nama),
-            meta: ['pagu_indikatif' => $kegiatan->pagu_indikatif],
-            children: $kegiatan->subKegiatan
-                ->map(fn (OpdSubKegiatan $subKegiatan) => $this->opdSubKegiatanNode($subKegiatan))
-                ->values()
-                ->all(),
+            meta: [
+                'pagu_indikatif' => $kegiatan->pagu_indikatif,
+                'sasaran_kegiatan' => $kegiatan->sasaran_kegiatan,
+            ],
+            children: [
+                ...$this->indicatorNodes($kegiatan->indikator, 'indikator_opd_kegiatan', null, false),
+                ...$kegiatan->subKegiatan
+                    ->map(fn (OpdSubKegiatan $subKegiatan) => $this->opdSubKegiatanNode($subKegiatan))
+                    ->values()
+                    ->all(),
+            ],
         );
     }
 
@@ -380,8 +386,11 @@ class PohonKinerjaService
             type: 'opd_sub_kegiatan',
             id: $subKegiatan->id,
             label: $this->label($subKegiatan->kode, $subKegiatan->nama),
-            meta: ['pagu_indikatif' => $subKegiatan->pagu_indikatif],
-            children: $this->indicatorNodes($subKegiatan->indikator, 'indikator_sub_kegiatan'),
+            meta: [
+                'pagu_indikatif' => $subKegiatan->pagu_indikatif,
+                'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
+            ],
+            children: $this->indicatorNodes($subKegiatan->indikator, 'indikator_sub_kegiatan', null, false),
         );
     }
 
@@ -389,10 +398,10 @@ class PohonKinerjaService
      * @param  Collection<int, Model>  $indicators
      * @return array<int, array<string, mixed>>
      */
-    private function indicatorNodes(Collection $indicators, string $type, ?callable $linkedResolver = null): array
+    private function indicatorNodes(Collection $indicators, string $type, ?callable $linkedResolver = null, bool $includeTriwulanTargets = true): array
     {
         return $indicators
-            ->map(fn (Model $indicator) => $this->indicatorNode($indicator, $type, $linkedResolver ? $linkedResolver($indicator) : null))
+            ->map(fn (Model $indicator) => $this->indicatorNode($indicator, $type, $linkedResolver ? $linkedResolver($indicator) : null, includeTriwulanTargets: $includeTriwulanTargets))
             ->values()
             ->all();
     }
@@ -400,7 +409,7 @@ class PohonKinerjaService
     /**
      * @return array<string, mixed>
      */
-    private function indicatorNode(Model $indicator, string $type, ?array $linkedTo = null, array $extraChildren = []): array
+    private function indicatorNode(Model $indicator, string $type, ?array $linkedTo = null, array $extraChildren = [], bool $includeTriwulanTargets = true): array
     {
         return $this->node(
             type: $type,
@@ -419,7 +428,7 @@ class PohonKinerjaService
             ],
             children: [
                 ...$this->targetTahunanNodes($indicator),
-                ...$this->targetTriwulanNodes($indicator),
+                ...($includeTriwulanTargets ? $this->targetTriwulanNodes($indicator) : []),
                 ...$extraChildren,
             ],
             linkedTo: $linkedTo,

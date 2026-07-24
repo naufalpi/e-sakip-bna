@@ -4,6 +4,7 @@ namespace App\Http\Controllers\RenstraOpd;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RenstraOpd\StoreRenstraOpdNodeRequest;
+use App\Models\IndikatorOpdKegiatan;
 use App\Models\IndikatorOpdProgram;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranOpd;
@@ -19,8 +20,10 @@ use App\Models\ProgramRpjmd;
 use App\Models\RenstraOpd;
 use App\Models\SasaranOpd;
 use App\Models\SubKegiatanPemerintahan;
+use App\Models\TargetIndikatorOpdKegiatan;
 use App\Models\TargetIndikatorOpdProgram;
 use App\Models\TargetIndikatorSasaranOpd;
+use App\Models\TargetIndikatorSubKegiatan;
 use App\Models\TargetIndikatorTujuanOpd;
 use App\Models\TujuanOpd;
 use Illuminate\Database\Eloquent\Builder;
@@ -176,6 +179,23 @@ class RenstraOpdNodeController extends Controller
                 'pagu' => $data['pagu'] ?? null,
             ]),
             'kegiatan' => $this->createKegiatan($renstra, $data),
+            'indikator_kegiatan' => IndikatorOpdKegiatan::create([
+                'opd_kegiatan_id' => $this->kegiatan($renstra, $data['parent_id'] ?? null)->id,
+                'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+                'kode' => $data['kode'] ?? null,
+                'indikator' => $this->requiredText($data, 'indikator', 'Indikator kegiatan wajib diisi.'),
+                'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
+                'formula' => $data['formula'] ?? null,
+                'sumber_data' => $data['sumber_data'] ?? null,
+                'urutan' => $data['urutan'] ?? 1,
+            ]),
+            'target_kegiatan' => TargetIndikatorOpdKegiatan::updateOrCreate([
+                'indikator_opd_kegiatan_id' => $this->indikatorKegiatan($renstra, $data['parent_id'] ?? null)->id,
+                'periode_tahun_id' => $this->requiredInt($data, 'periode_tahun_id', 'Periode target wajib dipilih.'),
+            ], [
+                'target' => $data['target'] ?? null,
+                'target_text' => $data['target_text'] ?? null,
+            ]),
             'sub_kegiatan' => $this->createSubKegiatan($renstra, $data),
             'indikator_sub_kegiatan' => IndikatorSubKegiatan::create([
                 'opd_sub_kegiatan_id' => $this->subKegiatan($renstra, $data['parent_id'] ?? null)->id,
@@ -186,6 +206,13 @@ class RenstraOpdNodeController extends Controller
                 'formula' => $data['formula'] ?? null,
                 'sumber_data' => $data['sumber_data'] ?? null,
                 'urutan' => $data['urutan'] ?? 1,
+            ]),
+            'target_sub_kegiatan' => TargetIndikatorSubKegiatan::updateOrCreate([
+                'indikator_sub_kegiatan_id' => $this->indikatorSubKegiatan($renstra, $data['parent_id'] ?? null)->id,
+                'periode_tahun_id' => $this->requiredInt($data, 'periode_tahun_id', 'Periode target wajib dipilih.'),
+            ], [
+                'target' => $data['target'] ?? null,
+                'target_text' => $data['target_text'] ?? null,
             ]),
         };
     }
@@ -284,6 +311,26 @@ class RenstraOpdNodeController extends Controller
                     ...$this->kegiatanPayload($program, $data),
                 ]);
             }),
+            'indikator_kegiatan' => tap($this->indikatorKegiatan($renstra, $id), function (IndikatorOpdKegiatan $indikator) use ($renstra, $data) {
+                $indikator->update([
+                    'opd_kegiatan_id' => filled($data['parent_id'] ?? null) ? $this->kegiatan($renstra, $data['parent_id'])->id : $indikator->opd_kegiatan_id,
+                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+                    'kode' => $data['kode'] ?? null,
+                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator kegiatan wajib diisi.'),
+                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
+                    'formula' => $data['formula'] ?? null,
+                    'sumber_data' => $data['sumber_data'] ?? null,
+                    'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'target_kegiatan' => tap($this->findNode($renstra, $type, $id), function (TargetIndikatorOpdKegiatan $target) use ($renstra, $data) {
+                $target->update([
+                    'indikator_opd_kegiatan_id' => filled($data['parent_id'] ?? null) ? $this->indikatorKegiatan($renstra, $data['parent_id'])->id : $target->indikator_opd_kegiatan_id,
+                    'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
+                    'target' => $data['target'] ?? null,
+                    'target_text' => $data['target_text'] ?? null,
+                ]);
+            }),
             'sub_kegiatan' => tap($this->subKegiatan($renstra, $id), function (OpdSubKegiatan $subKegiatan) use ($renstra, $data) {
                 $kegiatan = filled($data['parent_id'] ?? null) ? $this->kegiatan($renstra, $data['parent_id']) : $subKegiatan->kegiatan;
 
@@ -302,6 +349,14 @@ class RenstraOpdNodeController extends Controller
                     'formula' => $data['formula'] ?? null,
                     'sumber_data' => $data['sumber_data'] ?? null,
                     'urutan' => $data['urutan'] ?? 1,
+                ]);
+            }),
+            'target_sub_kegiatan' => tap($this->findNode($renstra, $type, $id), function (TargetIndikatorSubKegiatan $target) use ($renstra, $data) {
+                $target->update([
+                    'indikator_sub_kegiatan_id' => filled($data['parent_id'] ?? null) ? $this->indikatorSubKegiatan($renstra, $data['parent_id'])->id : $target->indikator_sub_kegiatan_id,
+                    'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
+                    'target' => $data['target'] ?? null,
+                    'target_text' => $data['target_text'] ?? null,
                 ]);
             }),
         };
@@ -362,6 +417,7 @@ class RenstraOpdNodeController extends Controller
             'program_pemerintahan_id' => $reference?->id,
             'kode' => $reference?->kode ?? ($data['kode'] ?? null),
             'nama' => $reference?->nama ?? $this->requiredText($data, 'uraian', 'Nama program OPD wajib diisi.'),
+            'sasaran_program' => $data['sasaran_level'] ?? null,
             'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
             'urutan' => $data['urutan'] ?? 1,
         ];
@@ -419,6 +475,7 @@ class RenstraOpdNodeController extends Controller
             'kegiatan_pemerintahan_id' => $reference?->id,
             'kode' => $reference?->kode ?? ($data['kode'] ?? null),
             'nama' => $reference?->nama ?? $this->requiredText($data, 'uraian', 'Nama kegiatan OPD wajib diisi.'),
+            'sasaran_kegiatan' => $data['sasaran_level'] ?? null,
             'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
             'urutan' => $data['urutan'] ?? 1,
         ];
@@ -445,6 +502,7 @@ class RenstraOpdNodeController extends Controller
             'opd_unit_id' => $this->validatedOpdUnitId($renstra, $data['opd_unit_id'] ?? null),
             'kode' => $reference?->kode ?? ($data['kode'] ?? null),
             'nama' => $reference?->nama ?? $this->requiredText($data, 'uraian', 'Nama sub kegiatan OPD wajib diisi.'),
+            'sasaran_sub_kegiatan' => $data['sasaran_level'] ?? null,
             'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
             'urutan' => $data['urutan'] ?? 1,
         ];
@@ -563,6 +621,11 @@ class RenstraOpdNodeController extends Controller
         return IndikatorOpdProgram::whereHas('program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->findOrFail($id);
     }
 
+    private function indikatorKegiatan(RenstraOpd $renstra, mixed $id): IndikatorOpdKegiatan
+    {
+        return IndikatorOpdKegiatan::whereHas('kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->findOrFail($id);
+    }
+
     private function kegiatan(RenstraOpd $renstra, mixed $id): OpdKegiatan
     {
         return OpdKegiatan::whereHas('program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->findOrFail($id);
@@ -571,6 +634,11 @@ class RenstraOpdNodeController extends Controller
     private function subKegiatan(RenstraOpd $renstra, mixed $id): OpdSubKegiatan
     {
         return OpdSubKegiatan::whereHas('kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->findOrFail($id);
+    }
+
+    private function indikatorSubKegiatan(RenstraOpd $renstra, mixed $id): IndikatorSubKegiatan
+    {
+        return IndikatorSubKegiatan::whereHas('subKegiatan.kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->findOrFail($id);
     }
 
     private function findNode(RenstraOpd $renstra, string $type, int $id): object
@@ -586,8 +654,11 @@ class RenstraOpdNodeController extends Controller
             'indikator_program' => $this->indikatorProgram($renstra, $id),
             'target_program' => TargetIndikatorOpdProgram::whereHas('indikator.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->findOrFail($id),
             'kegiatan' => $this->kegiatan($renstra, $id),
+            'indikator_kegiatan' => $this->indikatorKegiatan($renstra, $id),
+            'target_kegiatan' => TargetIndikatorOpdKegiatan::whereHas('indikator.kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->findOrFail($id),
             'sub_kegiatan' => $this->subKegiatan($renstra, $id),
-            'indikator_sub_kegiatan' => IndikatorSubKegiatan::whereHas('subKegiatan.kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->findOrFail($id),
+            'indikator_sub_kegiatan' => $this->indikatorSubKegiatan($renstra, $id),
+            'target_sub_kegiatan' => TargetIndikatorSubKegiatan::whereHas('indikator.subKegiatan.kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->findOrFail($id),
             default => abort(404),
         };
     }

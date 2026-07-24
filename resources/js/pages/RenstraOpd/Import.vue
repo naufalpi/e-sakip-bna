@@ -61,8 +61,7 @@ const statusClass = (status: string) =>
                     <div>
                         <h2 class="text-sm font-semibold">File Import</h2>
                         <p class="mt-1 text-sm text-muted-foreground">
-                            Gunakan template resmi agar kolom level, OPD, referensi RPJMD, target tahunan, target triwulan, dan pagu terbaca
-                            konsisten.
+                            Gunakan template resmi agar kolom level, OPD, referensi RPJMD, target tahunan, dan pagu terbaca konsisten.
                         </p>
                     </div>
                     <div>

@@ -15,7 +15,15 @@ class OpdKegiatan extends Model
 
     protected $table = 'opd_kegiatan';
 
-    protected $fillable = ['opd_program_id', 'kegiatan_pemerintahan_id', 'kode', 'nama', 'pagu_indikatif', 'urutan'];
+    protected $fillable = [
+        'opd_program_id',
+        'kegiatan_pemerintahan_id',
+        'kode',
+        'nama',
+        'sasaran_kegiatan',
+        'pagu_indikatif',
+        'urutan',
+    ];
 
     protected function casts(): array
     {
@@ -37,5 +45,10 @@ class OpdKegiatan extends Model
     public function subKegiatan(): HasMany
     {
         return $this->hasMany(OpdSubKegiatan::class)->orderBy('urutan');
+    }
+
+    public function indikator(): HasMany
+    {
+        return $this->hasMany(IndikatorOpdKegiatan::class)->orderBy('urutan');
     }
 }

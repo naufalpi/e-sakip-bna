@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ImportBatch;
 use App\Models\ImportBatchRow;
+use App\Models\IndikatorOpdKegiatan;
 use App\Models\IndikatorOpdProgram;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
@@ -21,8 +22,10 @@ use App\Models\RenstraOpd;
 use App\Models\Rpjmd;
 use App\Models\SasaranDaerah;
 use App\Models\SasaranOpd;
+use App\Models\TargetIndikatorOpdKegiatan;
 use App\Models\TargetIndikatorOpdProgram;
 use App\Models\TargetIndikatorSasaranOpd;
+use App\Models\TargetIndikatorSubKegiatan;
 use App\Models\TargetIndikatorTujuanOpd;
 use App\Models\TargetTriwulanIndikator;
 use App\Models\TujuanDaerah;
@@ -159,10 +162,13 @@ class RenstraImportApplyService
             'indikator_program' => $this->applyIndikatorProgram($mapped, $user),
             'target_program' => $this->applyTargetProgram($mapped, $user),
             'kegiatan' => $this->applyKegiatan($mapped, $user),
+            'indikator_kegiatan' => $this->applyIndikatorKegiatan($mapped, $user),
+            'target_kegiatan' => $this->applyTargetKegiatan($mapped, $user),
             'sub_kegiatan' => $this->applySubKegiatan($mapped, $user),
             'indikator_sub_kegiatan' => $this->applyIndikatorSubKegiatan($mapped, $user),
+            'target_sub_kegiatan' => $this->applyTargetSubKegiatan($mapped, $user),
             'target_triwulan' => $this->applyTargetTriwulan($mapped, $user),
-            default => throw new RuntimeException('Level import Renstra tidak dikenali. Gunakan level renstra, tujuan, indikator_tujuan, target_tujuan, sasaran, indikator_sasaran, target_sasaran, program, indikator_program, target_program, kegiatan, sub_kegiatan, indikator_sub_kegiatan, atau target_triwulan.'),
+            default => throw new RuntimeException('Level import Renstra tidak dikenali. Gunakan level renstra, tujuan, indikator_tujuan, target_tujuan, sasaran, indikator_sasaran, target_sasaran, program, indikator_program, target_program, kegiatan, indikator_kegiatan, target_kegiatan, sub_kegiatan, indikator_sub_kegiatan, atau target_sub_kegiatan.'),
         };
     }
 
@@ -296,6 +302,7 @@ class RenstraImportApplyService
             'sasaran_opd_id' => $sasaran->id,
             'program_rpjmd_id' => $this->resolveProgramRpjmd($mapped, $sasaran->tujuan->renstra)?->id,
             'nama' => $text,
+            'sasaran_program' => $this->text($mapped, ['sasaran_program', 'sasaran_level', 'sasaran_program_opd']),
             'pagu_indikatif' => $this->number($mapped, ['pagu', 'pagu_program', 'pagu_indikatif']),
             'status' => 'draft',
             'urutan' => $this->order($mapped),
@@ -349,6 +356,7 @@ class RenstraImportApplyService
 
         $kegiatan = OpdKegiatan::updateOrCreate($kode ? ['opd_program_id' => $program->id, 'kode' => $kode] : ['opd_program_id' => $program->id, 'nama' => $text], [
             'nama' => $text,
+            'sasaran_kegiatan' => $this->text($mapped, ['sasaran_kegiatan', 'sasaran_level', 'sasaran_kegiatan_opd']),
             'pagu_indikatif' => $this->number($mapped, ['pagu', 'pagu_kegiatan', 'pagu_indikatif']),
             'urutan' => $this->order($mapped),
         ]);
@@ -356,6 +364,37 @@ class RenstraImportApplyService
         $this->setContext('kegiatan', $kegiatan);
 
         return $this->result($kegiatan);
+    }
+
+    private function applyIndikatorKegiatan(array $mapped, User $user): array
+    {
+        $this->resolveRenstra($mapped, $user);
+        /** @var OpdKegiatan $kegiatan */
+        $kegiatan = $this->requiredContext('kegiatan', 'Indikator kegiatan OPD harus berada setelah baris kegiatan.');
+        $text = $this->requiredText($mapped, ['indikator_kegiatan', 'indikator', 'uraian', 'nama'], 'Indikator kegiatan OPD');
+        $kode = $this->text($mapped, ['kode', 'kode_indikator', 'kode_indikator_kegiatan']);
+
+        $indikator = IndikatorOpdKegiatan::updateOrCreate($kode ? ['opd_kegiatan_id' => $kegiatan->id, 'kode' => $kode] : ['opd_kegiatan_id' => $kegiatan->id, 'indikator' => $text], [
+            'indikator' => $text,
+            'tipe_indikator' => $this->tipeIndikator($mapped),
+            'formula' => $this->text($mapped, ['formula', 'rumus']),
+            'sumber_data' => $this->text($mapped, ['sumber_data']),
+            'urutan' => $this->order($mapped),
+        ]);
+
+        $this->setContext('indikator_kegiatan', $indikator);
+        $this->maybeApplyTargetKegiatan($mapped, $indikator);
+
+        return $this->result($indikator);
+    }
+
+    private function applyTargetKegiatan(array $mapped, User $user): array
+    {
+        $this->resolveRenstra($mapped, $user);
+        /** @var IndikatorOpdKegiatan $indikator */
+        $indikator = $this->requiredContext('indikator_kegiatan', 'Target kegiatan harus berada setelah baris indikator kegiatan OPD.');
+
+        return $this->result($this->upsertTargetKegiatan($mapped, $indikator));
     }
 
     private function applySubKegiatan(array $mapped, User $user): array
@@ -368,6 +407,7 @@ class RenstraImportApplyService
 
         $subKegiatan = OpdSubKegiatan::updateOrCreate($kode ? ['opd_kegiatan_id' => $kegiatan->id, 'kode' => $kode] : ['opd_kegiatan_id' => $kegiatan->id, 'nama' => $text], [
             'nama' => $text,
+            'sasaran_sub_kegiatan' => $this->text($mapped, ['sasaran_sub_kegiatan', 'sasaran_level', 'sasaran_sub_kegiatan_opd']),
             'pagu_indikatif' => $this->number($mapped, ['pagu', 'pagu_sub_kegiatan', 'pagu_indikatif']),
             'urutan' => $this->order($mapped),
         ]);
@@ -394,8 +434,18 @@ class RenstraImportApplyService
         ]);
 
         $this->setContext('indikator_sub_kegiatan', $indikator);
+        $this->maybeApplyTargetSubKegiatan($mapped, $indikator);
 
         return $this->result($indikator);
+    }
+
+    private function applyTargetSubKegiatan(array $mapped, User $user): array
+    {
+        $this->resolveRenstra($mapped, $user);
+        /** @var IndikatorSubKegiatan $indikator */
+        $indikator = $this->requiredContext('indikator_sub_kegiatan', 'Target sub kegiatan harus berada setelah baris indikator sub kegiatan.');
+
+        return $this->result($this->upsertTargetSubKegiatan($mapped, $indikator));
     }
 
     private function applyTargetTriwulan(array $mapped, User $user): array
@@ -600,6 +650,20 @@ class RenstraImportApplyService
         }
     }
 
+    private function maybeApplyTargetKegiatan(array $mapped, IndikatorOpdKegiatan $indikator): void
+    {
+        if ($this->hasTargetData($mapped)) {
+            $this->upsertTargetKegiatan($mapped, $indikator);
+        }
+    }
+
+    private function maybeApplyTargetSubKegiatan(array $mapped, IndikatorSubKegiatan $indikator): void
+    {
+        if ($this->hasTargetData($mapped)) {
+            $this->upsertTargetSubKegiatan($mapped, $indikator);
+        }
+    }
+
     private function upsertTargetTujuan(array $mapped, IndikatorTujuanOpd $indikator): TargetIndikatorTujuanOpd
     {
         $periode = $this->periodeTarget($mapped);
@@ -640,10 +704,37 @@ class RenstraImportApplyService
         ]);
     }
 
+    private function upsertTargetKegiatan(array $mapped, IndikatorOpdKegiatan $indikator): TargetIndikatorOpdKegiatan
+    {
+        $periode = $this->periodeTarget($mapped);
+
+        return TargetIndikatorOpdKegiatan::updateOrCreate([
+            'indikator_opd_kegiatan_id' => $indikator->id,
+            'periode_tahun_id' => $periode->id,
+        ], [
+            'target' => $this->number($mapped, ['target', 'target_kegiatan', 'target_angka']),
+            'target_text' => $this->text($mapped, ['target_text', 'target_teks', 'target_kegiatan_text']),
+        ]);
+    }
+
+    private function upsertTargetSubKegiatan(array $mapped, IndikatorSubKegiatan $indikator): TargetIndikatorSubKegiatan
+    {
+        $periode = $this->periodeTarget($mapped);
+
+        return TargetIndikatorSubKegiatan::updateOrCreate([
+            'indikator_sub_kegiatan_id' => $indikator->id,
+            'periode_tahun_id' => $periode->id,
+        ], [
+            'target' => $this->number($mapped, ['target', 'target_sub_kegiatan', 'target_angka']),
+            'target_text' => $this->text($mapped, ['target_text', 'target_teks', 'target_sub_kegiatan_text']),
+        ]);
+    }
+
     private function currentIndicatorForTriwulan(): array
     {
         foreach ([
             'indikator_sub_kegiatan' => 'indikator_sub_kegiatan',
+            'indikator_kegiatan' => 'indikator_opd_kegiatan',
             'indikator_program' => 'indikator_opd_program',
             'indikator_sasaran' => 'indikator_sasaran_opd',
             'indikator_tujuan' => 'indikator_tujuan_opd',
@@ -729,8 +820,11 @@ class RenstraImportApplyService
             'indikator_program', 'indikator_opd_program' => 'indikator_program',
             'target_program', 'target_indikator_program', 'target_indikator_opd_program' => 'target_program',
             'kegiatan', 'opd_kegiatan' => 'kegiatan',
+            'indikator_kegiatan', 'indikator_opd_kegiatan' => 'indikator_kegiatan',
+            'target_kegiatan', 'target_indikator_kegiatan', 'target_indikator_opd_kegiatan' => 'target_kegiatan',
             'sub_kegiatan', 'opd_sub_kegiatan' => 'sub_kegiatan',
             'indikator_sub_kegiatan' => 'indikator_sub_kegiatan',
+            'target_sub_kegiatan', 'target_indikator_sub_kegiatan' => 'target_sub_kegiatan',
             'target_triwulan', 'target_tw', 'triwulan' => 'target_triwulan',
             default => $level,
         };
@@ -821,7 +915,7 @@ class RenstraImportApplyService
 
     private function setContext(string $key, Model $model): void
     {
-        $order = ['renstra', 'tujuan', 'indikator_tujuan', 'sasaran', 'indikator_sasaran', 'program', 'indikator_program', 'kegiatan', 'sub_kegiatan', 'indikator_sub_kegiatan'];
+        $order = ['renstra', 'tujuan', 'indikator_tujuan', 'sasaran', 'indikator_sasaran', 'program', 'indikator_program', 'kegiatan', 'indikator_kegiatan', 'sub_kegiatan', 'indikator_sub_kegiatan'];
         $index = array_search($key, $order, true);
 
         if ($index !== false) {

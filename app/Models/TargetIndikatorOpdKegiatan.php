@@ -1,0 +1,33 @@
+<?php
+
+namespace App\Models;
+
+use App\Models\Concerns\LogsActivity;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class TargetIndikatorOpdKegiatan extends Model
+{
+    use LogsActivity;
+
+    protected $table = 'target_indikator_opd_kegiatan';
+
+    protected $fillable = ['indikator_opd_kegiatan_id', 'periode_tahun_id', 'target', 'target_text'];
+
+    protected function casts(): array
+    {
+        return [
+            'target' => 'decimal:4',
+        ];
+    }
+
+    public function indikator(): BelongsTo
+    {
+        return $this->belongsTo(IndikatorOpdKegiatan::class, 'indikator_opd_kegiatan_id');
+    }
+
+    public function periodeTahun(): BelongsTo
+    {
+        return $this->belongsTo(PeriodeTahun::class);
+    }
+}

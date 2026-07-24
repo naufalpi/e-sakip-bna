@@ -21,6 +21,7 @@ class OpdSubKegiatan extends Model
         'opd_unit_id',
         'kode',
         'nama',
+        'sasaran_sub_kegiatan',
         'pagu_indikatif',
         'urutan',
     ];

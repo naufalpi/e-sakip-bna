@@ -22,6 +22,7 @@ class OpdProgram extends Model
         'program_pemerintahan_id',
         'kode',
         'nama',
+        'sasaran_program',
         'pagu_indikatif',
         'status',
         'urutan',
