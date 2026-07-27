@@ -15,7 +15,7 @@ import PublicModuleHeader from './Components/PublicModuleHeader.vue';
 import PublicOverview from './Components/PublicOverview.vue';
 import PublicSiteHeader from './Components/PublicSiteHeader.vue';
 import './public-site.css';
-import type { Column, PublicHomeModule, PublicNavItem, PublicRow, PublicTableSection, SectionId, SectionUrls } from './types';
+import type { Column, KabupatenDocument, PublicHomeModule, PublicNavItem, PublicRow, PublicTableSection, SectionId, SectionUrls } from './types';
 import { filterRows, progressWidth } from './utils';
 
 const props = defineProps<{
@@ -44,6 +44,9 @@ const props = defineProps<{
         pengukuran: PublicRow[];
         pelaporan: PublicRow[];
         evaluasi: PublicRow[];
+    };
+    kabupaten_documents: {
+        perencanaan: KabupatenDocument[];
     };
 }>();
 
@@ -209,6 +212,7 @@ function changeYear(event: Event): void {
                 :available-years="props.available_years"
                 :selected-year-label="selectedYearLabel"
                 :current-rows-count="currentRowsCount"
+                :kabupaten-documents="section.id === 'perencanaan' ? props.kabupaten_documents.perencanaan : []"
                 v-model:search-query="searchQuery"
                 @change-year="changeYear"
                 @reset-search="searchQuery = ''"

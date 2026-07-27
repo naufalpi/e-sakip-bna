@@ -12,6 +12,8 @@ class DokumenController extends Controller
     private const PUBLIC_STATUSES = ['verified', 'approved', 'locked'];
 
     private const PUBLIC_TYPES = [
+        'rpjmd',
+        'rkpd',
         'pohon_kinerja',
         'cascading',
         'iku',

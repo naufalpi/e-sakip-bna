@@ -30,6 +30,13 @@ export type PublicRow = {
     cells: Record<string, PublicCell>;
 };
 
+export type KabupatenDocument = {
+    key: string;
+    label: string;
+    description?: string | null;
+    cell: PublicCell;
+};
+
 export type Column = {
     key: string;
     label: string;

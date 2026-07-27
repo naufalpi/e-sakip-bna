@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import CalendarDays from 'lucide-vue-next/dist/esm/icons/calendar-days.js';
+import Landmark from 'lucide-vue-next/dist/esm/icons/landmark.js';
 import Search from 'lucide-vue-next/dist/esm/icons/search.js';
 
-import type { PublicTableSection } from '../types';
+import type { KabupatenDocument, PublicTableSection } from '../types';
 import { emptyTableMessage } from '../utils';
 import PublicDataCell from './PublicDataCell.vue';
 
@@ -15,6 +16,7 @@ defineProps<{
     selectedYearLabel: string;
     currentRowsCount: number;
     searchQuery: string;
+    kabupatenDocuments?: KabupatenDocument[];
 }>();
 
 const emit = defineEmits<{
@@ -73,6 +75,36 @@ function updateSearch(event: Event): void {
                             @input="updateSearch"
                         />
                     </label>
+                </div>
+            </div>
+
+            <div v-if="kabupatenDocuments?.length" class="mb-6 overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm shadow-blue-950/5">
+                <div class="border-b border-blue-100 bg-blue-50/70 px-4 py-4 sm:px-5">
+                    <div class="flex items-start gap-3">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-[#00336C] shadow-sm">
+                            <Landmark class="h-5 w-5" />
+                        </span>
+                        <div>
+                            <h3 class="text-base font-bold text-slate-950">Dokumen Kabupaten</h3>
+                            <p class="mt-1 text-sm leading-6 text-slate-600">Dokumen perencanaan tingkat kabupaten untuk tahun yang dipilih.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid gap-3 p-4 sm:p-5 md:grid-cols-2">
+                    <article
+                        v-for="item in kabupatenDocuments"
+                        :key="item.key"
+                        class="flex items-start justify-between gap-4 rounded-lg border border-blue-100 bg-white p-4"
+                    >
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-slate-950">{{ item.label }}</p>
+                            <p class="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{{ item.description }}</p>
+                        </div>
+                        <div class="shrink-0">
+                            <PublicDataCell :cell="item.cell" :column-label="item.label" />
+                        </div>
+                    </article>
                 </div>
             </div>
 

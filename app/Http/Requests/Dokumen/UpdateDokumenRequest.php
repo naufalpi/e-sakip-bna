@@ -40,6 +40,7 @@ class UpdateDokumenRequest extends FormRequest
     {
         return [
             'rpjmd',
+            'rkpd',
             'pohon_kinerja',
             'cascading',
             'renstra',

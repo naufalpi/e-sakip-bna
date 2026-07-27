@@ -49,6 +49,7 @@ const form = useForm<FormData>({
 
 const relationTypeOptions = [
     { value: 'rpjmd', label: 'RPJMD' },
+    { value: 'rkpd', label: 'RKPD' },
     { value: 'renstra_opd', label: 'Renstra OPD' },
     { value: 'perjanjian_kinerja', label: 'Perjanjian Kinerja' },
     { value: 'rencana_aksi', label: 'Rencana Aksi' },
@@ -151,8 +152,8 @@ function submit(): void {
                                 <option v-for="option in jenisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                             </select>
                             <p class="text-xs text-muted-foreground">
-                                Untuk halaman publik: Pohon Kinerja, Cascading, IKU, Renstra, Renja/RKT, Rencana Aksi, PK, LKJIP, LHE, dan Tindak
-                                Lanjut akan muncul sesuai menu.
+                                Untuk halaman publik: RPJMD/RKPD kabupaten, Pohon Kinerja, Cascading, IKU, Renstra, Renja/RKT, Rencana Aksi, PK,
+                                LKJIP, LHE, dan Tindak Lanjut akan muncul sesuai menu.
                             </p>
                             <InputError :message="form.errors.jenis" />
                         </div>
@@ -263,6 +264,7 @@ function submit(): void {
                                 <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                             </select>
                             <InputError :message="form.errors.opd_id" />
+                            <p class="text-xs text-muted-foreground">Untuk dokumen RPJMD/RKPD kabupaten, pilih Tidak terkait OPD.</p>
                         </div>
                         <div class="grid min-w-0 gap-2">
                             <label class="text-sm font-medium" for="periode_tahun_id">Periode/tahun</label>

@@ -29,6 +29,8 @@ const emptyClass = computed(() =>
         ? 'inline-flex min-h-10 min-w-10 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-400'
         : 'inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-400',
 );
+
+const shouldShowMissing = computed(() => props.cell?.state === 'missing' || (props.cell?.kind === 'status' && props.cell?.state === 'data'));
 </script>
 
 <template>
@@ -55,7 +57,7 @@ const emptyClass = computed(() =>
                 <span class="sr-only">Download</span>
             </a>
         </div>
-        <template v-else-if="cell?.state === 'missing'">
+        <template v-else-if="shouldShowMissing">
             <span :class="emptyClass" title="Belum tersedia" aria-label="Belum tersedia">
                 <X class="h-4 w-4" />
                 <span class="sr-only">Belum tersedia</span>

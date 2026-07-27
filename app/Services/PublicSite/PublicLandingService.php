@@ -11,6 +11,8 @@ use App\Models\PerjanjianKinerja;
 use App\Models\RealisasiKinerja;
 use App\Models\RencanaAksi;
 use App\Models\RenstraOpd;
+use App\Models\Rkpd;
+use App\Models\Rpjmd;
 use App\Models\TindakLanjutRekomendasi;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -21,6 +23,8 @@ class PublicLandingService
     private const PUBLIC_DOCUMENT_STATUSES = ['verified', 'approved', 'locked'];
 
     private const PUBLIC_DOCUMENT_TYPES = [
+        'rpjmd',
+        'rkpd',
         'pohon_kinerja',
         'cascading',
         'iku',
@@ -80,6 +84,7 @@ class PublicLandingService
         $realisasiByOpdTriwulan = $this->realisasiByOpdTriwulan($opdIds, $tahun);
         $evaluasiByOpd = $this->evaluasiByOpd($opdIds, $tahun);
         $documents = $this->documentMaps($periode, $opdIds);
+        $kabupatenDocuments = $this->kabupatenDocuments($periode, $tahun);
 
         $counts = [
             'tujuan' => $this->countTujuan($opdIds, $tahun),
@@ -144,8 +149,91 @@ class PublicLandingService
                 'public_document_count' => $documents['count'],
                 'average_sakip' => $nilaiEvaluasi->isNotEmpty() ? round($nilaiEvaluasi->avg(), 2) : null,
             ],
+            'kabupaten_documents' => [
+                'perencanaan' => $kabupatenDocuments,
+            ],
             'tables' => $tables,
         ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function kabupatenDocuments(?PeriodeTahun $periode, int $tahun): array
+    {
+        $rpjmd = Rpjmd::query()
+            ->where('tahun_awal', '<=', $tahun)
+            ->where('tahun_akhir', '>=', $tahun - 1)
+            ->orderByDesc('tahun_awal')
+            ->orderByDesc('id')
+            ->first();
+
+        $rkpd = Rkpd::query()
+            ->where('tahun', $tahun)
+            ->orderByDesc('id')
+            ->first();
+
+        return [
+            [
+                'key' => 'rpjmd',
+                'label' => 'RPJMD Kabupaten',
+                'description' => $rpjmd
+                    ? "{$rpjmd->tahun_awal}-{$rpjmd->tahun_akhir} - {$rpjmd->judul}"
+                    : 'Dokumen RPJMD kabupaten belum tersedia.',
+                'cell' => $this->fileCell($this->publicKabupatenDocument($rpjmd, 'rpjmd', $periode)),
+            ],
+            [
+                'key' => 'rkpd',
+                'label' => 'RKPD Kabupaten',
+                'description' => $rkpd
+                    ? "{$rkpd->tahun} - {$rkpd->judul}"
+                    : 'Dokumen RKPD kabupaten belum tersedia untuk tahun ini.',
+                'cell' => $this->fileCell($this->publicKabupatenDocument($rkpd, 'rkpd', $periode)),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function publicKabupatenDocument(?Model $model, string $jenis, ?PeriodeTahun $periode): ?array
+    {
+        if ($model) {
+            $relatedDocument = Dokumen::query()
+                ->where('jenis', $jenis)
+                ->whereIn('status', self::PUBLIC_DOCUMENT_STATUSES)
+                ->whereHas('relations', function ($query) use ($model) {
+                    $query->where('related_type', $model::class)
+                        ->where('related_id', $model->getKey());
+                })
+                ->latest('id')
+                ->first();
+
+            if ($relatedDocument) {
+                return $this->serializeDocument($relatedDocument);
+            }
+        }
+
+        $periodeIds = collect([
+            $periode?->id,
+            $model?->getAttribute('periode_tahun_id'),
+        ])->filter()->unique()->values()->all();
+
+        $document = Dokumen::query()
+            ->where('jenis', $jenis)
+            ->whereIn('status', self::PUBLIC_DOCUMENT_STATUSES)
+            ->whereNull('opd_id')
+            ->where(function ($query) use ($periodeIds) {
+                $query->whereNull('periode_tahun_id');
+
+                if ($periodeIds !== []) {
+                    $query->orWhereIn('periode_tahun_id', $periodeIds);
+                }
+            })
+            ->latest('id')
+            ->first();
+
+        return $document ? $this->serializeDocument($document) : null;
     }
 
     private function periodeForYear(?int $tahun): ?PeriodeTahun

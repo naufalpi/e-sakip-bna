@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Dokumen;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
+use App\Models\Rkpd;
+use App\Models\Rpjmd;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -107,12 +109,83 @@ class PublicLandingTest extends TestCase
         $this->get(route('public.dokumen.download', $document))->assertNotFound();
     }
 
-    private function createDocument(PeriodeTahun $periode, Opd $opd, string $jenis, string $status): Dokumen
+    public function test_kabupaten_rpjmd_and_rkpd_documents_are_available_on_public_planning_page(): void
+    {
+        Storage::fake('local');
+
+        $periode = PeriodeTahun::create([
+            'tahun' => 2026,
+            'nama' => 'Tahun 2026',
+            'status' => 'active',
+        ]);
+
+        Rpjmd::create([
+            'periode_tahun_id' => $periode->id,
+            'judul' => 'RPJMD Kabupaten Demo 2025-2029',
+            'nomor_perda' => 'Perda Demo',
+            'tahun_awal' => 2025,
+            'tahun_akhir' => 2029,
+            'status' => 'approved',
+        ]);
+
+        Rkpd::create([
+            'periode_tahun_id' => $periode->id,
+            'tahun' => 2026,
+            'judul' => 'RKPD Kabupaten Demo 2026',
+            'nomor_dokumen' => 'RKPD Demo',
+            'status' => 'approved',
+        ]);
+
+        $rpjmdDocument = $this->createDocument($periode, null, 'rpjmd', 'approved');
+        $rkpdDocument = $this->createDocument($periode, null, 'rkpd', 'approved');
+
+        $this->get(route('public.section', ['section' => 'perencanaan', 'tahun' => 2026]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('PublicSite/Landing')
+                ->where('kabupaten_documents.perencanaan.0.key', 'rpjmd')
+                ->where('kabupaten_documents.perencanaan.0.cell.dokumen.id', $rpjmdDocument->id)
+                ->where('kabupaten_documents.perencanaan.1.key', 'rkpd')
+                ->where('kabupaten_documents.perencanaan.1.cell.dokumen.id', $rkpdDocument->id)
+            );
+
+        $this->get(route('public.dokumen.view', $rpjmdDocument))->assertOk();
+        $this->get(route('public.dokumen.view', $rkpdDocument))->assertOk();
+    }
+
+    public function test_deleted_public_document_is_removed_from_public_payload(): void
+    {
+        Storage::fake('local');
+
+        $periode = PeriodeTahun::create([
+            'tahun' => 2026,
+            'nama' => 'Tahun 2026',
+            'status' => 'active',
+        ]);
+
+        $opd = Opd::create([
+            'kode' => '1.04',
+            'nama' => 'Dinas Hapus Dokumen',
+            'status' => 'active',
+        ]);
+
+        $document = $this->createDocument($periode, $opd, 'pohon_kinerja', 'approved');
+        $document->delete();
+
+        $this->get(route('public.section', ['section' => 'perencanaan', 'tahun' => 2026]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('PublicSite/Landing')
+                ->where('tables.perencanaan.0.cells.pohon_kinerja.state', 'missing')
+            );
+    }
+
+    private function createDocument(PeriodeTahun $periode, ?Opd $opd, string $jenis, string $status): Dokumen
     {
         Storage::disk('local')->put("public-test/{$jenis}-{$status}.txt", 'Dokumen publik test');
 
         return Dokumen::create([
-            'opd_id' => $opd->id,
+            'opd_id' => $opd?->id,
             'periode_tahun_id' => $periode->id,
             'jenis' => $jenis,
             'judul' => 'Dokumen '.strtoupper($jenis),

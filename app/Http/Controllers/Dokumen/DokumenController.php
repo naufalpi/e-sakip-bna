@@ -14,6 +14,7 @@ use App\Models\PerjanjianKinerja;
 use App\Models\RealisasiKinerja;
 use App\Models\RencanaAksi;
 use App\Models\RenstraOpd;
+use App\Models\Rkpd;
 use App\Models\Rpjmd;
 use App\Models\User;
 use App\Services\Dokumen\DokumenStorageService;
@@ -223,6 +224,7 @@ class DokumenController extends Controller
     {
         return [
             'rpjmd' => Rpjmd::class,
+            'rkpd' => Rkpd::class,
             'renstra_opd' => RenstraOpd::class,
             'perjanjian_kinerja' => PerjanjianKinerja::class,
             'rencana_aksi' => RencanaAksi::class,
@@ -238,6 +240,7 @@ class DokumenController extends Controller
     {
         return [
             ['value' => 'rpjmd', 'label' => 'RPJMD'],
+            ['value' => 'rkpd', 'label' => 'RKPD'],
             ['value' => 'pohon_kinerja', 'label' => 'Pohon Kinerja'],
             ['value' => 'cascading', 'label' => 'Cascading'],
             ['value' => 'renstra', 'label' => 'Renstra'],
@@ -337,6 +340,13 @@ class DokumenController extends Controller
                 ->map(fn (Rpjmd $rpjmd) => ['id' => $rpjmd->id, 'label' => $this->relatedLabel($rpjmd)])
                 ->values()
                 ->all(),
+            'rkpd' => Rkpd::query()
+                ->orderByDesc('tahun')
+                ->get(['id', 'judul', 'tahun', 'status'])
+                ->filter(fn (Rkpd $rkpd) => $user->can('view', $rkpd))
+                ->map(fn (Rkpd $rkpd) => ['id' => $rkpd->id, 'label' => $this->relatedLabel($rkpd)])
+                ->values()
+                ->all(),
             'renstra_opd' => RenstraOpd::query()
                 ->with('opd:id,nama,singkatan')
                 ->when($user->hasRole('admin_opd') && filled($user->opd_id), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
@@ -427,6 +437,7 @@ class DokumenController extends Controller
     {
         return match ($model::class) {
             Rpjmd::class => "{$model->tahun_awal}-{$model->tahun_akhir} - {$model->judul}",
+            Rkpd::class => "{$model->tahun} - {$model->judul}",
             RenstraOpd::class => ($model->opd?->singkatan ? "{$model->opd->singkatan} - " : '')."{$model->tahun_awal}-{$model->tahun_akhir} - {$model->judul}",
             PerjanjianKinerja::class => ($model->opd?->singkatan ? "{$model->opd->singkatan} - " : '')."{$model->tahun} - {$model->judul}",
             RencanaAksi::class => ($model->opd?->singkatan ? "{$model->opd->singkatan} - " : '')."{$model->tahun} - {$model->judul}",
@@ -440,6 +451,7 @@ class DokumenController extends Controller
     {
         return match ($class) {
             Rpjmd::class => 'RPJMD',
+            Rkpd::class => 'RKPD',
             RenstraOpd::class => 'Renstra OPD',
             PerjanjianKinerja::class => 'Perjanjian Kinerja',
             RencanaAksi::class => 'Rencana Aksi',

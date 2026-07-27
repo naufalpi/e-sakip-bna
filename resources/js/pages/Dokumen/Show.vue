@@ -61,6 +61,7 @@ const statusLabel = (status: string) =>
 const jenisLabel = (jenis: string) =>
     ({
         rpjmd: 'RPJMD',
+        rkpd: 'RKPD',
         renstra: 'Renstra',
         renja: 'Renja',
         iku: 'IKU',
