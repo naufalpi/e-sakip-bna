@@ -489,7 +489,6 @@ class KinerjaWorkflowTest extends TestCase
 
         $tujuan = TujuanOpd::create([
             'renstra_opd_id' => $renstra->id,
-            'kode' => 'T1',
             'tujuan' => 'Meningkatnya kualitas layanan',
             'urutan' => 1,
         ]);

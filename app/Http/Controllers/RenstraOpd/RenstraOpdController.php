@@ -146,10 +146,12 @@ class RenstraOpdController extends Controller
             'tujuan.tujuanDaerah:id,kode,tujuan',
             'tujuan.indikator.indikatorTujuanDaerah:id,kode,indikator',
             'tujuan.indikator.satuanIndikator:id,nama,simbol',
+            'tujuan.indikator.opdPenanggungJawab:id,kode,nama,singkatan',
             'tujuan.indikator.targets.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.sasaranDaerah:id,kode,sasaran',
             'tujuan.sasaran.indikator.indikatorSasaranDaerah:id,kode,indikator',
             'tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
+            'tujuan.sasaran.indikator.opdPenanggungJawab:id,kode,nama,singkatan',
             'tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.programs.programRpjmd:id,kode,nama,program_pemerintahan_id',
             'tujuan.sasaran.programs.programRpjmd.programPemerintahan:id,kode,nama,bidang_urusan_id',
@@ -157,13 +159,16 @@ class RenstraOpdController extends Controller
             'tujuan.sasaran.programs.programPemerintahan:id,kode,nama,bidang_urusan_id',
             'tujuan.sasaran.programs.indikator.indikatorProgramRpjmd:id,kode,indikator',
             'tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
+            'tujuan.sasaran.programs.indikator.opdPenanggungJawab:id,kode,nama,singkatan',
             'tujuan.sasaran.programs.indikator.targets.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.programs.kegiatan.kegiatanPemerintahan:id,kode,nama,program_pemerintahan_id',
             'tujuan.sasaran.programs.kegiatan.indikator.satuanIndikator:id,nama,simbol',
+            'tujuan.sasaran.programs.kegiatan.indikator.opdPenanggungJawab:id,kode,nama,singkatan',
             'tujuan.sasaran.programs.kegiatan.indikator.targets.periodeTahun:id,tahun,nama',
             'tujuan.sasaran.programs.kegiatan.subKegiatan.subKegiatanPemerintahan:id,kode,nama,kegiatan_pemerintahan_id',
             'tujuan.sasaran.programs.kegiatan.subKegiatan.opdUnit:id,kode,nama,jenis_unit',
             'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.satuanIndikator:id,nama,simbol',
+            'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.opdPenanggungJawab:id,kode,nama,singkatan',
             'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.targets.periodeTahun:id,tahun,nama',
         ]);
 
@@ -332,7 +337,7 @@ class RenstraOpdController extends Controller
     private function nodeOptions(RenstraOpd $renstra): array
     {
         return [
-            'tujuan' => TujuanOpd::query()->where('renstra_opd_id', $renstra->id)->orderBy('urutan')->get(['id', 'kode', 'tujuan'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->tujuan)])->values()->all(),
+            'tujuan' => TujuanOpd::query()->where('renstra_opd_id', $renstra->id)->orderBy('urutan')->get(['id', 'tujuan'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel(null, $item->tujuan)])->values()->all(),
             'indikator_tujuan' => IndikatorTujuanOpd::query()->whereHas('tujuan', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
             'sasaran' => SasaranOpd::query()->whereHas('tujuan', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'sasaran'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all(),
             'indikator_sasaran' => IndikatorSasaranOpd::query()->whereHas('sasaran.tujuan', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
@@ -464,6 +469,19 @@ class RenstraOpdController extends Controller
                     'jenis_unit' => $unit->jenis_unit,
                     'label' => $this->nodeLabel($unit->kode, $unit->nama),
                     'description' => $unit->jenis_unit,
+                ])
+                ->values()
+                ->all(),
+            'opds' => Opd::query()
+                ->where('status', 'active')
+                ->orderBy('nama')
+                ->get(['id', 'kode', 'nama', 'singkatan'])
+                ->map(fn (Opd $opd) => [
+                    'id' => $opd->id,
+                    'kode' => $opd->kode,
+                    'nama' => $opd->nama,
+                    'label' => $opd->singkatan ? "{$opd->singkatan} - {$opd->nama}" : $opd->nama,
+                    'description' => $opd->kode,
                 ])
                 ->values()
                 ->all(),
@@ -617,7 +635,7 @@ class RenstraOpdController extends Controller
             'tujuan' => $renstra->tujuan->map(fn (TujuanOpd $tujuan) => [
                 'id' => $tujuan->id,
                 'tujuan_daerah_id' => $tujuan->tujuan_daerah_id,
-                'kode' => $tujuan->kode,
+                'kode' => null,
                 'tujuan' => $tujuan->tujuan,
                 'linked' => filled($tujuan->tujuan_daerah_id),
                 'urutan' => $tujuan->urutan,
@@ -715,13 +733,24 @@ class RenstraOpdController extends Controller
             'indikator' => $indikator->indikator,
             'satuan_indikator_id' => $indikator->satuan_indikator_id,
             'tipe_indikator' => $indikator->tipe_indikator,
+            'definisi_operasional' => $indikator->definisi_operasional,
             'formula' => $indikator->formula,
+            'formulasi_pengukuran' => $indikator->formulasi_pengukuran ?? $indikator->formula,
+            'tipe_perhitungan' => $indikator->tipe_perhitungan,
+            'opd_penanggung_jawab_id' => $indikator->opd_penanggung_jawab_id,
+            'pd_penanggung_jawab' => $indikator->pd_penanggung_jawab,
             'sumber_data' => $indikator->sumber_data,
             'linked' => false,
             'urutan' => $indikator->urutan,
             'satuan' => $indikator->satuanIndikator ? [
                 'nama' => $indikator->satuanIndikator->nama,
                 'simbol' => $indikator->satuanIndikator->simbol,
+            ] : null,
+            'opd_penanggung_jawab' => $indikator->opdPenanggungJawab ? [
+                'id' => $indikator->opdPenanggungJawab->id,
+                'kode' => $indikator->opdPenanggungJawab->kode,
+                'nama' => $indikator->opdPenanggungJawab->nama,
+                'singkatan' => $indikator->opdPenanggungJawab->singkatan,
             ] : null,
             'targets' => $indikator->targets->map(fn ($target) => [
                 'id' => $target->id,

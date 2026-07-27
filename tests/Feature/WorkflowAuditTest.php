@@ -393,7 +393,6 @@ class WorkflowAuditTest extends TestCase
         ]);
         $tujuan = TujuanOpd::create([
             'renstra_opd_id' => $renstra->id,
-            'kode' => 'T-AUDIT',
             'tujuan' => 'Tujuan audit target',
             'urutan' => 1,
         ]);

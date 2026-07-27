@@ -23,7 +23,12 @@ class IndikatorSubKegiatan extends Model
         'kode',
         'indikator',
         'tipe_indikator',
+        'definisi_operasional',
         'formula',
+        'formulasi_pengukuran',
+        'tipe_perhitungan',
+        'opd_penanggung_jawab_id',
+        'pd_penanggung_jawab',
         'sumber_data',
         'urutan',
     ];
@@ -36,6 +41,11 @@ class IndikatorSubKegiatan extends Model
     public function satuanIndikator(): BelongsTo
     {
         return $this->belongsTo(SatuanIndikator::class);
+    }
+
+    public function opdPenanggungJawab(): BelongsTo
+    {
+        return $this->belongsTo(Opd::class, 'opd_penanggung_jawab_id');
     }
 
     public function targets(): HasMany

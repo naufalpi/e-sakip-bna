@@ -116,20 +116,13 @@ class RenstraOpdNodeController extends Controller
             'tujuan' => TujuanOpd::create([
                 'renstra_opd_id' => $renstra->id,
                 'tujuan_daerah_id' => $data['tujuan_daerah_id'] ?? null,
-                'kode' => $data['kode'] ?? null,
                 'tujuan' => $this->requiredText($data, 'uraian', 'Tujuan OPD wajib diisi.'),
                 'urutan' => $data['urutan'] ?? 1,
             ]),
             'indikator_tujuan' => IndikatorTujuanOpd::create([
                 'tujuan_opd_id' => $this->tujuan($renstra, $data['parent_id'] ?? null)->id,
                 'indikator_tujuan_daerah_id' => $data['indikator_tujuan_daerah_id'] ?? null,
-                'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                'kode' => $data['kode'] ?? null,
-                'indikator' => $this->requiredText($data, 'indikator', 'Indikator tujuan OPD wajib diisi.'),
-                'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                'formula' => $data['formula'] ?? null,
-                'sumber_data' => $data['sumber_data'] ?? null,
-                'urutan' => $data['urutan'] ?? 1,
+                ...$this->indicatorPayload($data, 'Indikator tujuan OPD wajib diisi.'),
             ]),
             'target_tujuan' => TargetIndikatorTujuanOpd::updateOrCreate([
                 'indikator_tujuan_opd_id' => $this->indikatorTujuan($renstra, $data['parent_id'] ?? null)->id,
@@ -148,13 +141,7 @@ class RenstraOpdNodeController extends Controller
             'indikator_sasaran' => IndikatorSasaranOpd::create([
                 'sasaran_opd_id' => $this->sasaran($renstra, $data['parent_id'] ?? null)->id,
                 'indikator_sasaran_daerah_id' => $data['indikator_sasaran_daerah_id'] ?? null,
-                'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                'kode' => $data['kode'] ?? null,
-                'indikator' => $this->requiredText($data, 'indikator', 'Indikator sasaran OPD wajib diisi.'),
-                'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                'formula' => $data['formula'] ?? null,
-                'sumber_data' => $data['sumber_data'] ?? null,
-                'urutan' => $data['urutan'] ?? 1,
+                ...$this->indicatorPayload($data, 'Indikator sasaran OPD wajib diisi.'),
             ]),
             'target_sasaran' => TargetIndikatorSasaranOpd::updateOrCreate([
                 'indikator_sasaran_opd_id' => $this->indikatorSasaran($renstra, $data['parent_id'] ?? null)->id,
@@ -181,13 +168,7 @@ class RenstraOpdNodeController extends Controller
             'kegiatan' => $this->createKegiatan($renstra, $data),
             'indikator_kegiatan' => IndikatorOpdKegiatan::create([
                 'opd_kegiatan_id' => $this->kegiatan($renstra, $data['parent_id'] ?? null)->id,
-                'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                'kode' => $data['kode'] ?? null,
-                'indikator' => $this->requiredText($data, 'indikator', 'Indikator kegiatan wajib diisi.'),
-                'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                'formula' => $data['formula'] ?? null,
-                'sumber_data' => $data['sumber_data'] ?? null,
-                'urutan' => $data['urutan'] ?? 1,
+                ...$this->indicatorPayload($data, 'Indikator kegiatan wajib diisi.'),
             ]),
             'target_kegiatan' => TargetIndikatorOpdKegiatan::updateOrCreate([
                 'indikator_opd_kegiatan_id' => $this->indikatorKegiatan($renstra, $data['parent_id'] ?? null)->id,
@@ -195,17 +176,12 @@ class RenstraOpdNodeController extends Controller
             ], [
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
+                'pagu' => $data['pagu'] ?? null,
             ]),
             'sub_kegiatan' => $this->createSubKegiatan($renstra, $data),
             'indikator_sub_kegiatan' => IndikatorSubKegiatan::create([
                 'opd_sub_kegiatan_id' => $this->subKegiatan($renstra, $data['parent_id'] ?? null)->id,
-                'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                'kode' => $data['kode'] ?? null,
-                'indikator' => $this->requiredText($data, 'indikator', 'Indikator sub kegiatan wajib diisi.'),
-                'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                'formula' => $data['formula'] ?? null,
-                'sumber_data' => $data['sumber_data'] ?? null,
-                'urutan' => $data['urutan'] ?? 1,
+                ...$this->indicatorPayload($data, 'Indikator sub kegiatan wajib diisi.'),
             ]),
             'target_sub_kegiatan' => TargetIndikatorSubKegiatan::updateOrCreate([
                 'indikator_sub_kegiatan_id' => $this->indikatorSubKegiatan($renstra, $data['parent_id'] ?? null)->id,
@@ -213,6 +189,7 @@ class RenstraOpdNodeController extends Controller
             ], [
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
+                'pagu' => $data['pagu'] ?? null,
             ]),
         };
     }
@@ -225,7 +202,6 @@ class RenstraOpdNodeController extends Controller
         match ($type) {
             'tujuan' => $this->tujuan($renstra, $id)->update([
                 'tujuan_daerah_id' => $data['tujuan_daerah_id'] ?? null,
-                'kode' => $data['kode'] ?? null,
                 'tujuan' => $this->requiredText($data, 'uraian', 'Tujuan OPD wajib diisi.'),
                 'urutan' => $data['urutan'] ?? 1,
             ]),
@@ -233,13 +209,7 @@ class RenstraOpdNodeController extends Controller
                 $indikator->update([
                     'tujuan_opd_id' => filled($data['parent_id'] ?? null) ? $this->tujuan($renstra, $data['parent_id'])->id : $indikator->tujuan_opd_id,
                     'indikator_tujuan_daerah_id' => $data['indikator_tujuan_daerah_id'] ?? null,
-                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator tujuan OPD wajib diisi.'),
-                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                    'formula' => $data['formula'] ?? null,
-                    'sumber_data' => $data['sumber_data'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
+                    ...$this->indicatorPayload($data, 'Indikator tujuan OPD wajib diisi.'),
                 ]);
             }),
             'target_tujuan' => tap($this->findNode($renstra, $type, $id), function (TargetIndikatorTujuanOpd $target) use ($renstra, $data) {
@@ -263,13 +233,7 @@ class RenstraOpdNodeController extends Controller
                 $indikator->update([
                     'sasaran_opd_id' => filled($data['parent_id'] ?? null) ? $this->sasaran($renstra, $data['parent_id'])->id : $indikator->sasaran_opd_id,
                     'indikator_sasaran_daerah_id' => $data['indikator_sasaran_daerah_id'] ?? null,
-                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator sasaran OPD wajib diisi.'),
-                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                    'formula' => $data['formula'] ?? null,
-                    'sumber_data' => $data['sumber_data'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
+                    ...$this->indicatorPayload($data, 'Indikator sasaran OPD wajib diisi.'),
                 ]);
             }),
             'target_sasaran' => tap($this->findNode($renstra, $type, $id), function (TargetIndikatorSasaranOpd $target) use ($renstra, $data) {
@@ -314,13 +278,7 @@ class RenstraOpdNodeController extends Controller
             'indikator_kegiatan' => tap($this->indikatorKegiatan($renstra, $id), function (IndikatorOpdKegiatan $indikator) use ($renstra, $data) {
                 $indikator->update([
                     'opd_kegiatan_id' => filled($data['parent_id'] ?? null) ? $this->kegiatan($renstra, $data['parent_id'])->id : $indikator->opd_kegiatan_id,
-                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator kegiatan wajib diisi.'),
-                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                    'formula' => $data['formula'] ?? null,
-                    'sumber_data' => $data['sumber_data'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
+                    ...$this->indicatorPayload($data, 'Indikator kegiatan wajib diisi.'),
                 ]);
             }),
             'target_kegiatan' => tap($this->findNode($renstra, $type, $id), function (TargetIndikatorOpdKegiatan $target) use ($renstra, $data) {
@@ -329,6 +287,7 @@ class RenstraOpdNodeController extends Controller
                     'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
                     'target' => $data['target'] ?? null,
                     'target_text' => $data['target_text'] ?? null,
+                    'pagu' => $data['pagu'] ?? null,
                 ]);
             }),
             'sub_kegiatan' => tap($this->subKegiatan($renstra, $id), function (OpdSubKegiatan $subKegiatan) use ($renstra, $data) {
@@ -342,13 +301,7 @@ class RenstraOpdNodeController extends Controller
             'indikator_sub_kegiatan' => tap($this->findNode($renstra, $type, $id), function (IndikatorSubKegiatan $indikator) use ($renstra, $data) {
                 $indikator->update([
                     'opd_sub_kegiatan_id' => filled($data['parent_id'] ?? null) ? $this->subKegiatan($renstra, $data['parent_id'])->id : $indikator->opd_sub_kegiatan_id,
-                    'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-                    'kode' => $data['kode'] ?? null,
-                    'indikator' => $this->requiredText($data, 'indikator', 'Indikator sub kegiatan wajib diisi.'),
-                    'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-                    'formula' => $data['formula'] ?? null,
-                    'sumber_data' => $data['sumber_data'] ?? null,
-                    'urutan' => $data['urutan'] ?? 1,
+                    ...$this->indicatorPayload($data, 'Indikator sub kegiatan wajib diisi.'),
                 ]);
             }),
             'target_sub_kegiatan' => tap($this->findNode($renstra, $type, $id), function (TargetIndikatorSubKegiatan $target) use ($renstra, $data) {
@@ -357,9 +310,34 @@ class RenstraOpdNodeController extends Controller
                     'periode_tahun_id' => filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $target->periode_tahun_id,
                     'target' => $data['target'] ?? null,
                     'target_text' => $data['target_text'] ?? null,
+                    'pagu' => $data['pagu'] ?? null,
                 ]);
             }),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function indicatorPayload(array $data, string $message): array
+    {
+        $formulasi = $data['formulasi_pengukuran'] ?? ($data['formula'] ?? null);
+
+        return [
+            'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
+            'kode' => $data['kode'] ?? null,
+            'indikator' => $this->requiredText($data, 'indikator', $message),
+            'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
+            'definisi_operasional' => $data['definisi_operasional'] ?? null,
+            'formula' => $formulasi,
+            'formulasi_pengukuran' => $formulasi,
+            'tipe_perhitungan' => $data['tipe_perhitungan'] ?? 'non_kumulatif',
+            'opd_penanggung_jawab_id' => $data['opd_penanggung_jawab_id'] ?? null,
+            'pd_penanggung_jawab' => $data['pd_penanggung_jawab'] ?? null,
+            'sumber_data' => $data['sumber_data'] ?? null,
+            'urutan' => $data['urutan'] ?? 1,
+        ];
     }
 
     /**
@@ -445,13 +423,7 @@ class RenstraOpdNodeController extends Controller
 
         return [
             'indikator_program_rpjmd_id' => $indikatorProgramRpjmd?->id,
-            'satuan_indikator_id' => $data['satuan_indikator_id'] ?? null,
-            'kode' => $data['kode'] ?? null,
-            'indikator' => $this->requiredText($data, 'indikator', 'Indikator program OPD wajib diisi.'),
-            'tipe_indikator' => $data['tipe_indikator'] ?? 'positif',
-            'formula' => $data['formula'] ?? null,
-            'sumber_data' => $data['sumber_data'] ?? null,
-            'urutan' => $data['urutan'] ?? 1,
+            ...$this->indicatorPayload($data, 'Indikator program OPD wajib diisi.'),
         ];
     }
 

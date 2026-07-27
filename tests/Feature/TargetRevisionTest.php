@@ -142,7 +142,6 @@ class TargetRevisionTest extends TestCase
         ]);
         $tujuan = TujuanOpd::create([
             'renstra_opd_id' => $renstra->id,
-            'kode' => 'T-REV',
             'tujuan' => 'Tujuan revisi target',
             'urutan' => 1,
         ]);

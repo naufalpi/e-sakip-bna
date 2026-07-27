@@ -446,10 +446,12 @@ class DemoDataSeeder extends Seeder
             );
 
             $tujuan = TujuanOpd::query()->updateOrCreate(
-                ['renstra_opd_id' => $renstra->id, 'kode' => 'TO-'.$opd->id],
+                [
+                    'renstra_opd_id' => $renstra->id,
+                    'tujuan' => 'Meningkatnya kualitas layanan '.$label.' yang akuntabel.',
+                ],
                 [
                     'tujuan_daerah_id' => $rpjmdContext['tujuan']->id,
-                    'tujuan' => 'Meningkatnya kualitas layanan '.$label.' yang akuntabel.',
                     'urutan' => 1,
                 ],
             );

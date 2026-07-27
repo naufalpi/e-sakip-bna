@@ -12,12 +12,13 @@ class TargetIndikatorSubKegiatan extends Model
 
     protected $table = 'target_indikator_sub_kegiatan';
 
-    protected $fillable = ['indikator_sub_kegiatan_id', 'periode_tahun_id', 'target', 'target_text'];
+    protected $fillable = ['indikator_sub_kegiatan_id', 'periode_tahun_id', 'target', 'target_text', 'pagu'];
 
     protected function casts(): array
     {
         return [
             'target' => 'decimal:4',
+            'pagu' => 'decimal:2',
         ];
     }
 

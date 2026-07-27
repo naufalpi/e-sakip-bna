@@ -189,10 +189,11 @@ class RenstraImportApplyService
     {
         $renstra = $this->resolveRenstra($mapped, $user);
         $text = $this->requiredText($mapped, ['tujuan', 'uraian', 'nama'], 'Tujuan OPD');
-        $kode = $this->text($mapped, ['kode', 'kode_tujuan']);
-        $identity = $kode ? ['renstra_opd_id' => $renstra->id, 'kode' => $kode] : ['renstra_opd_id' => $renstra->id, 'tujuan' => $text];
 
-        $tujuan = TujuanOpd::updateOrCreate($identity, [
+        $tujuan = TujuanOpd::updateOrCreate([
+            'renstra_opd_id' => $renstra->id,
+            'tujuan' => $text,
+        ], [
             'tujuan_daerah_id' => $this->resolveTujuanDaerah($mapped, $renstra)?->id,
             'tujuan' => $text,
             'urutan' => $this->order($mapped),

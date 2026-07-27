@@ -714,7 +714,6 @@ class RenstraOpdTest extends TestCase
         $tujuan = TujuanOpd::create([
             'renstra_opd_id' => $renstra->id,
             'tujuan_daerah_id' => $tree['tujuan_daerah']->id,
-            'kode' => 'T1',
             'tujuan' => 'Tujuan Lama',
             'urutan' => 1,
         ]);
@@ -788,6 +787,17 @@ class RenstraOpdTest extends TestCase
 
         $this->actingAs($user)
             ->postJson(route('renstra-opd.nodes.autosave-store', $renstra), [
+                'type' => 'indikator_tujuan',
+                'parent_id' => $tujuanId,
+                'indikator' => 'Indikator Dibuat Dari Bulk',
+                'pd_penanggung_jawab' => 'Bidang Perencanaan OPD',
+                'urutan' => 1,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('status', 'saved');
+
+        $this->actingAs($user)
+            ->postJson(route('renstra-opd.nodes.autosave-store', $renstra), [
                 'type' => 'sasaran',
                 'parent_id' => $tujuanId,
                 'sasaran_daerah_id' => $tree['sasaran_daerah']->id,
@@ -800,8 +810,13 @@ class RenstraOpdTest extends TestCase
 
         $this->assertDatabaseHas('tujuan_opd', [
             'renstra_opd_id' => $renstra->id,
-            'kode' => 'TB1',
             'tujuan' => 'Tujuan Dibuat Dari Bulk',
+        ]);
+
+        $this->assertDatabaseHas('indikator_tujuan_opd', [
+            'tujuan_opd_id' => $tujuanId,
+            'indikator' => 'Indikator Dibuat Dari Bulk',
+            'pd_penanggung_jawab' => 'Bidang Perencanaan OPD',
         ]);
 
         $this->assertDatabaseHas('sasaran_opd', [
@@ -883,7 +898,7 @@ class RenstraOpdTest extends TestCase
 
         $this->assertSame('imported', $batch->status);
         $this->assertDatabaseHas('renstra_opd', ['opd_id' => $opd->id, 'judul' => 'Renstra Import Dinas']);
-        $this->assertDatabaseHas('tujuan_opd', ['kode' => 'T1', 'tujuan' => 'Tujuan Import']);
+        $this->assertDatabaseHas('tujuan_opd', ['tujuan' => 'Tujuan Import']);
         $this->assertDatabaseHas('indikator_tujuan_opd', ['kode' => 'IT1', 'indikator' => 'Indikator Tujuan Import']);
         $this->assertDatabaseHas('target_indikator_tujuan_opd', ['periode_tahun_id' => $periode->id, 'target_text' => '80 persen']);
         $this->assertDatabaseHas('sasaran_opd', ['kode' => 'S1', 'sasaran' => 'Sasaran Import']);

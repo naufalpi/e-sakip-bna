@@ -15,7 +15,7 @@ class TujuanOpd extends Model
 
     protected $table = 'tujuan_opd';
 
-    protected $fillable = ['renstra_opd_id', 'tujuan_daerah_id', 'kode', 'tujuan', 'urutan'];
+    protected $fillable = ['renstra_opd_id', 'tujuan_daerah_id', 'tujuan', 'urutan'];
 
     public function renstra(): BelongsTo
     {
