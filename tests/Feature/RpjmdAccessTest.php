@@ -50,7 +50,7 @@ class RpjmdAccessTest extends TestCase
             ])
             ->assertRedirect();
 
-        $rpjmd = Rpjmd::where('judul', 'RPJMD Kabupaten Banjarnegara 2026-2031')->firstOrFail();
+        $rpjmd = Rpjmd::where('judul', 'RPJMD KABUPATEN BANJARNEGARA 2026-2031')->firstOrFail();
         $this->assertSame('tujuan_lintas_misi', $rpjmd->struktur_tujuan_mode);
         $this->assertSame('sasaran_langsung_tujuan', $rpjmd->struktur_sasaran_mode);
 
@@ -92,7 +92,7 @@ class RpjmdAccessTest extends TestCase
             ])
             ->assertRedirect();
 
-        $rpjmd = Rpjmd::where('judul', 'RPJMD Struktur Tidak Boleh Diubah Admin')->firstOrFail();
+        $rpjmd = Rpjmd::where('judul', 'RPJMD STRUKTUR TIDAK BOLEH DIUBAH ADMIN')->firstOrFail();
 
         $this->assertSame('tujuan_lintas_misi', $rpjmd->struktur_tujuan_mode);
         $this->assertSame('sasaran_langsung_tujuan', $rpjmd->struktur_sasaran_mode);
@@ -1247,7 +1247,7 @@ class RpjmdAccessTest extends TestCase
             ])
             ->assertRedirect();
 
-        $rpjmd = Rpjmd::query()->where('judul', 'RPJMD Status Workflow')->firstOrFail();
+        $rpjmd = Rpjmd::query()->where('judul', 'RPJMD STATUS WORKFLOW')->firstOrFail();
         $this->assertSame('draft', $rpjmd->status);
 
         $this->actingAs($user)

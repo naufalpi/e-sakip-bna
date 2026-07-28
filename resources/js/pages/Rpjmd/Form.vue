@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { computed, watch } from 'vue';
+
+type Option = {
+    id: number;
+    label: string;
+    tahun?: number | string | null;
+};
 
 type RpjmdForm = {
     periode_tahun_id: number | string | null;
@@ -14,7 +21,7 @@ type RpjmdForm = {
 const props = defineProps<{
     mode: 'create' | 'edit';
     rpjmd: (RpjmdForm & { id: number }) | null;
-    periodeOptions: Array<{ id: number; label: string }>;
+    periodeOptions: Option[];
 }>();
 
 const form = useForm<RpjmdForm>({
@@ -25,6 +32,32 @@ const form = useForm<RpjmdForm>({
     tahun_akhir: props.rpjmd?.tahun_akhir ?? new Date().getFullYear() + 5,
     keterangan: props.rpjmd?.keterangan ?? '',
 });
+
+const uppercaseText = (value: string | null | undefined) => (value ?? '').toLocaleUpperCase('id-ID');
+const periodeYear = (option: Option) => option.tahun ?? Number(String(option.label).match(/^\d{4}/)?.[0]);
+const autoPeriode = computed(() => props.periodeOptions.find((option) => Number(periodeYear(option)) === Number(form.tahun_awal)) ?? null);
+
+const judulModel = computed({
+    get: () => form.judul,
+    set: (value: string) => {
+        form.judul = uppercaseText(value);
+    },
+});
+
+const nomorPerdaModel = computed({
+    get: () => form.nomor_perda,
+    set: (value: string) => {
+        form.nomor_perda = uppercaseText(value);
+    },
+});
+
+watch(
+    () => form.tahun_awal,
+    () => {
+        form.periode_tahun_id = autoPeriode.value?.id ?? '';
+    },
+    { immediate: true },
+);
 
 const submit = () => {
     if (props.mode === 'create') {
@@ -49,26 +82,29 @@ const submit = () => {
             <div class="mt-4 grid gap-4 md:grid-cols-2">
                 <div class="grid gap-2 md:col-span-2">
                     <label class="text-sm font-medium" for="judul">Judul RPJMD</label>
-                    <input id="judul" v-model="form.judul" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                    <input
+                        id="judul"
+                        v-model="judulModel"
+                        class="h-9 rounded-md border bg-background px-3 text-sm uppercase"
+                        autocomplete="off"
+                    />
                     <InputError :message="form.errors.judul" />
                 </div>
-                <div class="grid gap-2">
+                <div class="grid gap-2 md:col-span-2">
                     <label class="text-sm font-medium" for="nomor_perda">Nomor Perda</label>
-                    <input id="nomor_perda" v-model="form.nomor_perda" class="h-9 rounded-md border bg-background px-3 text-sm" />
+                    <input
+                        id="nomor_perda"
+                        v-model="nomorPerdaModel"
+                        class="h-9 rounded-md border bg-background px-3 text-sm uppercase"
+                        autocomplete="off"
+                    />
                     <InputError :message="form.errors.nomor_perda" />
-                </div>
-                <div class="grid gap-2">
-                    <label class="text-sm font-medium" for="periode_tahun_id">Periode Referensi</label>
-                    <select id="periode_tahun_id" v-model="form.periode_tahun_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="">Pilih periode</option>
-                        <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                    </select>
-                    <InputError :message="form.errors.periode_tahun_id" />
                 </div>
                 <div class="grid gap-2">
                     <label class="text-sm font-medium" for="tahun_awal">Tahun Awal</label>
                     <input id="tahun_awal" v-model="form.tahun_awal" type="number" class="h-9 rounded-md border bg-background px-3 text-sm" />
                     <InputError :message="form.errors.tahun_awal" />
+                    <InputError :message="form.errors.periode_tahun_id" />
                 </div>
                 <div class="grid gap-2">
                     <label class="text-sm font-medium" for="tahun_akhir">Tahun Akhir</label>

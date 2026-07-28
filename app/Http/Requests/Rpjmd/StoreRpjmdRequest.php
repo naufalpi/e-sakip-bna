@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Rpjmd;
 
+use App\Models\PeriodeTahun;
 use App\Models\Rpjmd;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -13,13 +14,25 @@ class StoreRpjmdRequest extends FormRequest
         return $this->user()->can('create', Rpjmd::class);
     }
 
+    protected function prepareForValidation(): void
+    {
+        $tahunAwal = $this->integer('tahun_awal');
+        $periodeTahunId = $this->input('periode_tahun_id') ?: ($tahunAwal ? PeriodeTahun::query()->where('tahun', $tahunAwal)->value('id') : null);
+
+        $this->merge([
+            'periode_tahun_id' => $periodeTahunId,
+            'judul' => $this->uppercaseValue($this->input('judul')),
+            'nomor_perda' => $this->uppercaseValue($this->input('nomor_perda'), true),
+        ]);
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         $rules = [
-            'periode_tahun_id' => ['nullable', 'integer', 'exists:periode_tahun,id'],
+            'periode_tahun_id' => ['required', 'integer', 'exists:periode_tahun,id'],
             'judul' => ['required', 'string', 'max:255'],
             'nomor_perda' => ['nullable', 'string', 'max:255'],
             'tahun_awal' => ['required', 'integer', 'min:2000', 'max:2100'],
@@ -33,5 +46,16 @@ class StoreRpjmdRequest extends FormRequest
         }
 
         return $rules;
+    }
+
+    private function uppercaseValue(mixed $value, bool $nullable = false): ?string
+    {
+        $text = trim((string) ($value ?? ''));
+
+        if ($nullable && $text === '') {
+            return null;
+        }
+
+        return mb_strtoupper($text, 'UTF-8');
     }
 }
