@@ -18,6 +18,11 @@ type Option = {
     program_id?: number | null;
     program_pemerintahan_id?: number | null;
     program_pemerintahan_ids?: number[];
+    sasaran_sub_kegiatan?: string | null;
+    indikator_sub_kegiatan?: string | null;
+    satuan_indikator_id?: number | null;
+    satuan_label?: string | null;
+    definisi_operasional?: string | null;
 };
 type Rkpd = {
     id: number;
@@ -184,6 +189,10 @@ const openManualForm = () => {
 watch(
     () => form.sub_kegiatan_pemerintahan_id,
     () => {
+        if (!form.indikator && selectedSubKegiatan.value?.indikator_sub_kegiatan) {
+            form.indikator = selectedSubKegiatan.value.indikator_sub_kegiatan;
+        }
+
         const currentStillValid = relatedProgramRpjmdOptions.value.find((option) => String(option.id) === String(form.program_rpjmd_id));
 
         if (form.program_rpjmd_id && currentStillValid) {

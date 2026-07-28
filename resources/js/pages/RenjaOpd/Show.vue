@@ -3,9 +3,21 @@ import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ArrowLeft, Pencil, Save, Search, Trash2, X } from 'lucide-vue-next';
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
-type Option = { id: number; label: string; kode?: string; nama?: string; description?: string; group?: string };
+type Option = {
+    id: number;
+    label: string;
+    kode?: string;
+    nama?: string;
+    description?: string;
+    group?: string;
+    sasaran_sub_kegiatan?: string | null;
+    indikator_sub_kegiatan?: string | null;
+    satuan_indikator_id?: number | null;
+    satuan_label?: string | null;
+    definisi_operasional?: string | null;
+};
 type Renja = {
     id: number;
     tahun: number;
@@ -91,6 +103,15 @@ const selectedSubKegiatan = computed(() =>
 
 const applyFilters = () => router.get(route('renja-opd.show', props.renja.id), filterForm, { preserveState: true, preserveScroll: true, replace: true });
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
+
+watch(
+    () => form.sub_kegiatan_pemerintahan_id,
+    () => {
+        if (!form.indikator && selectedSubKegiatan.value?.indikator_sub_kegiatan) {
+            form.indikator = selectedSubKegiatan.value.indikator_sub_kegiatan;
+        }
+    },
+);
 
 const resetFilters = () => {
     filterForm.search = '';

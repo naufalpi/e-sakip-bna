@@ -20,14 +20,14 @@ const props = withDefaults(
 
 const actionClass = computed(() =>
     props.mobile
-        ? 'inline-flex min-h-10 min-w-10 items-center justify-center rounded-md border border-slate-200 bg-white p-2 text-slate-700'
-        : 'inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-blue-100 bg-white p-2 text-slate-700 transition hover:border-blue-300 hover:text-[#00336C]',
+        ? 'public-doc-action inline-flex min-h-10 min-w-10 items-center justify-center rounded-md border p-2'
+        : 'public-doc-action inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border p-2',
 );
 
 const emptyClass = computed(() =>
     props.mobile
-        ? 'inline-flex min-h-10 min-w-10 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-400'
-        : 'inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-400',
+        ? 'public-doc-missing inline-flex min-h-10 min-w-10 items-center justify-center rounded-md border'
+        : 'public-doc-missing inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border',
 );
 
 const shouldShowMissing = computed(() => props.cell?.state === 'missing' || (props.cell?.kind === 'status' && props.cell?.state === 'data'));
@@ -42,7 +42,7 @@ const shouldShowMissing = computed(() => props.cell?.state === 'missing' || (pro
                 rel="noopener"
                 title="Lihat dokumen"
                 :aria-label="`Lihat ${cell.dokumen.judul || columnLabel}`"
-                :class="actionClass"
+                :class="[actionClass, 'public-doc-action-view']"
             >
                 <Eye class="h-4 w-4" />
                 <span class="sr-only">Lihat</span>
@@ -51,7 +51,7 @@ const shouldShowMissing = computed(() => props.cell?.state === 'missing' || (pro
                 :href="cell.dokumen.download_url"
                 title="Download dokumen"
                 :aria-label="`Download ${cell.dokumen.judul || columnLabel}`"
-                :class="actionClass"
+                :class="[actionClass, 'public-doc-action-download']"
             >
                 <Download class="h-4 w-4" />
                 <span class="sr-only">Download</span>

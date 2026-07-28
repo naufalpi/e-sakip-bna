@@ -377,6 +377,89 @@
     transform: translateY(-0.18rem);
 }
 
+.public-document-panel {
+    position: relative;
+    border: 1px solid rgb(191 219 254);
+    box-shadow: 0 1rem 2.2rem rgb(15 23 42 / 0.06);
+}
+
+.public-document-panel::before {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 0.28rem;
+    content: '';
+    background: linear-gradient(90deg, #00336c, #0ea5e9 48%, #38bdf8);
+}
+
+.public-document-panel > div:first-child {
+    background:
+        radial-gradient(circle at 90% 0%, rgba(14, 165, 233, 0.16), transparent 18rem),
+        linear-gradient(180deg, #f8fbff, #eef6ff);
+    border-bottom: 1px solid rgb(191 219 254);
+}
+
+.public-document-card {
+    border-color: rgb(191 219 254);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.98)),
+        radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.12), transparent 12rem);
+    transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease;
+}
+
+.public-document-card:hover {
+    border-color: color-mix(in srgb, var(--portal-blue) 34%, white);
+    box-shadow: 0 0.9rem 1.8rem rgb(0 51 108 / 0.1);
+    transform: translateY(-0.08rem);
+}
+
+.public-doc-action {
+    box-shadow: 0 0.45rem 1rem rgb(15 23 42 / 0.06);
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        color 160ms ease,
+        transform 160ms ease;
+}
+
+.public-doc-action:hover {
+    box-shadow: 0 0.75rem 1.35rem rgb(15 23 42 / 0.12);
+    transform: translateY(-0.08rem);
+}
+
+.public-doc-action-view {
+    border-color: rgb(147 197 253);
+    background: #eff6ff;
+    color: #00336c;
+}
+
+.public-doc-action-view:hover {
+    border-color: #00336c;
+    background: #00336c;
+    color: white;
+}
+
+.public-doc-action-download {
+    border-color: rgb(125 211 252);
+    background: #ecfeff;
+    color: #0369a1;
+}
+
+.public-doc-action-download:hover {
+    border-color: #0284c7;
+    background: #0284c7;
+    color: white;
+}
+
+.public-doc-missing {
+    border-color: rgb(226 232 240);
+    background: #f8fafc;
+    color: #94a3b8;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .public-site {
         scroll-behavior: auto;

@@ -11,7 +11,6 @@ import CycleNavigation from './Components/CycleNavigation.vue';
 import PublicDataSection from './Components/PublicDataSection.vue';
 import PublicFooter from './Components/PublicFooter.vue';
 import PublicHero from './Components/PublicHero.vue';
-import PublicModuleHeader from './Components/PublicModuleHeader.vue';
 import PublicOverview from './Components/PublicOverview.vue';
 import PublicSiteHeader from './Components/PublicSiteHeader.vue';
 import './public-site.css';
@@ -155,7 +154,6 @@ const filteredTableSections = computed<PublicTableSection[]>(() =>
     })),
 );
 const currentRowsCount = computed(() => currentSection.value?.rows.length ?? 0);
-const filteredRowsCount = computed(() => filteredTableSections.value[0]?.rows.length ?? 0);
 const selectedYearLabel = computed(() => `Tahun ${props.filters.tahun}`);
 
 function sectionReadyCount(id: string): number {
@@ -191,17 +189,10 @@ function changeYear(event: Event): void {
     <div class="public-site min-h-dvh bg-white text-slate-900">
         <PublicSiteHeader :home-url="props.section_urls.home" :nav-items="navItems" :entry-url="entryUrl" :entry-label="entryLabel" />
 
-        <main>
+        <main :class="currentSection ? 'pt-[6.75rem]' : ''">
             <PublicHero v-if="!currentSection" />
-            <PublicModuleHeader
-                v-else
-                :section="currentSection"
-                :meta="props.meta"
-                :filtered-rows-count="filteredRowsCount"
-                :current-rows-count="currentRowsCount"
-            />
 
-            <CycleNavigation :modules="homeModules" :active-section="activeSection" />
+            <CycleNavigation v-if="!currentSection" :modules="homeModules" :active-section="activeSection" />
             <PublicOverview v-if="!currentSection" :modules="homeModules" />
 
             <PublicDataSection

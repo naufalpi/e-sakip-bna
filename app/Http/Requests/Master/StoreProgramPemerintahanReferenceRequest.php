@@ -61,6 +61,14 @@ class StoreProgramPemerintahanReferenceRequest extends FormRequest
                 $uniqueRule,
             ],
             'nama' => ['required', 'string', 'max:255'],
+            'sasaran_sub_kegiatan' => ['nullable', 'string', 'max:10000'],
+            'indikator_sub_kegiatan' => ['nullable', 'string', 'max:10000'],
+            'satuan_indikator_id' => [
+                'nullable',
+                'integer',
+                'exists:satuan_indikator,id',
+            ],
+            'definisi_operasional' => ['nullable', 'string', 'max:100000'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ];
     }

@@ -441,14 +441,28 @@ class RenstraOpdController extends Controller
                 ->values()
                 ->all(),
             'sub_kegiatan_pemerintahan' => SubKegiatanPemerintahan::query()
-                ->with('kegiatanPemerintahan.programPemerintahan:id,kode,nama,bidang_urusan_id')
+                ->with(['satuanIndikator:id,nama,simbol', 'kegiatanPemerintahan.programPemerintahan:id,kode,nama,bidang_urusan_id'])
                 ->where('status', 'active')
                 ->orderBy('kode')
-                ->get(['id', 'kegiatan_pemerintahan_id', 'kode', 'nama'])
+                ->get([
+                    'id',
+                    'kegiatan_pemerintahan_id',
+                    'kode',
+                    'nama',
+                    'sasaran_sub_kegiatan',
+                    'indikator_sub_kegiatan',
+                    'satuan_indikator_id',
+                    'definisi_operasional',
+                ])
                 ->map(fn (SubKegiatanPemerintahan $subKegiatan) => [
                     'id' => $subKegiatan->id,
                     'kode' => $subKegiatan->kode,
                     'nama' => $subKegiatan->nama,
+                    'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
+                    'indikator_sub_kegiatan' => $subKegiatan->indikator_sub_kegiatan,
+                    'satuan_indikator_id' => $subKegiatan->satuan_indikator_id,
+                    'satuan_label' => $subKegiatan->satuanIndikator?->simbol ?: $subKegiatan->satuanIndikator?->nama,
+                    'definisi_operasional' => $subKegiatan->definisi_operasional,
                     'kegiatan_pemerintahan_id' => $subKegiatan->kegiatan_pemerintahan_id,
                     'program_pemerintahan_id' => $subKegiatan->kegiatanPemerintahan?->program_pemerintahan_id,
                     'label' => $this->nodeLabel($subKegiatan->kode, $subKegiatan->nama),

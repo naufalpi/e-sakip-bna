@@ -25,7 +25,7 @@ defineProps<{
                             <p class="text-sm font-semibold uppercase text-[#00336C]">{{ section.eyebrow }}</p>
                             <h1 class="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">{{ section.title }}</h1>
                             <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                                {{ section.summary }} Gunakan pencarian dan filter tahun untuk melihat data publik yang relevan.
+                                {{ section.summary }}
                             </p>
                         </div>
                     </div>

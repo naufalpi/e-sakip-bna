@@ -102,10 +102,7 @@ class CopyProgramKegiatanReferenceService
                                 'kegiatan_pemerintahan_id' => $targetKegiatan->id,
                                 'kode' => $sourceSubKegiatan->kode,
                             ],
-                            [
-                                'nama' => $sourceSubKegiatan->nama,
-                                'status' => $sourceSubKegiatan->status,
-                            ],
+                            $this->subKegiatanPayload($sourceSubKegiatan),
                         );
 
                         $result[$targetSubKegiatan->wasRecentlyCreated ? 'sub_kegiatan_created' : 'sub_kegiatan_existing']++;
@@ -183,10 +180,7 @@ class CopyProgramKegiatanReferenceService
                                             'kegiatan_pemerintahan_id' => $targetKegiatan->id,
                                             'kode' => $sourceSubKegiatan->kode,
                                         ],
-                                        [
-                                            'nama' => $sourceSubKegiatan->nama,
-                                            'status' => $sourceSubKegiatan->status,
-                                        ],
+                                        $this->subKegiatanPayload($sourceSubKegiatan),
                                     );
 
                                     $result[$targetSubKegiatan->wasRecentlyCreated ? 'sub_kegiatan_created' : 'sub_kegiatan_existing']++;
@@ -197,5 +191,20 @@ class CopyProgramKegiatanReferenceService
 
             return $result;
         });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function subKegiatanPayload(SubKegiatanPemerintahan $subKegiatan): array
+    {
+        return [
+            'nama' => $subKegiatan->nama,
+            'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
+            'indikator_sub_kegiatan' => $subKegiatan->indikator_sub_kegiatan,
+            'satuan_indikator_id' => $subKegiatan->satuan_indikator_id,
+            'definisi_operasional' => $subKegiatan->definisi_operasional,
+            'status' => $subKegiatan->status,
+        ];
     }
 }

@@ -474,7 +474,7 @@ class RenstraOpdNodeController extends Controller
             'opd_unit_id' => $this->validatedOpdUnitId($renstra, $data['opd_unit_id'] ?? null),
             'kode' => $reference?->kode ?? ($data['kode'] ?? null),
             'nama' => $reference?->nama ?? $this->requiredText($data, 'uraian', 'Nama sub kegiatan OPD wajib diisi.'),
-            'sasaran_sub_kegiatan' => $data['sasaran_level'] ?? null,
+            'sasaran_sub_kegiatan' => filled($data['sasaran_level'] ?? null) ? $data['sasaran_level'] : $reference?->sasaran_sub_kegiatan,
             'pagu_indikatif' => $data['pagu_indikatif'] ?? null,
             'urutan' => $data['urutan'] ?? 1,
         ];

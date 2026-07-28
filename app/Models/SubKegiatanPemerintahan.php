@@ -19,6 +19,10 @@ class SubKegiatanPemerintahan extends Model
         'kegiatan_pemerintahan_id',
         'kode',
         'nama',
+        'sasaran_sub_kegiatan',
+        'indikator_sub_kegiatan',
+        'satuan_indikator_id',
+        'definisi_operasional',
         'status',
     ];
 
@@ -30,5 +34,10 @@ class SubKegiatanPemerintahan extends Model
     public function kegiatanPemerintahan(): BelongsTo
     {
         return $this->belongsTo(KegiatanPemerintahan::class);
+    }
+
+    public function satuanIndikator(): BelongsTo
+    {
+        return $this->belongsTo(SatuanIndikator::class);
     }
 }

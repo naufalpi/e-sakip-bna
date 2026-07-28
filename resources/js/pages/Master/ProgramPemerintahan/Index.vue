@@ -27,6 +27,11 @@ type ReferenceItem = {
     periode_label: string;
     kode: string;
     nama: string;
+    sasaran_sub_kegiatan?: string | null;
+    indikator_sub_kegiatan?: string | null;
+    satuan_indikator_id?: number | null;
+    satuan_label?: string | null;
+    definisi_operasional?: string | null;
     status: string;
     parent_id: number;
     parent_label: string;
@@ -73,6 +78,10 @@ type ReferenceForm = {
     kegiatan_pemerintahan_id: number | string;
     kode: string;
     nama: string;
+    sasaran_sub_kegiatan: string;
+    indikator_sub_kegiatan: string;
+    satuan_indikator_id: number | string;
+    definisi_operasional: string;
     status: string;
     redirect_to: string;
 };
@@ -123,6 +132,7 @@ const props = defineProps<{
         bidang: Option[];
         program: Option[];
         kegiatan: Option[];
+        satuan: Option[];
     };
     selectedPeriodeId: number;
     selectedProgramPeriod: { tahun_awal: number; tahun_akhir: number };
@@ -189,6 +199,10 @@ const singleForm = useForm<ReferenceForm>({
     kegiatan_pemerintahan_id: '',
     kode: '',
     nama: '',
+    sasaran_sub_kegiatan: '',
+    indikator_sub_kegiatan: '',
+    satuan_indikator_id: '',
+    definisi_operasional: '',
     status: 'active',
     redirect_to: '',
 });
@@ -620,6 +634,10 @@ const editItem = (item: ReferenceItem) => {
     singleForm.kegiatan_pemerintahan_id = item.type === 'sub_kegiatan' ? item.parent_id : '';
     singleForm.kode = item.kode;
     singleForm.nama = item.nama;
+    singleForm.sasaran_sub_kegiatan = item.sasaran_sub_kegiatan ?? '';
+    singleForm.indikator_sub_kegiatan = item.indikator_sub_kegiatan ?? '';
+    singleForm.satuan_indikator_id = item.satuan_indikator_id ?? '';
+    singleForm.definisi_operasional = item.definisi_operasional ?? '';
     singleForm.status = item.status;
     singleForm.redirect_to = redirectTo.value;
     singleForm.clearErrors();
@@ -866,6 +884,56 @@ const destroy = async (item: ReferenceItem) => {
                                 <label class="text-sm font-medium" for="single-nama">Nama {{ meta.noun }}</label>
                                 <textarea id="single-nama" v-model="singleForm.nama" rows="3" class="rounded-xl border bg-background px-3 py-2 text-sm" />
                                 <InputError :message="singleForm.errors.nama" />
+                            </div>
+
+                            <div v-if="props.level === 'sub_kegiatan'" class="grid gap-4 rounded-2xl border bg-[#00336C]/[0.025] p-4 lg:col-span-2">
+                                <div class="flex flex-col gap-1">
+                                    <div class="text-sm font-semibold text-foreground">Metadata Sub Kegiatan</div>
+                                    <div class="text-xs text-muted-foreground">Data baku Permendagri, boleh kosong jika belum tersedia.</div>
+                                </div>
+                                <div class="grid gap-4 lg:grid-cols-2">
+                                    <div class="grid gap-2">
+                                        <label class="text-sm font-medium" for="single-sasaran-sub">Sasaran Sub Kegiatan</label>
+                                        <textarea
+                                            id="single-sasaran-sub"
+                                            v-model="singleForm.sasaran_sub_kegiatan"
+                                            rows="3"
+                                            class="rounded-xl border bg-background px-3 py-2 text-sm"
+                                        />
+                                        <InputError :message="singleForm.errors.sasaran_sub_kegiatan" />
+                                    </div>
+                                    <div class="grid gap-2">
+                                        <label class="text-sm font-medium" for="single-indikator-sub">Indikator Sub Kegiatan</label>
+                                        <textarea
+                                            id="single-indikator-sub"
+                                            v-model="singleForm.indikator_sub_kegiatan"
+                                            rows="3"
+                                            class="rounded-xl border bg-background px-3 py-2 text-sm"
+                                        />
+                                        <InputError :message="singleForm.errors.indikator_sub_kegiatan" />
+                                    </div>
+                                </div>
+                                <div class="grid gap-2">
+                                    <label class="text-sm font-medium">Satuan</label>
+                                    <RpjmdRichSelect
+                                        v-model="singleForm.satuan_indikator_id"
+                                        :options="options.satuan"
+                                        placeholder="Pilih satuan"
+                                        empty-text="Satuan belum tersedia"
+                                        placement="top"
+                                    />
+                                    <InputError :message="singleForm.errors.satuan_indikator_id" />
+                                </div>
+                                <div class="grid gap-2">
+                                    <label class="text-sm font-medium" for="single-definisi-sub">Definisi Operasional</label>
+                                    <textarea
+                                        id="single-definisi-sub"
+                                        v-model="singleForm.definisi_operasional"
+                                        rows="5"
+                                        class="rounded-xl border bg-background px-3 py-2 text-sm leading-6"
+                                    />
+                                    <InputError :message="singleForm.errors.definisi_operasional" />
+                                </div>
                             </div>
                         </div>
 
@@ -1141,6 +1209,31 @@ const destroy = async (item: ReferenceItem) => {
                             <td class="min-w-[360px] px-4 py-3 align-top">
                                 <div class="font-semibold text-foreground">{{ item.nama }}</div>
                                 <div v-if="props.level === 'program'" class="mt-1 text-xs leading-5 text-muted-foreground">{{ item.urusan_label || '-' }}</div>
+                                <div v-if="props.level === 'sub_kegiatan'" class="mt-3 grid gap-2 rounded-xl border bg-muted/25 p-3 text-xs leading-5">
+                                    <div v-if="item.sasaran_sub_kegiatan">
+                                        <span class="font-semibold uppercase text-[#00336C]">Sasaran</span>
+                                        <p class="mt-0.5 text-muted-foreground">{{ item.sasaran_sub_kegiatan }}</p>
+                                    </div>
+                                    <div v-if="item.indikator_sub_kegiatan">
+                                        <span class="font-semibold uppercase text-[#00336C]">Indikator</span>
+                                        <p class="mt-0.5 text-muted-foreground">{{ item.indikator_sub_kegiatan }}</p>
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <span v-if="item.satuan_label" class="rounded-full bg-[#00336C]/10 px-2.5 py-1 font-medium text-[#00336C]">
+                                            {{ item.satuan_label }}
+                                        </span>
+                                        <span
+                                            class="rounded-full px-2.5 py-1 font-medium"
+                                            :class="
+                                                item.definisi_operasional
+                                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300'
+                                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300'
+                                            "
+                                        >
+                                            {{ item.definisi_operasional ? 'Definisi tersedia' : 'Definisi kosong' }}
+                                        </span>
+                                    </div>
+                                </div>
                             </td>
                             <td class="min-w-[280px] px-4 py-3 align-top">
                                 <div class="font-medium text-foreground">{{ item.parent_label }}</div>

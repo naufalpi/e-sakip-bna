@@ -6,6 +6,7 @@ use App\Models\BidangUrusan;
 use App\Models\KegiatanPemerintahan;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
+use App\Models\SatuanIndikator;
 use App\Models\SubKegiatanPemerintahan;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -99,6 +100,11 @@ class ProgramKegiatanReferenceSeeder extends Seeder
      */
     private function seedSubKegiatan(int $periodeId, array $kegiatanIds): void
     {
+        $satuanIds = SatuanIndikator::query()
+            ->pluck('id', 'nama')
+            ->mapWithKeys(fn (int $id, string $nama) => [mb_strtolower($nama) => $id])
+            ->all();
+
         foreach ($this->readTsv('sub_kegiatan_pemerintahan.tsv') as $row) {
             $kegiatanKode = $this->prefixKode($row['kode'], 5);
             $kegiatanId = $kegiatanIds[$kegiatanKode] ?? null;
@@ -115,6 +121,10 @@ class ProgramKegiatanReferenceSeeder extends Seeder
                 ],
                 [
                     'nama' => $row['nama'],
+                    'sasaran_sub_kegiatan' => $row['sasaran_sub_kegiatan'] ?? null,
+                    'indikator_sub_kegiatan' => $row['indikator_sub_kegiatan'] ?? null,
+                    'satuan_indikator_id' => $this->satuanIndikatorId($row['satuan'] ?? null, $satuanIds),
+                    'definisi_operasional' => $row['definisi_operasional'] ?? null,
                     'status' => 'active',
                 ],
             );
@@ -173,7 +183,7 @@ class ProgramKegiatanReferenceSeeder extends Seeder
     }
 
     /**
-     * @return array<int, array{kode: string, nama: string}>
+     * @return array<int, array<string, string|null>>
      */
     private function readTsv(string $filename): array
     {
@@ -204,16 +214,36 @@ class ProgramKegiatanReferenceSeeder extends Seeder
                     throw new RuntimeException("Baris data {$filename} tidak valid: ".json_encode($columns));
                 }
 
-                $rows[] = [
-                    'kode' => $kode,
-                    'nama' => $nama,
-                ];
+                $rows[] = $filename === 'sub_kegiatan_pemerintahan.tsv'
+                    ? $this->subKegiatanRow($columns)
+                    : [
+                        'kode' => $kode,
+                        'nama' => $nama,
+                    ];
             }
         } finally {
             fclose($handle);
         }
 
         return $rows;
+    }
+
+    /**
+     * @param  array<int, string|null>  $columns
+     * @return array<string, string|null>
+     */
+    private function subKegiatanRow(array $columns): array
+    {
+        $columns = array_pad($columns, 6, '');
+
+        return [
+            'kode' => trim((string) $columns[0]),
+            'nama' => $this->normalizeName((string) $columns[1]),
+            'sasaran_sub_kegiatan' => $this->nullableName((string) $columns[2]),
+            'indikator_sub_kegiatan' => $this->nullableName((string) $columns[3]),
+            'satuan' => $this->nullableName((string) $columns[4]),
+            'definisi_operasional' => $this->nullableText((string) $columns[5]),
+        ];
     }
 
     private function prefixKode(string $kode, int $segments): string
@@ -230,5 +260,65 @@ class ProgramKegiatanReferenceSeeder extends Seeder
     private function normalizeName(string $name): string
     {
         return trim((string) preg_replace('/\s+/u', ' ', $name));
+    }
+
+    private function nullableName(string $name): ?string
+    {
+        $name = $this->normalizeName($name);
+
+        return $name === '' ? null : $name;
+    }
+
+    private function nullableText(string $text): ?string
+    {
+        $text = trim(str_replace(["\r\n", "\r"], "\n", $text));
+
+        return $text === '' ? null : $text;
+    }
+
+    /**
+     * @param  array<string, int>  $satuanIds
+     */
+    private function satuanIndikatorId(?string $satuan, array &$satuanIds): ?int
+    {
+        $nama = $this->normalizeSatuanName($satuan);
+
+        if ($nama === null) {
+            return null;
+        }
+
+        $key = mb_strtolower($nama);
+
+        if (isset($satuanIds[$key])) {
+            return (int) $satuanIds[$key];
+        }
+
+        $satuanIndikator = SatuanIndikator::query()->firstOrCreate(
+            ['nama' => $nama],
+            [
+                'simbol' => mb_strlen($nama) <= 30 ? $nama : null,
+                'jenis' => 'jumlah',
+                'status' => 'active',
+            ],
+        );
+
+        $satuanIds[$key] = (int) $satuanIndikator->id;
+
+        return (int) $satuanIndikator->id;
+    }
+
+    private function normalizeSatuanName(?string $satuan): ?string
+    {
+        $satuan = $this->nullableName((string) $satuan);
+
+        if ($satuan === null) {
+            return null;
+        }
+
+        return match (mb_strtolower($satuan)) {
+            '%', 'persen', 'persentase' => 'Persen',
+            'rp', 'rupiah' => 'Rupiah',
+            default => $satuan,
+        };
     }
 }

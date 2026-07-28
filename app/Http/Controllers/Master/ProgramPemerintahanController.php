@@ -10,6 +10,7 @@ use App\Models\KegiatanPemerintahan;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
 use App\Models\Rpjmd;
+use App\Models\SatuanIndikator;
 use App\Models\SubKegiatanPemerintahan;
 use App\Services\Master\CopyProgramKegiatanReferenceService;
 use Illuminate\Database\Eloquent\Model;
@@ -87,6 +88,7 @@ class ProgramPemerintahanController extends Controller
                 'bidang' => $this->bidangOptions(),
                 'program' => $this->programOptions($selectedProgramPeriod),
                 'kegiatan' => $this->kegiatanOptions($selectedPeriodeId),
+                'satuan' => $this->satuanOptions(),
             ],
             'selectedPeriodeId' => $selectedPeriodeId,
             'selectedProgramPeriod' => $selectedProgramPeriod,
@@ -121,7 +123,7 @@ class ProgramPemerintahanController extends Controller
                 'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
                 'kode' => $data['kode'],
                 'nama' => $data['nama'],
-                'status' => $data['status'],
+                ...$this->subKegiatanPayload($data),
             ]),
         };
 
@@ -351,7 +353,7 @@ class ProgramPemerintahanController extends Controller
                 'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
                 'kode' => $data['kode'],
                 'nama' => $data['nama'],
-                'status' => $data['status'],
+                ...$this->subKegiatanPayload($data),
             ]),
             default => abort(404),
         };
@@ -541,7 +543,11 @@ class ProgramPemerintahanController extends Controller
     private function subKegiatanRows(?int $kegiatanId, int $periodeTahunId): Collection
     {
         return SubKegiatanPemerintahan::query()
-            ->with(['periodeTahun:id,tahun,nama', 'kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama'])
+            ->with([
+                'periodeTahun:id,tahun,nama',
+                'satuanIndikator:id,nama,simbol',
+                'kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
+            ])
             ->where('periode_tahun_id', $periodeTahunId)
             ->when($kegiatanId, fn ($query) => $query->where('kegiatan_pemerintahan_id', $kegiatanId))
             ->orderBy('kode')
@@ -554,6 +560,11 @@ class ProgramPemerintahanController extends Controller
                 'periode_label' => $this->label((string) $subKegiatan->periodeTahun?->tahun, $subKegiatan->periodeTahun?->nama),
                 'kode' => $subKegiatan->kode,
                 'nama' => $subKegiatan->nama,
+                'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
+                'indikator_sub_kegiatan' => $subKegiatan->indikator_sub_kegiatan,
+                'satuan_indikator_id' => $subKegiatan->satuan_indikator_id,
+                'satuan_label' => $subKegiatan->satuanIndikator?->simbol ?: $subKegiatan->satuanIndikator?->nama,
+                'definisi_operasional' => $subKegiatan->definisi_operasional,
                 'status' => $subKegiatan->status,
                 'parent_id' => $subKegiatan->kegiatan_pemerintahan_id,
                 'parent_label' => $this->label($subKegiatan->kegiatanPemerintahan?->kode, $subKegiatan->kegiatanPemerintahan?->nama),
@@ -576,6 +587,9 @@ class ProgramPemerintahanController extends Controller
                 'search_text' => $this->searchText(
                     $subKegiatan->kode,
                     $subKegiatan->nama,
+                    $subKegiatan->sasaran_sub_kegiatan,
+                    $subKegiatan->indikator_sub_kegiatan,
+                    $subKegiatan->satuanIndikator?->nama,
                     $subKegiatan->kegiatanPemerintahan?->nama,
                     $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->nama,
                 ),
@@ -700,6 +714,20 @@ class ProgramPemerintahanController extends Controller
                 'label' => $this->label($kegiatan->kode, $kegiatan->nama),
                 'description' => $this->label($kegiatan->programPemerintahan?->kode, $kegiatan->programPemerintahan?->nama),
                 'group' => $this->label($kegiatan->programPemerintahan?->kode, $kegiatan->programPemerintahan?->nama),
+            ])
+            ->all();
+    }
+
+    private function satuanOptions(): array
+    {
+        return SatuanIndikator::query()
+            ->where('status', 'active')
+            ->orderBy('nama')
+            ->get(['id', 'nama', 'simbol'])
+            ->map(fn (SatuanIndikator $satuan) => [
+                'id' => $satuan->id,
+                'label' => $satuan->simbol ? "{$satuan->nama} ({$satuan->simbol})" : $satuan->nama,
+                'description' => $satuan->simbol,
             ])
             ->all();
     }
@@ -837,6 +865,29 @@ class ProgramPemerintahanController extends Controller
         abort_if(blank($periodeTahunId), 422, 'Periode tahun referensi belum dipilih.');
 
         return (int) $periodeTahunId;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function subKegiatanPayload(array $data): array
+    {
+        return [
+            'sasaran_sub_kegiatan' => filled($data['sasaran_sub_kegiatan'] ?? null)
+                ? trim((string) $data['sasaran_sub_kegiatan'])
+                : null,
+            'indikator_sub_kegiatan' => filled($data['indikator_sub_kegiatan'] ?? null)
+                ? trim((string) $data['indikator_sub_kegiatan'])
+                : null,
+            'satuan_indikator_id' => filled($data['satuan_indikator_id'] ?? null)
+                ? (int) $data['satuan_indikator_id']
+                : null,
+            'definisi_operasional' => filled($data['definisi_operasional'] ?? null)
+                ? trim((string) $data['definisi_operasional'])
+                : null,
+            'status' => $data['status'],
+        ];
     }
 
     private function selectedPeriodeId(Request $request, ?KegiatanPemerintahan $kegiatan): int

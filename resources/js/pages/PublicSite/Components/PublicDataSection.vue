@@ -78,15 +78,15 @@ function updateSearch(event: Event): void {
                 </div>
             </div>
 
-            <div v-if="kabupatenDocuments?.length" class="mb-6 overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm shadow-blue-950/5">
-                <div class="border-b border-blue-100 bg-blue-50/70 px-4 py-4 sm:px-5">
-                    <div class="flex items-start gap-3">
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-[#00336C] shadow-sm">
+            <div v-if="kabupatenDocuments?.length" class="public-document-panel mb-7 overflow-hidden rounded-2xl bg-white">
+                <div class="px-4 py-4 sm:px-5">
+                    <div class="flex items-center gap-3">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#00336C] text-white shadow-sm shadow-blue-950/20">
                             <Landmark class="h-5 w-5" />
                         </span>
                         <div>
                             <h3 class="text-base font-bold text-slate-950">Dokumen Kabupaten</h3>
-                            <p class="mt-1 text-sm leading-6 text-slate-600">Dokumen perencanaan tingkat kabupaten untuk tahun yang dipilih.</p>
+                            <p class="text-sm font-medium text-[#00336C]">{{ selectedYearLabel }}</p>
                         </div>
                     </div>
                 </div>
@@ -95,11 +95,11 @@ function updateSearch(event: Event): void {
                     <article
                         v-for="item in kabupatenDocuments"
                         :key="item.key"
-                        class="flex items-start justify-between gap-4 rounded-lg border border-blue-100 bg-white p-4"
+                        class="public-document-card flex items-center justify-between gap-4 rounded-xl border p-4"
                     >
                         <div class="min-w-0">
                             <p class="text-sm font-bold text-slate-950">{{ item.label }}</p>
-                            <p class="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{{ item.description }}</p>
+                            <p v-if="item.description" class="mt-1 line-clamp-1 text-sm text-slate-500">{{ item.description }}</p>
                         </div>
                         <div class="shrink-0">
                             <PublicDataCell :cell="item.cell" :column-label="item.label" />

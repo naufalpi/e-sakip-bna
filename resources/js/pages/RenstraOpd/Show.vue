@@ -40,6 +40,11 @@ type Option = {
     sub_kegiatan_pemerintahan_id?: number | null;
     bidang_urusan_id?: number | null;
     jenis_unit?: string | null;
+    sasaran_sub_kegiatan?: string | null;
+    indikator_sub_kegiatan?: string | null;
+    satuan_indikator_id?: number | null;
+    satuan_label?: string | null;
+    definisi_operasional?: string | null;
 };
 type NodeType =
     | 'tujuan'
@@ -2369,6 +2374,10 @@ watch(
 
         form.kode = valueText(reference.kode);
         form.uraian = valueText(reference.nama ?? reference.label);
+
+        if (!form.sasaran_level && reference.sasaran_sub_kegiatan) {
+            form.sasaran_level = valueText(reference.sasaran_sub_kegiatan);
+        }
     },
 );
 

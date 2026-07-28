@@ -238,12 +238,25 @@ class RkpdController extends Controller
     private function subKegiatanOptions(int $periodeTahunId): array
     {
         return SubKegiatanPemerintahan::query()
-            ->with('kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama')
+            ->with([
+                'satuanIndikator:id,nama,simbol',
+                'kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
+            ])
             ->where('periode_tahun_id', $periodeTahunId)
             ->where('status', 'active')
             ->orderBy('kode')
             ->limit(3000)
-            ->get(['id', 'periode_tahun_id', 'kegiatan_pemerintahan_id', 'kode', 'nama'])
+            ->get([
+                'id',
+                'periode_tahun_id',
+                'kegiatan_pemerintahan_id',
+                'kode',
+                'nama',
+                'sasaran_sub_kegiatan',
+                'indikator_sub_kegiatan',
+                'satuan_indikator_id',
+                'definisi_operasional',
+            ])
             ->map(function (SubKegiatanPemerintahan $subKegiatan) {
                 $kegiatan = $subKegiatan->kegiatanPemerintahan;
                 $program = $kegiatan?->programPemerintahan;
@@ -254,6 +267,11 @@ class RkpdController extends Controller
                     'id' => $subKegiatan->id,
                     'kode' => $subKegiatan->kode,
                     'nama' => $subKegiatan->nama,
+                    'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
+                    'indikator_sub_kegiatan' => $subKegiatan->indikator_sub_kegiatan,
+                    'satuan_indikator_id' => $subKegiatan->satuan_indikator_id,
+                    'satuan_label' => $subKegiatan->satuanIndikator?->simbol ?: $subKegiatan->satuanIndikator?->nama,
+                    'definisi_operasional' => $subKegiatan->definisi_operasional,
                     'label' => "{$subKegiatan->kode} - {$subKegiatan->nama}",
                     'description' => $this->label($kegiatan?->kode, $kegiatan?->nama),
                     'group' => $this->label($program?->kode, $program?->nama),
