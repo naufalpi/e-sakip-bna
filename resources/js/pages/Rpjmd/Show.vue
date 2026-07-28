@@ -1045,6 +1045,7 @@ const completeDataNodeTypes = new Set<NodeType>([
     'indikator_sasaran',
     'target_sasaran',
     'program',
+    'pagu_program',
     'indikator_program',
     'target_program',
     'program_opd',
@@ -1099,11 +1100,17 @@ const toSelectedNumber = (value: number | string | null | undefined) => {
 };
 
 const rpjmdStrukturTujuanLabel = computed(() => (props.rpjmd.struktur_tujuan_mode === 'tujuan_per_misi' ? 'Tujuan per misi' : 'Tujuan lintas misi'));
-const loadCompleteRpjmdData = (openPreview: boolean) => {
-    if (props.previewLoaded) {
+const loadCompleteRpjmdData = (
+    openPreview: boolean,
+    options: { force?: boolean; onSuccess?: () => void; onFinish?: () => void } = {},
+) => {
+    if (props.previewLoaded && !options.force) {
         if (openPreview) {
             showPreview.value = true;
         }
+
+        options.onSuccess?.();
+        options.onFinish?.();
 
         return;
     }
@@ -1123,10 +1130,13 @@ const loadCompleteRpjmdData = (openPreview: boolean) => {
             if (openPreview) {
                 showPreview.value = true;
             }
+
+            options.onSuccess?.();
         },
         onFinish: () => {
             previewLoading.value = false;
             editorDataLoading.value = false;
+            options.onFinish?.();
         },
     });
 };
@@ -2209,6 +2219,29 @@ const handleBeforeUnload = (event: BeforeUnloadEvent) => {
     event.returnValue = unsavedNewBulkRowsMessage;
     return unsavedNewBulkRowsMessage;
 };
+
+watch(
+    () => [
+        bulkForm.type,
+        selectedBulkParentId.value,
+        bulkExistingRows.value
+            .filter((row) => row.type === bulkForm.type && row.parent_id === selectedBulkParentId.value)
+            .map((row) => `${row.type}:${row.id}:${row.periode_tahun_id ?? ''}:${row.target ?? ''}:${row.pagu_anggaran ?? ''}`)
+            .join('|'),
+    ],
+    () => {
+        if (!(bulkIsTargetType.value || bulkIsPaguProgramType.value) || !selectedBulkParentId.value) {
+            return;
+        }
+
+        if (hasUnsavedNewBulkRows.value || hasUnsavedSavedBulkRowsForType(bulkForm.type)) {
+            return;
+        }
+
+        resetBulkTargetPeriodRows();
+    },
+);
+
 const changeBulkNodeType = (type: NodeType) => {
     if (type === bulkForm.type || !confirmDiscardNewBulkRows(bulkForm.type)) {
         return;
@@ -2420,14 +2453,32 @@ const normalizedBulkRowsForStore = (rows: BulkRow[]) =>
 const submitBulkNodes = () => {
     bulkForm.rows = normalizedBulkRowsForStore(bulkForm.rows);
     allowUnsavedNewBulkVisit = true;
+    let refreshAfterSubmit = false;
 
     bulkForm.post(route('rpjmd.nodes.bulk-store', props.rpjmd.id), {
         preserveScroll: true,
         onSuccess: () => {
+            if (bulkIsTargetType.value || bulkIsPaguProgramType.value) {
+                refreshAfterSubmit = true;
+                loadCompleteRpjmdData(false, {
+                    force: true,
+                    onSuccess: () => {
+                        resetBulkRows();
+                    },
+                    onFinish: () => {
+                        allowUnsavedNewBulkVisit = false;
+                    },
+                });
+
+                return;
+            }
+
             resetBulkRows();
         },
         onFinish: () => {
-            allowUnsavedNewBulkVisit = false;
+            if (!refreshAfterSubmit) {
+                allowUnsavedNewBulkVisit = false;
+            }
         },
     });
 };
