@@ -8,6 +8,7 @@ use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
 use App\Models\Opd;
+use App\Models\PaguProgramRpjmd;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
@@ -308,6 +309,147 @@ class RpjmdAccessTest extends TestCase
             ->assertRedirect();
 
         $this->assertNull($existing->fresh()->target);
+    }
+
+    public function test_bapperida_can_bulk_save_program_indicator_target_with_baseline_and_prakiraan_maju(): void
+    {
+        $this->seed();
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $rpjmd = Rpjmd::create([
+            'judul' => 'RPJMD Target Program',
+            'tahun_awal' => 2025,
+            'tahun_akhir' => 2029,
+            'status' => 'draft',
+        ]);
+        $visi = RpjmdVisi::create(['rpjmd_id' => $rpjmd->id, 'visi' => 'Visi Target Program', 'urutan' => 1]);
+        $tujuan = TujuanDaerah::create(['rpjmd_visi_id' => $visi->id, 'tujuan' => 'Tujuan Target Program', 'urutan' => 1]);
+        $sasaran = SasaranDaerah::create(['tujuan_daerah_id' => $tujuan->id, 'sasaran' => 'Sasaran Target Program', 'urutan' => 1]);
+        $program = ProgramRpjmd::create([
+            'sasaran_daerah_id' => $sasaran->id,
+            'nama' => 'Program Target',
+            'status' => 'draft',
+            'urutan' => 1,
+        ]);
+        $indikator = IndikatorProgramRpjmd::create([
+            'program_rpjmd_id' => $program->id,
+            'indikator' => 'Indikator Target Program',
+            'urutan' => 1,
+        ]);
+        $periode2024 = PeriodeTahun::where('tahun', 2024)->firstOrFail();
+        $periode2025 = PeriodeTahun::where('tahun', 2025)->firstOrFail();
+        $periode2026 = PeriodeTahun::where('tahun', 2026)->firstOrFail();
+        $periode2030 = PeriodeTahun::where('tahun', 2030)->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.bulk-store', $rpjmd), [
+                'type' => 'target_program',
+                'parent_id' => $indikator->id,
+                'rows' => [
+                    ['periode_tahun_id' => $periode2025->id, 'target' => '100', 'urutan' => 1],
+                ],
+            ])
+            ->assertSessionHasErrors('periode_tahun_id');
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.bulk-store', $rpjmd), [
+                'type' => 'target_program',
+                'parent_id' => $indikator->id,
+                'rows' => [
+                    ['periode_tahun_id' => $periode2024->id, 'target' => '80', 'urutan' => 1],
+                    ['periode_tahun_id' => $periode2026->id, 'target' => '90', 'urutan' => 2],
+                    ['periode_tahun_id' => $periode2030->id, 'target' => '100', 'urutan' => 3],
+                ],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('target_indikator_program_rpjmd', [
+            'indikator_program_rpjmd_id' => $indikator->id,
+            'periode_tahun_id' => $periode2024->id,
+            'jenis_target' => 'baseline',
+            'target' => '80',
+        ]);
+        $this->assertDatabaseHas('target_indikator_program_rpjmd', [
+            'indikator_program_rpjmd_id' => $indikator->id,
+            'periode_tahun_id' => $periode2026->id,
+            'jenis_target' => 'tahunan',
+            'target' => '90',
+        ]);
+        $this->assertDatabaseHas('target_indikator_program_rpjmd', [
+            'indikator_program_rpjmd_id' => $indikator->id,
+            'periode_tahun_id' => $periode2030->id,
+            'jenis_target' => 'prakiraan_maju',
+            'target' => '100',
+        ]);
+        $this->assertDatabaseMissing('target_indikator_program_rpjmd', [
+            'indikator_program_rpjmd_id' => $indikator->id,
+            'periode_tahun_id' => $periode2025->id,
+        ]);
+    }
+
+    public function test_bapperida_can_bulk_save_program_pagu_from_second_year_until_prakiraan_maju(): void
+    {
+        $this->seed();
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bapperida')->value('id')]);
+
+        $rpjmd = Rpjmd::create([
+            'judul' => 'RPJMD Pagu Program',
+            'tahun_awal' => 2025,
+            'tahun_akhir' => 2029,
+            'status' => 'draft',
+        ]);
+        $visi = RpjmdVisi::create(['rpjmd_id' => $rpjmd->id, 'visi' => 'Visi Pagu Program', 'urutan' => 1]);
+        $tujuan = TujuanDaerah::create(['rpjmd_visi_id' => $visi->id, 'tujuan' => 'Tujuan Pagu Program', 'urutan' => 1]);
+        $sasaran = SasaranDaerah::create(['tujuan_daerah_id' => $tujuan->id, 'sasaran' => 'Sasaran Pagu Program', 'urutan' => 1]);
+        $program = ProgramRpjmd::create([
+            'sasaran_daerah_id' => $sasaran->id,
+            'nama' => 'Program Pagu',
+            'status' => 'draft',
+            'urutan' => 1,
+        ]);
+        $periode2025 = PeriodeTahun::where('tahun', 2025)->firstOrFail();
+        $periode2026 = PeriodeTahun::where('tahun', 2026)->firstOrFail();
+        $periode2030 = PeriodeTahun::where('tahun', 2030)->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.bulk-store', $rpjmd), [
+                'type' => 'pagu_program',
+                'parent_id' => $program->id,
+                'rows' => [
+                    ['periode_tahun_id' => $periode2025->id, 'pagu_anggaran' => '1000000', 'urutan' => 1],
+                ],
+            ])
+            ->assertSessionHasErrors('periode_tahun_id');
+
+        $this->actingAs($user)
+            ->post(route('rpjmd.nodes.bulk-store', $rpjmd), [
+                'type' => 'pagu_program',
+                'parent_id' => $program->id,
+                'rows' => [
+                    ['periode_tahun_id' => $periode2026->id, 'pagu_anggaran' => '1.250.000.000', 'urutan' => 1],
+                    ['periode_tahun_id' => $periode2030->id, 'pagu_anggaran' => '2000000000', 'urutan' => 2],
+                ],
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('pagu_program_rpjmd', [
+            'program_rpjmd_id' => $program->id,
+            'periode_tahun_id' => $periode2026->id,
+            'jenis_pagu' => 'tahunan',
+            'pagu_anggaran' => '1250000000.00',
+        ]);
+        $this->assertDatabaseHas('pagu_program_rpjmd', [
+            'program_rpjmd_id' => $program->id,
+            'periode_tahun_id' => $periode2030->id,
+            'jenis_pagu' => 'prakiraan_maju',
+            'pagu_anggaran' => '2000000000.00',
+        ]);
+        $this->assertSame('1250000000.00', PaguProgramRpjmd::firstWhere('periode_tahun_id', $periode2026->id)?->pagu_anggaran);
     }
 
     public function test_bapperida_can_link_one_tujuan_to_multiple_misi(): void

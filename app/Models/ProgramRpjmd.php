@@ -93,6 +93,11 @@ class ProgramRpjmd extends Model
         return $this->hasMany(IndikatorProgramRpjmd::class)->orderBy('urutan');
     }
 
+    public function pagu(): HasMany
+    {
+        return $this->hasMany(PaguProgramRpjmd::class, 'program_rpjmd_id')->orderBy('periode_tahun_id');
+    }
+
     public function opdPenanggungJawab(): BelongsToMany
     {
         return $this->belongsToMany(Opd::class, 'program_rpjmd_opd_penanggung_jawab')

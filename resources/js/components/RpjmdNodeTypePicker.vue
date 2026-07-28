@@ -31,6 +31,7 @@ const descriptions: Record<string, string> = {
     target_sasaran: 'Target tahunan sasaran',
     strategi: 'Cara mencapai sasaran',
     program: 'Program prioritas RPJMD',
+    pagu_program: 'Pagu anggaran program',
     indikator_program: 'Ukuran hasil program',
     target_program: 'Target tahunan program',
     program_opd: 'PD penanggung jawab program',
@@ -40,7 +41,7 @@ const groups = [
     { label: 'Arah RPJMD', values: ['visi', 'misi', 'tujuan'] },
     { label: 'Pengukuran Tujuan', values: ['indikator_tujuan', 'target_tujuan'] },
     { label: 'Sasaran & Strategi', values: ['sasaran', 'indikator_sasaran', 'target_sasaran', 'strategi'] },
-    { label: 'Program', values: ['program', 'indikator_program', 'target_program', 'program_opd'] },
+    { label: 'Program', values: ['program', 'pagu_program', 'indikator_program', 'target_program', 'program_opd'] },
 ];
 
 const selectedOption = computed(() => props.options.find((option) => option.value === props.modelValue) ?? props.options[0]);

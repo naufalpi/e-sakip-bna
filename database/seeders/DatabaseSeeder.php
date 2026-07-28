@@ -164,14 +164,14 @@ class DatabaseSeeder extends Seeder
             Role::where('name', 'super_admin')->value('id'),
         ]);
 
-        foreach (range(((int) date('Y')) - 1, ((int) date('Y')) + 4) as $year) {
+        foreach (range(((int) date('Y')) - 2, ((int) date('Y')) + 4) as $year) {
             PeriodeTahun::updateOrCreate(
                 ['tahun' => $year],
                 [
                     'nama' => "Tahun {$year}",
                     'tanggal_mulai' => "{$year}-01-01",
                     'tanggal_selesai' => "{$year}-12-31",
-                    'status' => $year === (int) date('Y') ? 'active' : 'draft',
+                    'status' => $year < (int) date('Y') ? 'archived' : ($year === (int) date('Y') ? 'active' : 'draft'),
                 ],
             );
         }

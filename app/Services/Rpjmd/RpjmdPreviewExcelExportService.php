@@ -28,12 +28,14 @@ class RpjmdPreviewExcelExportService
         $this->loadPreviewRelations($rpjmd);
 
         $years = $this->targetYears($rpjmd);
+        $programTargetYears = $this->programTargetYears($rpjmd);
+        $paguProgramYears = $this->paguProgramYears($rpjmd);
         $rows = $this->tableRows($rpjmd, $visibleOpdId);
         $filename = $this->filename($rpjmd);
 
         return [
             'filename' => $filename,
-            'content' => $this->buildWorkbook($rpjmd, $years, $rows),
+            'content' => $this->buildWorkbook($rpjmd, $years, $programTargetYears, $paguProgramYears, $rows),
         ];
     }
 
@@ -51,6 +53,7 @@ class RpjmdPreviewExcelExportService
             'visi.tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
             'visi.tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.programs.strategi:id,kode,strategi,status',
+            'visi.tujuan.sasaran.programs.pagu.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
             'visi.tujuan.sasaran.programs.indikator.opdPengampu' => fn ($query) => $query->select('opds.id', 'opds.kode', 'opds.nama', 'opds.singkatan'),
             'visi.tujuan.sasaran.programs.indikator.targets.periodeTahun:id,tahun,nama',
@@ -77,12 +80,64 @@ class RpjmdPreviewExcelExportService
                 $this->pushIndicatorTargetYears($years, $tujuan->indikator);
                 $tujuan->sasaran->each(function (SasaranDaerah $sasaran) use ($years): void {
                     $this->pushIndicatorTargetYears($years, $sasaran->indikator);
-                    $sasaran->programs->each(fn (ProgramRpjmd $program) => $this->pushIndicatorTargetYears($years, $program->indikator));
                 });
             });
         });
 
         return $years->unique()->sort()->values()->all();
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function programTargetYears(Rpjmd $rpjmd): array
+    {
+        $years = collect(array_merge(
+            [(int) $rpjmd->tahun_awal - 1],
+            range((int) $rpjmd->tahun_awal + 1, (int) $rpjmd->tahun_akhir + 1),
+        ));
+
+        $rpjmd->visi->each(function (RpjmdVisi $visi) use ($years): void {
+            $visi->tujuan->each(function (TujuanDaerah $tujuan) use ($years): void {
+                $tujuan->sasaran->each(function (SasaranDaerah $sasaran) use ($years): void {
+                    $sasaran->programs->each(fn (ProgramRpjmd $program) => $this->pushIndicatorTargetYears($years, $program->indikator));
+                });
+            });
+        });
+
+        return $years
+            ->map(fn ($year) => (int) $year)
+            ->filter(fn (int $year) => $year !== (int) $rpjmd->tahun_awal)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function paguProgramYears(Rpjmd $rpjmd): array
+    {
+        $years = collect(range((int) $rpjmd->tahun_awal + 1, (int) $rpjmd->tahun_akhir + 1));
+
+        $rpjmd->visi->each(function (RpjmdVisi $visi) use ($years): void {
+            $visi->tujuan->each(function (TujuanDaerah $tujuan) use ($years): void {
+                $tujuan->sasaran->each(function (SasaranDaerah $sasaran) use ($years): void {
+                    $sasaran->programs->each(function (ProgramRpjmd $program) use ($years): void {
+                        $program->pagu->each(fn ($pagu) => $years->push((int) $pagu->periodeTahun->tahun));
+                    });
+                });
+            });
+        });
+
+        return $years
+            ->map(fn ($year) => (int) $year)
+            ->filter(fn (int $year) => $year > (int) $rpjmd->tahun_awal)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 
     /**
@@ -223,6 +278,7 @@ class RpjmdPreviewExcelExportService
                         'base' => $index === 0 ? [
                             'strategi' => $program->strategi ? $this->nodeText($program->strategi->kode, $program->strategi->strategi) : '-',
                             'program' => $this->nodeText($program->kode, $program->nama),
+                            'pagu_program_by_year' => $this->paguByYear($program),
                         ] : [],
                     ]);
             })
@@ -303,6 +359,17 @@ class RpjmdPreviewExcelExportService
         return $item->targets
             ->sortBy(fn ($target) => $target->periodeTahun->tahun)
             ->mapWithKeys(fn ($target) => [(int) $target->periodeTahun->tahun => $this->targetValue($target)])
+            ->all();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function paguByYear(ProgramRpjmd $program): array
+    {
+        return $program->pagu
+            ->sortBy(fn ($pagu) => $pagu->periodeTahun->tahun)
+            ->mapWithKeys(fn ($pagu) => [(int) $pagu->periodeTahun->tahun => $this->formatCurrencyNumber($pagu->pagu_anggaran)])
             ->all();
     }
 
@@ -436,6 +503,17 @@ class RpjmdPreviewExcelExportService
         return rtrim(rtrim($formatted, '0'), ',');
     }
 
+    private function formatCurrencyNumber(mixed $value): string
+    {
+        if ($value === null || $value === '' || ! is_numeric($value)) {
+            return '';
+        }
+
+        $formatted = number_format((float) $value, 2, ',', '.');
+
+        return rtrim(rtrim($formatted, '0'), ',');
+    }
+
     private function valueText(mixed $value): string
     {
         return trim((string) ($value ?? ''));
@@ -501,6 +579,7 @@ class RpjmdPreviewExcelExportService
             'target_sasaran_by_year' => [],
             'strategi' => '-',
             'program' => '-',
+            'pagu_program_by_year' => [],
             'indikator_program' => '-',
             'satuan_program' => '-',
             'target_program_by_year' => [],
@@ -566,6 +645,10 @@ class RpjmdPreviewExcelExportService
                 $row['target_program_by_year'] = [];
             }
 
+            if (blank($row['program'] ?? null)) {
+                $row['pagu_program_by_year'] = [];
+            }
+
             return $row;
         }, $rows);
     }
@@ -589,7 +672,7 @@ class RpjmdPreviewExcelExportService
      * @param  array<int, int>  $years
      * @param  array<int, array<string, mixed>>  $rows
      */
-    private function buildWorkbook(Rpjmd $rpjmd, array $years, array $rows): string
+    private function buildWorkbook(Rpjmd $rpjmd, array $years, array $programTargetYears, array $paguProgramYears, array $rows): string
     {
         if (! class_exists(ZipArchive::class)) {
             throw new RuntimeException('Ekstensi PHP ZipArchive belum aktif, export .xlsx tidak bisa dibuat.');
@@ -609,7 +692,7 @@ class RpjmdPreviewExcelExportService
         $zip->addFromString('xl/workbook.xml', $this->workbookXml());
         $zip->addFromString('xl/_rels/workbook.xml.rels', $this->workbookRelationships());
         $zip->addFromString('xl/styles.xml', $this->stylesXml());
-        $zip->addFromString('xl/worksheets/sheet1.xml', $this->worksheetXml($rpjmd, $years, $rows));
+        $zip->addFromString('xl/worksheets/sheet1.xml', $this->worksheetXml($rpjmd, $years, $programTargetYears, $paguProgramYears, $rows));
         $zip->close();
 
         $content = file_get_contents($path);
@@ -626,34 +709,34 @@ class RpjmdPreviewExcelExportService
      * @param  array<int, int>  $years
      * @param  array<int, array<string, mixed>>  $rows
      */
-    private function worksheetXml(Rpjmd $rpjmd, array $years, array $rows): string
+    private function worksheetXml(Rpjmd $rpjmd, array $years, array $programTargetYears, array $paguProgramYears, array $rows): string
     {
-        $lastColumn = $this->columnName(13 + (count($years) * 3));
+        $lastColumn = $this->columnName(13 + (count($years) * 2) + count($programTargetYears) + count($paguProgramYears));
         $lastRow = max(count($rows) + 2, 3);
         $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
             .'<dimension ref="A1:'.$lastColumn.$lastRow.'"/>'
             .'<sheetViews><sheetView workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
-            .$this->columnsXml($years)
+            .$this->columnsXml($years, $programTargetYears, $paguProgramYears)
             .'<sheetData>'
-            .$this->headerRowsXml($rpjmd, $years);
+            .$this->headerRowsXml($rpjmd, $years, $programTargetYears, $paguProgramYears);
 
         foreach ($rows as $index => $row) {
             $excelRow = $index + 3;
-            $xml .= $this->dataRowXml($excelRow, $rpjmd, $years, $row);
+            $xml .= $this->dataRowXml($excelRow, $rpjmd, $years, $programTargetYears, $paguProgramYears, $row);
         }
 
         if ($rows === []) {
             $xml .= '<row r="3" ht="30" customHeight="1">'.$this->inlineCell('A3', 'Belum ada data cascading RPJMD.', 2).'</row>';
         }
 
-        return $xml.'</sheetData>'.$this->mergeCellsXml($years).'</worksheet>';
+        return $xml.'</sheetData>'.$this->mergeCellsXml($years, $programTargetYears, $paguProgramYears).'</worksheet>';
     }
 
     /**
      * @param  array<int, int>  $years
      */
-    private function headerRowsXml(Rpjmd $rpjmd, array $years): string
+    private function headerRowsXml(Rpjmd $rpjmd, array $years, array $programTargetYears, array $paguProgramYears): string
     {
         $rowOne = [];
         $rowTwo = [];
@@ -681,13 +764,24 @@ class RpjmdPreviewExcelExportService
             $column++;
         }
 
-        foreach (['Strategi', 'Program RPJMD', 'Indikator Program', 'Satuan'] as $label) {
+        foreach (['Strategi', 'Program RPJMD'] as $label) {
+            $rowOne[] = $this->inlineCell($this->columnName($column).'1', $label, 1);
+            $column++;
+        }
+
+        $rowOne[] = $this->inlineCell($this->columnName($column).'1', 'Pagu Anggaran', 1);
+        foreach ($paguProgramYears as $year) {
+            $rowTwo[] = $this->inlineCell($this->columnName($column).'2', $this->targetYearLabel($rpjmd, $year), 1);
+            $column++;
+        }
+
+        foreach (['Indikator Program', 'Satuan'] as $label) {
             $rowOne[] = $this->inlineCell($this->columnName($column).'1', $label, 1);
             $column++;
         }
 
         $rowOne[] = $this->inlineCell($this->columnName($column).'1', 'Target / Prakiraan Maju', 1);
-        foreach ($years as $year) {
+        foreach ($programTargetYears as $year) {
             $rowTwo[] = $this->inlineCell($this->columnName($column).'2', $this->targetYearLabel($rpjmd, $year), 1);
             $column++;
         }
@@ -705,7 +799,7 @@ class RpjmdPreviewExcelExportService
      * @param  array<int, int>  $years
      * @param  array<string, mixed>  $row
      */
-    private function dataRowXml(int $excelRow, Rpjmd $rpjmd, array $years, array $row): string
+    private function dataRowXml(int $excelRow, Rpjmd $rpjmd, array $years, array $programTargetYears, array $paguProgramYears, array $row): string
     {
         $cells = [];
         $column = 1;
@@ -726,9 +820,10 @@ class RpjmdPreviewExcelExportService
         $this->appendTargetCells($append, $rpjmd, $years, $row['target_sasaran_by_year'] ?? []);
         $append((string) ($row['strategi'] ?? ''));
         $append((string) ($row['program'] ?? ''), 4);
+        $this->appendTargetCells($append, $rpjmd, $paguProgramYears, $row['pagu_program_by_year'] ?? []);
         $append((string) ($row['indikator_program'] ?? ''));
         $append((string) ($row['satuan_program'] ?? ''), 3);
-        $this->appendTargetCells($append, $rpjmd, $years, $row['target_program_by_year'] ?? []);
+        $this->appendTargetCells($append, $rpjmd, $programTargetYears, $row['target_program_by_year'] ?? []);
         $append((string) ($row['opd_penanggung_jawab'] ?? ''));
 
         return '<row r="'.$excelRow.'" ht="54" customHeight="1">'.implode('', $cells).'</row>';
@@ -742,38 +837,49 @@ class RpjmdPreviewExcelExportService
     private function appendTargetCells(callable $append, Rpjmd $rpjmd, array $years, array $targets): void
     {
         foreach ($years as $year) {
-            $append((string) ($targets[$year] ?? ''), $this->isPrakiraanMajuYear($rpjmd, $year) ? 5 : 3);
+            $append((string) ($targets[$year] ?? ''), $this->yearCellStyle($rpjmd, $year));
         }
     }
 
     /**
      * @param  array<int, int>  $years
      */
-    private function mergeCellsXml(array $years): string
+    private function mergeCellsXml(array $years, array $programTargetYears, array $paguProgramYears): string
     {
         $merges = [];
         $column = 1;
+        $appendSpan = function (int $span) use (&$merges, &$column): void {
+            if ($span <= 0) {
+                return;
+            }
+
+            $merges[] = $this->columnName($column).'1:'.$this->columnName($column + $span - 1).'1';
+            $column += $span;
+        };
 
         for ($index = 0; $index < 5; $index++, $column++) {
             $merges[] = $this->columnName($column).'1:'.$this->columnName($column).'2';
         }
 
-        $merges[] = $this->columnName($column).'1:'.$this->columnName($column + count($years) - 1).'1';
-        $column += count($years);
+        $appendSpan(count($years));
 
         for ($index = 0; $index < 3; $index++, $column++) {
             $merges[] = $this->columnName($column).'1:'.$this->columnName($column).'2';
         }
 
-        $merges[] = $this->columnName($column).'1:'.$this->columnName($column + count($years) - 1).'1';
-        $column += count($years);
+        $appendSpan(count($years));
 
-        for ($index = 0; $index < 4; $index++, $column++) {
+        for ($index = 0; $index < 2; $index++, $column++) {
             $merges[] = $this->columnName($column).'1:'.$this->columnName($column).'2';
         }
 
-        $merges[] = $this->columnName($column).'1:'.$this->columnName($column + count($years) - 1).'1';
-        $column += count($years);
+        $appendSpan(count($paguProgramYears));
+
+        for ($index = 0; $index < 2; $index++, $column++) {
+            $merges[] = $this->columnName($column).'1:'.$this->columnName($column).'2';
+        }
+
+        $appendSpan(count($programTargetYears));
 
         for ($index = 0; $index < 1; $index++, $column++) {
             $merges[] = $this->columnName($column).'1:'.$this->columnName($column).'2';
@@ -785,10 +891,20 @@ class RpjmdPreviewExcelExportService
     /**
      * @param  array<int, int>  $years
      */
-    private function columnsXml(array $years): string
+    private function columnsXml(array $years, array $programTargetYears, array $paguProgramYears): string
     {
         $widths = [25, 26, 27, 27, 11];
-        $widths = array_merge($widths, array_fill(0, count($years), 12), [27, 30, 11], array_fill(0, count($years), 12), [26, 30, 30, 11], array_fill(0, count($years), 12), [30]);
+        $widths = array_merge(
+            $widths,
+            array_fill(0, count($years), 12),
+            [27, 30, 11],
+            array_fill(0, count($years), 12),
+            [26, 30],
+            array_fill(0, count($paguProgramYears), 15),
+            [30, 11],
+            array_fill(0, count($programTargetYears), 12),
+            [30],
+        );
         $columns = '';
 
         foreach ($widths as $index => $width) {
@@ -809,6 +925,10 @@ class RpjmdPreviewExcelExportService
      */
     private function targetYearLabel(Rpjmd $rpjmd, int $year): string
     {
+        if ($this->isBaselineYear($rpjmd, $year)) {
+            return "Baseline {$year}";
+        }
+
         return $this->isPrakiraanMajuYear($rpjmd, $year) ? "{$year} PM" : (string) $year;
     }
 
@@ -818,6 +938,20 @@ class RpjmdPreviewExcelExportService
     private function isPrakiraanMajuYear(Rpjmd $rpjmd, int $year): bool
     {
         return $year > (int) $rpjmd->tahun_akhir;
+    }
+
+    private function isBaselineYear(Rpjmd $rpjmd, int $year): bool
+    {
+        return $year < (int) $rpjmd->tahun_awal;
+    }
+
+    private function yearCellStyle(Rpjmd $rpjmd, int $year): int
+    {
+        if ($this->isBaselineYear($rpjmd, $year)) {
+            return 7;
+        }
+
+        return $this->isPrakiraanMajuYear($rpjmd, $year) ? 5 : 3;
     }
 
     private function workbookXml(): string

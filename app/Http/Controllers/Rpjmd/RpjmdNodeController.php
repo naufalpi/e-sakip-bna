@@ -8,6 +8,7 @@ use App\Http\Requests\Rpjmd\StoreRpjmdNodeRequest;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
+use App\Models\PaguProgramRpjmd;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
@@ -180,6 +181,13 @@ class RpjmdNodeController extends Controller
                 $this->syncProgramOpdPenanggungJawab($program, $data);
                 $this->pengampuResolver->syncForProgramIndicators($program);
             }),
+            'pagu_program' => PaguProgramRpjmd::updateOrCreate([
+                'program_rpjmd_id' => $this->program($rpjmd, $data['parent_id'] ?? null)->id,
+                'periode_tahun_id' => $this->requiredInt($data, 'periode_tahun_id', 'Periode pagu wajib dipilih.'),
+            ], [
+                'jenis_pagu' => $this->jenisPagu($rpjmd, (int) $data['periode_tahun_id']),
+                'pagu_anggaran' => $this->normalizeCurrency($data['pagu_anggaran'] ?? null),
+            ]),
             'indikator_program' => tap(IndikatorProgramRpjmd::create([
                 'program_rpjmd_id' => $this->program($rpjmd, $data['parent_id'] ?? null)->id,
                 ...$this->indicatorProgramPayload($data, 'Indikator program wajib diisi.'),
@@ -188,7 +196,7 @@ class RpjmdNodeController extends Controller
                 'indikator_program_rpjmd_id' => $this->indikatorProgram($rpjmd, $data['parent_id'] ?? null)->id,
                 'periode_tahun_id' => $this->requiredInt($data, 'periode_tahun_id', 'Periode target wajib dipilih.'),
             ], [
-                'jenis_target' => $this->jenisTarget($rpjmd, (int) $data['periode_tahun_id']),
+                'jenis_target' => $this->jenisTarget($rpjmd, (int) $data['periode_tahun_id'], 'target_program'),
                 'target' => $data['target'] ?? null,
                 'target_text' => $data['target_text'] ?? null,
             ]),
@@ -261,6 +269,7 @@ class RpjmdNodeController extends Controller
             'target_tujuan', 'target_sasaran', 'target_program' => filled($row['target'] ?? null)
                 || filled($row['target_text'] ?? null)
                 || filled($row['existing_target_id'] ?? null),
+            'pagu_program' => filled($row['pagu_anggaran'] ?? null) || filled($row['existing_pagu_id'] ?? null),
             'program_opd' => filled($row['opd_id'] ?? null),
             default => filled($row['uraian'] ?? null),
         };
@@ -363,6 +372,16 @@ class RpjmdNodeController extends Controller
                 $this->syncProgramOpdPenanggungJawab($program, $data);
                 $this->pengampuResolver->syncForProgramIndicators($program);
             }),
+            'pagu_program' => tap($this->findNode($rpjmd, $type, $id), function (PaguProgramRpjmd $pagu) use ($rpjmd, $data) {
+                $periodeTahunId = filled($data['periode_tahun_id'] ?? null) ? (int) $data['periode_tahun_id'] : $pagu->periode_tahun_id;
+
+                $pagu->update([
+                    'program_rpjmd_id' => filled($data['parent_id'] ?? null) ? $this->program($rpjmd, $data['parent_id'])->id : $pagu->program_rpjmd_id,
+                    'periode_tahun_id' => $periodeTahunId,
+                    'jenis_pagu' => $this->jenisPagu($rpjmd, $periodeTahunId),
+                    'pagu_anggaran' => $this->normalizeCurrency($data['pagu_anggaran'] ?? null),
+                ]);
+            }),
             'indikator_program' => tap($this->indikatorProgram($rpjmd, $id), function (IndikatorProgramRpjmd $indikator) use ($rpjmd, $data) {
                 $indikator->update([
                     'program_rpjmd_id' => filled($data['parent_id'] ?? null) ? $this->program($rpjmd, $data['parent_id'])->id : $indikator->program_rpjmd_id,
@@ -377,7 +396,7 @@ class RpjmdNodeController extends Controller
                 $target->update([
                     'indikator_program_rpjmd_id' => filled($data['parent_id'] ?? null) ? $this->indikatorProgram($rpjmd, $data['parent_id'])->id : $target->indikator_program_rpjmd_id,
                     'periode_tahun_id' => $periodeTahunId,
-                    'jenis_target' => $this->jenisTarget($rpjmd, $periodeTahunId),
+                    'jenis_target' => $this->jenisTarget($rpjmd, $periodeTahunId, 'target_program'),
                     'target' => $data['target'] ?? null,
                     'target_text' => $data['target_text'] ?? null,
                 ]);
@@ -574,11 +593,68 @@ class RpjmdNodeController extends Controller
         return (int) $data[$key];
     }
 
-    private function jenisTarget(Rpjmd $rpjmd, int $periodeTahunId): string
+    private function jenisTarget(Rpjmd $rpjmd, int $periodeTahunId, ?string $type = null): string
     {
         $tahun = PeriodeTahun::query()->whereKey($periodeTahunId)->value('tahun');
 
+        if ($type === 'target_program' && $tahun && (int) $tahun === (int) $rpjmd->tahun_awal) {
+            throw ValidationException::withMessages([
+                'periode_tahun_id' => 'Target indikator program menggunakan baseline tahun sebelumnya, lalu target mulai tahun kedua RPJMD.',
+            ]);
+        }
+
+        if ($type === 'target_program' && $tahun && (int) $tahun < (int) $rpjmd->tahun_awal) {
+            return 'baseline';
+        }
+
         return $tahun && (int) $tahun > (int) $rpjmd->tahun_akhir ? 'prakiraan_maju' : 'tahunan';
+    }
+
+    private function jenisPagu(Rpjmd $rpjmd, int $periodeTahunId): string
+    {
+        $tahun = PeriodeTahun::query()->whereKey($periodeTahunId)->value('tahun');
+
+        if ($tahun && (int) $tahun <= (int) $rpjmd->tahun_awal) {
+            throw ValidationException::withMessages([
+                'periode_tahun_id' => 'Pagu program RPJMD mulai diisi dari tahun kedua periode sampai prakiraan maju.',
+            ]);
+        }
+
+        return $tahun && (int) $tahun > (int) $rpjmd->tahun_akhir ? 'prakiraan_maju' : 'tahunan';
+    }
+
+    private function normalizeCurrency(mixed $value): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        if ($value === '') {
+            return null;
+        }
+
+        $value = preg_replace('/[^\d,.\-]/', '', $value) ?? '';
+
+        if ($value === '' || $value === '-' || $value === ',' || $value === '.') {
+            return null;
+        }
+
+        if (str_contains($value, ',') && str_contains($value, '.')) {
+            $value = str_replace('.', '', $value);
+            $value = str_replace(',', '.', $value);
+        } elseif (substr_count($value, ',') === 1 && ! str_contains($value, '.')) {
+            $value = str_replace(',', '.', $value);
+        } elseif (str_contains($value, '.')) {
+            $value = substr_count($value, '.') > 1 || preg_match('/^\d{1,3}(\.\d{3})+$/', $value)
+                ? str_replace('.', '', $value)
+                : $value;
+        } else {
+            $value = str_replace(',', '', $value);
+        }
+
+        if (! is_numeric($value)) {
+            throw ValidationException::withMessages(['pagu_anggaran' => 'Pagu anggaran harus berupa angka.']);
+        }
+
+        return number_format((float) $value, 2, '.', '');
     }
 
     private function visi(Rpjmd $rpjmd, mixed $id): RpjmdVisi
@@ -750,6 +826,7 @@ class RpjmdNodeController extends Controller
             'sasaran' => $this->sasaran($rpjmd, $id),
             'indikator_sasaran' => $this->indikatorSasaran($rpjmd, $id),
             'program' => $this->program($rpjmd, $id),
+            'pagu_program' => PaguProgramRpjmd::whereHas('program', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
             'indikator_program' => $this->indikatorProgram($rpjmd, $id),
             'target_tujuan' => TargetIndikatorTujuanDaerah::whereHas('indikator.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),
             'target_sasaran' => TargetIndikatorSasaranDaerah::whereHas('indikator.sasaran.tujuan', fn ($query) => $query->forRpjmd($rpjmd->id))->findOrFail($id),

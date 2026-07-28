@@ -139,6 +139,7 @@ class RpjmdController extends Controller
             'visi.tujuan.sasaran.programs.programPemerintahanReferences.bidangUrusan.urusanPemerintahan:id,kode,nama',
             'visi.tujuan.sasaran.programs.programPemerintahanReferences.bidangUrusan.opdPengampu' => fn ($query) => $query->select('opds.id', 'opds.kode', 'opds.nama', 'opds.singkatan'),
             'visi.tujuan.sasaran.programs.urusanPemerintahan:id,kode,nama',
+            'visi.tujuan.sasaran.programs.pagu.periodeTahun:id,tahun,nama',
             'visi.tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
             'visi.tujuan.sasaran.programs.indikator.opd:id,kode,nama,singkatan',
             'visi.tujuan.sasaran.programs.indikator.opdPengampu' => fn ($query) => $query->select('opds.id', 'opds.kode', 'opds.nama', 'opds.singkatan'),
@@ -157,6 +158,8 @@ class RpjmdController extends Controller
             'targetTriwulanOptions' => $manage ? $this->targetTriwulanOptions($nodeOptions) : [],
             'periodeOptions' => $manage ? $this->periodeOptions() : [],
             'targetPeriodOptions' => $this->targetPeriodOptions($rpjmd),
+            'programTargetPeriodOptions' => $this->programTargetPeriodOptions($rpjmd),
+            'paguProgramPeriodOptions' => $this->paguProgramPeriodOptions($rpjmd),
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
             'opdOptions' => $manage ? $this->opdOptions() : [],
             'urusanOptions' => $manage ? $this->urusanOptions() : [],
@@ -242,22 +245,72 @@ class RpjmdController extends Controller
      */
     private function targetPeriodOptions(Rpjmd $rpjmd): array
     {
+        return $this->periodOptionsForYears(
+            $rpjmd,
+            range((int) $rpjmd->tahun_awal, (int) $rpjmd->tahun_akhir + 1),
+        );
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function programTargetPeriodOptions(Rpjmd $rpjmd): array
+    {
+        return $this->periodOptionsForYears(
+            $rpjmd,
+            array_merge(
+                [(int) $rpjmd->tahun_awal - 1],
+                range((int) $rpjmd->tahun_awal + 1, (int) $rpjmd->tahun_akhir + 1),
+            ),
+            true,
+        );
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function paguProgramPeriodOptions(Rpjmd $rpjmd): array
+    {
+        return $this->periodOptionsForYears(
+            $rpjmd,
+            range((int) $rpjmd->tahun_awal + 1, (int) $rpjmd->tahun_akhir + 1),
+        );
+    }
+
+    /**
+     * @param  array<int, int>  $years
+     * @return array<int, array<string, mixed>>
+     */
+    private function periodOptionsForYears(Rpjmd $rpjmd, array $years, bool $includeBaseline = false): array
+    {
+        $years = collect($years)
+            ->map(fn ($year) => (int) $year)
+            ->unique()
+            ->sort()
+            ->values();
+
         return PeriodeTahun::query()
-            ->whereBetween('tahun', [$rpjmd->tahun_awal, $rpjmd->tahun_akhir + 1])
+            ->whereIn('tahun', $years)
             ->orderBy('tahun')
             ->get(['id', 'tahun', 'nama', 'status'])
-            ->map(fn (PeriodeTahun $periode) => [
-                'id' => $periode->id,
-                'tahun' => $periode->tahun,
-                'label' => $periode->tahun > $rpjmd->tahun_akhir
-                    ? "{$periode->tahun} - Prakiraan Maju"
-                    : "{$periode->tahun} - {$periode->nama}",
-                'description' => $periode->tahun > $rpjmd->tahun_akhir
-                    ? 'Tahun transisi setelah periode RPJMD'
-                    : 'Target tahunan RPJMD',
-                'group' => $periode->tahun > $rpjmd->tahun_akhir ? 'Prakiraan Maju' : 'Target RPJMD',
-                'jenis_target' => $periode->tahun > $rpjmd->tahun_akhir ? 'prakiraan_maju' : 'tahunan',
-            ])
+            ->map(function (PeriodeTahun $periode) use ($rpjmd, $includeBaseline) {
+                $isBaseline = $includeBaseline && $periode->tahun < $rpjmd->tahun_awal;
+                $isPrakiraanMaju = $periode->tahun > $rpjmd->tahun_akhir;
+
+                return [
+                    'id' => $periode->id,
+                    'tahun' => $periode->tahun,
+                    'label' => $isBaseline
+                        ? "Baseline {$periode->tahun}"
+                        : ($isPrakiraanMaju ? "{$periode->tahun} - Prakiraan Maju" : "{$periode->tahun} - {$periode->nama}"),
+                    'description' => $isBaseline
+                        ? 'Nilai dasar sebelum periode RPJMD'
+                        : ($isPrakiraanMaju ? 'Tahun transisi setelah periode RPJMD' : 'Target tahunan RPJMD'),
+                    'group' => $isBaseline ? 'Baseline' : ($isPrakiraanMaju ? 'Prakiraan Maju' : 'Target RPJMD'),
+                    'jenis_target' => $isBaseline ? 'baseline' : ($isPrakiraanMaju ? 'prakiraan_maju' : 'tahunan'),
+                    'jenis_pagu' => $isPrakiraanMaju ? 'prakiraan_maju' : 'tahunan',
+                ];
+            })
             ->all();
     }
 
@@ -797,6 +850,16 @@ class RpjmdController extends Controller
                 'peran' => $opd->pivot->peran,
                 'is_utama' => (bool) $opd->pivot->is_utama,
             ]),
+            'pagu' => $program->pagu->map(fn ($pagu) => [
+                'id' => $pagu->id,
+                'periode_tahun' => [
+                    'id' => $pagu->periodeTahun->id,
+                    'tahun' => $pagu->periodeTahun->tahun,
+                    'nama' => $pagu->periodeTahun->nama,
+                ],
+                'jenis_pagu' => $pagu->jenis_pagu,
+                'pagu_anggaran' => $pagu->pagu_anggaran,
+            ])->values(),
             'indikator' => $program->indikator->map(fn (IndikatorProgramRpjmd $indikator) => $this->serializeIndikator($indikator)),
         ];
     }

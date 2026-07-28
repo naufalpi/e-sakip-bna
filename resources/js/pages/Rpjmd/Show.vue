@@ -23,7 +23,8 @@ type Option = {
     pengampu_label?: string | null;
     bidang_labels?: string[];
     tahun?: number;
-    jenis_target?: 'tahunan' | 'prakiraan_maju';
+    jenis_target?: 'baseline' | 'tahunan' | 'prakiraan_maju';
+    jenis_pagu?: 'tahunan' | 'prakiraan_maju';
 };
 type RichSelectOption = {
     id?: number | string;
@@ -43,6 +44,7 @@ type NodeType =
     | 'indikator_sasaran'
     | 'target_sasaran'
     | 'program'
+    | 'pagu_program'
     | 'indikator_program'
     | 'target_program'
     | 'program_opd';
@@ -50,9 +52,16 @@ type NodeType =
 type Target = {
     id: number;
     periode_tahun: { id: number; tahun: number; nama: string };
-    jenis_target?: 'tahunan' | 'prakiraan_maju' | string | null;
+    jenis_target?: 'baseline' | 'tahunan' | 'prakiraan_maju' | string | null;
     target?: string | number | null;
     target_text?: string | null;
+};
+
+type PaguProgram = {
+    id: number;
+    periode_tahun: { id: number; tahun: number; nama: string };
+    jenis_pagu?: 'tahunan' | 'prakiraan_maju' | string | null;
+    pagu_anggaran?: string | number | null;
 };
 
 type TargetTriwulan = {
@@ -104,6 +113,7 @@ type Program = {
     urusan_pemerintahan?: { kode: string; nama: string } | null;
     is_penanggung_jawab_manual?: boolean;
     opd_penanggung_jawab: Array<{ pivot_id: number; id: number; nama: string; singkatan?: string | null; peran: string; is_utama: boolean }>;
+    pagu: PaguProgram[];
     indikator: Indikator[];
 };
 
@@ -171,6 +181,7 @@ type RpjmdCascadingRow = {
     target_sasaran_by_year: Record<number, string>;
     strategi: string;
     program: string;
+    pagu_program_by_year: Record<number, string>;
     indikator_program: string;
     satuan_program: string;
     target_program_by_year: Record<number, string>;
@@ -186,6 +197,7 @@ type IndicatorPreviewRow = {
 type BulkRow = {
     client_id: string;
     existing_target_id?: number | null;
+    existing_pagu_id?: number | null;
     parent_id: number | string;
     misi_ids: Array<number | string>;
     indikator_tujuan_ids: Array<number | string>;
@@ -207,6 +219,7 @@ type BulkRow = {
     sumber_data: string;
     target: string;
     target_text: string;
+    pagu_anggaran: string;
     peran: string;
     is_utama: boolean;
     urutan: number | string;
@@ -238,6 +251,7 @@ type BulkExistingRow = {
     program_pemerintahan?: string | null;
     target?: string | number | null;
     target_text?: string | null;
+    pagu_anggaran?: string | number | null;
     opd?: string | null;
     opd_id?: number | null;
     opd_ids?: number[];
@@ -259,6 +273,8 @@ const props = defineProps<{
     targetTriwulanOptions: Record<string, Option[]>;
     periodeOptions: Option[];
     targetPeriodOptions: Option[];
+    programTargetPeriodOptions: Option[];
+    paguProgramPeriodOptions: Option[];
     satuanOptions: Option[];
     opdOptions: Option[];
     urusanOptions: Option[];
@@ -281,6 +297,7 @@ const typeOptions: Array<{ value: NodeType; label: string }> = [
     { value: 'indikator_sasaran', label: 'Indikator Sasaran' },
     { value: 'target_sasaran', label: 'Target Indikator Sasaran' },
     { value: 'program', label: 'Program RPJMD' },
+    { value: 'pagu_program', label: 'Pagu Program RPJMD' },
     { value: 'indikator_program', label: 'Indikator Program' },
     { value: 'target_program', label: 'Target Indikator Program' },
 ];
@@ -295,6 +312,7 @@ const nodeTypeLabels: Record<NodeType, string> = {
     indikator_sasaran: 'Indikator Sasaran',
     target_sasaran: 'Target Indikator Sasaran',
     program: 'Program RPJMD',
+    pagu_program: 'Pagu Program RPJMD',
     indikator_program: 'Indikator Program',
     target_program: 'Target Indikator Program',
     program_opd: 'OPD Penanggung Jawab Program',
@@ -348,6 +366,11 @@ const typeMeta: Record<NodeType, { description: string; placeholder: string; hel
         placeholder: 'Contoh: Program Penunjang Urusan Pemerintahan Daerah Kabupaten/Kota',
         helper: 'Lengkapi urusan pemerintahan agar program mudah disinkronkan ke perangkat daerah.',
     },
+    pagu_program: {
+        description: 'Pagu anggaran tahunan untuk program RPJMD.',
+        placeholder: 'Contoh: 250.000.000',
+        helper: 'Isi pagu per tahun untuk program yang sudah dipilih.',
+    },
     indikator_program: {
         description: 'Indikator program mengukur hasil program RPJMD.',
         placeholder: 'Contoh: Persentase perangkat daerah dengan nilai SAKIP minimal BB',
@@ -374,6 +397,7 @@ const parentKeyByType: Partial<Record<NodeType, string>> = {
     indikator_sasaran: 'sasaran',
     target_sasaran: 'indikator_sasaran',
     program: 'sasaran',
+    pagu_program: 'program',
     indikator_program: 'program',
     target_program: 'indikator_program',
     program_opd: 'program',
@@ -413,6 +437,7 @@ const form = useForm({
     sumber_data: '',
     target: '',
     target_text: '',
+    pagu_anggaran: '',
     peran: 'penanggung_jawab',
     is_utama: true,
     urutan: 1,
@@ -423,6 +448,7 @@ const makeBulkRowClientId = () => `bulk-row-${Date.now()}-${bulkRowClientCounter
 const emptyBulkRow = (index = 0): BulkRow => ({
     client_id: makeBulkRowClientId(),
     existing_target_id: null,
+    existing_pagu_id: null,
     parent_id: '',
     misi_ids: [],
     indikator_tujuan_ids: [],
@@ -444,6 +470,7 @@ const emptyBulkRow = (index = 0): BulkRow => ({
     sumber_data: '',
     target: '',
     target_text: '',
+    pagu_anggaran: '',
     peran: 'penanggung_jawab',
     is_utama: true,
     urutan: index + 1,
@@ -474,9 +501,11 @@ const newBulkKey = (row: BulkRow) => row.client_id;
 const newBulkSnapshot = (row: BulkRow) =>
     JSON.stringify({
         existing_target_id: row.existing_target_id ?? null,
+        existing_pagu_id: row.existing_pagu_id ?? null,
         parent_id: valueText(row.parent_id),
         periode_tahun_id: valueText(row.periode_tahun_id),
         target: valueText(row.target),
+        pagu_anggaran: valueText(row.pagu_anggaran),
     });
 const clearNewBulkRowState = (row: BulkRow) => {
     const key = newBulkKey(row);
@@ -530,6 +559,7 @@ const canSubmitNode = computed(
 const isIndicatorType = computed(() => ['indikator_tujuan', 'indikator_sasaran', 'indikator_program'].includes(form.type));
 const isProgramIndicatorType = computed(() => form.type === 'indikator_program');
 const isTargetType = computed(() => ['target_tujuan', 'target_sasaran', 'target_program'].includes(form.type));
+const isPaguProgramType = computed(() => form.type === 'pagu_program');
 const isTextNodeType = computed(() => ['visi', 'misi', 'tujuan', 'sasaran', 'program'].includes(form.type));
 const isProgramType = computed(() => form.type === 'program');
 const isProgramOpdType = computed(() => form.type === 'program_opd');
@@ -803,6 +833,7 @@ const bulkHasAdditionalSettings = computed(
 const bulkIsIndicatorType = computed(() => ['indikator_tujuan', 'indikator_sasaran', 'indikator_program'].includes(bulkForm.type));
 const bulkIsProgramIndicatorType = computed(() => bulkForm.type === 'indikator_program');
 const bulkIsTargetType = computed(() => ['target_tujuan', 'target_sasaran', 'target_program'].includes(bulkForm.type));
+const bulkIsPaguProgramType = computed(() => bulkForm.type === 'pagu_program');
 const bulkIsTextNodeType = computed(() => ['visi', 'misi', 'tujuan', 'sasaran', 'program'].includes(bulkForm.type));
 const bulkIsProgramType = computed(() => bulkForm.type === 'program');
 const bulkIsProgramOpdType = computed(() => bulkForm.type === 'program_opd');
@@ -815,6 +846,10 @@ const bulkFilledRows = computed(
 
             if (bulkIsTargetType.value) {
                 return Boolean(row.existing_target_id) || trimText(valueText(row.target)).length > 0;
+            }
+
+            if (bulkIsPaguProgramType.value) {
+                return Boolean(row.existing_pagu_id) || trimText(valueText(row.pagu_anggaran)).length > 0;
             }
 
             if (bulkIsProgramType.value) {
@@ -839,10 +874,12 @@ const bulkCanSubmit = computed(
 const bulkTableCounterLabel = computed(() =>
     bulkIsTargetType.value
         ? `${targetPeriodOptionsForInput.value.length} tahun target`
+        : bulkIsPaguProgramType.value
+          ? `${paguProgramPeriodOptionsForInput.value.length} tahun pagu`
         : `${bulkVisibleExistingRows.value.length} tersimpan - ${bulkFilledRows.value} baru`,
 );
 const bulkColumnCount = computed(() => {
-    let count = bulkIsTargetType.value ? 1 : 2; // No + aksi bila bukan target
+    let count = bulkIsTargetType.value || bulkIsPaguProgramType.value ? 1 : 2; // No + aksi bila bukan target/pagu
 
     if (bulkIsTextNodeType.value) {
         count += 1;
@@ -858,6 +895,10 @@ const bulkColumnCount = computed(() => {
 
     if (bulkIsTargetType.value) {
         count += 2; // Periode + target
+    }
+
+    if (bulkIsPaguProgramType.value) {
+        count += 2; // Periode + pagu
     }
 
     if (bulkIsProgramOpdType.value) {
@@ -909,11 +950,30 @@ const targetCountByType = computed<Record<'target_tujuan' | 'target_sasaran' | '
 
     props.rpjmd.visi.forEach((visi) => {
         visi.tujuan.forEach((tujuan) => {
-            tujuan.indikator.forEach((indikator) => counts.target_tujuan.set(indikator.id, indikator.targets.length));
+            const tujuanPeriodIds = new Set(targetPeriodOptionsForType('target_tujuan').map((periode) => Number(periode.id)));
+            const sasaranPeriodIds = new Set(targetPeriodOptionsForType('target_sasaran').map((periode) => Number(periode.id)));
+            const programPeriodIds = new Set(targetPeriodOptionsForType('target_program').map((periode) => Number(periode.id)));
+
+            tujuan.indikator.forEach((indikator) =>
+                counts.target_tujuan.set(
+                    indikator.id,
+                    indikator.targets.filter((target) => tujuanPeriodIds.has(Number(target.periode_tahun.id))).length,
+                ),
+            );
             tujuan.sasaran.forEach((sasaran) => {
-                sasaran.indikator.forEach((indikator) => counts.target_sasaran.set(indikator.id, indikator.targets.length));
+                sasaran.indikator.forEach((indikator) =>
+                    counts.target_sasaran.set(
+                        indikator.id,
+                        indikator.targets.filter((target) => sasaranPeriodIds.has(Number(target.periode_tahun.id))).length,
+                    ),
+                );
                 sasaran.programs.forEach((program) => {
-                    program.indikator.forEach((indikator) => counts.target_program.set(indikator.id, indikator.targets.length));
+                    program.indikator.forEach((indikator) =>
+                        counts.target_program.set(
+                            indikator.id,
+                            indikator.targets.filter((target) => programPeriodIds.has(Number(target.periode_tahun.id))).length,
+                        ),
+                    );
                 });
             });
         });
@@ -952,10 +1012,32 @@ const targetTypeLabels: Record<'target_tujuan' | 'target_sasaran' | 'target_prog
 
 const isAnnualTargetType = (type: NodeType): type is 'target_tujuan' | 'target_sasaran' | 'target_program' =>
     ['target_tujuan', 'target_sasaran', 'target_program'].includes(type);
-const targetPeriodOptionsForInput = computed(() => (props.targetPeriodOptions.length > 0 ? props.targetPeriodOptions : props.periodeOptions));
+const standardTargetPeriodOptions = computed(() => (props.targetPeriodOptions.length > 0 ? props.targetPeriodOptions : props.periodeOptions));
+const programTargetPeriodOptionsForInput = computed(() =>
+    props.programTargetPeriodOptions.length > 0
+        ? props.programTargetPeriodOptions
+        : standardTargetPeriodOptions.value.filter((periode) => periode.tahun !== props.rpjmd.tahun_awal),
+);
+const paguProgramPeriodOptionsForInput = computed(() =>
+    props.paguProgramPeriodOptions.length > 0
+        ? props.paguProgramPeriodOptions
+        : standardTargetPeriodOptions.value.filter((periode) => typeof periode.tahun === 'number' && periode.tahun > props.rpjmd.tahun_awal),
+);
+const targetPeriodOptionsForType = (type: NodeType) =>
+    type === 'target_program' ? programTargetPeriodOptionsForInput.value : standardTargetPeriodOptions.value;
+const targetPeriodOptionsForInput = computed(() => targetPeriodOptionsForType(bulkForm.type));
+const formTargetPeriodOptions = computed(() => targetPeriodOptionsForType(form.type));
+const allPeriodOptionsForLookup = computed(() => [
+    ...props.periodeOptions,
+    ...standardTargetPeriodOptions.value,
+    ...programTargetPeriodOptionsForInput.value,
+    ...paguProgramPeriodOptionsForInput.value,
+]);
+const isBaselineYear = (year: number) => year < props.rpjmd.tahun_awal;
 const isPrakiraanMajuYear = (year: number) => year > props.rpjmd.tahun_akhir;
-const targetYearLabel = (year: number) => (isPrakiraanMajuYear(year) ? `${year} PM` : String(year));
-const targetYearTitle = (year: number) => (isPrakiraanMajuYear(year) ? `${year} - Prakiraan Maju` : `${year} - Target RPJMD`);
+const targetYearLabel = (year: number) => (isBaselineYear(year) ? `Baseline ${year}` : isPrakiraanMajuYear(year) ? `${year} PM` : String(year));
+const targetYearTitle = (year: number) =>
+    isBaselineYear(year) ? `${year} - Baseline` : isPrakiraanMajuYear(year) ? `${year} - Prakiraan Maju` : `${year} - Target RPJMD`;
 
 const completeDataNodeTypes = new Set<NodeType>([
     'target_tujuan',
@@ -973,7 +1055,7 @@ const decorateParentOptions = (type: NodeType, options: Option[]): RichSelectOpt
         return asRichOptions(options);
     }
 
-    const totalPeriods = targetPeriodOptionsForInput.value.length;
+    const totalPeriods = targetPeriodOptionsForType(type).length;
 
     return options.map((option) => {
         const filledTargets = targetCountByType.value[type].get(Number(option.id)) ?? 0;
@@ -992,7 +1074,7 @@ const decorateParentOptions = (type: NodeType, options: Option[]): RichSelectOpt
 const decoratedParentOptions = computed(() => decorateParentOptions(form.type, parentOptions.value));
 const decoratedBulkParentOptions = computed(() => decorateParentOptions(bulkForm.type, bulkParentOptions.value));
 const decoratedTargetTriwulanOptions = computed<RichSelectOption[]>(() => {
-    const totalTargets = targetPeriodOptionsForInput.value.length * 4;
+    const totalTargets = standardTargetPeriodOptions.value.length * 4;
     const counts = targetTriwulanCountByTable.value[targetTriwulanForm.related_table] ?? new Map<number, number>();
 
     return selectedTargetTriwulanOptions.value.map((option) => {
@@ -1098,16 +1180,21 @@ const bulkShouldRequireSasaranIndikatorTujuan = computed(
 
 const selectedBulkParentId = computed(() => toSelectedNumber(bulkForm.parent_id));
 const periodeLabelById = computed(
-    () => new Map([...props.periodeOptions, ...targetPeriodOptionsForInput.value].map((option) => [Number(option.id), option.label])),
+    () => new Map(allPeriodOptionsForLookup.value.map((option) => [Number(option.id), option.label])),
 );
 const periodeYearById = computed(
-    () => new Map([...props.periodeOptions, ...targetPeriodOptionsForInput.value].map((option) => [Number(option.id), option.tahun ?? null])),
+    () => new Map(allPeriodOptionsForLookup.value.map((option) => [Number(option.id), option.tahun ?? null])),
 );
 const bulkPeriodLabel = (periodeId: number | string | null | undefined) => periodeLabelById.value.get(Number(periodeId)) ?? '-';
 const isPrakiraanMajuPeriod = (periodeId: number | string | null | undefined) => {
     const year = periodeYearById.value.get(Number(periodeId));
 
     return typeof year === 'number' && isPrakiraanMajuYear(year);
+};
+const isBaselinePeriod = (periodeId: number | string | null | undefined) => {
+    const year = periodeYearById.value.get(Number(periodeId));
+
+    return typeof year === 'number' && isBaselineYear(year);
 };
 const bulkExistingRows = computed<BulkExistingRow[]>(() => {
     const rows: BulkExistingRow[] = [];
@@ -1152,6 +1239,18 @@ const bulkExistingRows = computed<BulkExistingRow[]>(() => {
             target_text: target.target_text,
             periode: target.periode_tahun?.tahun,
             periode_tahun_id: target.periode_tahun?.id ?? null,
+        });
+    };
+
+    const pushPagu = (pagu: PaguProgram, parentId: number, parentLabel: string) => {
+        rows.push({
+            id: pagu.id,
+            type: 'pagu_program',
+            parent_id: parentId,
+            parent_label: parentLabel,
+            pagu_anggaran: pagu.pagu_anggaran,
+            periode: pagu.periode_tahun?.tahun,
+            periode_tahun_id: pagu.periode_tahun?.id ?? null,
         });
     };
 
@@ -1267,6 +1366,10 @@ const bulkExistingRows = computed<BulkExistingRow[]>(() => {
                         );
                     }
 
+                    if (bulkForm.type === 'pagu_program') {
+                        program.pagu.forEach((pagu) => pushPagu(pagu, program.id, nodeText(program.kode, program.nama)));
+                    }
+
                     if (bulkForm.type === 'target_program') {
                         program.indikator.forEach((indikator) =>
                             indikator.targets.forEach((target) =>
@@ -1297,7 +1400,7 @@ const bulkExistingRows = computed<BulkExistingRow[]>(() => {
     return rows;
 });
 const bulkVisibleExistingRows = computed(() => {
-    if (bulkIsTargetType.value) {
+    if (bulkIsTargetType.value || bulkIsPaguProgramType.value) {
         return [];
     }
 
@@ -1330,11 +1433,76 @@ const formatTargetNumber = (value?: string | number | null) => {
     }).format(numeric);
 };
 const targetValue = (target: Target) => formatTargetNumber(target.target) || valueText(target.target) || valueText(target.target_text);
+const formatCurrencyNumber = (value?: string | number | null) => {
+    if (value === null || value === undefined || value === '') {
+        return '';
+    }
+
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric)) {
+        return valueText(value);
+    }
+
+    return new Intl.NumberFormat('id-ID', {
+        maximumFractionDigits: 2,
+    }).format(numeric);
+};
+const formatCurrencyInputValue = (value?: string | number | null) => {
+    const raw = valueText(value).trim();
+
+    if (!raw) {
+        return '';
+    }
+
+    const sign = raw.startsWith('-') ? '-' : '';
+    const sanitized = raw.replace(/[^\d,.]/g, '');
+    let integerPart = '';
+    let decimalPart = '';
+
+    if (sanitized.includes(',')) {
+        const [integer = '', ...decimal] = sanitized.split(',');
+        integerPart = integer.replace(/\D/g, '');
+        decimalPart = decimal.join('').replace(/\D/g, '').slice(0, 2);
+    } else if (sanitized.includes('.')) {
+        const parts = sanitized.split('.');
+        const lastPart = parts[parts.length - 1] ?? '';
+        const isDecimalDot = parts.length === 2 && lastPart.length > 0 && lastPart.length <= 2;
+
+        if (isDecimalDot) {
+            integerPart = (parts[0] ?? '').replace(/\D/g, '');
+            decimalPart = lastPart.replace(/\D/g, '').slice(0, 2);
+        } else {
+            integerPart = sanitized.replace(/\D/g, '');
+        }
+    } else {
+        integerPart = sanitized.replace(/\D/g, '');
+    }
+
+    if (!integerPart && !decimalPart) {
+        return '';
+    }
+
+    const normalizedInteger = integerPart.replace(/^0+(?=\d)/, '') || '0';
+    const formattedInteger = normalizedInteger.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    const decimalSuffix = decimalPart && !/^0+$/.test(decimalPart) ? `,${decimalPart}` : '';
+
+    return `${sign}${formattedInteger}${decimalSuffix}`;
+};
 const targetByYear = (item: Indikator) => {
     const byYear: Record<number, string> = {};
 
     item.targets.forEach((target) => {
         byYear[target.periode_tahun.tahun] = targetValue(target);
+    });
+
+    return byYear;
+};
+const paguByYear = (program: Program) => {
+    const byYear: Record<number, string> = {};
+
+    program.pagu.forEach((pagu) => {
+        byYear[pagu.periode_tahun.tahun] = formatCurrencyNumber(pagu.pagu_anggaran);
     });
 
     return byYear;
@@ -1359,23 +1527,6 @@ const relatedTujuanIndicators = (tujuan: Tujuan, sasaran: Sasaran) => {
     return tujuan.indikator.filter((indikator) => ids.has(indikator.id));
 };
 
-const allIndicators = computed(() => {
-    const indicators: Indikator[] = [];
-
-    props.rpjmd.visi.forEach((visi) => {
-        visi.tujuan.forEach((tujuan) => {
-            indicators.push(...tujuan.indikator);
-            tujuan.sasaran.forEach((sasaran) => {
-                indicators.push(...sasaran.indikator);
-                sasaran.programs.forEach((program) => {
-                    indicators.push(...program.indikator);
-                });
-            });
-        });
-    });
-
-    return indicators;
-});
 const rpjmdTargetYears = computed(() => {
     const years = new Set<number>();
 
@@ -1383,20 +1534,85 @@ const rpjmdTargetYears = computed(() => {
         years.add(year);
     }
 
-    targetPeriodOptionsForInput.value.forEach((periode) => {
+    standardTargetPeriodOptions.value.forEach((periode) => {
         if (periode.tahun) {
             years.add(periode.tahun);
         }
     });
 
-    allIndicators.value.forEach((indicator) => {
-        indicator.targets.forEach((target) => years.add(target.periode_tahun.tahun));
+    props.rpjmd.visi.forEach((visi) => {
+        visi.tujuan.forEach((tujuan) => {
+            tujuan.indikator.forEach((indicator) => {
+                indicator.targets.forEach((target) => years.add(target.periode_tahun.tahun));
+            });
+            tujuan.sasaran.forEach((sasaran) => {
+                sasaran.indikator.forEach((indicator) => {
+                    indicator.targets.forEach((target) => years.add(target.periode_tahun.tahun));
+                });
+            });
+        });
     });
 
     return [...years].sort((a, b) => a - b);
 });
-const rpjmdPreviewColspan = computed(() => 13 + rpjmdTargetYears.value.length * 3);
-const rpjmdPreviewMinWidth = computed(() => `${2080 + rpjmdTargetYears.value.length * 210}px`);
+const rpjmdProgramTargetYears = computed(() => {
+    const years = new Set<number>();
+
+    programTargetPeriodOptionsForInput.value.forEach((periode) => {
+        if (periode.tahun && periode.tahun !== props.rpjmd.tahun_awal) {
+            years.add(periode.tahun);
+        }
+    });
+
+    props.rpjmd.visi.forEach((visi) => {
+        visi.tujuan.forEach((tujuan) => {
+            tujuan.sasaran.forEach((sasaran) => {
+                sasaran.programs.forEach((program) => {
+                    program.indikator.forEach((indicator) => {
+                        indicator.targets.forEach((target) => {
+                            if (target.periode_tahun.tahun !== props.rpjmd.tahun_awal) {
+                                years.add(target.periode_tahun.tahun);
+                            }
+                        });
+                    });
+                });
+            });
+        });
+    });
+
+    return [...years].sort((a, b) => a - b);
+});
+const rpjmdPaguProgramYears = computed(() => {
+    const years = new Set<number>();
+
+    paguProgramPeriodOptionsForInput.value.forEach((periode) => {
+        if (periode.tahun && periode.tahun > props.rpjmd.tahun_awal) {
+            years.add(periode.tahun);
+        }
+    });
+
+    props.rpjmd.visi.forEach((visi) => {
+        visi.tujuan.forEach((tujuan) => {
+            tujuan.sasaran.forEach((sasaran) => {
+                sasaran.programs.forEach((program) => {
+                    program.pagu.forEach((pagu) => {
+                        if (pagu.periode_tahun.tahun > props.rpjmd.tahun_awal) {
+                            years.add(pagu.periode_tahun.tahun);
+                        }
+                    });
+                });
+            });
+        });
+    });
+
+    return [...years].sort((a, b) => a - b);
+});
+const rpjmdPreviewColspan = computed(
+    () => 13 + rpjmdTargetYears.value.length * 2 + rpjmdProgramTargetYears.value.length + rpjmdPaguProgramYears.value.length,
+);
+const rpjmdPreviewMinWidth = computed(
+    () => `${2140 + rpjmdTargetYears.value.length * 160 + rpjmdProgramTargetYears.value.length * 120 + rpjmdPaguProgramYears.value.length * 140}px`,
+);
 
 const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
     const rows: RpjmdCascadingRow[] = [];
@@ -1504,6 +1720,7 @@ const rpjmdCascadingRows = computed<RpjmdCascadingRow[]>(() => {
                                     ? {
                                           strategi: program.strategi ? nodeText(program.strategi.kode, program.strategi.strategi) : '-',
                                           program: nodeText(program.kode, program.nama),
+                                          pagu_program_by_year: paguByYear(program),
                                       }
                                     : {},
                         })),
@@ -1552,9 +1769,9 @@ const rpjmdCascadingTableRows = computed<RpjmdCascadingRow[]>(() => {
         'indikator_tujuan',
         'sasaran',
         'indikator_sasaran',
-        'strategi',
-        'program',
-        'indikator_program',
+            'strategi',
+            'program',
+            'indikator_program',
     ];
     const previous = new Map<keyof RpjmdCascadingRow, string>();
 
@@ -1596,6 +1813,10 @@ const rpjmdCascadingTableRows = computed<RpjmdCascadingRow[]>(() => {
             next.target_program_by_year = {};
         }
 
+        if (!next.program) {
+            next.pagu_program_by_year = {};
+        }
+
         return next;
     });
 });
@@ -1615,6 +1836,7 @@ function emptyRpjmdRow(key: string, values: Partial<RpjmdCascadingRow>): RpjmdCa
         target_sasaran_by_year: {},
         strategi: '-',
         program: '-',
+        pagu_program_by_year: {},
         indikator_program: '-',
         satuan_program: '-',
         target_program_by_year: {},
@@ -1645,6 +1867,7 @@ const clearNodeForm = () => {
     form.sumber_data = '';
     form.target = '';
     form.target_text = '';
+    form.pagu_anggaran = '';
     form.peran = 'penanggung_jawab';
     form.is_utama = true;
     form.urutan = 1;
@@ -1679,19 +1902,40 @@ const buildTargetBulkRowsFromPeriods = () => {
     });
 };
 
+const buildPaguBulkRowsFromPeriods = () => {
+    const selectedParentId = selectedBulkParentId.value;
+
+    return paguProgramPeriodOptionsForInput.value.map((periode, index) => {
+        const row = emptyBulkRow(index);
+        const periodeId = toSelectedNumber(periode.id);
+        const existing =
+            selectedParentId && periodeId
+                ? (bulkExistingRows.value.find((item) => item.parent_id === selectedParentId && item.periode_tahun_id === periodeId) ?? null)
+                : null;
+
+        row.existing_pagu_id = existing?.id ?? null;
+        row.parent_id = selectedParentId ? String(selectedParentId) : '';
+        row.periode_tahun_id = periode.id;
+        row.pagu_anggaran = formatCurrencyInputValue(existing?.pagu_anggaran);
+        row.urutan = index + 1;
+
+        return row;
+    });
+};
+
 const resetBulkTargetPeriodRows = () => {
     clearAllNewBulkRowState();
-    bulkForm.rows = buildTargetBulkRowsFromPeriods();
+    bulkForm.rows = bulkIsPaguProgramType.value ? buildPaguBulkRowsFromPeriods() : buildTargetBulkRowsFromPeriods();
     bulkForm.rows.forEach((row) => {
         const key = newBulkKey(row);
         newBulkBaselines[key] = newBulkSnapshot(row);
-        newBulkSaveState[key] = row.existing_target_id ? 'saved' : 'idle';
+        newBulkSaveState[key] = row.existing_target_id || row.existing_pagu_id ? 'saved' : 'idle';
     });
     bulkForm.clearErrors();
 };
 
 const resetBulkRows = (count = 1) => {
-    if (bulkIsTargetType.value) {
+    if (bulkIsTargetType.value || bulkIsPaguProgramType.value) {
         resetBulkTargetPeriodRows();
         return;
     }
@@ -1708,7 +1952,7 @@ const renumberBulkRows = () => {
 };
 
 const addBulkRow = () => {
-    if (bulkIsTargetType.value) {
+    if (bulkIsTargetType.value || bulkIsPaguProgramType.value) {
         return;
     }
 
@@ -1717,7 +1961,7 @@ const addBulkRow = () => {
 };
 
 const removeBulkRow = (index: number) => {
-    if (bulkIsTargetType.value) {
+    if (bulkIsTargetType.value || bulkIsPaguProgramType.value) {
         return;
     }
 
@@ -1745,6 +1989,10 @@ const bulkRowHasInput = (row: BulkRow, type: NodeType = bulkForm.type) => {
         return Boolean(row.existing_target_id) || trimText(valueText(row.target)).length > 0;
     }
 
+    if (type === 'pagu_program') {
+        return Boolean(row.existing_pagu_id) || trimText(valueText(row.pagu_anggaran)).length > 0;
+    }
+
     return [
         row.uraian,
         row.indikator,
@@ -1759,7 +2007,8 @@ const bulkRowHasInput = (row: BulkRow, type: NodeType = bulkForm.type) => {
         row.program_pemerintahan_id,
     ].some((value) => trimText(valueText(value)).length > 0);
 };
-const bulkRowCanRemove = (row: BulkRow) => !bulkIsTargetType.value && (bulkForm.rows.length > 1 || bulkRowHasInput(row));
+const bulkRowCanRemove = (row: BulkRow) =>
+    !bulkIsTargetType.value && !bulkIsPaguProgramType.value && (bulkForm.rows.length > 1 || bulkRowHasInput(row));
 const targetRowHasUnsavedChanges = (row: BulkRow) => {
     const baseline = newBulkBaselines[newBulkKey(row)];
 
@@ -1767,10 +2016,16 @@ const targetRowHasUnsavedChanges = (row: BulkRow) => {
         return baseline !== newBulkSnapshot(row);
     }
 
+    if (bulkIsPaguProgramType.value) {
+        return !row.existing_pagu_id && trimText(valueText(row.pagu_anggaran)).length > 0;
+    }
+
     return !row.existing_target_id && trimText(valueText(row.target)).length > 0;
 };
 const hasUnsavedBulkRowsForType = (type: NodeType) =>
-    isAnnualTargetType(type) ? bulkForm.rows.some(targetRowHasUnsavedChanges) : bulkForm.rows.some((row) => bulkRowHasInput(row, type));
+    isAnnualTargetType(type) || type === 'pagu_program'
+        ? bulkForm.rows.some(targetRowHasUnsavedChanges)
+        : bulkForm.rows.some((row) => bulkRowHasInput(row, type));
 const hasUnsavedNewBulkRows = computed(() => hasUnsavedBulkRowsForType(bulkForm.type));
 const unsavedNewBulkRowsMessage = 'Ada perubahan yang belum disimpan. Jika lanjut, perubahan tersebut akan hilang.';
 let allowUnsavedNewBulkVisit = false;
@@ -1820,6 +2075,9 @@ const clearAllSavedBulkSavedTextTimers = () => {
 };
 
 const bulkExistingToFormRow = (row: BulkExistingRow): BulkRow => ({
+    client_id: makeBulkRowClientId(),
+    existing_target_id: row.type === 'target_tujuan' || row.type === 'target_sasaran' || row.type === 'target_program' ? row.id : null,
+    existing_pagu_id: row.type === 'pagu_program' ? row.id : null,
     parent_id: valueText(row.parent_id),
     misi_ids: [...(row.misi_ids ?? [])],
     indikator_tujuan_ids: [...(row.indikator_tujuan_ids ?? [])],
@@ -1841,6 +2099,7 @@ const bulkExistingToFormRow = (row: BulkExistingRow): BulkRow => ({
     sumber_data: valueText(row.sumber_data),
     target: valueText(row.target),
     target_text: '',
+    pagu_anggaran: formatCurrencyInputValue(row.pagu_anggaran),
     peran: valueText(row.peran || 'penanggung_jawab'),
     is_utama: Boolean(row.is_utama ?? true),
     urutan: savedBulkDisplayNumber(row),
@@ -1869,6 +2128,7 @@ const savedBulkSnapshot = (row: BulkRow) =>
         sumber_data: valueText(row.sumber_data),
         target: valueText(row.target),
         target_text: '',
+        pagu_anggaran: valueText(row.pagu_anggaran),
         peran: valueText(row.peran),
         is_utama: Boolean(row.is_utama),
     });
@@ -1997,6 +2257,10 @@ const editNode = (type: NodeType, id: number, parentId: number | null, node: any
         form.periode_tahun_id = target.periode_tahun?.id ?? '';
         form.target = valueText(target.target);
         form.target_text = '';
+    } else if (type === 'pagu_program') {
+        const pagu = node as unknown as PaguProgram;
+        form.periode_tahun_id = pagu.periode_tahun?.id ?? '';
+        form.pagu_anggaran = formatCurrencyInputValue(pagu.pagu_anggaran);
     } else if (type === 'program_opd') {
         form.opd_id = valueText(node.id);
         form.peran = valueText(node.peran || 'penanggung_jawab');
@@ -2040,7 +2304,7 @@ watch(
 watch(
     () => bulkForm.parent_id,
     () => {
-        if (bulkIsTargetType.value) {
+        if (bulkIsTargetType.value || bulkIsPaguProgramType.value) {
             resetBulkTargetPeriodRows();
         }
 
@@ -2195,9 +2459,10 @@ const savedBulkPayload = (row: BulkExistingRow) => {
         sumber_data: editable.sumber_data,
         target: editable.target,
         target_text: '',
+        pagu_anggaran: editable.pagu_anggaran,
         peran: editable.peran,
         is_utama: editable.is_utama,
-        urutan: !bulkIsTargetType.value && !bulkIsProgramOpdType.value ? savedBulkDisplayNumber(row) : editable.urutan,
+        urutan: !bulkIsTargetType.value && !bulkIsPaguProgramType.value && !bulkIsProgramOpdType.value ? savedBulkDisplayNumber(row) : editable.urutan,
     };
 };
 
@@ -2216,7 +2481,11 @@ const firstErrorMessage = (errors: Record<string, string[] | string> | undefined
 const markNewBulkChanged = (row: BulkRow) => {
     const key = newBulkKey(row);
 
-    if (bulkIsTargetType.value && row.existing_target_id && newBulkBaselines[key] === newBulkSnapshot(row)) {
+    if (
+        (bulkIsTargetType.value || bulkIsPaguProgramType.value) &&
+        (row.existing_target_id || row.existing_pagu_id) &&
+        newBulkBaselines[key] === newBulkSnapshot(row)
+    ) {
         newBulkSaveState[key] = 'saved';
         newBulkSaveErrors[key] = '';
         return;
@@ -2235,7 +2504,11 @@ const refreshNewBulkDirtyStates = () => {
     bulkForm.rows.forEach((row) => {
         const key = newBulkKey(row);
 
-        if (bulkIsTargetType.value && row.existing_target_id && newBulkBaselines[key] === newBulkSnapshot(row)) {
+        if (
+            (bulkIsTargetType.value || bulkIsPaguProgramType.value) &&
+            (row.existing_target_id || row.existing_pagu_id) &&
+            newBulkBaselines[key] === newBulkSnapshot(row)
+        ) {
             newBulkSaveState[key] = 'saved';
             newBulkSaveErrors[key] = '';
             return;
@@ -2376,6 +2649,21 @@ const markSavedBulkChanged = (row: BulkExistingRow) => {
     scheduleSavedBulkAutosave(row);
 };
 
+const formatFormPaguInput = () => {
+    form.pagu_anggaran = formatCurrencyInputValue(form.pagu_anggaran);
+};
+
+const formatSavedBulkPaguInput = (row: BulkExistingRow) => {
+    const editable = editableSavedBulkRow(row);
+    editable.pagu_anggaran = formatCurrencyInputValue(editable.pagu_anggaran);
+    markSavedBulkChanged(row);
+};
+
+const formatNewBulkPaguInput = (row: BulkRow) => {
+    row.pagu_anggaran = formatCurrencyInputValue(row.pagu_anggaran);
+    markNewBulkChanged(row);
+};
+
 const refreshSavedBulkDirtyStates = () => {
     bulkExistingRows.value.forEach((row) => {
         const key = savedBulkKey(row);
@@ -2490,7 +2778,7 @@ const savedBulkRowIndicatorText = (row: BulkExistingRow) => {
 };
 
 const newBulkRowState = (row: BulkRow) => {
-    if (bulkIsTargetType.value) {
+    if (bulkIsTargetType.value || bulkIsPaguProgramType.value) {
         const state = newBulkSaveState[newBulkKey(row)] ?? 'idle';
 
         if (state === 'saving') {
@@ -2505,7 +2793,7 @@ const newBulkRowState = (row: BulkRow) => {
             return 'dirty';
         }
 
-        return row.existing_target_id ? 'saved' : 'idle';
+        return row.existing_target_id || row.existing_pagu_id ? 'saved' : 'idle';
     }
 
     if (!bulkRowHasInput(row)) {
@@ -2836,9 +3124,15 @@ const triwulanLabel = (triwulan: string) =>
                                 </th>
                                 <th rowspan="2" class="w-[220px] border border-slate-700 px-3 py-3 text-center align-middle">Strategi</th>
                                 <th rowspan="2" class="w-[230px] border border-slate-700 px-3 py-3 text-center align-middle">Program RPJMD</th>
+                                <th
+                                    :colspan="rpjmdPaguProgramYears.length"
+                                    class="border border-slate-700 px-3 py-3 text-center align-middle"
+                                >
+                                    Pagu Anggaran
+                                </th>
                                 <th rowspan="2" class="w-[230px] border border-slate-700 px-3 py-3 text-center align-middle">Indikator Program</th>
                                 <th rowspan="2" class="w-[90px] border border-slate-700 px-3 py-3 text-center align-middle">Satuan</th>
-                                <th :colspan="rpjmdTargetYears.length" class="border border-slate-700 px-3 py-3 text-center align-middle">
+                                <th :colspan="rpjmdProgramTargetYears.length" class="border border-slate-700 px-3 py-3 text-center align-middle">
                                     Target / Prakiraan Maju
                                 </th>
                                 <th rowspan="2" class="w-[240px] border border-slate-700 px-3 py-3 text-center align-middle">PD Penanggung Jawab</th>
@@ -2863,10 +3157,25 @@ const triwulanLabel = (triwulan: string) =>
                                     {{ targetYearLabel(year) }}
                                 </th>
                                 <th
-                                    v-for="year in rpjmdTargetYears"
+                                    v-for="year in rpjmdPaguProgramYears"
+                                    :key="`pagu-program-${year}`"
+                                    class="w-[110px] border border-slate-700 px-2 py-2 text-center align-middle"
+                                    :class="isPrakiraanMajuYear(year) ? 'bg-[#dcecff] text-[#00336C]' : ''"
+                                    :title="targetYearTitle(year)"
+                                >
+                                    {{ targetYearLabel(year) }}
+                                </th>
+                                <th
+                                    v-for="year in rpjmdProgramTargetYears"
                                     :key="`target-program-${year}`"
                                     class="w-[76px] border border-slate-700 px-2 py-2 text-center align-middle"
-                                    :class="isPrakiraanMajuYear(year) ? 'bg-[#dcecff] text-[#00336C]' : ''"
+                                    :class="
+                                        isBaselineYear(year)
+                                            ? 'bg-amber-100 text-amber-950'
+                                            : isPrakiraanMajuYear(year)
+                                              ? 'bg-[#dcecff] text-[#00336C]'
+                                              : ''
+                                    "
                                     :title="targetYearTitle(year)"
                                 >
                                     {{ targetYearLabel(year) }}
@@ -2901,13 +3210,27 @@ const triwulanLabel = (triwulan: string) =>
                                 </td>
                                 <td class="border border-slate-300 px-3 py-3 leading-6">{{ row.strategi }}</td>
                                 <td class="border border-slate-300 px-3 py-3 font-medium leading-6">{{ row.program }}</td>
+                                <td
+                                    v-for="year in rpjmdPaguProgramYears"
+                                    :key="`row-pagu-program-${row.key}-${year}`"
+                                    class="border border-slate-300 px-2 py-3 text-right leading-6"
+                                    :class="isPrakiraanMajuYear(year) ? 'bg-blue-50/60 font-medium text-[#00336C]' : ''"
+                                >
+                                    {{ row.pagu_program_by_year[year] || '' }}
+                                </td>
                                 <td class="border border-slate-300 px-3 py-3 leading-6">{{ row.indikator_program }}</td>
                                 <td class="border border-slate-300 px-3 py-3 text-center leading-6">{{ row.satuan_program }}</td>
                                 <td
-                                    v-for="year in rpjmdTargetYears"
+                                    v-for="year in rpjmdProgramTargetYears"
                                     :key="`row-target-program-${row.key}-${year}`"
                                     class="border border-slate-300 px-2 py-3 text-center leading-6"
-                                    :class="isPrakiraanMajuYear(year) ? 'bg-blue-50/60 font-medium text-[#00336C]' : ''"
+                                    :class="
+                                        isBaselineYear(year)
+                                            ? 'bg-amber-50/80 font-medium text-amber-950'
+                                            : isPrakiraanMajuYear(year)
+                                              ? 'bg-blue-50/60 font-medium text-[#00336C]'
+                                              : ''
+                                    "
                                 >
                                     {{ row.target_program_by_year[year] || '' }}
                                 </td>
@@ -3738,7 +4061,7 @@ const triwulanLabel = (triwulan: string) =>
                                     class="h-10 rounded-md border bg-background px-3 text-sm"
                                 >
                                     <option value="">Pilih periode</option>
-                                    <option v-for="option in targetPeriodOptionsForInput" :key="option.id" :value="option.id">
+                                    <option v-for="option in formTargetPeriodOptions" :key="option.id" :value="option.id">
                                         {{ option.label }}
                                     </option>
                                 </select>
@@ -3755,6 +4078,35 @@ const triwulanLabel = (triwulan: string) =>
                                     placeholder="Contoh: 14,79 atau 80 persen"
                                 />
                                 <InputError :message="form.errors.target" />
+                            </div>
+
+                            <div v-if="isPaguProgramType" class="grid gap-2">
+                                <label class="text-sm font-medium" for="periode_pagu_id">Periode Pagu</label>
+                                <select
+                                    id="periode_pagu_id"
+                                    v-model="form.periode_tahun_id"
+                                    class="h-10 rounded-md border bg-background px-3 text-sm"
+                                >
+                                    <option value="">Pilih periode</option>
+                                    <option v-for="option in paguProgramPeriodOptionsForInput" :key="option.id" :value="option.id">
+                                        {{ option.label }}
+                                    </option>
+                                </select>
+                                <InputError :message="form.errors.periode_tahun_id" />
+                            </div>
+
+                            <div v-if="isPaguProgramType" class="grid gap-2">
+                                <label class="text-sm font-medium" for="pagu_anggaran">Pagu Anggaran</label>
+                                <input
+                                    id="pagu_anggaran"
+                                    v-model="form.pagu_anggaran"
+                                    type="text"
+                                    inputmode="numeric"
+                                    class="h-10 rounded-md border bg-background px-3 text-sm"
+                                    placeholder="Contoh: 1.500.000.000"
+                                    @input="formatFormPaguInput"
+                                />
+                                <InputError :message="form.errors.pagu_anggaran" />
                             </div>
 
                             <div v-if="isProgramOpdType" class="grid gap-2">
@@ -3777,7 +4129,7 @@ const triwulanLabel = (triwulan: string) =>
                                 Penanggung jawab utama
                             </label>
 
-                            <div v-if="!isTargetType && !isProgramOpdType" class="grid gap-2">
+                            <div v-if="!isTargetType && !isPaguProgramType && !isProgramOpdType" class="grid gap-2">
                                 <label class="text-sm font-medium" for="urutan">Urutan</label>
                                 <input
                                     id="urutan"
@@ -3849,7 +4201,7 @@ const triwulanLabel = (triwulan: string) =>
                                     class="h-10 rounded-md border bg-background px-3 text-sm"
                                 >
                                     <option value="">Pilih periode</option>
-                                    <option v-for="option in targetPeriodOptionsForInput" :key="option.id" :value="option.id">
+                                    <option v-for="option in standardTargetPeriodOptions" :key="option.id" :value="option.id">
                                         {{ option.label }}
                                     </option>
                                 </select>
@@ -3974,7 +4326,7 @@ const triwulanLabel = (triwulan: string) =>
                                             {{ bulkTableCounterLabel }}
                                         </span>
                                         <button
-                                            v-if="!bulkIsTargetType"
+                                            v-if="!bulkIsTargetType && !bulkIsPaguProgramType"
                                             type="button"
                                             class="inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold shadow-sm transition"
                                             :class="
@@ -4003,7 +4355,7 @@ const triwulanLabel = (triwulan: string) =>
                                     <table
                                         class="text-left text-sm"
                                         :class="
-                                            bulkIsTargetType
+                                            bulkIsTargetType || bulkIsPaguProgramType
                                                 ? 'min-w-[760px]'
                                                 : bulkIsIndicatorType
                                                   ? bulkIsProgramIndicatorType
@@ -4032,12 +4384,13 @@ const triwulanLabel = (triwulan: string) =>
                                                 </th>
                                                 <th v-if="bulkIsProgramType" class="min-w-56 px-3 py-2">Strategi</th>
                                                 <th v-if="bulkIsProgramType" class="min-w-80 px-3 py-2">PD Penanggung Jawab</th>
-                                                <th v-if="bulkIsTargetType" class="min-w-40 px-3 py-2">Periode</th>
+                                                <th v-if="bulkIsTargetType || bulkIsPaguProgramType" class="min-w-40 px-3 py-2">Periode</th>
                                                 <th v-if="bulkIsTargetType" class="min-w-64 px-3 py-2">Target</th>
+                                                <th v-if="bulkIsPaguProgramType" class="min-w-64 px-3 py-2">Pagu Anggaran</th>
                                                 <th v-if="bulkIsProgramOpdType" class="min-w-80 px-3 py-2">OPD</th>
                                                 <th v-if="bulkIsProgramOpdType" class="min-w-44 px-3 py-2">Peran</th>
                                                 <th v-if="bulkIsProgramOpdType" class="min-w-32 px-3 py-2">Utama</th>
-                                                <th v-if="!bulkIsTargetType" class="w-[112px] px-3 py-2"></th>
+                                                <th v-if="!bulkIsTargetType && !bulkIsPaguProgramType" class="w-[112px] px-3 py-2"></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -4283,13 +4636,15 @@ const triwulanLabel = (triwulan: string) =>
                                                         </p>
                                                     </div>
                                                 </td>
-                                                <td v-if="bulkIsTargetType" class="px-3 py-2 align-top">
+                                                <td v-if="bulkIsTargetType || bulkIsPaguProgramType" class="px-3 py-2 align-top">
                                                     <div
                                                         class="inline-flex h-10 items-center rounded-md border px-3 text-sm font-semibold"
                                                         :class="
-                                                            isPrakiraanMajuPeriod(saved.periode_tahun_id)
-                                                                ? 'border-blue-200 bg-blue-50 text-[#00336C]'
-                                                                : 'border-slate-200 bg-slate-50 text-slate-700'
+                                                            isBaselinePeriod(saved.periode_tahun_id)
+                                                                ? 'border-amber-200 bg-amber-50 text-amber-950'
+                                                                : isPrakiraanMajuPeriod(saved.periode_tahun_id)
+                                                                  ? 'border-blue-200 bg-blue-50 text-[#00336C]'
+                                                                  : 'border-slate-200 bg-slate-50 text-slate-700'
                                                         "
                                                     >
                                                         {{ bulkPeriodLabel(saved.periode_tahun_id) }}
@@ -4302,6 +4657,16 @@ const triwulanLabel = (triwulan: string) =>
                                                         class="h-10 w-full rounded-md border bg-background px-3 text-sm"
                                                         placeholder="Isi target"
                                                         @input="markSavedBulkChanged(saved)"
+                                                    />
+                                                </td>
+                                                <td v-if="bulkIsPaguProgramType" class="px-3 py-2 align-top">
+                                                    <input
+                                                        v-model="editableSavedBulkRow(saved).pagu_anggaran"
+                                                        type="text"
+                                                        inputmode="numeric"
+                                                        class="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                                                        placeholder="Isi pagu"
+                                                        @input="formatSavedBulkPaguInput(saved)"
                                                     />
                                                 </td>
                                                 <td v-if="bulkIsProgramOpdType" class="px-3 py-2 align-top">
@@ -4334,7 +4699,7 @@ const triwulanLabel = (triwulan: string) =>
                                                         Utama
                                                     </label>
                                                 </td>
-                                                <td v-if="!bulkIsTargetType" class="w-[112px] px-3 py-3 text-center align-top">
+                                                <td v-if="!bulkIsTargetType && !bulkIsPaguProgramType" class="w-[112px] px-3 py-3 text-center align-top">
                                                     <div
                                                         class="inline-flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
                                                     >
@@ -4362,7 +4727,7 @@ const triwulanLabel = (triwulan: string) =>
                                                     </div>
                                                 </td>
                                             </tr>
-                                            <tr v-if="bulkVisibleExistingRows.length === 0 && !bulkIsTargetType" class="border-b bg-slate-50/60">
+                                            <tr v-if="bulkVisibleExistingRows.length === 0 && !bulkIsTargetType && !bulkIsPaguProgramType" class="border-b bg-slate-50/60">
                                                 <td :colspan="bulkColumnCount" class="px-3 py-4 text-sm text-muted-foreground">
                                                     Belum ada data tersimpan.
                                                 </td>
@@ -4577,13 +4942,15 @@ const triwulanLabel = (triwulan: string) =>
                                                         </p>
                                                     </div>
                                                 </td>
-                                                <td v-if="bulkIsTargetType" class="px-3 py-2">
+                                                <td v-if="bulkIsTargetType || bulkIsPaguProgramType" class="px-3 py-2">
                                                     <div
                                                         class="inline-flex h-10 items-center rounded-md border px-3 text-sm font-semibold"
                                                         :class="
-                                                            isPrakiraanMajuPeriod(row.periode_tahun_id)
-                                                                ? 'border-blue-200 bg-blue-50 text-[#00336C]'
-                                                                : 'border-slate-200 bg-slate-50 text-slate-700'
+                                                            isBaselinePeriod(row.periode_tahun_id)
+                                                                ? 'border-amber-200 bg-amber-50 text-amber-950'
+                                                                : isPrakiraanMajuPeriod(row.periode_tahun_id)
+                                                                  ? 'border-blue-200 bg-blue-50 text-[#00336C]'
+                                                                  : 'border-slate-200 bg-slate-50 text-slate-700'
                                                         "
                                                     >
                                                         {{ bulkPeriodLabel(row.periode_tahun_id) }}
@@ -4597,6 +4964,17 @@ const triwulanLabel = (triwulan: string) =>
                                                         class="h-10 w-full rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                                                         placeholder="Isi target"
                                                         @input="markNewBulkChanged(row)"
+                                                    />
+                                                </td>
+                                                <td v-if="bulkIsPaguProgramType" class="px-3 py-2">
+                                                    <input
+                                                        v-model="row.pagu_anggaran"
+                                                        type="text"
+                                                        inputmode="numeric"
+                                                        :disabled="!bulkForm.parent_id"
+                                                        class="h-10 w-full rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                                                        placeholder="Isi pagu"
+                                                        @input="formatNewBulkPaguInput(row)"
                                                     />
                                                 </td>
                                                 <td v-if="bulkIsProgramOpdType" class="px-3 py-2">
@@ -4629,7 +5007,7 @@ const triwulanLabel = (triwulan: string) =>
                                                         Utama
                                                     </label>
                                                 </td>
-                                                <td v-if="!bulkIsTargetType" class="w-[112px] px-3 py-3 text-center align-top">
+                                                <td v-if="!bulkIsTargetType && !bulkIsPaguProgramType" class="w-[112px] px-3 py-3 text-center align-top">
                                                     <button
                                                         type="button"
                                                         class="inline-flex size-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30"
@@ -4651,7 +5029,7 @@ const triwulanLabel = (triwulan: string) =>
                                     </table>
                                 </div>
 
-                                <div v-if="!bulkIsTargetType" class="flex items-center gap-3 border-t bg-slate-50/60 p-3">
+                                <div v-if="!bulkIsTargetType && !bulkIsPaguProgramType" class="flex items-center gap-3 border-t bg-slate-50/60 p-3">
                                     <button
                                         type="button"
                                         class="inline-flex h-9 items-center gap-2 rounded-md border bg-white px-3 text-sm font-medium hover:bg-muted"
@@ -4670,7 +5048,9 @@ const triwulanLabel = (triwulan: string) =>
                                     {{
                                         bulkIsTargetType
                                             ? `${bulkFilledRows} tahun berisi target.`
-                                            : `${bulkFilledRows} baris akan disimpan sebagai ${bulkTypeLabel}.`
+                                            : bulkIsPaguProgramType
+                                              ? `${bulkFilledRows} tahun berisi pagu.`
+                                              : `${bulkFilledRows} baris akan disimpan sebagai ${bulkTypeLabel}.`
                                     }}
                                 </div>
                                 <button
