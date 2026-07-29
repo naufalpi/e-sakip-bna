@@ -36,6 +36,30 @@ const form = useForm<RenstraForm>({
     keterangan: props.renstra?.keterangan ?? '',
 });
 
+const toUppercaseText = (value: string) => value.toLocaleUpperCase('id-ID');
+
+watch(
+    () => form.judul,
+    (value) => {
+        const normalized = toUppercaseText(value);
+
+        if (value !== normalized) {
+            form.judul = normalized;
+        }
+    },
+);
+
+watch(
+    () => form.nomor_dokumen,
+    (value) => {
+        const normalized = toUppercaseText(value);
+
+        if (value !== normalized) {
+            form.nomor_dokumen = normalized;
+        }
+    },
+);
+
 const submit = () => {
     if (props.mode === 'create') {
         form.post(route('renstra-opd.store'));
@@ -258,7 +282,7 @@ const readinessItems = computed(() => [
                             <input
                                 id="judul"
                                 v-model="form.judul"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm uppercase outline-none focus:ring-2 focus:ring-emerald-700"
                                 placeholder="Contoh: Renstra Dinas Komunikasi dan Informatika 2025-2029"
                             />
                             <InputError :message="form.errors.judul" />
@@ -269,7 +293,7 @@ const readinessItems = computed(() => [
                             <input
                                 id="nomor_dokumen"
                                 v-model="form.nomor_dokumen"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm uppercase outline-none focus:ring-2 focus:ring-emerald-700"
                                 placeholder="Opsional"
                             />
                             <InputError :message="form.errors.nomor_dokumen" />

@@ -460,7 +460,7 @@ const previewMode = ref<'tree' | 'table'>('tree');
 const isNodeModalOpen = ref(false);
 const formPanel = ref<HTMLElement | null>(null);
 const bulkRows = ref<BulkRow[]>([]);
-const expandedBulkSections = ref<string[]>(['tujuan']);
+const expandedBulkSections = ref<string[]>([]);
 const bulkSaveTimers = new Map<string, number>();
 const bulkLastSavedAt = ref('');
 const bulkDraftCounter = ref(0);
@@ -967,7 +967,6 @@ const targetInputPeriods = computed(() =>
     baselinePeriod.value ? [baselinePeriod.value, ...periodColumns.value] : periodColumns.value,
 );
 const hasRpjmdContext = computed(() => props.rpjmdContext.visi.length > 0 || props.rpjmdContext.program_groups.length > 0);
-const rpjmdContextProgramCount = computed(() => props.rpjmdContext.program_groups.reduce((total, group) => total + group.programs.length, 0));
 const directionRows = computed(() => bulkRows.value.filter((row) => directionNodeTypes.includes(row.type)));
 const implementationRows = computed(() => bulkRows.value.filter((row) => implementationNodeTypes.includes(row.type)));
 const tujuanRows = computed(() => bulkRows.value.filter((row) => tujuanNodeTypes.includes(row.type)));
@@ -3151,9 +3150,6 @@ const currencyInputText = (value?: string | number | null) => {
     return Number.isFinite(asNumber) ? new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(asNumber) : valueText(value);
 };
 const targetDisplay = (target: Target) => normalizedTargetText(target.target_text || target.target) || '-';
-const isPenunjangProgram = (name?: string | null) => valueText(name).toUpperCase().includes('PROGRAM PENUNJANG URUSAN PEMERINTAHAN DAERAH');
-const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][number]['programs'][number]) =>
-    Boolean(program.rpjmd_kode && program.rpjmd_kode !== program.kode && !isPenunjangProgram(program.nama));
 </script>
 
 <template>
@@ -3196,7 +3192,7 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
             </div>
         </div>
 
-        <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-4">
+        <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
             <div>
                 <div class="text-xs uppercase text-muted-foreground">OPD</div>
                 <div class="mt-1 text-sm font-medium">{{ renstra.opd?.nama || '-' }}</div>
@@ -3209,44 +3205,6 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                 <div class="text-xs uppercase text-muted-foreground">Periode</div>
                 <div class="mt-1 text-sm font-medium">{{ renstra.periode_tahun?.nama || '-' }}</div>
             </div>
-            <div>
-                <div class="text-xs uppercase text-muted-foreground">Jumlah Tujuan</div>
-                <div class="mt-1 text-sm font-medium">{{ renstra.tujuan.length }}</div>
-            </div>
-        </section>
-
-        <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div class="rounded-lg border bg-card p-4">
-                <div class="text-xs uppercase text-muted-foreground">Tujuan dan Sasaran</div>
-                <div class="mt-2 text-2xl font-semibold">{{ renstraSummary.tujuan + renstraSummary.sasaran }}</div>
-                <div class="mt-1 text-xs text-muted-foreground">
-                    {{ renstraSummary.tujuan_terhubung }}/{{ renstraSummary.tujuan }} tujuan, {{ renstraSummary.sasaran_terhubung }}/{{
-                        renstraSummary.sasaran
-                    }}
-                    sasaran terhubung
-                </div>
-            </div>
-            <div class="rounded-lg border bg-card p-4">
-                <div class="text-xs uppercase text-muted-foreground">Program OPD</div>
-                <div class="mt-2 text-2xl font-semibold">{{ renstraSummary.program }}</div>
-                <div class="mt-1 text-xs text-muted-foreground">
-                    {{ renstraSummary.program_terhubung }} terhubung RPJMD, {{ renstraSummary.program - renstraSummary.program_terhubung }} belum
-                </div>
-            </div>
-            <div class="rounded-lg border bg-card p-4">
-                <div class="text-xs uppercase text-muted-foreground">Indikator dan Target</div>
-                <div class="mt-2 text-2xl font-semibold">{{ renstraSummary.indikator }}</div>
-                <div class="mt-1 text-xs text-muted-foreground">
-                    {{ renstraSummary.target_tahunan }} target 5 tahunan
-                </div>
-            </div>
-            <div class="rounded-lg border bg-card p-4">
-                <div class="text-xs uppercase text-muted-foreground">Target Keuangan</div>
-                <div class="mt-2 text-2xl font-semibold">{{ formatCurrency(renstraSummary.target_keuangan) }}</div>
-                <div class="mt-1 text-xs text-muted-foreground">
-                    {{ renstraSummary.kegiatan }} kegiatan, {{ renstraSummary.sub_kegiatan }} sub kegiatan
-                </div>
-            </div>
         </section>
 
         <WorkflowHistoryTimeline :workflow="workflow" />
@@ -3258,10 +3216,7 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                         <Network class="size-5" />
                     </span>
                     <div class="min-w-0">
-                        <h2 class="text-base font-semibold text-slate-950">Konteks RPJMD untuk OPD</h2>
-                        <p class="mt-1 text-sm text-slate-600">
-                            {{ rpjmdContextProgramCount }} program RPJMD relevan untuk {{ renstra.opd?.singkatan || renstra.opd?.nama || 'OPD ini' }}.
-                        </p>
+                        <h2 class="text-base font-semibold text-slate-950">Acuan RPJMD</h2>
                     </div>
                 </div>
                 <span class="w-fit rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-semibold text-[#00336C]">
@@ -3269,9 +3224,9 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                 </span>
             </div>
 
-            <div v-if="hasRpjmdContext" class="grid gap-4 p-4 xl:grid-cols-[24rem_minmax(0,1fr)]">
-                <aside class="space-y-3">
-                    <div class="rounded-xl border border-blue-100 bg-blue-50/35 p-4">
+            <div v-if="hasRpjmdContext" class="grid lg:grid-cols-[23rem_minmax(0,1fr)]">
+                <aside class="border-b p-5 lg:border-b-0 lg:border-r">
+                    <div>
                         <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]">Visi Kabupaten</p>
                         <div class="mt-3 space-y-2">
                             <p v-for="visi in rpjmdContext.visi" :key="visi.id" class="text-sm font-semibold leading-6 text-slate-950">
@@ -3280,10 +3235,10 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                             <p v-if="rpjmdContext.visi.length === 0" class="text-sm text-slate-500">Visi belum diisi.</p>
                         </div>
                     </div>
-                    <div class="rounded-xl border bg-white p-4">
+                    <div class="mt-6">
                         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Misi</p>
-                        <ol class="mt-3 space-y-2">
-                            <li v-for="misi in rpjmdContext.misi" :key="misi.id" class="flex gap-2 text-sm leading-5 text-slate-700">
+                        <ol class="mt-3 space-y-2.5">
+                            <li v-for="misi in rpjmdContext.misi" :key="misi.id" class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-2 text-sm leading-5 text-slate-700">
                                 <span class="font-semibold text-[#00336C]">{{ misi.kode || misi.urutan }}</span>
                                 <span>{{ misi.misi }}</span>
                             </li>
@@ -3292,11 +3247,11 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                     </div>
                 </aside>
 
-                <div class="space-y-3">
+                <div class="divide-y p-5">
                     <article
                         v-for="group in rpjmdContext.program_groups"
                         :key="`rpjmd-context-${group.sasaran?.id || group.programs[0]?.id}`"
-                        class="rounded-xl border bg-white p-4"
+                        class="py-4 first:pt-0 last:pb-0"
                     >
                         <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
                             <div class="min-w-0">
@@ -3312,16 +3267,14 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                 </p>
                             </div>
                         </div>
-                        <div class="mt-3 rounded-lg border border-blue-100 bg-blue-50/30 p-3">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]">Program RPJMD untuk OPD ini</p>
-                            <div class="mt-2 grid gap-2 md:grid-cols-2">
-                                <div v-for="program in group.programs" :key="program.id" class="rounded-lg border bg-white px-3 py-2">
-                                    <p class="text-sm font-semibold leading-5 text-slate-950">{{ nodeText(program.kode, program.nama) }}</p>
-                                    <p v-if="shouldShowRpjmdProgramAlias(program)" class="mt-1 text-xs leading-5 text-slate-500">
-                                        RPJMD: {{ nodeText(program.rpjmd_kode, program.rpjmd_nama) }}
-                                    </p>
-                                </div>
-                            </div>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <span
+                                v-for="program in group.programs"
+                                :key="program.id"
+                                class="inline-flex max-w-full rounded-lg border border-blue-100 bg-blue-50/45 px-3 py-2 text-sm font-semibold leading-5 text-slate-950"
+                            >
+                                {{ nodeText(program.kode, program.nama) }}
+                            </span>
                         </div>
                     </article>
                     <div v-if="rpjmdContext.program_groups.length === 0" class="rounded-xl border border-dashed p-6 text-sm text-slate-500">

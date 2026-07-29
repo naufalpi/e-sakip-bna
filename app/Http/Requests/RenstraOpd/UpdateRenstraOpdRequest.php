@@ -3,6 +3,7 @@
 namespace App\Http\Requests\RenstraOpd;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 
 class UpdateRenstraOpdRequest extends FormRequest
 {
@@ -18,6 +19,21 @@ class UpdateRenstraOpdRequest extends FormRequest
         }
 
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $payload = [];
+
+        if ($this->has('judul')) {
+            $payload['judul'] = Str::upper((string) $this->input('judul'));
+        }
+
+        if ($this->filled('nomor_dokumen')) {
+            $payload['nomor_dokumen'] = Str::upper((string) $this->input('nomor_dokumen'));
+        }
+
+        $this->merge($payload);
     }
 
     /**
