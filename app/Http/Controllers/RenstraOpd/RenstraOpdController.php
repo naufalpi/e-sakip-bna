@@ -186,7 +186,7 @@ class RenstraOpdController extends Controller
             'renstra' => $this->serializeRenstra($renstraOpd),
             'rpjmdContext' => $this->rpjmdContext($renstraOpd),
             'nodeOptions' => $manage ? $this->nodeOptions($renstraOpd) : [],
-            'rpjmdReferenceOptions' => $manage ? $this->rpjmdReferenceOptions($renstraOpd, $request->user()) : [],
+            'rpjmdReferenceOptions' => $manage ? $this->rpjmdReferenceOptions($renstraOpd) : [],
             'masterReferenceOptions' => $manage ? $this->masterReferenceOptions($renstraOpd) : [],
             'periodeOptions' => $manage ? $this->periodeOptions() : [],
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
@@ -377,11 +377,11 @@ class RenstraOpdController extends Controller
     /**
      * @return array<string, array<int, array<string, mixed>>>
      */
-    private function rpjmdReferenceOptions(RenstraOpd $renstra, User $user): array
+    private function rpjmdReferenceOptions(RenstraOpd $renstra): array
     {
         $programRpjmdQuery = fn () => ProgramRpjmd::query()
             ->forRpjmd($renstra->rpjmd_id)
-            ->when($this->shouldRestrictRpjmdProgramReferences($renstra, $user), fn (Builder $query) => $query
+            ->when($this->shouldRestrictRpjmdProgramReferences($renstra), fn (Builder $query) => $query
                 ->relevantForOpd((int) $renstra->opd_id));
 
         return [
@@ -394,9 +394,9 @@ class RenstraOpdController extends Controller
                 ->with('programPemerintahanReferences.bidangUrusan.opdPengampu:id')
                 ->orderBy('urutan')
                 ->get(['id', 'program_pemerintahan_id', 'kode', 'nama'])
-                ->map(function (ProgramRpjmd $item) use ($renstra, $user) {
+                ->map(function (ProgramRpjmd $item) use ($renstra) {
                     $preferredReference = $item->preferredProgramPemerintahanReferenceForOpd(
-                        $this->shouldRestrictRpjmdProgramReferences($renstra, $user) ? (int) $renstra->opd_id : null,
+                        $this->shouldRestrictRpjmdProgramReferences($renstra) ? (int) $renstra->opd_id : null,
                     );
 
                     return [
@@ -412,7 +412,7 @@ class RenstraOpdController extends Controller
             'indikator_program_rpjmd' => IndikatorProgramRpjmd::query()
                 ->whereHas('program', fn (Builder $query) => $query
                     ->forRpjmd($renstra->rpjmd_id)
-                    ->when($this->shouldRestrictRpjmdProgramReferences($renstra, $user), fn (Builder $query) => $query
+                    ->when($this->shouldRestrictRpjmdProgramReferences($renstra), fn (Builder $query) => $query
                         ->relevantForOpd((int) $renstra->opd_id)))
                 ->orderBy('urutan')
                 ->get(['id', 'kode', 'indikator'])
@@ -422,9 +422,9 @@ class RenstraOpdController extends Controller
         ];
     }
 
-    private function shouldRestrictRpjmdProgramReferences(RenstraOpd $renstra, User $user): bool
+    private function shouldRestrictRpjmdProgramReferences(RenstraOpd $renstra): bool
     {
-        return $user->hasRole('admin_opd') && filled($renstra->opd_id);
+        return filled($renstra->opd_id);
     }
 
     /**

@@ -178,6 +178,47 @@ class RenstraOpdTest extends TestCase
         ]);
     }
 
+    public function test_super_admin_gets_rpjmd_programs_filtered_by_renstra_opd(): void
+    {
+        $this->seed();
+
+        $ownOpd = Opd::create(['kode' => '1.93', 'nama' => 'Dinas Renstra Superadmin', 'status' => 'active']);
+        $otherOpd = Opd::create(['kode' => '1.94', 'nama' => 'Dinas Program Tersembunyi', 'status' => 'active']);
+        $tree = $this->createRpjmdTree();
+        $tree['program_rpjmd']->opdPenanggungJawab()->sync([
+            $ownOpd->id => ['peran' => 'penanggung_jawab', 'is_utama' => true],
+        ]);
+        $otherProgram = ProgramRpjmd::create([
+            'sasaran_daerah_id' => $tree['sasaran_daerah']->id,
+            'nama' => 'Program RPJMD OPD Lain',
+            'status' => 'approved',
+            'urutan' => 2,
+        ]);
+        $otherProgram->opdPenanggungJawab()->sync([
+            $otherOpd->id => ['peran' => 'penanggung_jawab', 'is_utama' => true],
+        ]);
+
+        $renstra = RenstraOpd::create([
+            'opd_id' => $ownOpd->id,
+            'rpjmd_id' => $tree['rpjmd']->id,
+            'judul' => 'Renstra Filter Superadmin',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'draft',
+        ]);
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'super_admin')->value('id')]);
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.show', $renstra))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('RenstraOpd/Show')
+                ->where('rpjmdReferenceOptions.program_rpjmd', fn ($options) => collect($options)->pluck('id')->contains($tree['program_rpjmd']->id)
+                    && ! collect($options)->pluck('id')->contains($otherProgram->id))
+            );
+    }
+
     public function test_admin_opd_gets_automatic_rpjmd_programs_from_bidang_urusan_pengampu(): void
     {
         $this->seed();

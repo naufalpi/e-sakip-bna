@@ -4631,11 +4631,14 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
             <aside
                 v-if="can.manage && isNodeModalOpen"
                 ref="formPanel"
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-6"
+                class="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/45 p-3 backdrop-blur-sm sm:p-5"
             >
-                <div class="w-full max-w-4xl space-y-4">
-                    <section v-if="isNodeModalOpen" class="overflow-hidden rounded-2xl border border-blue-100 bg-card shadow-2xl shadow-slate-950/15">
-                        <div class="border-b bg-card p-4">
+                <div :class="['w-full space-y-4', isTargetType || isBudgetType ? 'max-w-4xl' : 'max-w-3xl']">
+                    <section
+                        v-if="isNodeModalOpen"
+                        class="flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-2xl border border-blue-100 bg-card shadow-2xl shadow-slate-950/15"
+                    >
+                        <div class="shrink-0 border-b bg-card p-4">
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div class="flex min-w-0 items-center gap-3">
                                     <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#00336C]">
@@ -4671,7 +4674,10 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         </div>
 
                         <form
-                            :class="['p-4', isTargetType || isBudgetType ? 'flex flex-col gap-4' : 'grid grid-cols-1 gap-4']"
+                            :class="[
+                                'overflow-y-auto p-4 sm:p-5',
+                                isTargetType || isBudgetType ? 'flex flex-col gap-4' : 'grid grid-cols-1 gap-4',
+                            ]"
                             @submit.prevent="submitNode"
                         >
                             <div class="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
