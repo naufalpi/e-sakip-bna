@@ -14,7 +14,6 @@ type RenstraForm = {
     nomor_dokumen: string;
     tahun_awal: number | string;
     tahun_akhir: number | string;
-    status: string;
     keterangan: string;
 };
 
@@ -34,7 +33,6 @@ const form = useForm<RenstraForm>({
     nomor_dokumen: props.renstra?.nomor_dokumen ?? '',
     tahun_awal: props.renstra?.tahun_awal ?? new Date().getFullYear(),
     tahun_akhir: props.renstra?.tahun_akhir ?? new Date().getFullYear() + 4,
-    status: props.renstra?.status ?? 'draft',
     keterangan: props.renstra?.keterangan ?? '',
 });
 
@@ -102,27 +100,6 @@ const readinessItems = computed(() => [
     },
 ]);
 
-const statusLabel = (status: string) =>
-    ({
-        draft: 'Draft',
-        submitted: 'Diajukan',
-        revision: 'Revisi',
-        verified: 'Terverifikasi',
-        approved: 'Disetujui',
-        rejected: 'Ditolak',
-        locked: 'Terkunci',
-    })[status] ?? status;
-
-const statusClass = (status: string) =>
-    ({
-        draft: 'bg-slate-100 text-slate-700 ring-slate-200',
-        submitted: 'bg-blue-100 text-blue-800 ring-blue-200',
-        revision: 'bg-amber-100 text-amber-800 ring-amber-200',
-        verified: 'bg-cyan-100 text-cyan-800 ring-cyan-200',
-        approved: 'bg-emerald-100 text-emerald-800 ring-emerald-200',
-        rejected: 'bg-red-100 text-red-800 ring-red-200',
-        locked: 'bg-zinc-200 text-zinc-800 ring-zinc-300',
-    })[status] ?? 'bg-slate-100 text-slate-700 ring-slate-200';
 </script>
 
 <template>
@@ -149,19 +126,6 @@ const statusClass = (status: string) =>
                         <p class="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
                             Isi data dasar Renstra terlebih dahulu. Setelah disimpan, lanjutkan pengisian cascading tujuan, sasaran, program,
                             kegiatan, indikator, dan target pada halaman detail.
-                        </p>
-                    </div>
-
-                    <div class="rounded-lg border bg-white p-4 text-sm shadow-sm lg:w-80">
-                        <div class="flex items-center justify-between gap-3">
-                            <span class="font-semibold text-slate-900">Status saat ini</span>
-                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1" :class="statusClass(form.status)">
-                                {{ statusLabel(form.status) }}
-                            </span>
-                        </div>
-                        <p class="mt-2 text-xs leading-5 text-muted-foreground">
-                            Untuk input awal, status biasanya tetap Draft. Pengajuan dan verifikasi dilakukan melalui workflow setelah data cascading
-                            lengkap.
                         </p>
                     </div>
                 </div>
@@ -300,39 +264,16 @@ const statusClass = (status: string) =>
                             <InputError :message="form.errors.judul" />
                         </label>
 
-                        <div class="grid gap-4 md:grid-cols-2">
-                            <label class="grid gap-2" for="nomor_dokumen">
-                                <span class="text-sm font-medium text-slate-900">Nomor Dokumen</span>
-                                <input
-                                    id="nomor_dokumen"
-                                    v-model="form.nomor_dokumen"
-                                    class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                                    placeholder="Opsional"
-                                />
-                                <InputError :message="form.errors.nomor_dokumen" />
-                            </label>
-
-                            <label class="grid gap-2" for="status">
-                                <span class="text-sm font-medium text-slate-900">Status Alur Kerja</span>
-                                <select
-                                    id="status"
-                                    v-model="form.status"
-                                    class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                                >
-                                    <option value="draft">Draft</option>
-                                    <option value="submitted">Diajukan</option>
-                                    <option value="revision">Revisi</option>
-                                    <option value="verified">Terverifikasi</option>
-                                    <option value="approved">Disetujui</option>
-                                    <option value="rejected">Ditolak</option>
-                                    <option value="locked">Terkunci</option>
-                                </select>
-                                <span class="text-xs leading-5 text-muted-foreground">
-                                    Jika ragu, biarkan Draft. Status final sebaiknya berubah lewat workflow.
-                                </span>
-                                <InputError :message="form.errors.status" />
-                            </label>
-                        </div>
+                        <label class="grid gap-2 md:max-w-xl" for="nomor_dokumen">
+                            <span class="text-sm font-medium text-slate-900">Nomor Dokumen</span>
+                            <input
+                                id="nomor_dokumen"
+                                v-model="form.nomor_dokumen"
+                                class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                placeholder="Opsional"
+                            />
+                            <InputError :message="form.errors.nomor_dokumen" />
+                        </label>
 
                         <label class="grid gap-2" for="keterangan">
                             <span class="text-sm font-medium text-slate-900">Catatan atau Keterangan</span>

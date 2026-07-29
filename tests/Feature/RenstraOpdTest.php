@@ -26,6 +26,7 @@ use App\Models\SatuanIndikator;
 use App\Models\StrategiDaerah;
 use App\Models\SubKegiatanPemerintahan;
 use App\Models\TargetIndikatorOpdProgram;
+use App\Models\TargetIndikatorProgramRpjmd;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
 use App\Models\User;
@@ -392,6 +393,104 @@ class RenstraOpdTest extends TestCase
             'kode' => '2.16.01',
             'nama' => $namaProgram,
         ]);
+
+        OpdProgram::where('renstra_opd_id', $renstra->id)
+            ->where('program_rpjmd_id', $programRpjmd->id)
+            ->update(['program_pemerintahan_id' => null]);
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.show', $renstra))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('renstra.tujuan.0.sasaran.0.programs', function ($programs) use ($programRpjmd) {
+                    $program = collect($programs)->firstWhere('program_rpjmd_id', $programRpjmd->id);
+
+                    return data_get($program, 'program_pemerintahan.bidang_urusan.kode') === '2.16';
+                })
+            );
+    }
+
+    public function test_selecting_rpjmd_program_snapshots_program_indicators_and_targets_to_renstra(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '9.99.snapshot', 'nama' => 'Dinas Snapshot Renstra', 'status' => 'active']);
+        $tree = $this->createRpjmdTree();
+        $periode = PeriodeTahun::where('tahun', $tree['rpjmd']->tahun_awal)->firstOrFail();
+        $satuan = SatuanIndikator::firstOrFail();
+
+        BidangUrusan::findOrFail($tree['program_master']->bidang_urusan_id)
+            ->opdPengampu()
+            ->syncWithoutDetaching([
+                $opd->id => ['peran' => 'pengampu_urusan', 'is_utama' => true],
+            ]);
+
+        $tree['indikator_program']->update([
+            'satuan_indikator_id' => $satuan->id,
+            'indikator' => 'Indikator Program Snapshot RPJMD',
+            'definisi_operasional' => 'Definisi snapshot dari RPJMD',
+            'formulasi_pengukuran' => 'Realisasi dibagi target',
+            'tipe_perhitungan' => 'kumulatif',
+            'sumber_data' => 'Dokumen RPJMD',
+        ]);
+
+        TargetIndikatorProgramRpjmd::create([
+            'indikator_program_rpjmd_id' => $tree['indikator_program']->id,
+            'periode_tahun_id' => $periode->id,
+            'target' => 88.5,
+            'target_text' => '88,5 persen',
+        ]);
+
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $tree['rpjmd']->id,
+            'periode_tahun_id' => $periode->id,
+            'judul' => 'Renstra Snapshot Program',
+            'tahun_awal' => $tree['rpjmd']->tahun_awal,
+            'tahun_akhir' => $tree['rpjmd']->tahun_akhir,
+            'status' => 'draft',
+        ]);
+        $tujuan = TujuanOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'tujuan' => 'Tujuan OPD Snapshot',
+            'urutan' => 1,
+        ]);
+        $sasaran = SasaranOpd::create([
+            'tujuan_opd_id' => $tujuan->id,
+            'sasaran' => 'Sasaran OPD Snapshot',
+            'urutan' => 1,
+        ]);
+        $user = User::factory()->create(['opd_id' => $opd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'program',
+                'parent_id' => $sasaran->id,
+                'program_rpjmd_id' => $tree['program_rpjmd']->id,
+            ])
+            ->assertRedirect();
+
+        $programOpd = OpdProgram::where('renstra_opd_id', $renstra->id)->firstOrFail();
+        $indikatorOpd = IndikatorOpdProgram::where('opd_program_id', $programOpd->id)->firstOrFail();
+
+        $this->assertDatabaseHas('indikator_opd_program', [
+            'id' => $indikatorOpd->id,
+            'indikator_program_rpjmd_id' => $tree['indikator_program']->id,
+            'satuan_indikator_id' => $satuan->id,
+            'indikator' => 'Indikator Program Snapshot RPJMD',
+            'definisi_operasional' => 'Definisi snapshot dari RPJMD',
+            'formulasi_pengukuran' => 'Realisasi dibagi target',
+            'tipe_perhitungan' => 'kumulatif',
+            'sumber_data' => 'Dokumen RPJMD',
+        ]);
+
+        $this->assertDatabaseHas('target_indikator_opd_program', [
+            'indikator_opd_program_id' => $indikatorOpd->id,
+            'periode_tahun_id' => $periode->id,
+            'target_text' => '88,5 persen',
+            'pagu' => null,
+        ]);
     }
 
     public function test_cascading_opd_can_link_to_rpjmd_and_save_yearly_targets(): void
@@ -535,7 +634,7 @@ class RenstraOpdTest extends TestCase
             'indikator_opd_program_id' => $indikatorProgram->id,
             'periode_tahun_id' => $periode->id,
             'target_text' => '80 persen',
-            'pagu' => 1250000,
+            'pagu' => null,
         ]);
 
         $this->assertDatabaseHas('target_triwulan_indikator', [
@@ -750,7 +849,7 @@ class RenstraOpdTest extends TestCase
             'id' => $program->id,
             'kode' => '9.99.01',
             'nama' => 'Program Master RPJMD',
-            'pagu_indikatif' => 2500000,
+            'pagu_indikatif' => null,
             'urutan' => 2,
         ]);
     }
@@ -852,6 +951,32 @@ class RenstraOpdTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_admin_opd_can_export_renstra_preview_excel(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '4.90', 'nama' => 'Dinas Export Renstra', 'status' => 'active']);
+        $tree = $this->createRpjmdTree();
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $tree['rpjmd']->id,
+            'judul' => 'Renstra Export',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'draft',
+        ]);
+
+        $user = User::factory()->create(['opd_id' => $opd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $response = $this->actingAs($user)
+            ->get(route('renstra-opd.preview.export', $renstra))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $this->assertStringStartsWith('PK', $response->getContent());
+    }
+
     public function test_renstra_import_preview_and_apply_creates_cascading_data(): void
     {
         $this->seed();
@@ -875,7 +1000,7 @@ class RenstraOpdTest extends TestCase
             ['indikator_program', '', '', '', '', '', 'IP1', 'Indikator Program Import', 2026, 70, '70 persen', 500000, '', ''],
             ['kegiatan', '', '', '', '', '', 'K1', 'Kegiatan Import', '', '', '', 250000, '', ''],
             ['sub_kegiatan', '', '', '', '', '', 'SK1', 'Sub Kegiatan Import', '', '', '', 200000, '', ''],
-            ['indikator_sub_kegiatan', '', '', '', '', '', 'ISK1', 'Indikator Sub Kegiatan Import', '', '', '', '', '', ''],
+            ['indikator_sub_kegiatan', '', '', '', '', '', 'ISK1', 'Indikator Sub Kegiatan Import', 2026, 60, '60 persen', 200000, '', ''],
             ['target_triwulan', '', '', '', '', '', '', '', 2026, 25, '25 persen', '', 'tw1', 50000],
         ]);
 
@@ -905,10 +1030,12 @@ class RenstraOpdTest extends TestCase
         $this->assertDatabaseHas('indikator_sasaran_opd', ['kode' => 'IS1', 'indikator' => 'Indikator Sasaran Import']);
         $this->assertDatabaseHas('opd_program', ['kode' => 'P1', 'nama' => 'Program Import']);
         $this->assertDatabaseHas('indikator_opd_program', ['kode' => 'IP1', 'indikator' => 'Indikator Program Import']);
-        $this->assertDatabaseHas('target_indikator_opd_program', ['periode_tahun_id' => $periode->id, 'target_text' => '70 persen', 'pagu' => 500000]);
+        $this->assertDatabaseHas('target_indikator_opd_program', ['periode_tahun_id' => $periode->id, 'target_text' => '70 persen', 'pagu' => null]);
         $this->assertDatabaseHas('opd_kegiatan', ['kode' => 'K1', 'nama' => 'Kegiatan Import']);
         $this->assertDatabaseHas('opd_sub_kegiatan', ['kode' => 'SK1', 'nama' => 'Sub Kegiatan Import']);
         $this->assertDatabaseHas('indikator_sub_kegiatan', ['kode' => 'ISK1', 'indikator' => 'Indikator Sub Kegiatan Import']);
+        $this->assertDatabaseHas('target_indikator_sub_kegiatan', ['periode_tahun_id' => $periode->id, 'target_text' => '60 persen']);
+        $this->assertDatabaseHas('anggaran_sub_kegiatan_renstra', ['periode_tahun_id' => $periode->id, 'anggaran' => 200000]);
         $this->assertDatabaseHas('target_triwulan_indikator', [
             'related_table' => 'indikator_sub_kegiatan',
             'periode_tahun_id' => $periode->id,

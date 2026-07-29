@@ -7,6 +7,7 @@ import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     ArrowLeft,
+    ChevronDown,
     ChevronsRight,
     ClipboardList,
     Eye,
@@ -33,6 +34,7 @@ type Option = {
     disabled?: boolean;
     kode?: string | null;
     nama?: string | null;
+    periode_tahun_id?: number | null;
     program_pemerintahan_id?: number | null;
     program_pemerintahan_ids?: number[];
     tahun?: number | string | null;
@@ -61,7 +63,8 @@ type NodeType =
     | 'target_kegiatan'
     | 'sub_kegiatan'
     | 'indikator_sub_kegiatan'
-    | 'target_sub_kegiatan';
+    | 'target_sub_kegiatan'
+    | 'anggaran_sub_kegiatan';
 
 type Target = {
     id: number;
@@ -69,6 +72,13 @@ type Target = {
     target?: string | number | null;
     target_text?: string | null;
     pagu?: string | number | null;
+};
+
+type BidangUrusanRef = {
+    id: number;
+    kode?: string | null;
+    nama: string;
+    urusan_pemerintahan?: { id: number; kode?: string | null; nama: string } | null;
 };
 
 type Indikator = {
@@ -105,6 +115,11 @@ type SubKegiatan = {
     urutan?: number | null;
     sub_kegiatan_pemerintahan?: { kode: string; nama: string; kegiatan_pemerintahan_id?: number | null } | null;
     opd_unit?: { kode: string; nama: string; jenis_unit?: string | null } | null;
+    anggaran?: Array<{
+        id: number;
+        periode_tahun: { id: number; tahun: number; nama: string };
+        anggaran?: string | number | null;
+    }>;
     indikator: Indikator[];
 };
 
@@ -131,8 +146,14 @@ type Program = {
     program_pemerintahan_id?: number | null;
     urutan?: number | null;
     linked: boolean;
-    program_rpjmd?: { kode: string; nama: string; program_pemerintahan_id?: number | null; program_pemerintahan_ids?: number[] } | null;
-    program_pemerintahan?: { kode: string; nama: string } | null;
+    program_rpjmd?: {
+        kode: string;
+        nama: string;
+        program_pemerintahan_id?: number | null;
+        program_pemerintahan_ids?: number[];
+        program_pemerintahan?: { id?: number | null; kode?: string | null; nama: string; bidang_urusan?: BidangUrusanRef | null } | null;
+    } | null;
+    program_pemerintahan?: { id?: number | null; kode?: string | null; nama: string; bidang_urusan?: BidangUrusanRef | null } | null;
     indikator: Indikator[];
     kegiatan: Kegiatan[];
 };
@@ -205,6 +226,15 @@ type RenstraCascadingRow = {
     pagu: string;
     status_keterhubungan: string;
 };
+type RenstraOutputRowLevel = 'tujuan' | 'sasaran' | 'bidang' | 'program' | 'kegiatan' | 'sub_kegiatan';
+type RenstraOutputRow = {
+    key: string;
+    level: RenstraOutputRowLevel;
+    label: string;
+    indicator: string;
+    baseline: string;
+    values: Array<{ year: number | string; target: string; pagu: string }>;
+};
 type BulkSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 type BulkRow = {
     key: string;
@@ -268,6 +298,11 @@ type BulkInputSection = {
     actions: BulkAction[];
     rows: BulkRow[];
 };
+type BulkSectionGroup = {
+    key: string;
+    label: string;
+    rows: BulkRow[];
+};
 type Workflow = {
     status: string;
     histories: Array<{
@@ -313,6 +348,7 @@ const typeOptions: Array<{ value: NodeType; label: string }> = [
     { value: 'sub_kegiatan', label: 'Sub Kegiatan OPD' },
     { value: 'indikator_sub_kegiatan', label: 'Indikator Sub Kegiatan' },
     { value: 'target_sub_kegiatan', label: 'Target Indikator Sub Kegiatan' },
+    { value: 'anggaran_sub_kegiatan', label: 'Pagu Indikatif Sub Kegiatan' },
 ];
 
 const parentKeyByType: Partial<Record<NodeType, string>> = {
@@ -330,6 +366,7 @@ const parentKeyByType: Partial<Record<NodeType, string>> = {
     sub_kegiatan: 'kegiatan',
     indikator_sub_kegiatan: 'sub_kegiatan',
     target_sub_kegiatan: 'indikator_sub_kegiatan',
+    anggaran_sub_kegiatan: 'sub_kegiatan',
 };
 
 const parentLabels: Record<string, string> = {
@@ -343,6 +380,7 @@ const parentLabels: Record<string, string> = {
     indikator_kegiatan: 'Indikator Kegiatan',
     sub_kegiatan: 'Sub Kegiatan Induk',
     indikator_sub_kegiatan: 'Indikator Sub Kegiatan',
+    anggaran_sub_kegiatan: 'Sub Kegiatan',
 };
 
 const form = useForm({
@@ -382,17 +420,34 @@ const form = useForm({
 const selectedTypeLabel = computed(() => typeOptions.find((type) => type.value === form.type)?.label ?? 'Data Cascading');
 const parentKey = computed(() => parentKeyByType[form.type]);
 const parentOptions = computed(() => (parentKey.value ? (props.nodeOptions[parentKey.value] ?? []) : []));
-const parentLabel = computed(() => (parentKey.value ? (parentLabels[parentKey.value] ?? 'Induk Data') : 'Induk Data'));
+const parentLabel = computed(() => (parentKey.value ? (parentLabels[parentKey.value] ?? 'Data terkait') : 'Data terkait'));
 const needsParent = computed(() => Boolean(parentKey.value));
 const programMasterOptions = computed(() => props.masterReferenceOptions.program_pemerintahan ?? []);
 const opdUnitOptions = computed(() => props.masterReferenceOptions.opd_units ?? []);
 const satuanOptions = computed(() => props.satuanOptions);
 const withEmptyOption = (options: Option[], label = 'Tidak dipilih'): Option[] => [{ id: '', label }, ...options];
+const uniqueOptions = (options: Option[], keyResolver: (option: Option) => string): Option[] => {
+    const seen = new Set<string>();
+
+    return options.filter((option) => {
+        const key = keyResolver(option);
+
+        if (seen.has(key)) {
+            return false;
+        }
+
+        seen.add(key);
+
+        return true;
+    });
+};
 const indicatorNodeTypes: NodeType[] = ['indikator_tujuan', 'indikator_sasaran', 'indikator_program', 'indikator_kegiatan', 'indikator_sub_kegiatan'];
 const targetNodeTypes: NodeType[] = ['target_tujuan', 'target_sasaran', 'target_program', 'target_kegiatan', 'target_sub_kegiatan'];
+const budgetNodeTypes: NodeType[] = ['anggaran_sub_kegiatan'];
 const textNodeTypes: NodeType[] = ['tujuan', 'sasaran', 'program', 'kegiatan', 'sub_kegiatan'];
 const isIndicatorType = computed(() => indicatorNodeTypes.includes(form.type));
 const isTargetType = computed(() => targetNodeTypes.includes(form.type));
+const isBudgetType = computed(() => budgetNodeTypes.includes(form.type));
 const isTextNodeType = computed(() => textNodeTypes.includes(form.type));
 const hasPaguIndikatif = computed(() => false);
 const usesMasterReference = computed(() => ['program', 'kegiatan', 'sub_kegiatan'].includes(form.type));
@@ -400,11 +455,12 @@ const hasSelectedMasterReference = computed(() =>
     Boolean(form.program_pemerintahan_id || form.kegiatan_pemerintahan_id || form.sub_kegiatan_pemerintahan_id),
 );
 const editingNode = ref<{ type: NodeType; id: number } | null>(null);
-const viewMode = ref<'tree' | 'table' | 'bulk'>('tree');
+const viewMode = ref<'tree' | 'table' | 'bulk'>(props.can.manage ? 'bulk' : 'tree');
 const previewMode = ref<'tree' | 'table'>('tree');
 const isNodeModalOpen = ref(false);
 const formPanel = ref<HTMLElement | null>(null);
 const bulkRows = ref<BulkRow[]>([]);
+const expandedBulkSections = ref<string[]>(['tujuan']);
 const bulkSaveTimers = new Map<string, number>();
 const bulkLastSavedAt = ref('');
 const bulkDraftCounter = ref(0);
@@ -486,8 +542,13 @@ const typeMeta: Record<NodeType, { stage: string; helper: string; primaryField: 
     },
     target_sub_kegiatan: {
         stage: 'Target',
-        helper: 'Target kinerja dan target keuangan 5 tahunan untuk indikator sub kegiatan.',
+        helper: 'Target kinerja 5 tahunan untuk indikator sub kegiatan.',
         primaryField: 'Nilai target',
+    },
+    anggaran_sub_kegiatan: {
+        stage: 'Anggaran',
+        helper: 'Pagu indikatif 5 tahunan pada level sub kegiatan.',
+        primaryField: 'Nilai anggaran',
     },
 };
 const tujuanNodeTypes: NodeType[] = ['tujuan', 'indikator_tujuan', 'target_tujuan'];
@@ -519,8 +580,7 @@ const kegiatanActions: BulkAction[] = [
 ];
 const subKegiatanActions: BulkAction[] = [
     { type: 'sub_kegiatan', label: 'Sub Kegiatan', helper: 'Turunan kegiatan' },
-    { type: 'indikator_sub_kegiatan', label: 'Indikator Sub', helper: 'Ukuran sub kegiatan' },
-    { type: 'target_sub_kegiatan', label: 'Target Sub', helper: 'Target 5 tahunan' },
+    { type: 'anggaran_sub_kegiatan', label: 'Pagu Indikatif', helper: 'Anggaran 5 tahunan' },
 ];
 const directionActions: BulkAction[] = [...tujuanActions, ...sasaranActions];
 const implementationActions: BulkAction[] = [...programActions, ...kegiatanActions, ...subKegiatanActions];
@@ -561,6 +621,82 @@ const contentRequirementText = computed(() => {
         ? 'Pilih periode, isi target kinerja, lalu isi target keuangan bila ada.'
         : 'Pilih periode dan isi target angka atau target teks.';
 });
+const shownParentSelectorTypes: NodeType[] = ['program', 'kegiatan', 'sub_kegiatan'];
+const showParentSelector = computed(() => shownParentSelectorTypes.includes(form.type));
+const parentContextTitle = computed(() => {
+    const titleMap: Partial<Record<NodeType, string>> = {
+        indikator_tujuan: 'Tujuan OPD',
+        sasaran: 'Tujuan OPD',
+        indikator_sasaran: 'Sasaran OPD',
+        indikator_program: 'Program OPD',
+        indikator_kegiatan: 'Kegiatan OPD',
+        target_tujuan: 'Indikator Tujuan',
+        target_sasaran: 'Indikator Sasaran',
+        target_program: 'Indikator Program',
+        target_kegiatan: 'Indikator Kegiatan',
+        target_sub_kegiatan: 'Indikator Sub Kegiatan',
+        anggaran_sub_kegiatan: 'Sub Kegiatan',
+    };
+
+    return titleMap[form.type] ?? 'Konteks';
+});
+const parentContextRow = computed(() => {
+    const key = parentKeyByType[form.type];
+    const parentId = toNumberOrNull(form.parent_id);
+
+    if (!key || !parentId) {
+        return null;
+    }
+
+    return bulkRows.value.find((row) => row.type === key && Number(row.id) === parentId) ?? null;
+});
+const rpjmdContextTujuanTexts = computed(() =>
+    [
+        ...new Set(
+            props.rpjmdContext.program_groups
+                .map((group) => plainNodeText(group.tujuan?.tujuan))
+                .filter((item) => item && item !== '-'),
+        ),
+    ].slice(0, 4),
+);
+const rpjmdContextSasaranTexts = computed(() =>
+    [
+        ...new Set(
+            props.rpjmdContext.program_groups
+                .map((group) => plainNodeText(group.sasaran?.sasaran))
+                .filter((item) => item && item !== '-'),
+        ),
+    ].slice(0, 4),
+);
+const formContextDescription = computed(() => {
+    if (form.type === 'tujuan') {
+        return 'Tujuan dan sasaran kabupaten yang relevan dengan OPD ini otomatis menjadi konteks pengisian.';
+    }
+
+    if (parentContextRow.value) {
+        return bulkRowPrimaryText(parentContextRow.value);
+    }
+
+    if (isTargetType.value) {
+        return targetBatchIndicatorRow.value?.indikator || 'Indikator belum tersedia.';
+    }
+
+    if (isBudgetType.value) {
+        return targetBatchSubKegiatan.value?.nama || 'Sub kegiatan belum tersedia.';
+    }
+
+    return selectedTypeMeta.value.helper;
+});
+const pdPenanggungJawabPlaceholder = computed(() =>
+    form.type === 'indikator_tujuan'
+        ? 'Contoh: Dinas Komunikasi dan Informatika'
+        : 'Contoh: Kepala Bidang Penyelenggaraan E-Government',
+);
+const sumberDataPlaceholder = computed(() =>
+    form.type === 'indikator_tujuan'
+        ? 'Contoh: Bidang Penyelenggaraan E-Government, Bidang IKP'
+        : 'Contoh: Bidang Penyelenggaraan E-Government',
+);
 const onTypeSelected = (value: number | string | null | undefined) => {
     if (typeof value !== 'string') {
         return;
@@ -605,6 +741,18 @@ const optionById = (options: Option[], value: number | string | null | undefined
     return options.find((option) => Number(option.id) === id) ?? null;
 };
 
+const firstReferenceValue = (key: string): number | string => props.rpjmdReferenceOptions[key]?.[0]?.id ?? '';
+
+const applyImplicitReferences = (type: NodeType) => {
+    if (type === 'tujuan' && !form.tujuan_daerah_id) {
+        form.tujuan_daerah_id = firstReferenceValue('tujuan_daerah');
+    }
+
+    if (type === 'sasaran' && !form.sasaran_daerah_id) {
+        form.sasaran_daerah_id = firstReferenceValue('sasaran_daerah');
+    }
+};
+
 const findProgram = (id: number | string | null | undefined): Program | null => {
     const programId = toNumberOrNull(id);
 
@@ -647,6 +795,30 @@ const findKegiatan = (id: number | string | null | undefined): Kegiatan | null =
     return null;
 };
 
+const findSubKegiatan = (id: number | string | null | undefined): SubKegiatan | null => {
+    const subKegiatanId = toNumberOrNull(id);
+
+    if (!subKegiatanId) {
+        return null;
+    }
+
+    for (const tujuan of props.renstra.tujuan) {
+        for (const sasaran of tujuan.sasaran) {
+            for (const program of sasaran.programs) {
+                for (const kegiatan of program.kegiatan) {
+                    const subKegiatan = kegiatan.sub_kegiatan.find((item) => Number(item.id) === subKegiatanId);
+
+                    if (subKegiatan) {
+                        return subKegiatan;
+                    }
+                }
+            }
+        }
+    }
+
+    return null;
+};
+
 const selectedProgramRpjmd = computed(() => optionById(props.rpjmdReferenceOptions.program_rpjmd ?? [], form.program_rpjmd_id));
 const selectedProgramMaster = computed(() => optionById(programMasterOptions.value, form.program_pemerintahan_id));
 const selectedKegiatanMaster = computed(() => optionById(props.masterReferenceOptions.kegiatan_pemerintahan ?? [], form.kegiatan_pemerintahan_id));
@@ -655,6 +827,7 @@ const selectedSubKegiatanMaster = computed(() =>
 );
 const selectedParentProgram = computed(() => (form.type === 'kegiatan' ? findProgram(form.parent_id) : null));
 const selectedParentKegiatan = computed(() => (form.type === 'sub_kegiatan' ? findKegiatan(form.parent_id) : null));
+const selectedParentSubKegiatan = computed(() => (form.type === 'anggaran_sub_kegiatan' ? findSubKegiatan(form.parent_id) : null));
 const selectedProgramMasterId = computed(
     () =>
         toNumberOrNull(form.program_pemerintahan_id) ??
@@ -666,21 +839,17 @@ const kegiatanMasterOptions = computed(() => {
     const options = props.masterReferenceOptions.kegiatan_pemerintahan ?? [];
     const programId = selectedProgramMasterId.value;
 
-    if (!programId) {
-        return options;
-    }
+    const filteredOptions = programId ? options.filter((option) => Number(option.program_pemerintahan_id) === programId) : options;
 
-    return options.filter((option) => Number(option.program_pemerintahan_id) === programId);
+    return uniqueOptions(filteredOptions, (option) => `${option.program_pemerintahan_id ?? ''}|${option.kode ?? option.label}`);
 });
 const subKegiatanMasterOptions = computed(() => {
     const options = props.masterReferenceOptions.sub_kegiatan_pemerintahan ?? [];
     const kegiatanId = selectedKegiatanMasterId.value;
 
-    if (!kegiatanId) {
-        return options;
-    }
+    const filteredOptions = kegiatanId ? options.filter((option) => Number(option.kegiatan_pemerintahan_id) === kegiatanId) : options;
 
-    return options.filter((option) => Number(option.kegiatan_pemerintahan_id) === kegiatanId);
+    return uniqueOptions(filteredOptions, (option) => `${option.kegiatan_pemerintahan_id ?? ''}|${option.kode ?? option.label}`);
 });
 const programRpjmdSelectOptions = computed(() => withEmptyOption(props.rpjmdReferenceOptions.program_rpjmd ?? [], 'Tidak dihubungkan'));
 const programMasterSelectOptions = computed(() => withEmptyOption(programMasterOptions.value, 'Tidak memakai master'));
@@ -730,27 +899,16 @@ const renstraSummary = computed(() => {
                 summary.indikator += program.indikator.length;
                 summary.indikator_terhubung += program.indikator.filter((indikator) => indikator.linked).length;
                 summary.target_tahunan += program.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
-                summary.target_keuangan += program.indikator.reduce(
-                    (total, indikator) => total + (indikator.targets ?? []).reduce((subtotal, target) => subtotal + Number(target.pagu ?? 0), 0),
-                    0,
-                );
                 summary.kegiatan += program.kegiatan.length;
 
                 program.kegiatan.forEach((kegiatan) => {
                     summary.indikator += kegiatan.indikator.length;
                     summary.target_tahunan += kegiatan.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
-                    summary.target_keuangan += kegiatan.indikator.reduce(
-                        (total, indikator) => total + (indikator.targets ?? []).reduce((subtotal, target) => subtotal + Number(target.pagu ?? 0), 0),
-                        0,
-                    );
                     summary.sub_kegiatan += kegiatan.sub_kegiatan.length;
                     kegiatan.sub_kegiatan.forEach((subKegiatan) => {
                         summary.indikator += subKegiatan.indikator.length;
                         summary.target_tahunan += subKegiatan.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
-                        summary.target_keuangan += subKegiatan.indikator.reduce(
-                            (total, indikator) => total + (indikator.targets ?? []).reduce((subtotal, target) => subtotal + Number(target.pagu ?? 0), 0),
-                            0,
-                        );
+                        summary.target_keuangan += Number(subKegiatan.pagu_indikatif ?? 0);
                     });
                 });
             });
@@ -782,7 +940,7 @@ const coreCompleteness = computed(() => {
     return Math.round((done / checks.length) * 100);
 });
 const compactPreviewRows = computed(() => renstraCascadingRows.value.slice(0, 6));
-const periodColumns = computed(() =>
+const mappedPeriodOptions = computed(() =>
     props.periodeOptions
         .map((option) => {
             const year = Number(String(option.label).match(/\b(20\d{2})\b/)?.[1]);
@@ -794,13 +952,19 @@ const periodColumns = computed(() =>
                 yearNumber: Number.isFinite(year) ? year : null,
             };
         })
-        .filter((option) => {
-            if (!option.yearNumber) {
-                return true;
-            }
-
-            return option.yearNumber >= props.renstra.tahun_awal && option.yearNumber <= props.renstra.tahun_akhir + 1;
-        }),
+        .filter((option) => Boolean(option.yearNumber))
+        .sort((a, b) => Number(a.yearNumber) - Number(b.yearNumber)),
+);
+const baselineYear = computed(() => props.renstra.tahun_awal - 1);
+const baselinePeriod = computed(() => mappedPeriodOptions.value.find((option) => option.yearNumber === baselineYear.value) ?? null);
+const periodColumns = computed(() =>
+    mappedPeriodOptions.value.filter(
+        (option) =>
+            Number(option.yearNumber) >= props.renstra.tahun_awal && Number(option.yearNumber) <= props.renstra.tahun_akhir + 1,
+    ),
+);
+const targetInputPeriods = computed(() =>
+    baselinePeriod.value ? [baselinePeriod.value, ...periodColumns.value] : periodColumns.value,
 );
 const hasRpjmdContext = computed(() => props.rpjmdContext.visi.length > 0 || props.rpjmdContext.program_groups.length > 0);
 const rpjmdContextProgramCount = computed(() => props.rpjmdContext.program_groups.reduce((total, group) => total + group.programs.length, 0));
@@ -878,6 +1042,70 @@ const bulkInputSections = computed<BulkInputSection[]>(() => [
         rows: subKegiatanRows.value,
     },
 ]);
+
+const isBulkSectionExpanded = (sectionKey: string) => expandedBulkSections.value.includes(sectionKey);
+
+const toggleBulkSection = (sectionKey: string) => {
+    expandedBulkSections.value = isBulkSectionExpanded(sectionKey)
+        ? expandedBulkSections.value.filter((key) => key !== sectionKey)
+        : [...expandedBulkSections.value, sectionKey];
+};
+
+const bulkSectionStats = (section: BulkInputSection) => {
+    const primaryCount = section.rows.filter((row) => row.type === section.primaryType && !isBulkTargetRow(row)).length;
+    const indicatorCount = section.rows.filter((row) => row.type === section.indicatorType).length;
+    const targetCount = section.rows.filter((row) => isBulkTargetRow(row)).length;
+    const dirtyCount = section.rows.filter((row) => ['dirty', 'saving', 'error'].includes(row.saveState)).length;
+    const savedCount = section.rows.filter((row) => row.id).length;
+
+    return {
+        primaryCount,
+        indicatorCount,
+        targetCount,
+        dirtyCount,
+        savedCount,
+    };
+};
+
+const bulkSectionStatus = (section: BulkInputSection): { label: string; className: string } => {
+    const stats = bulkSectionStats(section);
+
+    if (stats.dirtyCount > 0) {
+        return {
+            label: `${stats.dirtyCount} perlu disimpan`,
+            className: 'border-amber-200 bg-amber-50 text-amber-800',
+        };
+    }
+
+    if (stats.primaryCount === 0) {
+        return {
+            label: 'Belum diisi',
+            className: 'border-slate-200 bg-slate-50 text-slate-600',
+        };
+    }
+
+    if (section.key !== 'sub-kegiatan' && stats.indicatorCount === 0) {
+        return {
+            label: 'Perlu indikator',
+            className: 'border-blue-100 bg-blue-50 text-[#00336C]',
+        };
+    }
+
+    return {
+        label: 'Terisi',
+        className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    };
+};
+
+const bulkSectionSummary = (section: BulkInputSection): string => {
+    const stats = bulkSectionStats(section);
+
+    if (section.key === 'sub-kegiatan') {
+        return `${stats.primaryCount} sub kegiatan, ${stats.indicatorCount} indikator`;
+    }
+
+    return `${stats.primaryCount} data utama, ${stats.indicatorCount} indikator, ${stats.targetCount} target`;
+};
 
 const renstraCascadingRows = computed<RenstraCascadingRow[]>(() => {
     const rows: RenstraCascadingRow[] = [];
@@ -1024,6 +1252,207 @@ function emptyRenstraRow(key: string, values: Partial<RenstraCascadingRow>): Ren
         ...values,
     };
 }
+
+const renstraOutputRows = computed<RenstraOutputRow[]>(() => {
+    const rows: RenstraOutputRow[] = [];
+
+    props.renstra.tujuan.forEach((tujuan) => {
+        appendRenstraOutputRows(rows, {
+            level: 'tujuan',
+            keyPrefix: `tujuan-${tujuan.id}`,
+            label: `Tujuan OPD: ${plainNodeText(tujuan.tujuan)}`,
+            indicators: tujuan.indikator,
+            budgetResolver: () => 0,
+        });
+
+        tujuan.sasaran.forEach((sasaran) => {
+            appendRenstraOutputRows(rows, {
+                level: 'sasaran',
+                keyPrefix: `sasaran-${sasaran.id}`,
+                label: `Sasaran OPD: ${plainNodeText(sasaran.sasaran)}`,
+                indicators: sasaran.indikator,
+                budgetResolver: () => 0,
+            });
+
+            const groups = new Map<string, { label: string; programs: Program[] }>();
+
+            sasaran.programs.forEach((program) => {
+                const bidang = programBidangUrusan(program);
+                const key = bidang?.id ? `sasaran-${sasaran.id}-bidang-${bidang.id}` : `sasaran-${sasaran.id}-bidang-none`;
+                const label = bidang?.nama || 'Bidang urusan belum dipilih';
+
+                if (!groups.has(key)) {
+                    groups.set(key, { label, programs: [] });
+                }
+
+                groups.get(key)?.programs.push(program);
+            });
+
+            groups.forEach((group, key) => {
+                rows.push({
+                    key,
+                    level: 'bidang',
+                    label: group.label,
+                    indicator: '',
+                    baseline: '',
+                    values: blankRenstraOutputValues(),
+                });
+
+                group.programs.forEach((program) => {
+                    appendRenstraOutputRows(rows, {
+                        level: 'program',
+                        keyPrefix: `program-${program.id}`,
+                        label: renstraNodeName(program.nama),
+                        indicators: program.indikator,
+                        budgetResolver: (year) => programBudgetByYear(program, year),
+                    });
+
+                    program.kegiatan.forEach((kegiatan) => {
+                        appendRenstraOutputRows(rows, {
+                            level: 'kegiatan',
+                            keyPrefix: `kegiatan-${kegiatan.id}`,
+                            label: renstraNodeName(kegiatan.nama),
+                            indicators: kegiatan.indikator,
+                            budgetResolver: (year) => kegiatanBudgetByYear(kegiatan, year),
+                        });
+
+                        kegiatan.sub_kegiatan.forEach((subKegiatan) => {
+                            appendRenstraOutputRows(rows, {
+                                level: 'sub_kegiatan',
+                                keyPrefix: `sub-${subKegiatan.id}`,
+                                label: renstraNodeName(subKegiatan.nama),
+                                indicators: subKegiatan.indikator,
+                                budgetResolver: (year) => subKegiatanBudgetByYear(subKegiatan, year),
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+
+    return rows;
+});
+
+function appendRenstraOutputRows(
+    rows: RenstraOutputRow[],
+    options: {
+        level: RenstraOutputRowLevel;
+        keyPrefix: string;
+        label: string;
+        indicators: Indikator[];
+        budgetResolver: (year: number) => number;
+    },
+) {
+    if (options.indicators.length === 0) {
+        rows.push({
+            key: options.keyPrefix,
+            level: options.level,
+            label: options.label,
+            indicator: '',
+            baseline: '',
+            values: renstraOutputValues(null, options.budgetResolver),
+        });
+
+        return;
+    }
+
+    options.indicators.forEach((indicator, index) => {
+        rows.push({
+            key: `${options.keyPrefix}-indikator-${indicator.id}`,
+            level: options.level,
+            label: index === 0 ? options.label : '',
+            indicator: plainNodeText(indicator.indikator),
+            baseline: targetForIndicatorYear(indicator, baselineYear.value),
+            values: renstraOutputValues(indicator, options.budgetResolver, index === 0),
+        });
+    });
+}
+
+const programBidangUrusan = (program: Program): BidangUrusanRef | null =>
+    program.program_pemerintahan?.bidang_urusan ?? program.program_rpjmd?.program_pemerintahan?.bidang_urusan ?? null;
+
+const renstraNodeLabel = (kode?: string | null, nama?: string | null) => joinItems([kode, nama]) || '-';
+const renstraNodeName = (nama?: string | null) => nama?.trim() || '-';
+
+const blankRenstraOutputValues = () =>
+    periodColumns.value.map((period) => ({
+        year: period.year,
+        target: '',
+        pagu: '',
+    }));
+
+const renstraOutputValues = (indicator: Indikator | null, budgetResolver: (year: number) => number, showBudget = true) =>
+    periodColumns.value.map((period) => {
+        const year = Number(period.yearNumber ?? period.year);
+
+        return {
+            year: period.year,
+            target: indicator ? targetForIndicatorYear(indicator, year) : '',
+            pagu: showBudget ? formatPreviewPagu(budgetResolver(year)) : '',
+        };
+    });
+
+const targetForIndicatorYear = (indicator: Indikator, year: number) => {
+    const target = (indicator.targets ?? []).find((item) => Number(item.periode_tahun?.tahun) === year);
+
+    return normalizedTargetText(target?.target_text || target?.target) || '-';
+};
+
+const subKegiatanBudgetByYear = (subKegiatan: SubKegiatan, year: number) => {
+    const budget = (subKegiatan.anggaran ?? []).find((item) => Number(item.periode_tahun?.tahun) === year);
+
+    return numericPreviewValue(budget?.anggaran);
+};
+
+const kegiatanBudgetByYear = (kegiatan: Kegiatan, year: number) =>
+    kegiatan.sub_kegiatan.reduce((total, subKegiatan) => total + subKegiatanBudgetByYear(subKegiatan, year), 0);
+
+const programBudgetByYear = (program: Program, year: number) =>
+    program.kegiatan.reduce((total, kegiatan) => total + kegiatanBudgetByYear(kegiatan, year), 0);
+
+const numericPreviewValue = (value?: string | number | null) => {
+    if (value === null || value === undefined || value === '') {
+        return 0;
+    }
+
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : 0;
+    }
+
+    let normalized = String(value).trim().replace(/\s/g, '');
+
+    if (/^-?\d+(\.\d+)?$/.test(normalized)) {
+        return Number(normalized);
+    }
+
+    if (normalized.includes(',') && normalized.includes('.')) {
+        normalized = normalized.replace(/\./g, '').replace(',', '.');
+    } else if (normalized.includes(',')) {
+        normalized = normalized.replace(',', '.');
+    } else if (/^\d{1,3}(\.\d{3})+$/.test(normalized)) {
+        normalized = normalized.replace(/\./g, '');
+    }
+
+    const parsed = Number(normalized);
+
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatPreviewPagu = (value: number) =>
+    value > 0 ? new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value) : '-';
+
+const renstraOutputRowClass = (level: RenstraOutputRowLevel) =>
+    ({
+        tujuan: 'bg-[#dcecff] font-semibold text-slate-950',
+        sasaran: 'bg-[#eaf4ff] font-semibold text-slate-950',
+        bidang: 'bg-[#fff2cc] font-semibold text-slate-950',
+        program: 'bg-[#e2f0d9] text-slate-950',
+        kegiatan: 'bg-[#fce4d6] text-slate-950',
+        sub_kegiatan: 'bg-white text-slate-950',
+    })[level];
+
+const renstraOutputYearLabel = (year: number | string) => (Number(year) > props.renstra.tahun_akhir ? `${year} PM` : String(year));
 
 function makeBulkRow(values: Partial<BulkRow> & { id?: number | null; type: NodeType; level: string }): BulkRow {
     return {
@@ -1409,6 +1838,22 @@ const closeNodeModal = () => {
     clearNodeForm();
 };
 
+const defaultParentIdForType = (type: NodeType): number | string => {
+    const key = parentKeyByType[type];
+
+    if (!key) {
+        return '';
+    }
+
+    const savedParent = props.nodeOptions[key]?.[0]?.id;
+
+    if (savedParent) {
+        return savedParent;
+    }
+
+    return bulkRows.value.find((row) => row.type === key && row.id)?.id ?? '';
+};
+
 const selectNodeType = (type: NodeType, parentId: number | string = '') => {
     editingNode.value = null;
     isNodeModalOpen.value = true;
@@ -1416,15 +1861,39 @@ const selectNodeType = (type: NodeType, parentId: number | string = '') => {
 
     nextTick(() => {
         clearNodeForm();
-        form.parent_id = parentId;
+        form.parent_id = parentId || (shownParentSelectorTypes.includes(type) ? '' : defaultParentIdForType(type));
+        applyImplicitReferences(type);
 
-        if (targetNodeTypes.includes(type)) {
+        if (targetNodeTypes.includes(type) || budgetNodeTypes.includes(type)) {
             prepareTargetBatchRows();
         }
     });
 };
 
 const valueText = (value: unknown) => (value === null || value === undefined ? '' : String(value));
+const normalizedTargetText = (value?: string | number | null) => {
+    if (value === null || value === undefined || value === '') {
+        return '';
+    }
+
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(value) : '';
+    }
+
+    const raw = valueText(value).trim();
+
+    if (!raw) {
+        return '';
+    }
+
+    if (/^-?\d+\.\d{4,}$/.test(raw)) {
+        const parsed = Number(raw);
+
+        return Number.isFinite(parsed) ? new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(parsed) : raw;
+    }
+
+    return raw;
+};
 const indikatorPdText = (indikator: Indikator) =>
     valueText(indikator.pd_penanggung_jawab || indikator.opd_penanggung_jawab?.singkatan || indikator.opd_penanggung_jawab?.nama);
 
@@ -1597,7 +2066,7 @@ const isBulkIndicatorRow = (row: BulkRow) => indicatorNodeTypes.includes(row.typ
 const isBulkTargetRow = (row: BulkRow) => targetNodeTypes.includes(row.type);
 const hasBulkSasaranLevel = (row: BulkRow) => ['program', 'kegiatan', 'sub_kegiatan'].includes(row.type);
 const hasBulkPaguIndikatif = (_row: BulkRow) => false;
-const hasBulkPaguTahunan = (row: BulkRow) => row.type === 'target_sub_kegiatan';
+const hasBulkPaguTahunan = (_row: BulkRow) => false;
 const visibleBulkRows = (rows: BulkRow[]) => rows.filter((row) => !isBulkTargetRow(row));
 const targetTypeByIndicatorType: Partial<Record<NodeType, NodeType>> = {
     indikator_tujuan: 'target_tujuan',
@@ -1673,9 +2142,9 @@ const ensureTargetRowForIndicator = (row: BulkRow, periodeId: number | string): 
 const targetValueForIndicator = (row: BulkRow, periodeId: number | string) => {
     const targetRow = targetRowForIndicator(row, periodeId);
 
-    return targetRow?.target_text || targetRow?.target || '';
+    return normalizedTargetText(targetRow?.target_text || targetRow?.target);
 };
-const targetPaguForIndicator = (row: BulkRow, periodeId: number | string) => targetRowForIndicator(row, periodeId)?.pagu || '';
+const targetPaguForIndicator = (row: BulkRow, periodeId: number | string) => currencyInputText(targetRowForIndicator(row, periodeId)?.pagu);
 const inputEventValue = (event: Event) => (event.target as HTMLInputElement).value;
 const setIndicatorTargetValue = (row: BulkRow, periodeId: number | string, value: string) => {
     const targetRow = ensureTargetRowForIndicator(row, periodeId);
@@ -1708,8 +2177,11 @@ const setIndicatorTargetPagu = (row: BulkRow, periodeId: number | string, value:
     targetRow.pagu = value;
     scheduleBulkAutosave(targetRow);
 };
-const showTargetFinance = (row: BulkRow) => ['indikator_program', 'indikator_kegiatan', 'indikator_sub_kegiatan'].includes(row.type);
-const targetBatchShowsFinance = computed(() => ['target_program', 'target_kegiatan', 'target_sub_kegiatan'].includes(form.type));
+const showTargetFinance = (_row: BulkRow) => false;
+const targetButtonLabel = (_row: BulkRow) => 'Target';
+const targetBatchShowsFinance = computed(() => isBudgetType.value);
+const targetBatchTitle = computed(() => (isBudgetType.value ? 'Pagu Indikatif 5 Tahunan' : 'Baseline dan Target 5 Tahunan'));
+const targetBatchSubmitLabel = computed(() => (isBudgetType.value ? 'Simpan Anggaran' : 'Simpan Target'));
 const targetBatchIndicatorRow = computed(() => {
     const indicatorType = indicatorTypeByTargetType[form.type];
     const parentId = toNumberOrNull(form.parent_id);
@@ -1720,10 +2192,39 @@ const targetBatchIndicatorRow = computed(() => {
 
     return bulkRows.value.find((row) => row.type === indicatorType && Number(row.id) === parentId) ?? null;
 });
+const targetBatchSubKegiatan = computed(() => (isBudgetType.value ? findSubKegiatan(form.parent_id) : null));
 const prepareTargetBatchRows = () => {
     const indicatorRow = targetBatchIndicatorRow.value;
+    const subKegiatan = targetBatchSubKegiatan.value;
+    const periods = isBudgetType.value ? periodColumns.value : targetInputPeriods.value;
 
-    targetBatchRows.value = periodColumns.value.map((period) => {
+    targetBatchRows.value = periods.map((period) => {
+        if (isBudgetType.value) {
+            const existingAnggaran = subKegiatan?.anggaran?.find((anggaran) => Number(anggaran.periode_tahun.id) === Number(period.id)) ?? null;
+
+            return {
+                key: `budget-batch-${period.id}`,
+                periode_tahun_id: period.id,
+                year: period.year,
+                label: period.label,
+                target: '',
+                pagu: currencyInputText(existingAnggaran?.anggaran),
+                existingRow: existingAnggaran
+                    ? makeBulkRow({
+                          id: existingAnggaran.id,
+                          type: 'anggaran_sub_kegiatan',
+                          level: 'Pagu Indikatif Sub Kegiatan',
+                          parent_label: subKegiatan ? plainNodeText(subKegiatan.nama) : '-',
+                          parent_id: subKegiatan?.id ?? '',
+                          periode_tahun_id: period.id,
+                          pagu: currencyInputText(existingAnggaran.anggaran),
+                      })
+                    : null,
+                saveState: existingAnggaran ? 'saved' : 'idle',
+                error: '',
+            };
+        }
+
         const existingRow = indicatorRow ? targetRowForIndicator(indicatorRow, period.id) : null;
 
         return {
@@ -1731,8 +2232,8 @@ const prepareTargetBatchRows = () => {
             periode_tahun_id: period.id,
             year: period.year,
             label: period.label,
-            target: valueText(existingRow?.target_text || existingRow?.target),
-            pagu: valueText(existingRow?.pagu),
+            target: normalizedTargetText(existingRow?.target_text || existingRow?.target),
+            pagu: currencyInputText(existingRow?.pagu),
             existingRow,
             saveState: existingRow ? 'saved' : 'idle',
             error: '',
@@ -1744,6 +2245,12 @@ const onTargetBatchInput = (row: TargetBatchRow) => {
     row.error = '';
 };
 const saveTargetBatchRows = async () => {
+    if (isBudgetType.value) {
+        await saveBudgetBatchRows();
+
+        return;
+    }
+
     const indicatorRow = targetBatchIndicatorRow.value;
 
     if (!indicatorRow) {
@@ -1755,12 +2262,10 @@ const saveTargetBatchRows = async () => {
     try {
         for (const batchRow of targetBatchRows.value) {
             const existingTarget = batchRow.existingRow;
-            const currentTarget = valueText(existingTarget?.target_text || existingTarget?.target);
-            const currentPagu = valueText(existingTarget?.pagu);
+            const currentTarget = normalizedTargetText(existingTarget?.target_text || existingTarget?.target);
             const nextTarget = batchRow.target.trim();
-            const nextPagu = batchRow.pagu.trim();
-            const hasValue = Boolean(nextTarget || nextPagu);
-            const changed = nextTarget !== currentTarget || nextPagu !== currentPagu;
+            const hasValue = Boolean(nextTarget);
+            const changed = nextTarget !== currentTarget;
 
             if (!changed || (!hasValue && !existingTarget)) {
                 continue;
@@ -1776,7 +2281,7 @@ const saveTargetBatchRows = async () => {
             batchRow.error = '';
             targetRow.target = '';
             targetRow.target_text = nextTarget;
-            targetRow.pagu = nextPagu;
+            targetRow.pagu = '';
             targetRow.saveState = 'dirty';
 
             await saveBulkRow(targetRow);
@@ -1790,6 +2295,64 @@ const saveTargetBatchRows = async () => {
     }
 
     if (targetBatchRows.value.every((row) => !row.error)) {
+        router.reload({ only: ['renstra'], preserveScroll: true, preserveState: true });
+        closeNodeModal();
+    }
+};
+const saveBudgetBatchRows = async () => {
+    const subKegiatan = targetBatchSubKegiatan.value;
+
+    if (!subKegiatan) {
+        return;
+    }
+
+    isTargetBatchSaving.value = true;
+
+    try {
+        for (const batchRow of targetBatchRows.value) {
+            const existingBudget = batchRow.existingRow;
+            const currentPagu = normalizedCurrencyComparable(existingBudget?.pagu);
+            const nextPagu = normalizedCurrencyComparable(batchRow.pagu);
+            const hasValue = Boolean(nextPagu);
+            const changed = nextPagu !== currentPagu;
+
+            if (!changed || (!hasValue && !existingBudget)) {
+                continue;
+            }
+
+            const budgetRow =
+                existingBudget ??
+                makeBulkRow({
+                    key: `draft-budget-${subKegiatan.id}-${batchRow.periode_tahun_id}`,
+                    id: null,
+                    type: 'anggaran_sub_kegiatan',
+                    level: 'Pagu Indikatif Sub Kegiatan',
+                    parent_label: plainNodeText(subKegiatan.nama),
+                    parent_id: subKegiatan.id,
+                    periode_tahun_id: batchRow.periode_tahun_id,
+                    isNew: true,
+                    saveState: 'dirty',
+                });
+
+            batchRow.saveState = 'saving';
+            batchRow.error = '';
+            budgetRow.pagu = currencyInputText(nextPagu);
+            budgetRow.target = '';
+            budgetRow.target_text = '';
+            budgetRow.saveState = 'dirty';
+
+            await saveBulkRow(budgetRow);
+
+            batchRow.existingRow = budgetRow.id ? budgetRow : null;
+            batchRow.saveState = budgetRow.saveState;
+            batchRow.error = budgetRow.error;
+        }
+    } finally {
+        isTargetBatchSaving.value = false;
+    }
+
+    if (targetBatchRows.value.every((row) => !row.error)) {
+        router.reload({ only: ['renstra'], preserveScroll: true, preserveState: true });
         closeNodeModal();
     }
 };
@@ -1917,8 +2480,20 @@ const bulkTargetSummaries = (row: BulkRow) =>
         id: period.id,
         year: period.year,
         target: targetValueForIndicator(row, period.id) || '-',
-        pagu: targetPaguForIndicator(row, period.id) || '',
     }));
+const baselineTargetSummary = (row: BulkRow) => {
+    if (!baselinePeriod.value) {
+        return null;
+    }
+
+    return {
+        id: baselinePeriod.value.id,
+        year: baselinePeriod.value.year,
+        target: targetValueForIndicator(row, baselinePeriod.value.id) || '-',
+    };
+};
+const targetBatchPeriodLabel = (row: TargetBatchRow) =>
+    Number(row.year) === baselineYear.value ? `${row.year} - Baseline` : row.label;
 
 const bulkRowChildActions = (row: BulkRow): Array<{ type: NodeType; label: string }> => {
     if (!row.id) {
@@ -1946,7 +2521,7 @@ const bulkRowChildActions = (row: BulkRow): Array<{ type: NodeType; label: strin
             { type: 'sub_kegiatan', label: 'Sub Kegiatan' },
         ],
         indikator_kegiatan: [{ type: 'target_kegiatan', label: 'Target' }],
-        sub_kegiatan: [{ type: 'indikator_sub_kegiatan', label: 'Indikator' }],
+        sub_kegiatan: [{ type: 'anggaran_sub_kegiatan', label: 'Pagu Indikatif' }],
         indikator_sub_kegiatan: [{ type: 'target_sub_kegiatan', label: 'Target' }],
     };
 
@@ -1955,6 +2530,61 @@ const bulkRowChildActions = (row: BulkRow): Array<{ type: NodeType; label: strin
 
 const sectionParentRows = (section: BulkInputSection): BulkRow[] =>
     section.rows.filter((row) => row.type === section.primaryType && !isBulkTargetRow(row));
+
+const shouldGroupSection = (section: BulkInputSection): boolean => ['program', 'kegiatan', 'sub-kegiatan'].includes(section.key);
+
+const sectionParentContextLabel = (section: BulkInputSection): string =>
+    ({
+        program: 'Sasaran',
+        kegiatan: 'Program',
+        'sub-kegiatan': 'Kegiatan',
+    })[section.key] ?? '';
+
+const sectionParentContextFallback = (section: BulkInputSection): string =>
+    ({
+        program: 'Belum memilih sasaran',
+        kegiatan: 'Belum memilih program',
+        'sub-kegiatan': 'Belum memilih kegiatan',
+    })[section.key] ?? '';
+
+const sectionGroupItemLabel = (section: BulkInputSection): string =>
+    ({
+        program: 'program',
+        kegiatan: 'kegiatan',
+        'sub-kegiatan': 'sub kegiatan',
+    })[section.key] ?? 'data';
+
+const sectionParentContextValue = (section: BulkInputSection, row: BulkRow): string => {
+    const label = plainNodeText(row.parent_label);
+
+    return label && label !== '-' ? label : sectionParentContextFallback(section);
+};
+
+const groupedSectionParentRows = (section: BulkInputSection): BulkSectionGroup[] => {
+    const rows = sectionParentRows(section);
+
+    if (!shouldGroupSection(section)) {
+        return [{ key: `${section.key}-all`, label: '', rows }];
+    }
+
+    const groups = new Map<string, BulkSectionGroup>();
+
+    rows.forEach((row) => {
+        const label = sectionParentContextValue(section, row);
+        const key = `${section.key}-${row.parent_id || 'none'}-${label}`;
+
+        if (!groups.has(key)) {
+            groups.set(key, { key, label, rows: [] });
+        }
+
+        groups.get(key)?.rows.push(row);
+    });
+
+    return Array.from(groups.values());
+};
+
+const sectionParentRowIndex = (section: BulkInputSection, row: BulkRow): number =>
+    sectionParentRows(section).findIndex((parentRow) => parentRow.key === row.key) + 1;
 
 const sectionIndicatorRows = (section: BulkInputSection, parentRow: BulkRow): BulkRow[] =>
     section.rows
@@ -1969,6 +2599,14 @@ const openBulkIndicatorModal = (section: BulkInputSection, parentRow: BulkRow) =
     }
 
     selectNodeType(section.indicatorType, parentRow.id);
+};
+
+const openSubKegiatanBudgetModal = (parentRow: BulkRow) => {
+    if (!parentRow.id) {
+        return;
+    }
+
+    selectNodeType('anggaran_sub_kegiatan', parentRow.id);
 };
 
 const openBulkTargetModal = (row: BulkRow) => {
@@ -1988,24 +2626,6 @@ const parentRowSubtext = (row: BulkRow): string => {
 
     return '';
 };
-
-const indicatorMetaItems = (row: BulkRow): string[] => {
-    const satuan = optionById(satuanOptions.value, row.satuan_indikator_id)?.label;
-    const pdPenanggungJawab = valueText(row.pd_penanggung_jawab);
-    const tipe = row.tipe_perhitungan === 'kumulatif' ? 'Kumulatif' : 'Non-kumulatif';
-
-    return [
-        satuan ? `Satuan: ${satuan}` : 'Satuan belum dipilih',
-        tipe,
-        pdPenanggungJawab ? `PD: ${pdPenanggungJawab}` : '',
-        row.sumber_data ? `Sumber: ${row.sumber_data}` : '',
-    ].filter(Boolean);
-};
-
-const targetBadgeClass = (target: { target: unknown; pagu: unknown }) =>
-    String(target.target || '') && String(target.target) !== '-'
-        ? 'border-blue-100 bg-blue-50 text-[#00336C]'
-        : 'border-slate-200 bg-slate-50 text-slate-500';
 
 const parentRowCanAddIndicator = (parentRow: BulkRow) => Boolean(parentRow.id);
 
@@ -2157,11 +2777,11 @@ const bulkRowPayload = (row: BulkRow) => {
         opd_penanggung_jawab_id: row.opd_penanggung_jawab_id || null,
         pd_penanggung_jawab: row.pd_penanggung_jawab || null,
         sumber_data: row.sumber_data || null,
-        pagu_indikatif: row.pagu_indikatif || null,
+        pagu_indikatif: normalizedCurrencyPayload(row.pagu_indikatif),
         periode_tahun_id: row.periode_tahun_id || null,
         target: row.target || null,
         target_text: row.target_text || null,
-        pagu: row.pagu || null,
+        pagu: normalizedCurrencyPayload(row.pagu),
         urutan: row.urutan || null,
         program_pemerintahan_id: row.program_pemerintahan_id || null,
         kegiatan_pemerintahan_id: row.kegiatan_pemerintahan_id || null,
@@ -2356,6 +2976,10 @@ watch(
         if (masterId && !form.program_pemerintahan_id) {
             form.program_pemerintahan_id = masterId;
         }
+
+        if (selectedProgramRpjmd.value) {
+            form.uraian = valueText(selectedProgramRpjmd.value.nama ?? selectedProgramRpjmd.value.label);
+        }
     },
 );
 
@@ -2418,7 +3042,7 @@ watch(
 );
 
 const submitNode = () => {
-    if (isTargetType.value) {
+    if (isTargetType.value || isBudgetType.value) {
         void saveTargetBatchRows();
         return;
     }
@@ -2485,7 +3109,48 @@ const formatCurrency = (value?: string | number | null) => {
         maximumFractionDigits: 0,
     }).format(Number(value));
 };
-const targetDisplay = (target: Target) => target.target_text || target.target || '-';
+const normalizedCurrencyPayload = (value?: string | number | null) => {
+    const raw = valueText(value).trim();
+
+    if (!raw) {
+        return null;
+    }
+
+    let normalized = raw.replace(/\s/g, '');
+
+    if (normalized.includes(',') && normalized.includes('.')) {
+        normalized = normalized.replace(/\./g, '').replace(',', '.');
+    } else if (normalized.includes(',')) {
+        normalized = normalized.replace(',', '.');
+    } else if (/^\d{1,3}(\.\d{3})+$/.test(normalized)) {
+        normalized = normalized.replace(/\./g, '');
+    }
+
+    return normalized;
+};
+const normalizedCurrencyComparable = (value?: string | number | null) => {
+    const normalized = normalizedCurrencyPayload(value);
+
+    if (!normalized) {
+        return '';
+    }
+
+    const asNumber = Number(normalized);
+
+    return Number.isFinite(asNumber) ? String(asNumber) : normalized;
+};
+const currencyInputText = (value?: string | number | null) => {
+    const normalized = normalizedCurrencyPayload(value);
+
+    if (!normalized) {
+        return '';
+    }
+
+    const asNumber = Number(normalized);
+
+    return Number.isFinite(asNumber) ? new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(asNumber) : valueText(value);
+};
+const targetDisplay = (target: Target) => normalizedTargetText(target.target_text || target.target) || '-';
 const isPenunjangProgram = (name?: string | null) => valueText(name).toUpperCase().includes('PROGRAM PENUNJANG URUSAN PEMERINTAHAN DAERAH');
 const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][number]['programs'][number]) =>
     Boolean(program.rpjmd_kode && program.rpjmd_kode !== program.kode && !isPenunjangProgram(program.nama));
@@ -2679,12 +3344,6 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                     </div>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <span class="rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-semibold text-[#00336C]">
-                        Kelengkapan {{ coreCompleteness }}%
-                    </span>
-                    <span class="rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
-                        {{ totalCascadingNodes }} node
-                    </span>
                     <span
                         v-if="bulkLastSavedAt"
                         class="rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-semibold text-[#00336C]"
@@ -2756,19 +3415,45 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                 <section
                     v-for="section in bulkInputSections"
                     :key="section.key"
-                    class="overflow-hidden rounded-xl border border-blue-100 bg-card shadow-sm"
+                    class="overflow-hidden rounded-2xl border border-blue-100 bg-card shadow-sm transition"
+                    :class="isBulkSectionExpanded(section.key) ? 'border-[#00336C]/30 shadow-md' : 'hover:border-blue-200 hover:shadow-md'"
                 >
-                    <div class="flex flex-col gap-3 border-b bg-white p-4 xl:flex-row xl:items-center xl:justify-between">
-                        <div class="flex min-w-0 items-start gap-3">
-                            <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#00336C]">
-                                <Table2 class="size-4" />
+                    <button
+                        type="button"
+                        class="group grid w-full gap-4 p-5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/30 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                        :class="isBulkSectionExpanded(section.key) ? 'bg-blue-50/55' : 'bg-white hover:bg-blue-50/30'"
+                        :aria-expanded="isBulkSectionExpanded(section.key)"
+                        @click="toggleBulkSection(section.key)"
+                    >
+                        <span class="flex min-w-0 items-start gap-4">
+                            <span class="mt-1 h-12 w-1.5 shrink-0 rounded-full bg-[#00336C]" />
+                            <span class="min-w-0">
+                                <span class="flex flex-wrap items-center gap-2">
+                                    <span class="text-base font-semibold text-slate-950">{{ section.title }}</span>
+                                    <span
+                                        class="rounded-full border px-2.5 py-1 text-xs font-semibold"
+                                        :class="bulkSectionStatus(section).className"
+                                    >
+                                        {{ bulkSectionStatus(section).label }}
+                                    </span>
+                                </span>
+                                <span class="mt-1 block text-sm text-slate-600">{{ bulkSectionSummary(section) }}</span>
                             </span>
-                            <div class="min-w-0">
-                                <h2 class="text-base font-semibold text-slate-950">{{ section.title }}</h2>
-                                <p class="mt-1 text-sm text-slate-600">{{ section.helper }}</p>
+                        </span>
+                        <span
+                            class="inline-flex min-h-11 w-fit items-center gap-2 rounded-lg border border-blue-100 bg-white px-4 text-sm font-semibold text-[#00336C] shadow-sm transition group-hover:border-[#00336C]/35 group-hover:bg-[#00336C] group-hover:text-white"
+                        >
+                            {{ isBulkSectionExpanded(section.key) ? 'Tutup Form' : 'Buka Form' }}
+                            <ChevronDown class="size-4 transition duration-200" :class="isBulkSectionExpanded(section.key) ? 'rotate-180' : ''" />
+                        </span>
+                    </button>
+
+                    <div v-show="isBulkSectionExpanded(section.key)" class="border-t border-blue-50">
+                        <div class="flex flex-col gap-3 border-b border-blue-50 bg-slate-50/70 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div class="text-sm font-medium text-slate-700">
+                                Kelola {{ section.title }}
                             </div>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
+                            <div class="flex flex-wrap gap-2 sm:justify-end">
                             <button
                                 v-if="hasBulkRowsToSave(section.rows)"
                                 type="button"
@@ -2787,34 +3472,48 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                 <Plus class="size-3.5" />
                                 {{ section.primaryLabel }}
                             </button>
+                            </div>
                         </div>
-                    </div>
 
-                    <div v-if="sectionParentRows(section).length === 0" class="p-8 text-center text-sm text-muted-foreground">
-                        <Target class="mx-auto size-10 text-muted-foreground" />
-                        <p class="mt-3 font-semibold text-foreground">{{ section.emptyTitle }}</p>
-                        <p class="mt-1">{{ section.emptyDescription }}</p>
-                        <button
-                            type="button"
-                            class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-[#00336C] px-4 text-sm font-semibold text-white hover:bg-[#0a4485]"
-                            @click="selectNodeType(section.primaryType)"
-                        >
-                            <Plus class="size-4" />
-                            Tambah Data
-                        </button>
-                    </div>
+                        <div v-if="sectionParentRows(section).length === 0" class="p-8 text-center text-sm text-muted-foreground">
+                            <Target class="mx-auto size-10 text-muted-foreground" />
+                            <p class="mt-3 font-semibold text-foreground">{{ section.emptyTitle }}</p>
+                            <p class="mt-1">{{ section.emptyDescription }}</p>
+                        </div>
 
-                    <div v-else class="grid gap-3 p-4">
-                        <article
-                            v-for="(parentRow, parentIndex) in sectionParentRows(section)"
-                            :key="`grouped-${section.key}-${parentRow.key}`"
-                            class="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm"
-                        >
+                        <div v-else class="grid gap-4 p-4">
+                            <div v-for="group in groupedSectionParentRows(section)" :key="`section-group-${group.key}`" class="grid gap-3">
+                                <div
+                                    v-if="shouldGroupSection(section)"
+                                    class="rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-white px-4 py-3 shadow-sm"
+                                >
+                                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div class="min-w-0">
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-[#00336C]/70">
+                                                {{ sectionParentContextLabel(section) }}
+                                            </p>
+                                            <p class="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
+                                                {{ group.label }}
+                                            </p>
+                                        </div>
+                                        <span
+                                            class="inline-flex w-fit items-center rounded-full border border-blue-100 bg-white px-3 py-1 text-xs font-semibold text-[#00336C]"
+                                        >
+                                            {{ group.rows.length }} {{ sectionGroupItemLabel(section) }}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <article
+                                    v-for="parentRow in group.rows"
+                                    :key="`grouped-${section.key}-${parentRow.key}`"
+                                    class="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm"
+                                >
                             <div class="grid gap-3 border-b bg-white p-4 lg:grid-cols-[4rem_minmax(0,1fr)_auto] lg:items-start">
                                 <div class="flex items-center gap-2 lg:grid lg:justify-items-center">
                                     <span class="text-sm font-semibold uppercase text-slate-500">No</span>
                                     <span class="flex size-9 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-[#00336C]">
-                                        {{ parentIndex + 1 }}
+                                        {{ sectionParentRowIndex(section, parentRow) }}
                                     </span>
                                 </div>
                                 <div class="min-w-0">
@@ -2842,10 +3541,10 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                         type="button"
                                         class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-blue-100 bg-white px-3 text-xs font-semibold text-[#00336C] transition hover:border-[#00336C]/40 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white"
                                         :disabled="!parentRowCanAddIndicator(parentRow)"
-                                        @click="openBulkIndicatorModal(section, parentRow)"
+                                        @click="section.key === 'sub-kegiatan' ? openSubKegiatanBudgetModal(parentRow) : openBulkIndicatorModal(section, parentRow)"
                                     >
                                         <Plus class="size-3.5" />
-                                        {{ section.indicatorLabel }}
+                                        {{ section.key === 'sub-kegiatan' ? 'Pagu Indikatif' : section.indicatorLabel }}
                                     </button>
                                     <button
                                         type="button"
@@ -2878,14 +3577,43 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                 </div>
 
                                 <div class="overflow-x-auto rounded-lg border border-blue-100 bg-white">
-                                    <table class="w-full min-w-[1180px] text-left text-sm">
+                                    <table class="w-full min-w-[1120px] table-fixed text-left text-sm">
+                                        <colgroup>
+                                            <col style="width: 56px" />
+                                            <col />
+                                            <col style="width: 112px" />
+                                            <col v-if="baselinePeriod" style="width: 76px" />
+                                            <col
+                                                v-for="period in periodColumns"
+                                                :key="`indicator-target-col-${section.key}-${parentRow.key}-${period.id}`"
+                                                style="width: 72px"
+                                            />
+                                            <col style="width: 128px" />
+                                        </colgroup>
                                         <thead class="border-b bg-blue-50 text-xs uppercase text-[#00336C]">
                                             <tr>
-                                                <th class="w-16 px-3 py-3 text-center">No</th>
-                                                <th class="min-w-[320px] px-3 py-3">Indikator</th>
-                                                <th class="min-w-[260px] px-3 py-3">Keterangan</th>
-                                                <th class="min-w-[420px] px-3 py-3">Target 5 Tahunan</th>
-                                                <th class="min-w-[230px] px-3 py-3 text-right">Aksi</th>
+                                                <th rowspan="2" class="border-b border-r border-blue-100 px-3 py-3 text-center">No</th>
+                                                <th rowspan="2" class="border-b border-r border-blue-100 px-3 py-3">Indikator</th>
+                                                <th rowspan="2" class="border-b border-r border-blue-100 px-3 py-3 text-center">Satuan</th>
+                                                <th v-if="baselinePeriod" class="border-b border-r border-amber-100 bg-amber-50/70 px-2 py-3 text-center">
+                                                    Baseline
+                                                </th>
+                                                <th :colspan="periodColumns.length" class="border-b border-r border-blue-100 px-2 py-3 text-center">
+                                                    Target
+                                                </th>
+                                                <th rowspan="2" class="border-b border-blue-100 px-2 py-3 text-center">Aksi</th>
+                                            </tr>
+                                            <tr>
+                                                <th v-if="baselinePeriod" class="border-r border-amber-100 bg-amber-50/70 px-2 py-3 text-center">
+                                                    {{ baselinePeriod.year }}
+                                                </th>
+                                                <th
+                                                    v-for="period in periodColumns"
+                                                    :key="`indicator-target-head-${section.key}-${parentRow.key}-${period.id}`"
+                                                    class="border-r border-blue-100 px-2 py-3 text-center last:border-r-0"
+                                                >
+                                                    {{ period.year }}
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -2894,50 +3622,58 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                                 :key="`indicator-${section.key}-${indicatorRow.key}`"
                                                 class="border-b align-top last:border-0 hover:bg-blue-50/30"
                                             >
-                                                <td class="px-3 py-4 text-center">
+                                                <td class="border-r border-blue-50 px-3 py-4 text-center">
                                                     <span class="text-sm font-semibold text-slate-900">{{ indicatorIndex + 1 }}</span>
                                                 </td>
-                                                <td class="px-3 py-4">
+                                                <td class="border-r border-blue-50 px-3 py-4">
                                                     <p class="whitespace-pre-line font-semibold leading-6 text-slate-950">
                                                         {{ bulkRowPrimaryText(indicatorRow) }}
                                                     </p>
                                                     <p v-if="indicatorRow.definisi_operasional" class="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">
                                                         DO: {{ indicatorRow.definisi_operasional }}
                                                     </p>
+                                                    <div class="mt-3 flex flex-wrap gap-1.5">
+                                                        <span
+                                                            v-if="indicatorRow.tipe_perhitungan"
+                                                            class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600"
+                                                        >
+                                                            {{ indicatorRow.tipe_perhitungan === 'kumulatif' ? 'Kumulatif' : 'Non-kumulatif' }}
+                                                        </span>
+                                                        <span
+                                                            v-if="indicatorRow.sumber_data"
+                                                            class="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-[#00336C]"
+                                                        >
+                                                            {{ indicatorRow.sumber_data }}
+                                                        </span>
+                                                    </div>
                                                     <p v-if="indicatorRow.error" class="mt-2 text-xs font-medium text-red-600">{{ indicatorRow.error }}</p>
                                                 </td>
-                                                <td class="px-3 py-4">
-                                                    <div class="flex flex-wrap gap-1.5">
-                                                        <span
-                                                            v-for="item in indicatorMetaItems(indicatorRow)"
-                                                            :key="`meta-${indicatorRow.key}-${item}`"
-                                                            class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700"
-                                                        >
-                                                            {{ item }}
-                                                        </span>
-                                                    </div>
+                                                <td class="border-r border-blue-50 px-3 py-4 text-center">
+                                                    <span class="font-semibold text-slate-900">
+                                                        {{ optionById(satuanOptions, indicatorRow.satuan_indikator_id)?.label ?? '-' }}
+                                                    </span>
                                                 </td>
-                                                <td class="px-3 py-4">
-                                                    <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                                                        <span
-                                                            v-for="target in bulkTargetSummaries(indicatorRow)"
-                                                            :key="`target-summary-${indicatorRow.key}-${target.id}`"
-                                                            class="rounded-md border px-2.5 py-2 text-xs font-semibold"
-                                                            :class="targetBadgeClass(target)"
-                                                        >
-                                                            {{ target.year }}: {{ target.target }}
-                                                            <span v-if="target.pagu" class="mt-0.5 block font-normal opacity-80">
-                                                                {{ formatCurrency(target.pagu) }}
-                                                            </span>
-                                                        </span>
-                                                    </div>
+                                                <td
+                                                    v-if="baselinePeriod"
+                                                    class="border-r border-amber-100 bg-amber-50/30 px-2 py-4 text-center text-sm font-semibold tabular-nums"
+                                                    :class="baselineTargetSummary(indicatorRow)?.target !== '-' ? 'text-slate-950' : 'text-slate-400'"
+                                                >
+                                                    {{ baselineTargetSummary(indicatorRow)?.target ?? '-' }}
                                                 </td>
-                                                <td class="px-3 py-4">
-                                                    <div class="flex flex-wrap justify-end gap-2">
+                                                <td
+                                                    v-for="target in bulkTargetSummaries(indicatorRow)"
+                                                    :key="`target-summary-${indicatorRow.key}-${target.id}`"
+                                                    class="border-r border-blue-50 px-2 py-4 text-center text-sm font-semibold tabular-nums"
+                                                    :class="target.target !== '-' ? 'text-slate-950' : 'text-slate-400'"
+                                                >
+                                                    {{ target.target }}
+                                                </td>
+                                                <td class="px-2 py-4">
+                                                    <div class="grid justify-items-stretch gap-1.5">
                                                         <button
                                                             v-if="hasBulkRowsToSave(bulkRowsForSingleSave(indicatorRow))"
                                                             type="button"
-                                                            class="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-[#00336C] px-3 text-xs font-semibold text-white transition hover:bg-[#0a4485] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+                                                            class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md bg-[#00336C] px-2 text-xs font-semibold text-white transition hover:bg-[#0a4485] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
                                                             :disabled="isBulkRowsSaving(bulkRowsForSingleSave(indicatorRow))"
                                                             @click="saveBulkRows(bulkRowsForSingleSave(indicatorRow))"
                                                         >
@@ -2946,16 +3682,16 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-blue-100 bg-white px-3 text-xs font-semibold text-[#00336C] transition hover:border-[#00336C]/40 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white"
+                                                            class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-blue-100 bg-white px-2 text-xs font-semibold text-[#00336C] transition hover:border-[#00336C]/40 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white"
                                                             :disabled="!indicatorRow.id"
                                                             @click="openBulkTargetModal(indicatorRow)"
                                                         >
                                                             <Plus class="size-3.5" />
-                                                            Target
+                                                            {{ targetButtonLabel(indicatorRow) }}
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                                                            class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-blue-100 bg-white px-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                                                             @click="editBulkRow(indicatorRow)"
                                                         >
                                                             <Pencil class="size-3.5" />
@@ -2963,7 +3699,7 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-red-100 bg-white px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+                                                            class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-red-100 bg-white px-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
                                                             @click="deleteBulkRow(indicatorRow)"
                                                         >
                                                             <Trash2 class="size-3.5" />
@@ -2973,7 +3709,10 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                                 </td>
                                             </tr>
                                             <tr v-if="sectionIndicatorRows(section, parentRow).length === 0">
-                                                <td colspan="5" class="px-3 py-6 text-center text-sm text-slate-500">
+                                                <td
+                                                    :colspan="periodColumns.length + 4 + (baselinePeriod ? 1 : 0)"
+                                                    class="px-3 py-6 text-center text-sm text-slate-500"
+                                                >
                                                     Belum ada indikator untuk {{ bulkRowPrimaryText(parentRow) }}.
                                                 </td>
                                             </tr>
@@ -2981,9 +3720,10 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                     </table>
                                 </div>
                             </div>
-                        </article>
+                                </article>
+                            </div>
 
-                        <div v-if="false" class="hidden">
+                            <div v-if="false" class="hidden">
                         <table class="w-full min-w-[2900px] border-separate border-spacing-0 text-left text-sm">
                             <thead class="sticky top-0 z-10 border-b bg-blue-50 text-xs uppercase text-[#00336C] backdrop-blur">
                                 <tr>
@@ -3264,173 +4004,83 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                 </tr>
                             </tbody>
                         </table>
-                    </div>
-                    </div>
-                </section>
-
-                <section class="overflow-hidden rounded-xl border border-blue-100 bg-card p-4 shadow-sm">
-                    <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="flex items-center gap-2">
-                            <Eye class="size-5 text-[#00336C]" />
-                            <div>
-                                <h3 class="text-base font-semibold text-slate-950">Preview Ringkas</h3>
-                                <p class="text-sm text-slate-600">Cuplikan hasil cascading dari tabel kerja.</p>
                             </div>
-                        </div>
-                        <div class="inline-flex w-fit rounded-lg border bg-white p-1">
-                            <button
-                                type="button"
-                                class="inline-flex min-h-8 items-center gap-2 rounded-md px-3 text-xs font-semibold transition"
-                                :class="previewMode === 'tree' ? 'bg-[#00336C] text-white' : 'text-slate-600 hover:bg-blue-50 hover:text-[#00336C]'"
-                                @click="previewMode = 'tree'"
-                            >
-                                <Layers3 class="size-3.5" />
-                                Tree
-                            </button>
-                            <button
-                                type="button"
-                                class="inline-flex min-h-8 items-center gap-2 rounded-md px-3 text-xs font-semibold transition"
-                                :class="previewMode === 'table' ? 'bg-[#00336C] text-white' : 'text-slate-600 hover:bg-blue-50 hover:text-[#00336C]'"
-                                @click="previewMode = 'table'"
-                            >
-                                <Table2 class="size-3.5" />
-                                Tabel
-                            </button>
-                        </div>
-                    </div>
-
-                    <div v-if="previewMode === 'table'" class="overflow-x-auto rounded-lg border bg-white">
-                        <table class="min-w-[1180px] text-left text-xs">
-                            <thead class="border-b bg-blue-50 text-[11px] uppercase text-[#00336C]">
-                                <tr>
-                                    <th class="px-3 py-2">Tujuan</th>
-                                    <th class="px-3 py-2">Sasaran</th>
-                                    <th class="px-3 py-2">Program</th>
-                                    <th class="px-3 py-2">Kegiatan</th>
-                                    <th class="px-3 py-2">Indikator Kegiatan</th>
-                                    <th class="px-3 py-2">Sub Kegiatan</th>
-                                    <th class="px-3 py-2">Indikator</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="row in compactPreviewRows" :key="`compact-${row.key}`" class="border-b align-top last:border-0">
-                                    <td class="max-w-52 px-3 py-3">{{ row.tujuan }}</td>
-                                    <td class="max-w-52 px-3 py-3">{{ row.sasaran }}</td>
-                                    <td class="max-w-52 px-3 py-3 font-medium">{{ row.program }}</td>
-                                    <td class="max-w-52 px-3 py-3">{{ row.kegiatan }}</td>
-                                    <td class="max-w-60 px-3 py-3">{{ row.indikator_kegiatan }}</td>
-                                    <td class="max-w-52 px-3 py-3">{{ row.sub_kegiatan }}</td>
-                                    <td class="max-w-60 px-3 py-3">
-                                        {{
-                                            row.indikator_program !== '-'
-                                                ? row.indikator_program
-                                                : row.indikator_sub_kegiatan !== '-'
-                                                  ? row.indikator_sub_kegiatan
-                                                  : row.indikator_kegiatan
-                                        }}
-                                    </td>
-                                </tr>
-                                <tr v-if="compactPreviewRows.length === 0">
-                                    <td colspan="7" class="px-3 py-8 text-center text-slate-500">Belum ada data untuk dipreview.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div v-else class="grid gap-3 rounded-lg border bg-white p-4">
-                        <article v-for="tujuan in renstra.tujuan.slice(0, 3)" :key="`preview-tujuan-${tujuan.id}`" class="rounded-lg border p-3">
-                            <div class="flex items-start gap-3">
-                                <span
-                                    class="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-[#00336C]"
-                                >
-                                    T
-                                </span>
-                                <div class="min-w-0">
-                                    <p class="font-semibold text-slate-950">{{ tujuan.tujuan }}</p>
-                                    <div class="mt-2 grid gap-2">
-                                        <div
-                                            v-for="sasaran in tujuan.sasaran.slice(0, 4)"
-                                            :key="`preview-sasaran-${sasaran.id}`"
-                                            class="rounded-md bg-slate-50 px-3 py-2"
-                                        >
-                                            <div class="flex items-center gap-2">
-                                                <ChevronsRight class="size-4 text-[#00336C]" />
-                                                <span class="text-sm font-medium text-slate-800">{{ sasaran.sasaran }}</span>
-                                            </div>
-                                            <p class="mt-1 text-xs text-slate-500">
-                                                {{ sasaran.programs.length }} program, {{ sasaran.indikator.length }} indikator sasaran
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </article>
-                        <div v-if="renstra.tujuan.length === 0" class="rounded-lg border border-dashed p-8 text-center text-sm text-slate-500">
-                            Belum ada struktur cascading.
                         </div>
                     </div>
                 </section>
             </section>
 
-            <section v-else-if="viewMode === 'table'" class="mb-10 min-w-0 overflow-hidden rounded-lg border bg-card">
-                <div class="flex items-center gap-2 border-b p-4">
-                    <Table2 class="size-5 text-[#00336C]" />
-                    <div>
-                        <h2 class="text-base font-semibold">Tabel Cascading Melebar</h2>
-                        <p class="text-sm text-muted-foreground">Setiap baris membawa konteks tujuan sampai sub kegiatan, indikator, target, dan keuangan.</p>
+            <section v-else-if="viewMode === 'table'" class="mb-12 w-full min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm">
+                <div class="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="flex size-10 items-center justify-center rounded-lg bg-blue-50 text-[#00336C]">
+                            <Table2 class="size-5" />
+                        </span>
+                        <div>
+                            <h2 class="text-base font-semibold">Preview Tabel Renstra OPD</h2>
+                            <p class="text-sm text-muted-foreground">Tujuan, sasaran, bidang urusan, program, kegiatan, sub kegiatan, indikator, target, dan pagu indikatif.</p>
+                        </div>
                     </div>
+                    <a
+                        :href="route('renstra-opd.preview.export', renstra.id)"
+                        class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-blue-200 bg-white px-4 text-sm font-semibold text-[#00336C] shadow-sm transition hover:border-[#00336C]/40 hover:bg-blue-50"
+                    >
+                        <FileText class="size-4" />
+                        Export Excel
+                    </a>
                 </div>
                 <div
-                    class="max-w-full overflow-x-auto overscroll-x-contain pb-5 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:bg-clip-padding [&::-webkit-scrollbar-track]:bg-slate-100"
+                    class="w-full overflow-x-auto overscroll-x-contain pb-6 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:bg-clip-padding [&::-webkit-scrollbar-track]:bg-slate-100"
                 >
-                    <table class="w-max min-w-[2600px] border-separate border-spacing-0 text-left text-sm">
-                        <thead class="border-b bg-blue-50 text-xs uppercase text-[#00336C]">
-                            <tr>
-                                <th colspan="3" class="border-b border-blue-100 px-4 py-3 text-center">Arah Kinerja OPD</th>
-                                <th colspan="3" class="border-b border-blue-100 px-4 py-3 text-center">Sasaran Strategis</th>
-                                <th colspan="3" class="border-b border-blue-100 px-4 py-3 text-center">Program</th>
-                                <th colspan="2" class="border-b border-blue-100 px-4 py-3 text-center">Kegiatan</th>
-                                <th colspan="2" class="border-b border-blue-100 px-4 py-3 text-center">Sub Kegiatan</th>
-                                <th colspan="2" class="border-b border-blue-100 px-4 py-3 text-center">Target dan Keuangan</th>
+                    <table class="w-max min-w-[1720px] border-collapse text-left text-[13px] leading-5">
+                        <thead class="text-xs uppercase text-slate-950">
+                            <tr class="bg-white">
+                                <th rowspan="3" class="w-[290px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
+                                    TUJUAN / SASARAN / BIDANG URUSAN / PROGRAM / KEGIATAN / SUB. KEGIATAN OUTPUT
+                                </th>
+                                <th rowspan="3" class="w-[260px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
+                                    INDIKATOR OUTCOME / OUTPUT
+                                </th>
+                                <th rowspan="3" class="w-[110px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
+                                    BASE LINE {{ baselineYear }}
+                                </th>
+                                <th :colspan="periodColumns.length * 2" class="border border-slate-900 px-3 py-2 text-center align-middle font-bold">
+                                    TARGET DAN PAGU INDIKATIF TAHUN
+                                </th>
                             </tr>
-                            <tr>
-                                <th class="border-b border-blue-100 px-4 py-3">Tujuan OPD</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Link Tujuan</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Indikator Tujuan</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Sasaran OPD</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Link Sasaran</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Indikator Sasaran</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Program OPD</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Link Program</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Indikator Program</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Kegiatan</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Indikator Kegiatan</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Sub Kegiatan</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Indikator Sub Kegiatan</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Target 5 Tahunan</th>
-                                <th class="border-b border-blue-100 px-4 py-3">Keuangan 5 Tahunan</th>
+                            <tr class="bg-white">
+                                <th
+                                    v-for="period in periodColumns"
+                                    :key="`renstra-preview-year-${period.id}`"
+                                    colspan="2"
+                                    class="border border-slate-900 px-3 py-2 text-center align-middle font-bold"
+                                >
+                                    {{ renstraOutputYearLabel(period.year) }}
+                                </th>
+                            </tr>
+                            <tr class="bg-white">
+                                <template v-for="period in periodColumns" :key="`renstra-preview-year-sub-${period.id}`">
+                                    <th class="w-[90px] border border-slate-900 px-2 py-2 text-center align-middle font-semibold">Target</th>
+                                    <th class="w-[130px] border border-slate-900 px-2 py-2 text-center align-middle font-semibold">Pagu</th>
+                                </template>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="row in renstraCascadingRows" :key="row.key" class="border-b align-top last:border-0">
-                                <td class="max-w-[280px] px-4 py-3 font-semibold text-slate-950">{{ row.tujuan }}</td>
-                                <td class="px-4 py-3">{{ row.tujuan_rpjmd }}</td>
-                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_tujuan }}</td>
-                                <td class="max-w-[280px] px-4 py-3 font-medium">{{ row.sasaran }}</td>
-                                <td class="px-4 py-3">{{ row.sasaran_rpjmd }}</td>
-                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_sasaran }}</td>
-                                <td class="max-w-[280px] px-4 py-3 font-medium">{{ row.program }}</td>
-                                <td class="px-4 py-3">{{ row.program_rpjmd }}</td>
-                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_program }}</td>
-                                <td class="max-w-[260px] px-4 py-3">{{ row.kegiatan }}</td>
-                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_kegiatan }}</td>
-                                <td class="max-w-[260px] px-4 py-3">{{ row.sub_kegiatan }}</td>
-                                <td class="max-w-[280px] px-4 py-3">{{ row.indikator_sub_kegiatan }}</td>
-                                <td class="max-w-[240px] px-4 py-3">{{ row.target_tahunan }}</td>
-                                <td class="max-w-[240px] px-4 py-3">{{ row.pagu }}</td>
+                            <tr v-for="row in renstraOutputRows" :key="row.key" class="align-top" :class="renstraOutputRowClass(row.level)">
+                                <td class="border border-slate-900 px-3 py-3 align-top" :class="row.level === 'bidang' ? 'uppercase' : ''">
+                                    {{ row.label }}
+                                </td>
+                                <td class="border border-slate-900 px-3 py-3 align-top">{{ row.indicator }}</td>
+                                <td class="border border-slate-900 px-3 py-3 text-center align-top tabular-nums">{{ row.baseline }}</td>
+                                <template v-for="value in row.values" :key="`${row.key}-${value.year}`">
+                                    <td class="border border-slate-900 px-2 py-3 text-center align-top tabular-nums">{{ value.target }}</td>
+                                    <td class="border border-slate-900 px-2 py-3 align-top tabular-nums">{{ value.pagu }}</td>
+                                </template>
                             </tr>
-                            <tr v-if="renstraCascadingRows.length === 0">
-                                <td colspan="15" class="px-4 py-10 text-center text-muted-foreground">Belum ada data cascading Renstra OPD.</td>
+                            <tr v-if="renstraOutputRows.length === 0">
+                                <td :colspan="3 + periodColumns.length * 2" class="border border-slate-900 px-4 py-10 text-center text-muted-foreground">
+                                    Belum ada data Renstra OPD.
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -3788,8 +4438,7 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                                         :key="target.id"
                                                         class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
                                                     >
-                                                        {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }} - Pagu
-                                                        {{ target.pagu || '-' }}
+                                                        {{ target.periode_tahun.tahun }}: {{ targetDisplay(target) }}
                                                         <button
                                                             v-if="can.manage"
                                                             type="button"
@@ -3925,10 +4574,10 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                                             <button
                                                                 type="button"
                                                                 class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
-                                                                @click="selectNodeType('indikator_sub_kegiatan', sub.id)"
+                                                                @click="selectNodeType('anggaran_sub_kegiatan', sub.id)"
                                                             >
                                                                 <Plus class="size-3.5" />
-                                                                Indikator
+                                                                Pagu Indikatif
                                                             </button>
                                                             <button
                                                                 type="button"
@@ -4068,187 +4717,112 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                             </div>
                         </div>
 
-                        <form class="grid gap-4 p-4" @submit.prevent="submitNode">
-                            <div class="rounded-xl border bg-muted/20 p-3">
-                                <div class="grid gap-3 lg:grid-cols-2">
-                                    <div class="grid gap-2">
-                                        <label class="text-sm font-semibold text-foreground" for="type">Jenis Data</label>
-                                        <RpjmdRichSelect
-                                            id="type"
-                                            :model-value="form.type"
-                                            :options="typeSelectOptions"
-                                            placeholder="Pilih jenis data"
-                                            empty-text="Jenis data tidak tersedia"
-                                            @update:model-value="onTypeSelected"
-                                        />
-                                        <InputError :message="form.errors.type" />
-                                    </div>
+                        <form
+                            :class="['p-4', isTargetType || isBudgetType ? 'flex flex-col gap-4' : 'grid grid-cols-1 gap-4']"
+                            @submit.prevent="submitNode"
+                        >
+                            <div class="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                                <div class="flex items-start gap-3">
+                                    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#00336C] shadow-sm">
+                                        <Layers3 class="size-5" />
+                                    </span>
+                                    <div class="min-w-0">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]">{{ selectedTypeLabel }}</p>
+                                        <h3 class="mt-1 text-sm font-semibold text-slate-950">{{ parentContextTitle }}</h3>
+                                        <p class="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700">{{ formContextDescription }}</p>
 
-                                    <div v-if="needsParent" class="grid gap-2">
-                                        <label class="text-sm font-semibold text-foreground" for="parent_id">
-                                            {{ parentLabel }} <span class="text-red-600">*</span>
-                                        </label>
-                                        <RpjmdRichSelect
-                                            id="parent_id"
-                                            v-model="form.parent_id"
-                                            :options="parentSelectOptions"
-                                            :placeholder="`Pilih ${parentLabel.toLowerCase()}`"
-                                            :empty-text="`${parentLabel} belum tersedia`"
-                                        />
-                                        <InputError :message="form.errors.parent_id" />
-                                    </div>
-
-                                    <div v-else class="grid gap-2">
-                                        <span class="text-sm font-semibold text-foreground">Induk Data</span>
-                                        <div class="flex min-h-12 items-center rounded-lg border bg-background px-3 text-sm text-muted-foreground">
-                                            Data ini berada di level awal Renstra.
+                                        <div v-if="form.type === 'tujuan'" class="mt-3 grid gap-2 md:grid-cols-2">
+                                            <div class="rounded-lg border border-blue-100 bg-white p-3">
+                                                <p class="text-xs font-semibold uppercase text-slate-500">Tujuan Kabupaten</p>
+                                                <p class="mt-1 text-sm font-semibold leading-6 text-slate-900">
+                                                    {{ rpjmdContextTujuanTexts.join('; ') || 'Belum ada tujuan kabupaten terkait.' }}
+                                                </p>
+                                            </div>
+                                            <div class="rounded-lg border border-blue-100 bg-white p-3">
+                                                <p class="text-xs font-semibold uppercase text-slate-500">Sasaran Kabupaten</p>
+                                                <p class="mt-1 text-sm font-semibold leading-6 text-slate-900">
+                                                    {{ rpjmdContextSasaranTexts.join('; ') || 'Belum ada sasaran kabupaten terkait.' }}
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div
-                                v-if="
-                                    ['tujuan', 'indikator_tujuan', 'sasaran', 'indikator_sasaran', 'program', 'indikator_program'].includes(form.type)
-                                "
-                                class="grid gap-3 rounded-xl border bg-background p-3"
-                            >
-                                <div class="flex items-center gap-2">
-                                    <Link2 class="size-4 text-primary" />
-                                    <h3 class="text-sm font-semibold text-foreground">Koneksi RPJMD</h3>
-                                </div>
+                            <div v-if="showParentSelector" class="grid gap-2 rounded-xl border bg-background p-3">
+                                <label class="text-sm font-semibold text-foreground" for="parent_id">
+                                    {{
+                                        form.type === 'program'
+                                            ? 'Sasaran'
+                                            : form.type === 'kegiatan'
+                                              ? 'Program'
+                                              : 'Kegiatan'
+                                    }}
+                                    <span class="text-red-600">*</span>
+                                </label>
+                                <RpjmdRichSelect
+                                    id="parent_id"
+                                    v-model="form.parent_id"
+                                    :options="parentSelectOptions"
+                                    :placeholder="
+                                        form.type === 'program'
+                                            ? 'Pilih sasaran'
+                                            : form.type === 'kegiatan'
+                                              ? 'Pilih program'
+                                              : 'Pilih kegiatan'
+                                    "
+                                    :empty-text="`${parentLabel} belum tersedia`"
+                                />
+                                <InputError :message="form.errors.parent_id" />
+                            </div>
 
-                                <div v-if="form.type === 'tujuan'" class="grid gap-2">
-                                    <label class="text-sm font-medium" for="tujuan_daerah_id">Referensi Tujuan RPJMD</label>
-                                    <RpjmdRichSelect
-                                        id="tujuan_daerah_id"
-                                        v-model="form.tujuan_daerah_id"
-                                        :options="tujuanDaerahSelectOptions"
-                                        placeholder="Tidak dihubungkan"
-                                        empty-text="Tujuan RPJMD belum tersedia"
-                                    />
-                                </div>
-
-                                <div v-if="form.type === 'indikator_tujuan'" class="grid gap-2">
-                                    <label class="text-sm font-medium" for="indikator_tujuan_daerah_id">Referensi Indikator Tujuan RPJMD</label>
-                                    <RpjmdRichSelect
-                                        id="indikator_tujuan_daerah_id"
-                                        v-model="form.indikator_tujuan_daerah_id"
-                                        :options="indikatorTujuanDaerahSelectOptions"
-                                        placeholder="Tidak dihubungkan"
-                                        empty-text="Indikator tujuan RPJMD belum tersedia"
-                                    />
-                                </div>
-
-                                <div v-if="form.type === 'sasaran'" class="grid gap-2">
-                                    <label class="text-sm font-medium" for="sasaran_daerah_id">Referensi Sasaran RPJMD</label>
-                                    <RpjmdRichSelect
-                                        id="sasaran_daerah_id"
-                                        v-model="form.sasaran_daerah_id"
-                                        :options="sasaranDaerahSelectOptions"
-                                        placeholder="Tidak dihubungkan"
-                                        empty-text="Sasaran RPJMD belum tersedia"
-                                    />
-                                </div>
-
-                                <div v-if="form.type === 'indikator_sasaran'" class="grid gap-2">
-                                    <label class="text-sm font-medium" for="indikator_sasaran_daerah_id">Referensi Indikator Sasaran RPJMD</label>
-                                    <RpjmdRichSelect
-                                        id="indikator_sasaran_daerah_id"
-                                        v-model="form.indikator_sasaran_daerah_id"
-                                        :options="indikatorSasaranDaerahSelectOptions"
-                                        placeholder="Tidak dihubungkan"
-                                        empty-text="Indikator sasaran RPJMD belum tersedia"
-                                    />
-                                </div>
-
-                                <div v-if="form.type === 'program'" class="grid gap-2">
-                                    <label class="text-sm font-medium" for="program_rpjmd_id">Referensi Program RPJMD</label>
+                            <div v-if="form.type === 'program'" class="grid gap-3 rounded-xl border bg-muted/20 p-3">
+                                <div class="grid gap-2">
+                                    <label class="text-sm font-medium" for="program_rpjmd_id">Pilih Program</label>
                                     <RpjmdRichSelect
                                         id="program_rpjmd_id"
                                         v-model="form.program_rpjmd_id"
                                         :options="programRpjmdSelectOptions"
-                                        placeholder="Tidak dihubungkan"
+                                        placeholder="Pilih program"
                                         empty-text="Program RPJMD belum tersedia"
                                     />
+                                    <p class="text-xs leading-5 text-muted-foreground">Program berasal dari RPJMD yang terhubung dengan Renstra ini.</p>
                                 </div>
-
-                                <div v-if="form.type === 'indikator_program'" class="grid gap-2">
-                                    <label class="text-sm font-medium" for="indikator_program_rpjmd_id">Referensi Indikator Program RPJMD</label>
-                                    <RpjmdRichSelect
-                                        id="indikator_program_rpjmd_id"
-                                        v-model="form.indikator_program_rpjmd_id"
-                                        :options="indikatorProgramRpjmdSelectOptions"
-                                        placeholder="Tidak dihubungkan"
-                                        empty-text="Indikator program RPJMD belum tersedia"
-                                    />
+                                <div class="rounded-lg border bg-white px-3 py-2 text-sm text-slate-700">
+                                    <span class="text-xs font-semibold uppercase text-slate-500">Program OPD</span>
+                                    <p class="mt-1 font-semibold text-slate-950">
+                                        {{ selectedProgramRpjmd?.nama || selectedProgramRpjmd?.label || 'Terisi otomatis setelah program dipilih.' }}
+                                    </p>
                                 </div>
-                            </div>
-
-                            <div v-if="form.type === 'program'" class="grid gap-2 rounded-xl border bg-muted/20 p-3">
-                                <label class="text-sm font-medium" for="program_pemerintahan_id">Program Master</label>
-                                <RpjmdRichSelect
-                                    id="program_pemerintahan_id"
-                                    v-model="form.program_pemerintahan_id"
-                                    :options="programMasterSelectOptions"
-                                    placeholder="Pilih program master"
-                                    empty-text="Master program belum tersedia"
-                                />
-                                <p class="text-xs leading-5 text-muted-foreground">Nama program mengikuti master resmi yang dipilih.</p>
-                                <InputError :message="form.errors.program_pemerintahan_id" />
                             </div>
 
                             <div v-if="form.type === 'kegiatan'" class="grid gap-2 rounded-xl border bg-muted/20 p-3">
-                                <label class="text-sm font-medium" for="kegiatan_pemerintahan_id">Kegiatan Master</label>
+                                <label class="text-sm font-medium" for="kegiatan_pemerintahan_id">Pilih Kegiatan</label>
                                 <RpjmdRichSelect
                                     id="kegiatan_pemerintahan_id"
                                     v-model="form.kegiatan_pemerintahan_id"
                                     :options="kegiatanMasterSelectOptions"
                                     :disabled="needsParent && !form.parent_id"
-                                    placeholder="Pilih kegiatan master"
-                                    empty-text="Kegiatan master belum tersedia"
+                                    placeholder="Pilih kegiatan"
+                                    empty-text="Kegiatan belum tersedia"
                                 />
-                                <p class="text-xs leading-5 text-muted-foreground">
-                                    Pilihan difilter mengikuti program induk jika program sudah terhubung ke master.
-                                </p>
                                 <InputError :message="form.errors.kegiatan_pemerintahan_id" />
                             </div>
 
-                            <div v-if="form.type === 'sub_kegiatan'" class="grid gap-3 rounded-xl border bg-muted/20 p-3">
-                                <div class="grid gap-2">
-                                    <label class="text-sm font-medium" for="sub_kegiatan_pemerintahan_id">Sub Kegiatan Master</label>
-                                    <RpjmdRichSelect
-                                        id="sub_kegiatan_pemerintahan_id"
-                                        v-model="form.sub_kegiatan_pemerintahan_id"
-                                        :options="subKegiatanMasterSelectOptions"
-                                        :disabled="needsParent && !form.parent_id"
-                                        placeholder="Pilih sub kegiatan master"
-                                        empty-text="Sub kegiatan master belum tersedia"
-                                    />
-                                    <InputError :message="form.errors.sub_kegiatan_pemerintahan_id" />
-                                </div>
-                                <div class="grid gap-2">
-                                    <label class="text-sm font-medium" for="opd_unit_id">Unit Pelaksana</label>
-                                    <RpjmdRichSelect
-                                        id="opd_unit_id"
-                                        v-model="form.opd_unit_id"
-                                        :options="opdUnitSelectOptions"
-                                        placeholder="Tidak ditentukan"
-                                        empty-text="Unit OPD belum tersedia"
-                                    />
-                                    <InputError :message="form.errors.opd_unit_id" />
-                                </div>
+                            <div v-if="form.type === 'sub_kegiatan'" class="grid gap-2 rounded-xl border bg-muted/20 p-3">
+                                <label class="text-sm font-medium" for="sub_kegiatan_pemerintahan_id">Pilih Sub Kegiatan</label>
+                                <RpjmdRichSelect
+                                    id="sub_kegiatan_pemerintahan_id"
+                                    v-model="form.sub_kegiatan_pemerintahan_id"
+                                    :options="subKegiatanMasterSelectOptions"
+                                    :disabled="needsParent && !form.parent_id"
+                                    placeholder="Pilih sub kegiatan"
+                                    empty-text="Sub kegiatan belum tersedia"
+                                />
+                                <InputError :message="form.errors.sub_kegiatan_pemerintahan_id" />
                             </div>
 
-                            <div class="flex items-start gap-2 rounded-xl border bg-background p-3">
-                                <FileText class="mt-0.5 size-4 text-primary" />
-                                <div>
-                                    <h3 class="text-sm font-semibold text-foreground">Data Utama</h3>
-                                    <p class="mt-1 text-xs leading-5 text-muted-foreground">{{ contentRequirementText }}</p>
-                                </div>
-                            </div>
-
-                            <div v-if="isTextNodeType" class="grid gap-2">
+                            <div v-if="isTextNodeType && form.type !== 'program'" class="grid gap-2">
                                 <label class="text-sm font-medium" for="uraian">{{ selectedTypeLabel }}</label>
                                 <textarea
                                     id="uraian"
@@ -4349,7 +4923,7 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                     id="pd_penanggung_jawab"
                                     v-model="form.pd_penanggung_jawab"
                                     class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-                                    placeholder="Contoh: Dinas Komunikasi dan Informatika"
+                                    :placeholder="pdPenanggungJawabPlaceholder"
                                 />
                                 <InputError :message="form.errors.pd_penanggung_jawab" />
                             </div>
@@ -4360,17 +4934,21 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                     id="sumber_data"
                                     v-model="form.sumber_data"
                                     class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-                                    placeholder="Contoh: Bidang IKP, SIPD, laporan bidang"
+                                    :placeholder="sumberDataPlaceholder"
                                 />
                             </div>
 
-                            <div v-if="isTargetType" class="grid gap-3 md:col-span-2">
+                            <div v-if="isTargetType || isBudgetType" class="grid gap-3">
                                 <div class="rounded-xl border bg-white shadow-sm">
                                     <div class="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3">
                                         <div>
-                                            <p class="text-sm font-semibold text-slate-900">Target 5 Tahunan</p>
+                                            <p class="text-sm font-semibold text-slate-900">{{ targetBatchTitle }}</p>
                                             <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                                                {{ targetBatchIndicatorRow?.indikator || 'Pilih indikator terlebih dahulu.' }}
+                                                {{
+                                                    isBudgetType
+                                                        ? targetBatchSubKegiatan?.nama || 'Sub kegiatan belum tersedia.'
+                                                        : targetBatchIndicatorRow?.indikator || 'Indikator belum tersedia.'
+                                                }}
                                             </p>
                                         </div>
                                         <span class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-[#00336C]">
@@ -4383,7 +4961,7 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                                 <tr>
                                                     <th class="w-20 px-4 py-3">No</th>
                                                     <th class="min-w-52 px-4 py-3">Periode</th>
-                                                    <th class="min-w-72 px-4 py-3">Target</th>
+                                                    <th v-if="!isBudgetType" class="min-w-72 px-4 py-3">Target</th>
                                                     <th v-if="targetBatchShowsFinance" class="min-w-60 px-4 py-3">Anggaran</th>
                                                     <th class="w-28 px-4 py-3">Status</th>
                                                 </tr>
@@ -4393,10 +4971,10 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                                     <td class="px-4 py-3 font-semibold text-slate-900">{{ index + 1 }}</td>
                                                     <td class="px-4 py-3">
                                                         <span class="inline-flex min-h-10 items-center rounded-lg border bg-slate-50 px-3 font-semibold text-slate-700">
-                                                            {{ targetRow.label }}
+                                                            {{ targetBatchPeriodLabel(targetRow) }}
                                                         </span>
                                                     </td>
-                                                    <td class="px-4 py-3">
+                                                    <td v-if="!isBudgetType" class="px-4 py-3">
                                                         <input
                                                             v-model="targetRow.target"
                                                             class="min-h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:border-[#00336C] focus:ring-2 focus:ring-[#00336C]/15"
@@ -4407,8 +4985,7 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                                     <td v-if="targetBatchShowsFinance" class="px-4 py-3">
                                                         <input
                                                             v-model="targetRow.pagu"
-                                                            type="number"
-                                                            step="0.01"
+                                                            inputmode="numeric"
                                                             class="min-h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:border-[#00336C] focus:ring-2 focus:ring-[#00336C]/15"
                                                             placeholder="0"
                                                             @input="onTargetBatchInput(targetRow)"
@@ -4446,14 +5023,16 @@ const shouldShowRpjmdProgramAlias = (program: RpjmdContext['program_groups'][num
                                 </div>
                             </div>
 
-                            <button
-                                type="submit"
-                                :disabled="form.processing || isTargetBatchSaving"
-                                class="sticky bottom-3 z-10 mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/10 transition hover:bg-primary/90 disabled:opacity-60"
-                            >
-                                <Save class="size-4" />
-                                {{ isTargetType ? 'Simpan Target' : editingNode ? 'Perbarui Data' : 'Simpan Data' }}
-                            </button>
+                            <div class="mt-2 flex w-full items-center justify-end border-t border-slate-200 bg-card pt-4">
+                                <button
+                                    type="submit"
+                                    :disabled="form.processing || isTargetBatchSaving"
+                                    class="inline-flex min-h-11 min-w-40 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/10 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <Save class="size-4" />
+                                    {{ isTargetType || isBudgetType ? targetBatchSubmitLabel : editingNode ? 'Perbarui Data' : 'Simpan Data' }}
+                                </button>
+                            </div>
                         </form>
                     </section>
 

@@ -52,4 +52,9 @@ class OpdSubKegiatan extends Model
     {
         return $this->hasMany(IndikatorSubKegiatan::class)->orderBy('urutan');
     }
+
+    public function anggaranTahunan(): HasMany
+    {
+        return $this->hasMany(AnggaranSubKegiatanRenstra::class, 'opd_sub_kegiatan_id')->orderBy('periode_tahun_id');
+    }
 }

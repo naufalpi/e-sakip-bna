@@ -4,7 +4,6 @@ namespace App\Http\Requests\RenstraOpd;
 
 use App\Models\RenstraOpd;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreRenstraOpdRequest extends FormRequest
 {
@@ -35,7 +34,6 @@ class StoreRenstraOpdRequest extends FormRequest
             'nomor_dokumen' => ['nullable', 'string', 'max:255'],
             'tahun_awal' => ['required', 'integer', 'min:2000', 'max:2100'],
             'tahun_akhir' => ['required', 'integer', 'min:2000', 'max:2100', 'gte:tahun_awal'],
-            'status' => ['required', Rule::in(['draft', 'submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'])],
             'keterangan' => ['nullable', 'string'],
         ];
     }

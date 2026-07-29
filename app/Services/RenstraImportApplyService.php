@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AnggaranSubKegiatanRenstra;
 use App\Models\ImportBatch;
 use App\Models\ImportBatchRow;
 use App\Models\IndikatorOpdKegiatan;
@@ -304,7 +305,6 @@ class RenstraImportApplyService
             'program_rpjmd_id' => $this->resolveProgramRpjmd($mapped, $sasaran->tujuan->renstra)?->id,
             'nama' => $text,
             'sasaran_program' => $this->text($mapped, ['sasaran_program', 'sasaran_level', 'sasaran_program_opd']),
-            'pagu_indikatif' => $this->number($mapped, ['pagu', 'pagu_program', 'pagu_indikatif']),
             'status' => 'draft',
             'urutan' => $this->order($mapped),
         ]);
@@ -358,7 +358,6 @@ class RenstraImportApplyService
         $kegiatan = OpdKegiatan::updateOrCreate($kode ? ['opd_program_id' => $program->id, 'kode' => $kode] : ['opd_program_id' => $program->id, 'nama' => $text], [
             'nama' => $text,
             'sasaran_kegiatan' => $this->text($mapped, ['sasaran_kegiatan', 'sasaran_level', 'sasaran_kegiatan_opd']),
-            'pagu_indikatif' => $this->number($mapped, ['pagu', 'pagu_kegiatan', 'pagu_indikatif']),
             'urutan' => $this->order($mapped),
         ]);
 
@@ -409,7 +408,6 @@ class RenstraImportApplyService
         $subKegiatan = OpdSubKegiatan::updateOrCreate($kode ? ['opd_kegiatan_id' => $kegiatan->id, 'kode' => $kode] : ['opd_kegiatan_id' => $kegiatan->id, 'nama' => $text], [
             'nama' => $text,
             'sasaran_sub_kegiatan' => $this->text($mapped, ['sasaran_sub_kegiatan', 'sasaran_level', 'sasaran_sub_kegiatan_opd']),
-            'pagu_indikatif' => $this->number($mapped, ['pagu', 'pagu_sub_kegiatan', 'pagu_indikatif']),
             'urutan' => $this->order($mapped),
         ]);
 
@@ -701,7 +699,7 @@ class RenstraImportApplyService
         ], [
             'target' => $this->number($mapped, ['target', 'target_program', 'target_angka']),
             'target_text' => $this->text($mapped, ['target_text', 'target_teks', 'target_program_text']),
-            'pagu' => $this->number($mapped, ['pagu', 'pagu_program', 'pagu_target']),
+            'pagu' => null,
         ]);
     }
 
@@ -722,13 +720,26 @@ class RenstraImportApplyService
     {
         $periode = $this->periodeTarget($mapped);
 
-        return TargetIndikatorSubKegiatan::updateOrCreate([
+        $target = TargetIndikatorSubKegiatan::updateOrCreate([
             'indikator_sub_kegiatan_id' => $indikator->id,
             'periode_tahun_id' => $periode->id,
         ], [
             'target' => $this->number($mapped, ['target', 'target_sub_kegiatan', 'target_angka']),
             'target_text' => $this->text($mapped, ['target_text', 'target_teks', 'target_sub_kegiatan_text']),
         ]);
+
+        $anggaran = $this->number($mapped, ['pagu', 'pagu_sub_kegiatan', 'pagu_anggaran', 'pagu_target']);
+
+        if ($anggaran !== null) {
+            AnggaranSubKegiatanRenstra::updateOrCreate([
+                'opd_sub_kegiatan_id' => $indikator->opd_sub_kegiatan_id,
+                'periode_tahun_id' => $periode->id,
+            ], [
+                'anggaran' => $anggaran,
+            ]);
+        }
+
+        return $target;
     }
 
     private function currentIndicatorForTriwulan(): array

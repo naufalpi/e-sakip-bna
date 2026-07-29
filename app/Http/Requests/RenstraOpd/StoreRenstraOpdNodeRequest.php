@@ -12,6 +12,14 @@ class StoreRenstraOpdNodeRequest extends FormRequest
         return $this->user()->can('update', $this->route('renstra_opd'));
     }
 
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'pagu' => $this->normalizeCurrency($this->input('pagu')),
+            'pagu_indikatif' => $this->normalizeCurrency($this->input('pagu_indikatif')),
+        ]);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -34,6 +42,7 @@ class StoreRenstraOpdNodeRequest extends FormRequest
                 'sub_kegiatan',
                 'indikator_sub_kegiatan',
                 'target_sub_kegiatan',
+                'anggaran_sub_kegiatan',
             ])],
             'parent_id' => ['nullable', 'integer'],
             'periode_tahun_id' => ['nullable', 'integer', 'exists:periode_tahun,id'],
@@ -66,5 +75,35 @@ class StoreRenstraOpdNodeRequest extends FormRequest
             'pagu_indikatif' => ['nullable', 'numeric'],
             'urutan' => ['nullable', 'integer', 'min:1', 'max:999'],
         ];
+    }
+
+    private function normalizeCurrency(mixed $value): mixed
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_string($value)) {
+            return $value;
+        }
+
+        $normalized = trim($value);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $normalized = str_replace(' ', '', $normalized);
+
+        if (str_contains($normalized, ',') && str_contains($normalized, '.')) {
+            $normalized = str_replace('.', '', $normalized);
+            $normalized = str_replace(',', '.', $normalized);
+        } elseif (str_contains($normalized, ',')) {
+            $normalized = str_replace(',', '.', $normalized);
+        } elseif (preg_match('/^\d{1,3}(\.\d{3})+$/', $normalized) === 1) {
+            $normalized = str_replace('.', '', $normalized);
+        }
+
+        return $normalized;
     }
 }
