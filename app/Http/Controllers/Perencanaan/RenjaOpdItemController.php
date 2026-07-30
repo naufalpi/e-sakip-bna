@@ -8,14 +8,18 @@ use App\Http\Requests\Perencanaan\UpdateRenjaOpdItemRequest;
 use App\Models\RenjaOpd;
 use App\Models\RenjaOpdItem;
 use App\Models\SubKegiatanPemerintahan;
+use App\Services\Perencanaan\RenjaProgramScopeService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class RenjaOpdItemController extends Controller
 {
+    public function __construct(private readonly RenjaProgramScopeService $renjaProgramScopeService) {}
+
     public function store(StoreRenjaOpdItemRequest $request, RenjaOpd $renjaOpd): RedirectResponse
     {
-        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), (int) $renjaOpd->periode_tahun_id);
+        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), $renjaOpd);
 
         $renjaOpd->items()->create($this->payload($request->validated(), $subKegiatan, [
             'status' => $request->validated('status') ?: 'draft',
@@ -29,7 +33,7 @@ class RenjaOpdItemController extends Controller
     {
         abort_unless((int) $item->renja_opd_id === (int) $renjaOpd->id, 404);
 
-        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), (int) $renjaOpd->periode_tahun_id);
+        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), $renjaOpd);
 
         $item->update($this->payload($request->validated(), $subKegiatan, [
             'status' => $request->validated('status') ?: $item->status,
@@ -49,11 +53,16 @@ class RenjaOpdItemController extends Controller
         return back()->with('success', 'Baris Renja OPD berhasil dihapus.');
     }
 
-    private function subKegiatan(int $id, int $periodeTahunId): SubKegiatanPemerintahan
+    private function subKegiatan(int $id, RenjaOpd $renjaOpd): SubKegiatanPemerintahan
     {
+        $programPemerintahanIds = $this->renjaProgramScopeService->programPemerintahanIds($renjaOpd);
+
+        abort_if($programPemerintahanIds === [], 422, 'Program Renja OPD belum tersedia. Lengkapi program Renstra/RPJMD terkait terlebih dahulu.');
+
         return SubKegiatanPemerintahan::query()
             ->with('kegiatanPemerintahan.programPemerintahan')
-            ->where('periode_tahun_id', $periodeTahunId)
+            ->where('periode_tahun_id', $renjaOpd->periode_tahun_id)
+            ->whereHas('kegiatanPemerintahan', fn (Builder $query) => $query->whereIn('program_pemerintahan_id', $programPemerintahanIds))
             ->findOrFail($id);
     }
 

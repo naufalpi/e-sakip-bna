@@ -48,7 +48,7 @@ class RkpdIkuTargetTest extends TestCase
         TargetIndikatorTujuanDaerah::create([
             'indikator_tujuan_daerah_id' => $indikatorTujuan->id,
             'periode_tahun_id' => $periode->id,
-            'target_text' => '88,50',
+            'target' => '88,50-89,00',
         ]);
 
         $sasaran = SasaranDaerah::create(['tujuan_daerah_id' => $tujuan->id, 'sasaran' => 'Sasaran IKU RKPD', 'urutan' => 1]);
@@ -81,7 +81,7 @@ class RkpdIkuTargetTest extends TestCase
                 ->component('Rkpd/Show')
                 ->has('ikuRows', 2)
                 ->where('ikuRows.0.iku', 'Indeks Tujuan RKPD')
-                ->where('ikuRows.0.target_rpjmd', '88,50')
+                ->where('ikuRows.0.target_rpjmd', '88,50-89,00')
                 ->where('ikuRows.1.iku', 'Indeks Sasaran RKPD')
                 ->where('ikuRows.1.target_rpjmd', '91')
             );

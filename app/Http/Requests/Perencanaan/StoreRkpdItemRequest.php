@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Perencanaan;
 
 use Illuminate\Foundation\Http\FormRequest;
+
 class StoreRkpdItemRequest extends FormRequest
 {
     public function authorize(): bool
@@ -10,6 +11,14 @@ class StoreRkpdItemRequest extends FormRequest
         $rkpd = $this->route('rkpd');
 
         return $rkpd && ($this->user()?->can('update', $rkpd) ?? false);
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'pagu_indikatif' => $this->normalizeCurrency($this->input('pagu_indikatif')),
+            'prakiraan_maju_pagu_indikatif' => $this->normalizeCurrency($this->input('prakiraan_maju_pagu_indikatif')),
+        ]);
     }
 
     /**
@@ -38,5 +47,35 @@ class StoreRkpdItemRequest extends FormRequest
             'perangkat_daerah_penanggung_jawab' => ['nullable', 'string', 'max:255'],
             'urutan' => ['nullable', 'integer', 'between:1,9999'],
         ];
+    }
+
+    private function normalizeCurrency(mixed $value): mixed
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_string($value)) {
+            return $value;
+        }
+
+        $normalized = trim($value);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $normalized = str_replace(' ', '', $normalized);
+
+        if (str_contains($normalized, ',') && str_contains($normalized, '.')) {
+            $normalized = str_replace('.', '', $normalized);
+            $normalized = str_replace(',', '.', $normalized);
+        } elseif (str_contains($normalized, ',')) {
+            $normalized = str_replace(',', '.', $normalized);
+        } elseif (preg_match('/^\d{1,3}(\.\d{3})+$/', $normalized) === 1) {
+            $normalized = str_replace('.', '', $normalized);
+        }
+
+        return $normalized;
     }
 }

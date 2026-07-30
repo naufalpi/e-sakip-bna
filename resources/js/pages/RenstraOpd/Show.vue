@@ -2173,7 +2173,7 @@ const setIndicatorTargetPagu = (row: BulkRow, periodeId: number | string, value:
         return;
     }
 
-    targetRow.pagu = value;
+    targetRow.pagu = currencyTypingInputText(value);
     scheduleBulkAutosave(targetRow);
 };
 const showTargetFinance = (_row: BulkRow) => false;
@@ -2242,6 +2242,10 @@ const prepareTargetBatchRows = () => {
 const onTargetBatchInput = (row: TargetBatchRow) => {
     row.saveState = 'dirty';
     row.error = '';
+};
+const onTargetBatchPaguInput = (row: TargetBatchRow) => {
+    row.pagu = currencyTypingInputText(row.pagu);
+    onTargetBatchInput(row);
 };
 const saveTargetBatchRows = async () => {
     if (isBudgetType.value) {
@@ -2922,7 +2926,7 @@ const editNode = (type: NodeType, id: number, parentId: number | null, node: any
     } else if (['program', 'kegiatan', 'sub_kegiatan'].includes(type)) {
         form.uraian = valueText(node.nama);
         form.sasaran_level = valueText(node.sasaran_program ?? node.sasaran_kegiatan ?? node.sasaran_sub_kegiatan);
-        form.pagu_indikatif = valueText(node.pagu_indikatif);
+        form.pagu_indikatif = currencyInputText(node.pagu_indikatif);
         form.program_rpjmd_id = valueText(node.program_rpjmd_id);
         form.program_pemerintahan_id = valueText(node.program_pemerintahan_id);
         form.kegiatan_pemerintahan_id = valueText(node.kegiatan_pemerintahan_id);
@@ -2947,7 +2951,7 @@ const editNode = (type: NodeType, id: number, parentId: number | null, node: any
         form.periode_tahun_id = target.periode_tahun?.id ?? '';
         form.target = valueText(target.target);
         form.target_text = valueText(target.target_text);
-        form.pagu = valueText(target.pagu);
+        form.pagu = currencyInputText(target.pagu);
         prepareTargetBatchRows();
     }
 
@@ -3148,6 +3152,17 @@ const currencyInputText = (value?: string | number | null) => {
     const asNumber = Number(normalized);
 
     return Number.isFinite(asNumber) ? new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(asNumber) : valueText(value);
+};
+const currencyTypingInputText = (value?: string | number | null) => {
+    let raw = valueText(value).trim().replace(/\s/g, '');
+
+    if (/^\d{4,}\.\d{1,2}$/.test(raw)) {
+        raw = raw.split('.')[0] ?? '';
+    }
+
+    const digits = raw.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 };
 const targetDisplay = (target: Target) => normalizedTargetText(target.target_text || target.target) || '-';
 </script>
@@ -3923,8 +3938,8 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                 <input
                                                     :value="targetPaguForIndicator(row, period.id)"
                                                     :disabled="!canEditTargetColumns(row)"
-                                                    type="number"
-                                                    step="0.01"
+                                                    type="text"
+                                                    inputmode="numeric"
                                                     class="min-h-9 rounded-md border bg-background px-2 text-xs font-normal text-slate-900 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
                                                     @input="setIndicatorTargetPagu(row, period.id, inputEventValue($event))"
                                                 />
@@ -4947,7 +4962,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                             inputmode="numeric"
                                                             class="min-h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:border-[#00336C] focus:ring-2 focus:ring-[#00336C]/15"
                                                             placeholder="0"
-                                                            @input="onTargetBatchInput(targetRow)"
+                                                            @input="onTargetBatchPaguInput(targetRow)"
                                                         />
                                                     </td>
                                                     <td class="px-4 py-3">

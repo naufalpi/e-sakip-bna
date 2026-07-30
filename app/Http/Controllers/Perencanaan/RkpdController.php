@@ -573,11 +573,31 @@ class RkpdController extends Controller
             return null;
         }
 
-        if (filled($target->target_text)) {
-            return $target->target_text;
+        return $this->formatTargetValue($target->target_text)
+            ?? $this->formatTargetValue($target->target);
+    }
+
+    private function formatTargetValue(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
         }
 
-        return $target->target === null ? null : rtrim(rtrim(number_format((float) $target->target, 4, '.', ''), '0'), '.');
+        $raw = trim((string) $value);
+
+        if ($raw === '') {
+            return null;
+        }
+
+        if (str_contains($raw, ',') || preg_match('/[<>=≤≥-]/u', $raw)) {
+            return $raw;
+        }
+
+        if (preg_match('/^-?\d+(\.\d+)?$/', $raw)) {
+            return rtrim(rtrim(number_format((float) $raw, 4, ',', ''), '0'), ',');
+        }
+
+        return $raw;
     }
 
     /**

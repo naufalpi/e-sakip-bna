@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\Perencanaan;
 
+use App\Models\PeriodeTahun;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateRenjaOpdRequest extends FormRequest
 {
@@ -12,6 +12,22 @@ class UpdateRenjaOpdRequest extends FormRequest
         $renjaOpd = $this->route('renja_opd');
 
         return $renjaOpd && ($this->user()?->can('update', $renjaOpd) ?? false);
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $tahun = (int) $this->input('tahun');
+        $periodeTahunId = $this->input('periode_tahun_id') ?: PeriodeTahun::query()
+            ->where('tahun', $tahun)
+            ->value('id');
+
+        $this->merge([
+            'periode_tahun_id' => $periodeTahunId,
+            'judul' => str($this->input('judul', ''))->trim()->upper()->toString(),
+            'nomor_dokumen' => filled($this->input('nomor_dokumen'))
+                ? str($this->input('nomor_dokumen'))->trim()->upper()->toString()
+                : null,
+        ]);
     }
 
     /**
@@ -28,7 +44,6 @@ class UpdateRenjaOpdRequest extends FormRequest
             'tahun' => ['required', 'integer', 'between:2000,2100'],
             'judul' => ['required', 'string', 'max:255'],
             'nomor_dokumen' => ['nullable', 'string', 'max:255'],
-            'status' => ['required', 'string', Rule::in(['draft', 'submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'])],
             'catatan' => ['nullable', 'string'],
         ];
     }

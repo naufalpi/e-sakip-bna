@@ -3,7 +3,7 @@ import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, CheckCircle2, ClipboardList, Pencil, Plus, Save, Search, Target, Trash2, X } from 'lucide-vue-next';
+import { ArrowLeft, ClipboardList, Pencil, Plus, Save, Search, Target, Trash2, X } from 'lucide-vue-next';
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 type Option = {
@@ -411,14 +411,14 @@ const editItem = (row: Row) => {
     form.realisasi_capaian_renja_tahun_lalu = row.realisasi_capaian_renja_tahun_lalu ?? '';
     form.prakiraan_capaian_target_renja_tahun_berjalan = row.prakiraan_capaian_target_renja_tahun_berjalan ?? '';
     form.target = row.target ?? '';
-    form.pagu_indikatif = String(row.pagu_indikatif ?? '');
+    form.pagu_indikatif = moneyInputText(row.pagu_indikatif);
     form.lokasi = row.lokasi ?? '';
     form.sumber_dana = row.sumber_dana ?? '';
     form.prioritas_nasional = row.prioritas_nasional ?? '';
     form.prioritas_daerah = row.prioritas_daerah ?? '';
     form.kelompok_sasaran = row.kelompok_sasaran ?? '';
     form.prakiraan_maju_target = row.prakiraan_maju_target ?? '';
-    form.prakiraan_maju_pagu_indikatif = String(row.prakiraan_maju_pagu_indikatif ?? '');
+    form.prakiraan_maju_pagu_indikatif = moneyInputText(row.prakiraan_maju_pagu_indikatif);
     form.perangkat_daerah_penanggung_jawab = row.perangkat_daerah_penanggung_jawab ?? '';
     form.urutan = String(row.urutan ?? '');
     nextTick(() => {
@@ -532,6 +532,41 @@ type OfficialPreviewRow = {
 };
 
 const moneyValue = (value?: number | string | null) => Number(String(value ?? '').replace(/[^0-9.-]/g, '')) || 0;
+const moneyInputText = (value?: number | string | null) => {
+    let raw = String(value ?? '').trim().replace(/\s/g, '');
+
+    if (!raw) {
+        return '';
+    }
+
+    if (raw.includes(',') && raw.includes('.')) {
+        raw = raw.replace(/\./g, '').split(',')[0] ?? '';
+    } else if (/^\d{1,3}(\.\d{3})+$/.test(raw)) {
+        raw = raw.replace(/\./g, '');
+    } else if (/^\d+\.\d+$/.test(raw)) {
+        raw = raw.split('.')[0] ?? '';
+    } else if (raw.includes(',')) {
+        raw = raw.split(',')[0] ?? '';
+    }
+
+    const digits = raw.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+const moneyTypingInputText = (value?: number | string | null) => {
+    let raw = String(value ?? '').trim().replace(/\s/g, '');
+
+    if (/^\d{4,}\.\d{1,2}$/.test(raw)) {
+        raw = raw.split('.')[0] ?? '';
+    }
+
+    const digits = raw.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+const formatMoneyField = (field: 'pagu_indikatif' | 'prakiraan_maju_pagu_indikatif') => {
+    form[field] = moneyTypingInputText(form[field]);
+};
 const formatMoneyPlain = (value?: number | string | null) => {
     const amount = moneyValue(value);
 
@@ -877,11 +912,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                                     />
                                     <span v-if="ikuForm.errors.target_rkpd" class="text-xs text-red-600">{{ ikuForm.errors.target_rkpd }}</span>
                                 </div>
-                                <span
-                                    v-else-if="row.target_rkpd"
-                                    class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700"
-                                >
-                                    <CheckCircle2 class="size-4" />
+                                <span v-else-if="row.target_rkpd" class="font-semibold text-slate-900">
                                     {{ row.target_rkpd }}
                                 </span>
                                 <span v-else class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">Belum diisi</span>
@@ -1117,10 +1148,11 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             <span class="text-sm font-medium">Pagu Indikatif (Rp)</span>
                             <input
                                 v-model="form.pagu_indikatif"
-                                type="number"
-                                min="0"
+                                type="text"
+                                inputmode="numeric"
                                 class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
-                                placeholder="Contoh: 75000000"
+                                placeholder="Contoh: 75.000.000"
+                                @input="formatMoneyField('pagu_indikatif')"
                             />
                         </label>
                         <label class="grid gap-1.5">
@@ -1172,10 +1204,11 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             <span class="text-sm font-medium">Pagu Indikatif (Rp)</span>
                             <input
                                 v-model="form.prakiraan_maju_pagu_indikatif"
-                                type="number"
-                                min="0"
+                                type="text"
+                                inputmode="numeric"
                                 class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
-                                placeholder="Contoh: 75000000"
+                                placeholder="Contoh: 75.000.000"
+                                @input="formatMoneyField('prakiraan_maju_pagu_indikatif')"
                             />
                         </label>
                         <label class="grid gap-1.5">

@@ -3,8 +3,8 @@
 namespace App\Http\Requests\Perencanaan;
 
 use App\Models\RenjaOpd;
+use App\Models\PeriodeTahun;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreRenjaOpdRequest extends FormRequest
 {
@@ -24,6 +24,23 @@ class StoreRenjaOpdRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $tahun = (int) $this->input('tahun');
+        $periodeTahunId = $this->input('periode_tahun_id') ?: PeriodeTahun::query()
+            ->where('tahun', $tahun)
+            ->value('id');
+
+        $this->merge([
+            'periode_tahun_id' => $periodeTahunId,
+            'judul' => str($this->input('judul', ''))->trim()->upper()->toString(),
+            'nomor_dokumen' => filled($this->input('nomor_dokumen'))
+                ? str($this->input('nomor_dokumen'))->trim()->upper()->toString()
+                : null,
+            'status' => 'draft',
+        ]);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -38,7 +55,7 @@ class StoreRenjaOpdRequest extends FormRequest
             'tahun' => ['required', 'integer', 'between:2000,2100'],
             'judul' => ['required', 'string', 'max:255'],
             'nomor_dokumen' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', 'string', Rule::in(['draft', 'submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'])],
+            'status' => ['nullable', 'string', 'in:draft'],
             'catatan' => ['nullable', 'string'],
         ];
     }

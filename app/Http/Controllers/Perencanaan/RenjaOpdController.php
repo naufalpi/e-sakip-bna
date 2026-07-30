@@ -14,6 +14,7 @@ use App\Models\RenstraOpd;
 use App\Models\Rkpd;
 use App\Models\SubKegiatanPemerintahan;
 use App\Models\User;
+use App\Services\Perencanaan\RenjaProgramScopeService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,8 @@ use Inertia\Response;
 
 class RenjaOpdController extends Controller
 {
+    public function __construct(private readonly RenjaProgramScopeService $renjaProgramScopeService) {}
+
     public function index(Request $request): Response
     {
         $this->authorize('viewAny', RenjaOpd::class);
@@ -124,11 +127,13 @@ class RenjaOpdController extends Controller
 
         $renjaOpd->load(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'rkpd:id,judul,tahun,status', 'periodeTahun:id,tahun,nama']);
 
-        $items = $renjaOpd->items()
+        $itemsQuery = $renjaOpd->items()
             ->with([
-                'programPemerintahan:id,kode,nama',
-                'kegiatanPemerintahan:id,kode,nama',
-                'subKegiatanPemerintahan:id,kode,nama',
+                'programPemerintahan:id,bidang_urusan_id,kode,nama',
+                'programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
+                'programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
+                'kegiatanPemerintahan:id,program_pemerintahan_id,kode,nama',
+                'subKegiatanPemerintahan:id,kegiatan_pemerintahan_id,kode,nama',
             ])
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
@@ -137,18 +142,37 @@ class RenjaOpdController extends Controller
                         ->orWhere('nama_sub_kegiatan', 'ilike', "%{$search}%")
                         ->orWhere('indikator', 'ilike', "%{$search}%");
                 });
-            })
+            });
+
+        $previewItems = (clone $itemsQuery)
+            ->orderBy('program_pemerintahan_id')
+            ->orderBy('kegiatan_pemerintahan_id')
+            ->orderBy('sub_kegiatan_pemerintahan_id')
+            ->orderBy('urutan')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (RenjaOpdItem $item) => $this->serializeItem($item, $renjaOpd))
+            ->values()
+            ->all();
+
+        $items = $itemsQuery
             ->orderBy('urutan')
             ->orderBy('id')
             ->paginate(25)
             ->withQueryString()
-            ->through(fn (RenjaOpdItem $item) => $this->serializeItem($item));
+            ->through(fn (RenjaOpdItem $item) => $this->serializeItem($item, $renjaOpd));
 
         return Inertia::render('RenjaOpd/Show', [
             'renja' => $this->serializeRenja($renjaOpd),
             'items' => $items,
+            'previewItems' => $previewItems,
+            'summary' => [
+                'items_count' => count($previewItems),
+                'total_pagu' => collect($previewItems)->sum(fn (array $item) => (float) ($item['pagu_indikatif'] ?? 0)),
+                'total_prakiraan_maju_pagu' => collect($previewItems)->sum(fn (array $item) => (float) ($item['prakiraan_maju_pagu_indikatif'] ?? 0)),
+            ],
             'filters' => $filters,
-            'subKegiatanOptions' => $canManage ? $this->subKegiatanOptions((int) $renjaOpd->periode_tahun_id) : [],
+            'subKegiatanOptions' => $canManage ? $this->subKegiatanOptions($renjaOpd) : [],
             'can' => [
                 'manage' => $canManage,
             ],
@@ -220,6 +244,7 @@ class RenjaOpdController extends Controller
             ->get(['id', 'opd_id', 'judul', 'tahun_awal', 'tahun_akhir'])
             ->map(fn (RenstraOpd $renstra) => [
                 'id' => $renstra->id,
+                'opd_id' => $renstra->opd_id,
                 'label' => "{$renstra->tahun_awal}-{$renstra->tahun_akhir} - ".($renstra->opd?->singkatan ?: $renstra->opd?->nama ?: $renstra->judul),
             ])
             ->all();
@@ -281,12 +306,25 @@ class RenjaOpdController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function subKegiatanOptions(int $periodeTahunId): array
+    private function subKegiatanOptions(RenjaOpd $renjaOpd): array
     {
+        $programPemerintahanIds = $this->renjaProgramScopeService->programPemerintahanIds($renjaOpd);
+
+        if ($programPemerintahanIds === []) {
+            return [];
+        }
+
         return SubKegiatanPemerintahan::query()
-            ->with(['satuanIndikator:id,nama,simbol', 'kegiatanPemerintahan.programPemerintahan:id,kode,nama'])
-            ->where('periode_tahun_id', $periodeTahunId)
+            ->with([
+                'satuanIndikator:id,nama,simbol',
+                'kegiatanPemerintahan:id,program_pemerintahan_id,kode,nama',
+                'kegiatanPemerintahan.programPemerintahan:id,bidang_urusan_id,kode,nama',
+                'kegiatanPemerintahan.programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
+                'kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
+            ])
+            ->where('periode_tahun_id', $renjaOpd->periode_tahun_id)
             ->where('status', 'active')
+            ->whereHas('kegiatanPemerintahan', fn (Builder $query) => $query->whereIn('program_pemerintahan_id', $programPemerintahanIds))
             ->orderBy('kode')
             ->limit(3000)
             ->get([
@@ -303,11 +341,18 @@ class RenjaOpdController extends Controller
             ->map(function (SubKegiatanPemerintahan $subKegiatan) {
                 $kegiatan = $subKegiatan->kegiatanPemerintahan;
                 $program = $kegiatan?->programPemerintahan;
+                $bidang = $program?->bidangUrusan;
+                $urusan = $bidang?->urusanPemerintahan;
 
                 return [
                     'id' => $subKegiatan->id,
+                    'value' => $subKegiatan->id,
                     'kode' => $subKegiatan->kode,
                     'nama' => $subKegiatan->nama,
+                    'program_id' => $program?->id,
+                    'kegiatan_id' => $kegiatan?->id,
+                    'bidang_id' => $bidang?->id,
+                    'urusan_id' => $urusan?->id,
                     'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
                     'indikator_sub_kegiatan' => $subKegiatan->indikator_sub_kegiatan,
                     'satuan_indikator_id' => $subKegiatan->satuan_indikator_id,
@@ -365,10 +410,17 @@ class RenjaOpdController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function serializeItem(RenjaOpdItem $item): array
+    private function serializeItem(RenjaOpdItem $item, ?RenjaOpd $renja = null): array
     {
+        $renja ??= $item->renjaOpd;
+        $program = $item->programPemerintahan;
+        $bidang = $program?->bidangUrusan;
+        $urusan = $bidang?->urusanPemerintahan;
+
         return [
             'id' => $item->id,
+            'opd_id' => $renja?->opd_id,
+            'opd_unit_id' => $renja?->opd_unit_id,
             'sub_kegiatan_pemerintahan_id' => $item->sub_kegiatan_pemerintahan_id,
             'kode' => $item->kode,
             'nama_sub_kegiatan' => $item->nama_sub_kegiatan,
@@ -387,9 +439,23 @@ class RenjaOpdController extends Controller
             'prakiraan_maju_pagu_indikatif' => $item->prakiraan_maju_pagu_indikatif,
             'status' => $item->status,
             'urutan' => $item->urutan,
+            'opd' => $renja?->opd ? [
+                'id' => $renja->opd->id,
+                'kode' => $renja->opd->kode,
+                'nama' => $renja->opd->nama,
+                'singkatan' => $renja->opd->singkatan,
+            ] : null,
+            'opd_unit' => $renja?->opdUnit ? [
+                'id' => $renja->opdUnit->id,
+                'kode' => $renja->opdUnit->kode,
+                'nama' => $renja->opdUnit->nama,
+            ] : null,
+            'urusan' => $this->label($urusan?->kode, $urusan?->nama),
+            'bidang' => $this->label($bidang?->kode, $bidang?->nama),
             'program' => $this->label($item->programPemerintahan?->kode, $item->programPemerintahan?->nama),
             'kegiatan' => $this->label($item->kegiatanPemerintahan?->kode, $item->kegiatanPemerintahan?->nama),
             'sub_kegiatan' => $this->label($item->subKegiatanPemerintahan?->kode, $item->subKegiatanPemerintahan?->nama),
+            'perangkat_daerah_penanggung_jawab' => $renja?->opd?->nama,
         ];
     }
 

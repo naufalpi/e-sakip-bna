@@ -14,6 +14,14 @@ class StoreRenjaOpdItemRequest extends FormRequest
         return $renjaOpd && ($this->user()?->can('update', $renjaOpd) ?? false);
     }
 
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'pagu_indikatif' => $this->normalizeCurrency($this->input('pagu_indikatif')),
+            'prakiraan_maju_pagu_indikatif' => $this->normalizeCurrency($this->input('prakiraan_maju_pagu_indikatif')),
+        ]);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -38,5 +46,35 @@ class StoreRenjaOpdItemRequest extends FormRequest
             'status' => ['nullable', 'string', Rule::in(['draft', 'submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'])],
             'urutan' => ['nullable', 'integer', 'between:1,9999'],
         ];
+    }
+
+    private function normalizeCurrency(mixed $value): mixed
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_string($value)) {
+            return $value;
+        }
+
+        $normalized = trim($value);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $normalized = str_replace(' ', '', $normalized);
+
+        if (str_contains($normalized, ',') && str_contains($normalized, '.')) {
+            $normalized = str_replace('.', '', $normalized);
+            $normalized = str_replace(',', '.', $normalized);
+        } elseif (str_contains($normalized, ',')) {
+            $normalized = str_replace(',', '.', $normalized);
+        } elseif (preg_match('/^\d{1,3}(\.\d{3})+$/', $normalized) === 1) {
+            $normalized = str_replace('.', '', $normalized);
+        }
+
+        return $normalized;
     }
 }
