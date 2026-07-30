@@ -56,7 +56,7 @@ class ProgramPemerintahanController extends Controller
         $program ??= $kegiatan?->programPemerintahan;
 
         $selectedProgramPeriod = $this->selectedProgramPeriod($request, $program);
-        $selectedPeriodeId = $this->selectedPeriodeId($request, $kegiatan);
+        $selectedPeriodeId = $this->selectedPeriodeId($request, $kegiatan, $selectedProgramPeriod);
         $filters = [
             ...$request->only(['search', 'status', 'bidang_urusan_id', 'tahun_awal', 'tahun_akhir']),
             'periode_tahun_id' => $selectedPeriodeId,
@@ -229,7 +229,35 @@ class ProgramPemerintahanController extends Controller
             ])
             ->with(
                 'success',
-                "Salin selesai: {$result['program_created']} program baru ditambahkan untuk periode RPJMD {$data['target_tahun_awal']}-{$data['target_tahun_akhir']}.",
+                "Salin selesai: {$result['program_created']} program, {$result['kegiatan_created']} kegiatan, dan {$result['sub_kegiatan_created']} sub kegiatan baru ditambahkan untuk periode RPJMD {$data['target_tahun_awal']}-{$data['target_tahun_akhir']}.",
+            );
+    }
+
+    public function destroyPeriod(Request $request, CopyProgramKegiatanReferenceService $service): RedirectResponse
+    {
+        abort_unless($request->user()->hasPermission('urusan.manage'), 403);
+
+        $data = $request->validate([
+            'tahun_awal' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'tahun_akhir' => ['required', 'integer', 'min:2000', 'max:2100', 'gte:tahun_awal'],
+        ], [
+            'tahun_akhir.gte' => 'Tahun akhir harus lebih besar atau sama dengan tahun awal.',
+        ]);
+
+        try {
+            $result = $service->deleteProgramPeriod((int) $data['tahun_awal'], (int) $data['tahun_akhir']);
+        } catch (InvalidArgumentException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()
+            ->route('master.program-pemerintahan.index', [
+                'tahun_awal' => $data['tahun_awal'],
+                'tahun_akhir' => $data['tahun_akhir'],
+            ])
+            ->with(
+                'success',
+                "Hapus periode selesai: {$result['program_deleted']} program, {$result['kegiatan_deleted']} kegiatan, dan {$result['sub_kegiatan_deleted']} sub kegiatan dihapus.",
             );
     }
 
@@ -890,7 +918,10 @@ class ProgramPemerintahanController extends Controller
         ];
     }
 
-    private function selectedPeriodeId(Request $request, ?KegiatanPemerintahan $kegiatan): int
+    /**
+     * @param  array{tahun_awal: int, tahun_akhir: int}  $programPeriod
+     */
+    private function selectedPeriodeId(Request $request, ?KegiatanPemerintahan $kegiatan, array $programPeriod): int
     {
         if ($kegiatan?->periode_tahun_id) {
             return (int) $kegiatan->periode_tahun_id;
@@ -902,10 +933,20 @@ class ProgramPemerintahanController extends Controller
             return $requested;
         }
 
-        $periodeId = PeriodeTahun::query()
+        $activePeriode = PeriodeTahun::query()
             ->where('status', 'active')
             ->orderByDesc('tahun')
+            ->first(['id', 'tahun']);
+
+        if ($activePeriode && $activePeriode->tahun >= $programPeriod['tahun_awal'] && $activePeriode->tahun <= $programPeriod['tahun_akhir']) {
+            return (int) $activePeriode->id;
+        }
+
+        $periodeId = PeriodeTahun::query()
+            ->whereBetween('tahun', [$programPeriod['tahun_awal'], $programPeriod['tahun_akhir']])
+            ->orderBy('tahun')
             ->value('id')
+            ?? $activePeriode?->id
             ?? PeriodeTahun::query()->orderByDesc('tahun')->value('id');
 
         abort_if(blank($periodeId), 422, 'Periode tahun belum tersedia.');

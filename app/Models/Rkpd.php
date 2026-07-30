@@ -54,6 +54,11 @@ class Rkpd extends Model
         return $this->hasMany(RkpdItem::class)->orderBy('urutan')->orderBy('id');
     }
 
+    public function ikuTargets(): HasMany
+    {
+        return $this->hasMany(RkpdIkuTarget::class);
+    }
+
     public function renjaOpd(): HasMany
     {
         return $this->hasMany(RenjaOpd::class);

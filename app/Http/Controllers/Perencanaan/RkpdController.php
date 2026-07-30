@@ -5,13 +5,18 @@ namespace App\Http\Controllers\Perencanaan;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Perencanaan\StoreRkpdRequest;
 use App\Http\Requests\Perencanaan\UpdateRkpdRequest;
+use App\Models\IndikatorSasaranDaerah;
+use App\Models\IndikatorTujuanDaerah;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramRpjmd;
 use App\Models\Rkpd;
+use App\Models\RkpdIkuTarget;
 use App\Models\RkpdItem;
 use App\Models\Rpjmd;
 use App\Models\SubKegiatanPemerintahan;
+use App\Models\TargetIndikatorSasaranDaerah;
+use App\Models\TargetIndikatorTujuanDaerah;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -129,6 +134,20 @@ class RkpdController extends Controller
                 });
             });
 
+        $previewItems = (clone $itemsQuery)
+            ->orderBy('opd_id')
+            ->orderBy('urusan_pemerintahan_id')
+            ->orderBy('bidang_urusan_id')
+            ->orderBy('program_pemerintahan_id')
+            ->orderBy('kegiatan_pemerintahan_id')
+            ->orderBy('sub_kegiatan_pemerintahan_id')
+            ->orderBy('urutan')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (RkpdItem $item) => $this->serializeItem($item))
+            ->values()
+            ->all();
+
         $items = $itemsQuery
             ->orderBy('urutan')
             ->orderBy('id')
@@ -139,6 +158,8 @@ class RkpdController extends Controller
         return Inertia::render('Rkpd/Show', [
             'rkpd' => $this->serializeRkpd($rkpd),
             'items' => $items,
+            'previewItems' => $previewItems,
+            'ikuRows' => $this->ikuRows($rkpd),
             'filters' => $filters,
             'summary' => $this->summary($rkpd, $user),
             'opdOptions' => $this->opdOptions($user),
@@ -227,6 +248,8 @@ class RkpdController extends Controller
             ->get(['id', 'kode', 'nama', 'singkatan'])
             ->map(fn (Opd $opd) => [
                 'id' => $opd->id,
+                'kode' => $opd->kode,
+                'nama' => $opd->nama,
                 'label' => $opd->singkatan ? "{$opd->singkatan} - {$opd->nama}" : $opd->nama,
             ])
             ->all();
@@ -291,14 +314,30 @@ class RkpdController extends Controller
      */
     private function programRpjmdOptions(?int $rpjmdId): array
     {
+        $opds = Opd::query()
+            ->where('status', 'active')
+            ->orderBy('nama')
+            ->get(['id', 'kode', 'nama', 'singkatan']);
+
         return ProgramRpjmd::query()
             ->when($rpjmdId, fn (Builder $query) => $query->forRpjmd($rpjmdId))
-            ->with('programPemerintahanReferences:id,kode,nama')
+            ->with([
+                'opdPenanggungJawab:id,kode,nama,singkatan',
+                'programPemerintahan:id,bidang_urusan_id,kode,nama',
+                'programPemerintahan.bidangUrusan.opdPengampu:id',
+                'programPemerintahanReferences:id,bidang_urusan_id,kode,nama',
+                'programPemerintahanReferences.bidangUrusan.opdPengampu:id',
+            ])
             ->orderBy('urutan')
-            ->get(['id', 'program_pemerintahan_id', 'kode', 'nama'])
-            ->map(function (ProgramRpjmd $program) {
+            ->get(['id', 'program_pemerintahan_id', 'kode', 'nama', 'is_penanggung_jawab_manual'])
+            ->map(function (ProgramRpjmd $program) use ($opds) {
                 $programPemerintahanIds = $program->programPemerintahanReferenceIds();
                 $referenceCount = count($programPemerintahanIds);
+                $references = collect()
+                    ->when($program->programPemerintahan, fn ($references) => $references->push($program->programPemerintahan))
+                    ->merge($program->programPemerintahanReferences)
+                    ->unique('id')
+                    ->values();
 
                 return [
                     'id' => $program->id,
@@ -306,11 +345,60 @@ class RkpdController extends Controller
                     'display_label' => $program->nama,
                     'description' => $referenceCount > 1 ? "Terhubung ke {$referenceCount} kode program master." : null,
                     'reference_count' => $referenceCount,
+                    'is_program_penunjang' => $references->contains(fn ($reference) => $this->isProgramPenunjangName($reference->nama)),
                     'program_pemerintahan_id' => $program->program_pemerintahan_id,
                     'program_pemerintahan_ids' => $programPemerintahanIds,
+                    'opd_ids' => $this->programRelevantOpdIds($program, $opds),
                 ];
             })
             ->all();
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function programRelevantOpdIds(ProgramRpjmd $program, $opds): array
+    {
+        if ($program->is_penanggung_jawab_manual) {
+            return $program->opdPenanggungJawab
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        $references = collect()
+            ->when($program->programPemerintahan, fn ($references) => $references->push($program->programPemerintahan))
+            ->merge($program->programPemerintahanReferences)
+            ->unique('id')
+            ->values();
+
+        if ($references->contains(fn ($reference) => $this->isProgramPenunjangName($reference->nama))) {
+            return $opds
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        return $references
+            ->pluck('bidangUrusan')
+            ->filter()
+            ->flatMap(fn ($bidang) => $bidang->opdPengampu)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function isProgramPenunjangName(?string $name): bool
+    {
+        $normalized = strtolower((string) preg_replace('/\s+/', ' ', trim((string) $name)));
+
+        return str_contains($normalized, 'program penunjang urusan pemerintahan daerah')
+            && (str_contains($normalized, 'kabupaten/kota') || str_contains($normalized, 'kab/kota'));
     }
 
     /**
@@ -387,6 +475,109 @@ class RkpdController extends Controller
             'kegiatan' => $this->label($item->kegiatanPemerintahan?->kode, $item->kegiatanPemerintahan?->nama),
             'sub_kegiatan' => $this->label($item->subKegiatanPemerintahan?->kode, $item->subKegiatanPemerintahan?->nama),
         ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function ikuRows(Rkpd $rkpd): array
+    {
+        if (! $rkpd->rpjmd_id || ! $rkpd->periode_tahun_id) {
+            return [];
+        }
+
+        $savedTargets = RkpdIkuTarget::query()
+            ->where('rkpd_id', $rkpd->id)
+            ->get()
+            ->keyBy(fn (RkpdIkuTarget $target) => "{$target->indikator_type}:{$target->indikator_id}");
+
+        $tujuanRows = IndikatorTujuanDaerah::query()
+            ->with([
+                'tujuan:id,tujuan,rpjmd_visi_id,rpjmd_misi_id',
+                'satuanIndikator:id,nama,simbol',
+                'targets' => fn ($query) => $query->where('periode_tahun_id', $rkpd->periode_tahun_id),
+            ])
+            ->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd((int) $rkpd->rpjmd_id))
+            ->orderBy('tujuan_daerah_id')
+            ->orderBy('urutan')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (IndikatorTujuanDaerah $indikator) => $this->serializeIkuRow(
+                type: 'indikator_tujuan_daerah',
+                level: 'Indikator Tujuan Daerah',
+                indikatorId: (int) $indikator->id,
+                indikator: $indikator->indikator,
+                parent: $indikator->tujuan?->tujuan,
+                satuan: $indikator->satuanIndikator?->simbol ?: $indikator->satuanIndikator?->nama,
+                targetRpjmd: $this->targetValue($indikator->targets->first()),
+                savedTarget: $savedTargets->get("indikator_tujuan_daerah:{$indikator->id}"),
+            ))
+            ->all();
+
+        $sasaranRows = IndikatorSasaranDaerah::query()
+            ->with([
+                'sasaran:id,tujuan_daerah_id,sasaran',
+                'satuanIndikator:id,nama,simbol',
+                'targets' => fn ($query) => $query->where('periode_tahun_id', $rkpd->periode_tahun_id),
+            ])
+            ->whereHas('sasaran.tujuan', fn (Builder $query) => $query->forRpjmd((int) $rkpd->rpjmd_id))
+            ->orderBy('sasaran_daerah_id')
+            ->orderBy('urutan')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (IndikatorSasaranDaerah $indikator) => $this->serializeIkuRow(
+                type: 'indikator_sasaran_daerah',
+                level: 'Indikator Sasaran Daerah',
+                indikatorId: (int) $indikator->id,
+                indikator: $indikator->indikator,
+                parent: $indikator->sasaran?->sasaran,
+                satuan: $indikator->satuanIndikator?->simbol ?: $indikator->satuanIndikator?->nama,
+                targetRpjmd: $this->targetValue($indikator->targets->first()),
+                savedTarget: $savedTargets->get("indikator_sasaran_daerah:{$indikator->id}"),
+            ))
+            ->all();
+
+        return array_values([...$tujuanRows, ...$sasaranRows]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeIkuRow(
+        string $type,
+        string $level,
+        int $indikatorId,
+        ?string $indikator,
+        ?string $parent,
+        ?string $satuan,
+        ?string $targetRpjmd,
+        ?RkpdIkuTarget $savedTarget,
+    ): array {
+        return [
+            'key' => "{$type}:{$indikatorId}",
+            'type' => $type,
+            'target_id' => $savedTarget?->id,
+            'indikator_id' => $indikatorId,
+            'level' => $level,
+            'iku' => $indikator ?: '-',
+            'parent' => $parent,
+            'satuan' => $satuan ?: '-',
+            'target_rpjmd' => $targetRpjmd,
+            'target_rkpd' => $savedTarget?->target_rkpd,
+        ];
+    }
+
+    private function targetValue(TargetIndikatorTujuanDaerah|TargetIndikatorSasaranDaerah|null $target): ?string
+    {
+        if (! $target) {
+            return null;
+        }
+
+        if (filled($target->target_text)) {
+            return $target->target_text;
+        }
+
+        return $target->target === null ? null : rtrim(rtrim(number_format((float) $target->target, 4, '.', ''), '0'), '.');
     }
 
     /**

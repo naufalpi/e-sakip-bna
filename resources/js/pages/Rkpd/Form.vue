@@ -4,6 +4,15 @@ import { ArrowLeft, Save } from 'lucide-vue-next';
 import { computed, watch } from 'vue';
 
 type Option = { id: number; label: string; tahun?: number };
+type RkpdForm = {
+    rpjmd_id: number | string | null;
+    periode_tahun_id: number | string | null;
+    tahun: number | string;
+    judul: string;
+    nomor_dokumen: string;
+    status: string;
+    catatan: string;
+};
 type Rkpd = {
     id: number;
     rpjmd_id?: number | null;
@@ -22,7 +31,7 @@ const props = defineProps<{
     periodeOptions: Option[];
 }>();
 
-const form = useForm({
+const form = useForm<RkpdForm>({
     rpjmd_id: props.rkpd?.rpjmd_id ?? '',
     periode_tahun_id: props.rkpd?.periode_tahun_id ?? '',
     tahun: props.rkpd?.tahun ?? new Date().getFullYear(),
@@ -32,14 +41,29 @@ const form = useForm({
     catatan: props.rkpd?.catatan ?? '',
 });
 
-watch(
-    () => form.periode_tahun_id,
-    (value) => {
-        const periode = props.periodeOptions.find((option) => String(option.id) === String(value));
-        if (periode?.tahun) {
-            form.tahun = periode.tahun;
-        }
+const uppercaseText = (value: string | null | undefined) => (value ?? '').toLocaleUpperCase('id-ID');
+const periodeByYear = (year: number | string) => props.periodeOptions.find((option) => Number(option.tahun) === Number(year)) ?? null;
+
+const judulModel = computed({
+    get: () => form.judul,
+    set: (value: string) => {
+        form.judul = uppercaseText(value);
     },
+});
+
+const nomorDokumenModel = computed({
+    get: () => form.nomor_dokumen,
+    set: (value: string) => {
+        form.nomor_dokumen = uppercaseText(value);
+    },
+});
+
+watch(
+    () => form.tahun,
+    (value) => {
+        form.periode_tahun_id = periodeByYear(value)?.id ?? '';
+    },
+    { immediate: true },
 );
 
 const title = computed(() => (props.mode === 'create' ? 'Tambah RKPD' : 'Edit RKPD'));
@@ -85,38 +109,33 @@ const submit = () => {
                 </label>
 
                 <label class="grid gap-1.5">
-                    <span class="text-sm font-medium">Periode Tahun</span>
-                    <select v-model="form.periode_tahun_id" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
-                        <option value="">Pilih periode</option>
-                        <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                    </select>
-                    <span v-if="form.errors.periode_tahun_id" class="text-xs text-red-600">{{ form.errors.periode_tahun_id }}</span>
-                </label>
-
-                <label class="grid gap-1.5">
                     <span class="text-sm font-medium">Tahun RKPD</span>
-                    <input v-model="form.tahun" type="number" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                    <select v-model="form.tahun" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
+                        <option value="">Pilih tahun RKPD</option>
+                        <option v-for="option in periodeOptions" :key="option.id" :value="option.tahun">{{ option.label }}</option>
+                    </select>
                     <span v-if="form.errors.tahun" class="text-xs text-red-600">{{ form.errors.tahun }}</span>
+                    <span v-if="form.errors.periode_tahun_id" class="text-xs text-red-600">{{ form.errors.periode_tahun_id }}</span>
                 </label>
 
                 <label class="grid gap-1.5">
                     <span class="text-sm font-medium">Nomor Dokumen</span>
                     <input
-                        v-model="form.nomor_dokumen"
+                        v-model="nomorDokumenModel"
                         type="text"
-                        class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
-                        placeholder="Contoh: Perbup Nomor ..."
+                        class="h-11 rounded-lg border bg-background px-3 text-sm uppercase outline-none focus:ring-2 focus:ring-[#00336C]"
+                        placeholder="CONTOH: PERBUP NOMOR ..."
                     />
                     <span v-if="form.errors.nomor_dokumen" class="text-xs text-red-600">{{ form.errors.nomor_dokumen }}</span>
                 </label>
 
-                <label class="grid gap-1.5 lg:col-span-2">
+                <label class="grid gap-1.5">
                     <span class="text-sm font-medium">Judul</span>
                     <input
-                        v-model="form.judul"
+                        v-model="judulModel"
                         type="text"
-                        class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
-                        placeholder="RKPD Kabupaten Banjarnegara Tahun ..."
+                        class="h-11 rounded-lg border bg-background px-3 text-sm uppercase outline-none focus:ring-2 focus:ring-[#00336C]"
+                        placeholder="RKPD KABUPATEN BANJARNEGARA TAHUN ..."
                     />
                     <span v-if="form.errors.judul" class="text-xs text-red-600">{{ form.errors.judul }}</span>
                 </label>

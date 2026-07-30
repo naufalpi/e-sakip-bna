@@ -239,6 +239,8 @@ const activePanel = ref<'single' | 'bulk' | 'copy' | null>(null);
 const copyMode = ref<'period' | 'year'>('period');
 
 const meta = computed(() => levelMeta[props.level]);
+const selectedProgramPeriodLabel = computed(() => `${props.selectedProgramPeriod.tahun_awal}-${props.selectedProgramPeriod.tahun_akhir}`);
+const canDeleteProgramPeriod = computed(() => props.can.manage && props.level === 'program' && props.summary.program_count > 0);
 const programPeriodKey = computed({
     get: () => `${filterForm.tahun_awal}-${filterForm.tahun_akhir}`,
     set: (value: string) => {
@@ -650,6 +652,29 @@ const destroy = async (item: ReferenceItem) => {
         });
     }
 };
+
+const destroyProgramPeriod = async () => {
+    if (!canDeleteProgramPeriod.value) {
+        return;
+    }
+
+    const confirmed = await confirmDelete(
+        `Hapus semua program, kegiatan, dan sub kegiatan periode RPJMD ${selectedProgramPeriodLabel.value}? Periode yang sudah dipakai RPJMD, Renstra, RKPD, atau Renja akan ditolak oleh sistem.`,
+        { title: 'Hapus periode RPJMD?' },
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    router.delete(route('master.program-pemerintahan.period.destroy'), {
+        data: {
+            tahun_awal: props.selectedProgramPeriod.tahun_awal,
+            tahun_akhir: props.selectedProgramPeriod.tahun_akhir,
+        },
+        preserveScroll: true,
+    });
+};
 </script>
 
 <template>
@@ -730,6 +755,15 @@ const destroy = async (item: ReferenceItem) => {
                         >
                             <CopyPlus class="size-4" />
                             Salin Data
+                        </button>
+                        <button
+                            v-if="canDeleteProgramPeriod"
+                            type="button"
+                            class="inline-flex h-10 items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/15"
+                            @click="destroyProgramPeriod"
+                        >
+                            <Trash2 class="size-4" />
+                            Hapus Periode
                         </button>
                         <button
                             type="button"
@@ -1070,7 +1104,7 @@ const destroy = async (item: ReferenceItem) => {
                                     @click="copyMode = 'period'"
                                 >
                                     <div class="text-sm font-semibold text-foreground">Salin Periode RPJMD</div>
-                                    <div class="mt-1 text-xs leading-5 text-muted-foreground">Menyalin daftar program ke periode RPJMD berikutnya.</div>
+                                    <div class="mt-1 text-xs leading-5 text-muted-foreground">Menyalin program, kegiatan, sub kegiatan, dan metadata.</div>
                                 </button>
                                 <button
                                     type="button"

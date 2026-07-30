@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Perencanaan;
 
+use App\Models\PeriodeTahun;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -12,6 +13,18 @@ class UpdateRkpdRequest extends FormRequest
         $rkpd = $this->route('rkpd');
 
         return $rkpd && ($this->user()?->can('update', $rkpd) ?? false);
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $tahun = $this->integer('tahun');
+        $periodeTahunId = $this->input('periode_tahun_id') ?: ($tahun ? PeriodeTahun::query()->where('tahun', $tahun)->value('id') : null);
+
+        $this->merge([
+            'periode_tahun_id' => $periodeTahunId,
+            'judul' => $this->uppercaseValue($this->input('judul')),
+            'nomor_dokumen' => $this->uppercaseValue($this->input('nomor_dokumen'), true),
+        ]);
     }
 
     /**
@@ -38,5 +51,16 @@ class UpdateRkpdRequest extends FormRequest
             'status' => ['required', 'string', Rule::in(['draft', 'submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'])],
             'catatan' => ['nullable', 'string'],
         ];
+    }
+
+    private function uppercaseValue(mixed $value, bool $nullable = false): ?string
+    {
+        $text = trim((string) ($value ?? ''));
+
+        if ($nullable && $text === '') {
+            return null;
+        }
+
+        return mb_strtoupper($text, 'UTF-8');
     }
 }

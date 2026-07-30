@@ -35,6 +35,7 @@ use App\Http\Controllers\Perencanaan\PohonKinerjaController;
 use App\Http\Controllers\Perencanaan\RenjaOpdController;
 use App\Http\Controllers\Perencanaan\RenjaOpdItemController;
 use App\Http\Controllers\Perencanaan\RkpdController;
+use App\Http\Controllers\Perencanaan\RkpdIkuTargetController;
 use App\Http\Controllers\Perencanaan\RkpdItemController;
 use App\Http\Controllers\Perencanaan\TargetRevisionController;
 use App\Http\Controllers\Perencanaan\TargetTriwulanIndikatorController;
@@ -100,6 +101,9 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::delete('target-triwulan-indikator/{target}', [TargetTriwulanIndikatorController::class, 'destroy'])->name('target-triwulan-indikator.destroy');
 
     Route::resource('rkpd', RkpdController::class);
+    Route::post('rkpd/{rkpd}/iku-targets', [RkpdIkuTargetController::class, 'store'])->name('rkpd.iku-targets.store');
+    Route::put('rkpd/{rkpd}/iku-targets/{target}', [RkpdIkuTargetController::class, 'update'])->name('rkpd.iku-targets.update');
+    Route::delete('rkpd/{rkpd}/iku-targets/{target}', [RkpdIkuTargetController::class, 'destroy'])->name('rkpd.iku-targets.destroy');
     Route::post('rkpd/{rkpd}/items', [RkpdItemController::class, 'store'])->name('rkpd.items.store');
     Route::put('rkpd/{rkpd}/items/{item}', [RkpdItemController::class, 'update'])->name('rkpd.items.update');
     Route::delete('rkpd/{rkpd}/items/{item}', [RkpdItemController::class, 'destroy'])->name('rkpd.items.destroy');
@@ -179,6 +183,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
         Route::post('program-pemerintahan/copy', [ProgramPemerintahanController::class, 'copy'])->name('program-pemerintahan.copy');
         Route::post('program-pemerintahan/copy-kegiatan-year', [ProgramPemerintahanController::class, 'copyKegiatanYear'])->name('program-pemerintahan.copy-kegiatan-year');
         Route::post('program-pemerintahan/copy-kegiatan-years', [ProgramPemerintahanController::class, 'copyKegiatanYears'])->name('program-pemerintahan.copy-kegiatan-years');
+        Route::delete('program-pemerintahan/period', [ProgramPemerintahanController::class, 'destroyPeriod'])->name('program-pemerintahan.period.destroy');
         Route::put('program-pemerintahan/{type}/{id}', [ProgramPemerintahanController::class, 'update'])
             ->whereIn('type', ['program', 'kegiatan', 'sub_kegiatan'])
             ->name('program-pemerintahan.update');
