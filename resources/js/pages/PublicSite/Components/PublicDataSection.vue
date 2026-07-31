@@ -40,7 +40,7 @@ function updateSearch(event: Event): void {
                         {{ section.eyebrow }}
                     </p>
                     <h2 class="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">{{ section.title }}</h2>
-                    <p class="mt-2 text-sm leading-6 text-slate-600">{{ section.summary }}</p>
+                    <p v-if="section.summary" class="mt-2 text-sm leading-6 text-slate-600">{{ section.summary }}</p>
                 </div>
 
                 <div

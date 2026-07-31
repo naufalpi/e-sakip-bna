@@ -16,9 +16,6 @@ defineProps<{
             <div class="max-w-3xl">
                 <p class="text-sm font-semibold uppercase text-[#00336C]">Data Publik</p>
                 <h2 class="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">Pilih siklus SAKIP yang ingin dilihat</h2>
-                <p class="mt-3 text-sm leading-6 text-slate-600">
-                    Setiap siklus memiliki halaman sendiri supaya tabel perangkat daerah tetap nyaman dibuka saat data dan dokumen semakin banyak.
-                </p>
             </div>
 
             <div class="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -38,7 +35,7 @@ defineProps<{
                         </span>
                     </div>
                     <h3 class="mt-6 text-xl font-bold leading-tight text-slate-950">{{ module.title }}</h3>
-                    <p class="mt-3 min-h-[5rem] text-sm leading-7 text-slate-600">{{ module.summary }}</p>
+                    <p v-if="module.summary" class="mt-3 text-sm leading-7 text-slate-600">{{ module.summary }}</p>
                     <div class="mt-auto rounded-lg bg-blue-50/70 p-3">
                         <div class="flex items-center justify-between text-xs font-semibold uppercase text-slate-500">
                             <span>Kelengkapan</span>
