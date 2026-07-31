@@ -9,6 +9,7 @@ use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
+use App\Models\PlanningSyncBatch;
 use App\Models\ProgramRpjmd;
 use App\Models\Rkpd;
 use App\Models\RkpdIkuTarget;
@@ -18,6 +19,7 @@ use App\Models\SubKegiatanPemerintahan;
 use App\Models\TargetIndikatorSasaranDaerah;
 use App\Models\TargetIndikatorTujuanDaerah;
 use App\Models\User;
+use App\Services\Perencanaan\PlanningSyncService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -155,6 +157,17 @@ class RkpdController extends Controller
             ->withQueryString()
             ->through(fn (RkpdItem $item) => $this->serializeItem($item));
 
+        $syncBatch = $request->filled('sync_batch')
+            ? PlanningSyncBatch::query()
+                ->whereKey($request->integer('sync_batch'))
+                ->where('source_module', 'renja_opd')
+                ->where('target_module', 'rkpd')
+                ->where('target_id', $rkpd->id)
+                ->where('status', 'previewed')
+                ->with('rows')
+                ->first()
+            : null;
+
         return Inertia::render('Rkpd/Show', [
             'rkpd' => $this->serializeRkpd($rkpd),
             'items' => $items,
@@ -165,6 +178,7 @@ class RkpdController extends Controller
             'opdOptions' => $this->opdOptions($user),
             'subKegiatanOptions' => $canManage ? $this->subKegiatanOptions((int) $rkpd->periode_tahun_id) : [],
             'programRpjmdOptions' => $canManage ? $this->programRpjmdOptions($rkpd->rpjmd_id) : [],
+            'syncPreview' => app(PlanningSyncService::class)->serializePreview($syncBatch),
             'can' => [
                 'manage' => $canManage,
             ],

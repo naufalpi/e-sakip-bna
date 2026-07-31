@@ -31,6 +31,7 @@ use App\Http\Controllers\Master\SystemSettingController;
 use App\Http\Controllers\Master\UrusanPemerintahanController;
 use App\Http\Controllers\Master\UserController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Perencanaan\PlanningSyncController;
 use App\Http\Controllers\Perencanaan\PohonKinerjaController;
 use App\Http\Controllers\Perencanaan\RenjaOpdController;
 use App\Http\Controllers\Perencanaan\RenjaOpdItemController;
@@ -107,11 +108,15 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('rkpd/{rkpd}/items', [RkpdItemController::class, 'store'])->name('rkpd.items.store');
     Route::put('rkpd/{rkpd}/items/{item}', [RkpdItemController::class, 'update'])->name('rkpd.items.update');
     Route::delete('rkpd/{rkpd}/items/{item}', [RkpdItemController::class, 'destroy'])->name('rkpd.items.destroy');
+    Route::post('rkpd/{rkpd}/sync-renja/preview', [PlanningSyncController::class, 'previewRenjaToRkpd'])->name('rkpd.sync-renja.preview');
+    Route::post('rkpd/{rkpd}/sync-renja/{batch}/apply', [PlanningSyncController::class, 'applyRenjaToRkpd'])->name('rkpd.sync-renja.apply');
 
     Route::resource('renja-opd', RenjaOpdController::class)->parameters(['renja-opd' => 'renja_opd']);
     Route::post('renja-opd/{renja_opd}/items', [RenjaOpdItemController::class, 'store'])->name('renja-opd.items.store');
     Route::put('renja-opd/{renja_opd}/items/{item}', [RenjaOpdItemController::class, 'update'])->name('renja-opd.items.update');
     Route::delete('renja-opd/{renja_opd}/items/{item}', [RenjaOpdItemController::class, 'destroy'])->name('renja-opd.items.destroy');
+    Route::post('renja-opd/{renja_opd}/sync-rkpd/preview', [PlanningSyncController::class, 'previewRkpdToRenja'])->name('renja-opd.sync-rkpd.preview');
+    Route::post('renja-opd/{renja_opd}/sync-rkpd/{batch}/apply', [PlanningSyncController::class, 'applyRkpdToRenja'])->name('renja-opd.sync-rkpd.apply');
 
     Route::resource('perjanjian-kinerja', PerjanjianKinerjaController::class);
     Route::post('perjanjian-kinerja/{perjanjian_kinerja}/export', [PerjanjianKinerjaController::class, 'export'])->name('perjanjian-kinerja.export');

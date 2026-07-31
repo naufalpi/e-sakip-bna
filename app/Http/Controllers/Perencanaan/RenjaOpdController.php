@@ -8,12 +8,14 @@ use App\Http\Requests\Perencanaan\UpdateRenjaOpdRequest;
 use App\Models\Opd;
 use App\Models\OpdUnit;
 use App\Models\PeriodeTahun;
+use App\Models\PlanningSyncBatch;
 use App\Models\RenjaOpd;
 use App\Models\RenjaOpdItem;
 use App\Models\RenstraOpd;
 use App\Models\Rkpd;
 use App\Models\SubKegiatanPemerintahan;
 use App\Models\User;
+use App\Services\Perencanaan\PlanningSyncService;
 use App\Services\Perencanaan\RenjaProgramScopeService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -162,6 +164,17 @@ class RenjaOpdController extends Controller
             ->withQueryString()
             ->through(fn (RenjaOpdItem $item) => $this->serializeItem($item, $renjaOpd));
 
+        $syncBatch = $request->filled('sync_batch')
+            ? PlanningSyncBatch::query()
+                ->whereKey($request->integer('sync_batch'))
+                ->where('source_module', 'rkpd')
+                ->where('target_module', 'renja_opd')
+                ->where('target_id', $renjaOpd->id)
+                ->where('status', 'previewed')
+                ->with('rows')
+                ->first()
+            : null;
+
         return Inertia::render('RenjaOpd/Show', [
             'renja' => $this->serializeRenja($renjaOpd),
             'items' => $items,
@@ -173,6 +186,7 @@ class RenjaOpdController extends Controller
             ],
             'filters' => $filters,
             'subKegiatanOptions' => $canManage ? $this->subKegiatanOptions($renjaOpd) : [],
+            'syncPreview' => app(PlanningSyncService::class)->serializePreview($syncBatch),
             'can' => [
                 'manage' => $canManage,
             ],

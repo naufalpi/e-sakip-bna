@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
+import PlanningSyncPreview from '@/components/PlanningSyncPreview.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -94,6 +95,52 @@ type Paginator<T> = {
     prev_page_url: string | null;
     next_page_url: string | null;
 };
+type SyncPayload = {
+    kode?: string | null;
+    nama?: string | null;
+    indikator?: string | null;
+    target?: string | number | null;
+    pagu_indikatif?: string | number | null;
+    lokasi?: string | null;
+    sumber_dana?: string | null;
+    prioritas_nasional?: string | null;
+    prioritas_daerah?: string | null;
+    kelompok_sasaran?: string | null;
+    labels?: {
+        opd?: string | null;
+        opd_unit?: string | null;
+        program?: string | null;
+        kegiatan?: string | null;
+        sub_kegiatan?: string | null;
+    };
+};
+type SyncDiff = {
+    field: string;
+    label: string;
+    source?: string | number | null;
+    target?: string | number | null;
+};
+type SyncRow = {
+    id: number;
+    action: 'create' | 'update' | 'unchanged' | 'target_only' | 'skipped';
+    selected: boolean;
+    status: string;
+    message?: string | null;
+    diff_values?: {
+        source?: SyncPayload | null;
+        target?: SyncPayload | null;
+        fields?: SyncDiff[];
+    } | null;
+};
+type SyncPreview = {
+    id: number;
+    source_module: string;
+    target_module: string;
+    tahun: number;
+    status: string;
+    summary: Record<string, number>;
+    rows: SyncRow[];
+};
 
 const props = defineProps<{
     rkpd: Rkpd;
@@ -105,6 +152,7 @@ const props = defineProps<{
     opdOptions: Option[];
     subKegiatanOptions: Option[];
     programRpjmdOptions: Option[];
+    syncPreview?: SyncPreview | null;
     can: { manage: boolean };
 }>();
 
@@ -139,7 +187,8 @@ const form = useForm({
 const editingId = ref<number | null>(null);
 const isFormOpen = ref(false);
 const formSection = ref<HTMLElement | null>(null);
-const activeTab = ref<'iku' | 'matrix'>('iku');
+const syncPanelRequested = new URLSearchParams(window.location.search).has('sync_panel');
+const activeTab = ref<'iku' | 'matrix'>(syncPanelRequested ? 'matrix' : 'iku');
 const rkpdItemView = ref<'input' | 'preview'>('input');
 const selectedKegiatanPemerintahanId = ref('');
 const isHydratingItemForm = ref(false);
@@ -169,6 +218,7 @@ const selectedKegiatan = computed(() =>
 const previousRealisasiYear = computed(() => props.rkpd.tahun - 2);
 const previousTargetYear = computed(() => props.rkpd.tahun - 1);
 const nextPlanYear = computed(() => props.rkpd.tahun + 1);
+const rkpdSyncApplyRoute = computed(() => (props.syncPreview ? route('rkpd.sync-renja.apply', [props.rkpd.id, props.syncPreview.id]) : null));
 
 const programOptionsForSelectedOpd = computed(() => {
     if (!form.opd_id) {
@@ -1000,6 +1050,18 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                 </div>
             </div>
         </section>
+
+        <PlanningSyncPreview
+            v-if="activeTab === 'matrix' && rkpdItemView === 'input'"
+            :can-manage="can.manage"
+            title="Sinkronisasi RENJA ke RKPD"
+            description="Tarik baris dari RENJA OPD untuk tahun ini. Cek baris baru dan perbedaan sebelum diterapkan."
+            :preview-route="route('rkpd.sync-renja.preview', rkpd.id)"
+            :apply-route="rkpdSyncApplyRoute"
+            :preview="syncPreview"
+            preview-label="Preview RENJA"
+            apply-label="Terapkan ke RKPD"
+        />
 
         <section v-if="activeTab === 'matrix' && rkpdItemView === 'input' && can.manage && isFormOpen" ref="formSection" class="overflow-hidden rounded-xl border bg-card shadow-sm">
             <div class="border-b px-5 py-4">
