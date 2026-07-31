@@ -648,6 +648,7 @@ class PlanningSyncService
     private function finishPreview(PlanningSyncBatch $batch): PlanningSyncBatch
     {
         $summary = $batch->rows()
+            ->reorder()
             ->selectRaw('action, count(*) as aggregate')
             ->groupBy('action')
             ->pluck('aggregate', 'action')
