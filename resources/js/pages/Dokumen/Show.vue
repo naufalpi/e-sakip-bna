@@ -51,7 +51,7 @@ const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
         submitted: 'Diajukan',
-        revision: 'Revisi',
+        revision: 'Perlu Perbaikan',
         verified: 'Terverifikasi',
         approved: 'Disetujui',
         rejected: 'Ditolak',

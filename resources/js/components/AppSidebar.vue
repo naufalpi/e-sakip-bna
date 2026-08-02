@@ -53,7 +53,7 @@ const canAccessRolePermission = computed(
 const navigationGroups = computed<NavGroup[]>(() =>
     [
         {
-            label: 'Beranda & Workflow',
+            label: 'Beranda & Persetujuan',
             items: visibleItems([
                 {
                     title: 'Dashboard',
@@ -74,7 +74,7 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     'view_dashboard_kabupaten',
                     'view_dashboard_opd',
                 ]) && {
-                    title: 'Inbox Workflow',
+                    title: 'Pengajuan Masuk',
                     href: '/workflow/inbox',
                     pageComponent: 'Workflow/Inbox',
                     icon: Inbox,

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import PlanningSyncPreview from '@/components/PlanningSyncPreview.vue';
 import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
+import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
+import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -153,6 +155,17 @@ type SyncPreview = {
     summary: Record<string, number>;
     rows: SyncRow[];
 };
+type Workflow = {
+    histories?: Array<{
+        id: number;
+        action: string;
+        from_status?: string | null;
+        to_status: string;
+        notes?: string | null;
+        created_at: string;
+        actor?: { name: string } | null;
+    }>;
+} | null;
 
 const props = defineProps<{
     renja: Renja;
@@ -166,7 +179,8 @@ const props = defineProps<{
     filters: { search?: string; status?: string };
     subKegiatanOptions: Option[];
     syncPreview?: SyncPreview | null;
-    can: { manage: boolean };
+    workflow: Workflow;
+    can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean };
 }>();
 
 const renjaItemView = ref<'input' | 'preview'>('input');
@@ -391,7 +405,7 @@ const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
         submitted: 'Diajukan',
-        revision: 'Revisi',
+        revision: 'Perlu Perbaikan',
         verified: 'Terverifikasi',
         approved: 'Disetujui',
         rejected: 'Ditolak',
@@ -676,14 +690,26 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         <p v-if="renja.rkpd" class="mt-2 text-sm text-muted-foreground">Acuan RKPD {{ renja.rkpd.tahun }} - {{ renja.rkpd.judul }}</p>
                     </div>
 
-                    <Link
-                        v-if="can.manage"
-                        :href="route('renja-opd.edit', renja.id)"
-                        class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-                    >
-                        <Pencil class="size-4" />
-                        Edit Renja
-                    </Link>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <Link
+                            v-if="can.manage"
+                            :href="route('renja-opd.edit', renja.id)"
+                            class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+                        >
+                            <Pencil class="size-4" />
+                            Edit Renja
+                        </Link>
+                        <WorkflowActionButtons
+                            module="renja_opd"
+                            :model-id="renja.id"
+                            :status="renja.status"
+                            :can-manage="can.manage"
+                            :can-review="can.review"
+                            :can-lock="can.lock"
+                            :can-unlock="can.unlock"
+                            :show-verify="false"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -705,6 +731,8 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                 </div>
             </div>
         </section>
+
+        <WorkflowHistoryTimeline :workflow="workflow" />
 
         <section class="overflow-hidden rounded-xl border bg-card shadow-sm">
             <div class="border-b bg-[linear-gradient(135deg,#f8fbff,#eef7ff)] px-5 py-4">

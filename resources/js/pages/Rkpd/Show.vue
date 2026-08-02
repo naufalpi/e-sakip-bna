@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import PlanningSyncPreview from '@/components/PlanningSyncPreview.vue';
+import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
+import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -141,6 +143,17 @@ type SyncPreview = {
     summary: Record<string, number>;
     rows: SyncRow[];
 };
+type Workflow = {
+    histories?: Array<{
+        id: number;
+        action: string;
+        from_status?: string | null;
+        to_status: string;
+        notes?: string | null;
+        created_at: string;
+        actor?: { name: string } | null;
+    }>;
+} | null;
 
 const props = defineProps<{
     rkpd: Rkpd;
@@ -153,7 +166,8 @@ const props = defineProps<{
     subKegiatanOptions: Option[];
     programRpjmdOptions: Option[];
     syncPreview?: SyncPreview | null;
-    can: { manage: boolean };
+    workflow: Workflow;
+    can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean };
 }>();
 
 const filterForm = reactive({
@@ -535,7 +549,7 @@ const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
         submitted: 'Diajukan',
-        revision: 'Revisi',
+        revision: 'Perlu Perbaikan',
         verified: 'Terverifikasi',
         approved: 'Disetujui',
         rejected: 'Ditolak',
@@ -836,14 +850,26 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         </p>
                     </div>
 
-                    <Link
-                        v-if="can.manage"
-                        :href="route('rkpd.edit', rkpd.id)"
-                        class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-                    >
-                        <Pencil class="size-4" />
-                        Edit RKPD
-                    </Link>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <Link
+                            v-if="can.manage"
+                            :href="route('rkpd.edit', rkpd.id)"
+                            class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+                        >
+                            <Pencil class="size-4" />
+                            Edit RKPD
+                        </Link>
+                        <WorkflowActionButtons
+                            module="rkpd"
+                            :model-id="rkpd.id"
+                            :status="rkpd.status"
+                            :can-manage="can.manage"
+                            :can-review="can.review"
+                            :can-lock="can.lock"
+                            :can-unlock="can.unlock"
+                            :show-verify="false"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -870,6 +896,8 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                 </article>
             </div>
         </section>
+
+        <WorkflowHistoryTimeline :workflow="workflow" />
 
         <section class="rounded-xl border bg-card p-2 shadow-sm">
             <div class="grid gap-2 sm:grid-cols-2">

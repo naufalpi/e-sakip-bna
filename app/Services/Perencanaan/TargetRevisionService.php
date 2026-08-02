@@ -164,7 +164,7 @@ class TargetRevisionService
     {
         if ($revision->status !== 'submitted') {
             throw ValidationException::withMessages([
-                'status' => 'Revisi target hanya dapat diproses saat status submitted.',
+                'status' => 'Revisi target hanya dapat diproses saat status diajukan.',
             ]);
         }
     }
@@ -192,7 +192,7 @@ class TargetRevisionService
     {
         if (! $this->canReview($reviewer, $revision)) {
             throw ValidationException::withMessages([
-                'reviewer' => 'User tidak berwenang memutuskan revisi target ini.',
+                'reviewer' => 'Pengguna tidak berwenang memutuskan revisi target ini.',
             ]);
         }
     }

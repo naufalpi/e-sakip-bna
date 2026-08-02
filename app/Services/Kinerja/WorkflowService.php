@@ -37,7 +37,7 @@ class WorkflowService
             'lock' => $this->lockDataService->handle($model, $module, $actor, $note, $reviewerId, $metadata),
             'verify' => $this->workflowTransitionService->transition($model, $module, 'verify', $actor, $note, $reviewerId, $metadata),
             'unlock' => $this->workflowTransitionService->transition($model, $module, 'unlock', $actor, $note, $reviewerId, $metadata),
-            default => throw new AuthorizationException('Aksi workflow tidak valid.'),
+            default => throw new AuthorizationException('Aksi persetujuan tidak valid.'),
         };
     }
 }

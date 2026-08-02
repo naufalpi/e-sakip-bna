@@ -25,7 +25,7 @@ const notificationUnreadCount = computed(() => page.props.notifications?.unread_
 const notificationBadge = computed(() => (notificationUnreadCount.value > 99 ? '99+' : notificationUnreadCount.value || undefined));
 const breadcrumbTitleByPrefix: Array<[string, string]> = [
     ['/dashboard', 'Dashboard'],
-    ['/workflow/inbox', 'Inbox Workflow'],
+    ['/workflow/inbox', 'Pengajuan Masuk'],
     ['/notifications', 'Notifikasi'],
     ['/master/opd', 'Master OPD'],
     ['/master/periode-tahun', 'Periode Tahun'],

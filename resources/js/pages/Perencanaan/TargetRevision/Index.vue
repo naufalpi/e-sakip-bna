@@ -123,7 +123,7 @@ const formatValues = (values: Record<string, unknown>) =>
                 <h1 class="text-2xl font-semibold tracking-normal">Revisi Target Formal</h1>
                 <p class="mt-1 max-w-3xl text-sm text-muted-foreground">
                     Riwayat pengajuan perubahan target tahunan/triwulan yang sudah disetujui atau terkunci. Perubahan nilai hanya diterapkan setelah
-                    reviewer menyetujui pengajuan.
+                    pemeriksa menyetujui pengajuan.
                 </p>
             </div>
 
@@ -190,7 +190,7 @@ const formatValues = (values: Record<string, unknown>) =>
                                     <span v-if="row.document_date"> - {{ row.document_date }}</span>
                                 </div>
                                 <div v-if="row.review_note" class="mt-2 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                                    Catatan reviewer: {{ row.review_note }}
+                                    Catatan pemeriksa: {{ row.review_note }}
                                 </div>
                             </td>
                             <td class="px-4 py-3 align-top">
@@ -257,7 +257,7 @@ const formatValues = (values: Record<string, unknown>) =>
                     v-model="noteForm.note"
                     rows="4"
                     class="mt-4 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                    placeholder="Catatan reviewer"
+                    placeholder="Catatan pemeriksa"
                 />
                 <p v-if="noteForm.errors.note" class="mt-1 text-sm text-red-700">{{ noteForm.errors.note }}</p>
                 <div class="mt-4 flex justify-end gap-2">

@@ -65,7 +65,7 @@ const submit = () => {
                     <select id="status" v-model="form.status" class="h-9 rounded-md border bg-background px-3 text-sm">
                         <option value="draft">Draft</option>
                         <option value="submitted">Diajukan</option>
-                        <option value="revision">Revisi</option>
+                        <option value="revision">Perlu Perbaikan</option>
                         <option value="verified">Terverifikasi</option>
                         <option value="approved">Disetujui</option>
                         <option value="rejected">Ditolak</option>

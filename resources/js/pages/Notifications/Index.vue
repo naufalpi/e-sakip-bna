@@ -35,7 +35,7 @@ const markAllRead = () => router.patch(route('notifications.read-all'), {}, { pr
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
                 <h1 class="text-2xl font-semibold tracking-normal">Notifikasi</h1>
-                <p class="mt-1 text-sm text-muted-foreground">Pemberitahuan workflow dan tindak lanjut.</p>
+                <p class="mt-1 text-sm text-muted-foreground">Pemberitahuan pengajuan dan tindak lanjut.</p>
             </div>
             <button type="button" class="rounded-md border px-3 py-2 text-sm hover:bg-muted" @click="markAllRead">Tandai Semua Dibaca</button>
         </div>

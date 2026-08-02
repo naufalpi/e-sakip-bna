@@ -255,8 +255,8 @@ class DashboardService
         return match ($scope) {
             'opd' => 'Monitoring input perencanaan, kinerja, realisasi, dan tindak lanjut rekomendasi OPD.',
             'evaluasi' => 'Ringkasan nilai SAKIP, LHE, rekomendasi, dan progres tindak lanjut OPD.',
-            'pimpinan' => 'Ringkasan eksekutif progres OPD, capaian indikator, workflow, dan nilai evaluasi.',
-            default => 'Monitoring kabupaten untuk progres input OPD, status workflow, capaian, dan evaluasi.',
+            'pimpinan' => 'Ringkasan eksekutif progres OPD, capaian indikator, pengajuan, dan nilai evaluasi.',
+            default => 'Monitoring kabupaten untuk progres input OPD, status pengajuan, capaian, dan evaluasi.',
         };
     }
 
@@ -1087,7 +1087,7 @@ class DashboardService
         return match ($status) {
             'draft' => 'Draft',
             'submitted' => 'Diajukan',
-            'revision' => 'Revisi',
+            'revision' => 'Perlu Perbaikan',
             'verified' => 'Terverifikasi',
             'approved' => 'Disetujui',
             'rejected' => 'Ditolak',

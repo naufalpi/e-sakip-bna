@@ -268,7 +268,7 @@ class DokumenController extends Controller
         return [
             ['value' => 'draft', 'label' => 'Draft'],
             ['value' => 'submitted', 'label' => 'Diajukan'],
-            ['value' => 'revision', 'label' => 'Revisi'],
+            ['value' => 'revision', 'label' => 'Perlu Perbaikan'],
             ['value' => 'verified', 'label' => 'Terverifikasi'],
             ['value' => 'approved', 'label' => 'Disetujui'],
             ['value' => 'rejected', 'label' => 'Ditolak'],

@@ -17,6 +17,7 @@ use App\Models\SubKegiatanPemerintahan;
 use App\Models\User;
 use App\Services\Perencanaan\PlanningSyncService;
 use App\Services\Perencanaan\RenjaProgramScopeService;
+use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -120,7 +121,7 @@ class RenjaOpdController extends Controller
         return redirect()->route('renja-opd.show', $renja)->with('success', 'Renja OPD berhasil dibuat.');
     }
 
-    public function show(Request $request, RenjaOpd $renjaOpd): Response
+    public function show(Request $request, RenjaOpd $renjaOpd, WorkflowDataService $workflowDataService): Response
     {
         $this->authorize('view', $renjaOpd);
 
@@ -189,7 +190,11 @@ class RenjaOpdController extends Controller
             'syncPreview' => app(PlanningSyncService::class)->serializePreview($syncBatch),
             'can' => [
                 'manage' => $canManage,
+                'review' => $this->canReviewWorkflow($request->user()),
+                'lock' => $this->canLockWorkflow($request->user()),
+                'unlock' => $this->canUnlockWorkflow($request->user()),
             ],
+            'workflow' => $workflowDataService->forModel($renjaOpd, 'renja_opd'),
         ]);
     }
 
@@ -228,6 +233,21 @@ class RenjaOpdController extends Controller
     {
         return $user->hasRole('admin_opd')
             && ! $user->hasAnyRole(['super_admin', 'admin_kabupaten_bagian_organisasi', 'admin_kabupaten_bapperida', 'admin_kabupaten_inspektorat']);
+    }
+
+    private function canReviewWorkflow(User $user): bool
+    {
+        return $user->hasAnyRole(['super_admin', 'admin_kabupaten_bapperida', 'admin_kabupaten_bagian_organisasi']);
+    }
+
+    private function canLockWorkflow(User $user): bool
+    {
+        return $user->isSuperAdmin() || $user->hasPermission('lock_period');
+    }
+
+    private function canUnlockWorkflow(User $user): bool
+    {
+        return $user->isSuperAdmin();
     }
 
     /**

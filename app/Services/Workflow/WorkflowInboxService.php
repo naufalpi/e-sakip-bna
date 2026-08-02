@@ -16,7 +16,9 @@ class WorkflowInboxService
 {
     private const MODULES = [
         'rpjmd',
+        'rkpd',
         'renstra_opd',
+        'renja_opd',
         'perjanjian_kinerja',
         'rencana_aksi',
         'realisasi_kinerja',
@@ -55,7 +57,9 @@ class WorkflowInboxService
     private const ACCESS_PERMISSIONS = [
         'kinerja.manage',
         'rpjmd.manage',
+        'rkpd.manage',
         'renstra.manage',
+        'renja.manage',
         'evaluasi.manage',
         'lkjip.manage',
         'verify_realisasi',
@@ -145,7 +149,7 @@ class WorkflowInboxService
         $labels = [
             'draft' => 'Draft',
             'submitted' => 'Diajukan',
-            'revision' => 'Revisi',
+            'revision' => 'Perlu Perbaikan',
             'verified' => 'Terverifikasi',
             'approved' => 'Disetujui',
             'rejected' => 'Ditolak',
@@ -170,7 +174,7 @@ class WorkflowInboxService
         if ($this->reviewModules($user)->isNotEmpty()) {
             $options[] = [
                 'value' => 'review',
-                'label' => 'Perlu Review',
+                'label' => 'Perlu Diperiksa',
                 'description' => 'Dokumen yang menunggu verifikasi atau persetujuan.',
             ];
         }
@@ -184,8 +188,8 @@ class WorkflowInboxService
         if ($this->canMonitorAll($user)) {
             $options[] = [
                 'value' => 'all',
-                'label' => 'Semua Workflow',
-                'description' => 'Monitoring seluruh workflow sesuai kewenangan kabupaten.',
+                'label' => 'Semua Pengajuan',
+                'description' => 'Monitoring seluruh pengajuan sesuai kewenangan kabupaten.',
             ];
         }
 
@@ -228,7 +232,7 @@ class WorkflowInboxService
         $modules = collect();
 
         if ($user->hasRole('admin_kabupaten_bapperida') || $user->hasAnyPermission(['rpjmd.manage', 'manage_rpjmd'])) {
-            $modules = $modules->merge(['rpjmd', 'renstra_opd']);
+            $modules = $modules->merge(['rpjmd', 'rkpd', 'renstra_opd', 'renja_opd']);
         }
 
         if ($user->hasRole('admin_kabupaten_inspektorat') || $user->hasAnyPermission(['evaluasi.manage', 'manage_evaluasi'])) {
@@ -236,7 +240,7 @@ class WorkflowInboxService
         }
 
         if ($user->hasAnyPermission(['kinerja.manage', 'renstra.manage', 'verify_realisasi', 'manage_renstra_opd', 'lkjip.manage'])) {
-            $modules = $modules->merge(['renstra_opd', 'perjanjian_kinerja', 'rencana_aksi', 'realisasi_kinerja', 'lkjip']);
+            $modules = $modules->merge(['renstra_opd', 'renja_opd', 'perjanjian_kinerja', 'rencana_aksi', 'realisasi_kinerja', 'lkjip']);
         }
 
         return $modules->intersect(self::MODULES)->unique()->values();
@@ -370,7 +374,7 @@ class WorkflowInboxService
         if (! $model) {
             return [
                 'title' => 'Data tidak ditemukan',
-                'subtitle' => 'Objek workflow sudah tidak tersedia.',
+                'subtitle' => 'Data pengajuan sudah tidak tersedia.',
                 'opd_id' => null,
                 'opd' => null,
                 'tahun' => null,
@@ -403,7 +407,9 @@ class WorkflowInboxService
     {
         return match ($module) {
             'rpjmd' => (string) ($model->judul ?? 'RPJMD'),
+            'rkpd' => (string) ($model->judul ?? 'RKPD'),
             'renstra_opd' => (string) ($model->judul ?? 'Renstra OPD'),
+            'renja_opd' => (string) ($model->judul ?? 'Renja OPD'),
             'perjanjian_kinerja' => (string) ($model->judul ?? 'Perjanjian Kinerja'),
             'rencana_aksi' => (string) ($model->judul ?? 'Rencana Aksi'),
             'realisasi_kinerja' => 'Realisasi Kinerja '.$this->periodLabel($model),
@@ -418,6 +424,7 @@ class WorkflowInboxService
     {
         return match ($module) {
             'rpjmd', 'renstra_opd' => trim(($model->tahun_awal ?? '').'-'.($model->tahun_akhir ?? ''), '-'),
+            'rkpd', 'renja_opd' => isset($model->tahun) ? 'Tahun '.$model->tahun : null,
             'realisasi_kinerja' => ucfirst((string) ($model->periode_realisasi ?? '')).' '.$this->periodLabel($model),
             'evaluasi_sakip' => $model instanceof EvaluasiSakip && $model->nilai_akhir !== null
                 ? 'Nilai akhir '.$model->nilai_akhir
@@ -454,7 +461,9 @@ class WorkflowInboxService
     {
         return match ($module) {
             'rpjmd' => route('rpjmd.show', $model),
+            'rkpd' => route('rkpd.show', $model),
             'renstra_opd' => route('renstra-opd.show', $model),
+            'renja_opd' => route('renja-opd.show', $model),
             'perjanjian_kinerja' => route('perjanjian-kinerja.show', $model),
             'rencana_aksi' => route('rencana-aksi.show', $model),
             'realisasi_kinerja' => route('realisasi-kinerja.show', $model),

@@ -84,9 +84,9 @@ class WorkflowNotificationService
             'verify' => $this->registry->label($module).' diverifikasi',
             'approve' => $this->registry->label($module).' disetujui',
             'reject' => $this->registry->label($module).' ditolak',
-            'revision' => $this->registry->label($module).' perlu revisi',
+            'revision' => $this->registry->label($module).' perlu perbaikan',
             'lock' => $this->registry->label($module).' dikunci',
-            'unlock' => $this->registry->label($module).' dibuka untuk revisi',
+            'unlock' => $this->registry->label($module).' dibuka untuk perbaikan',
             default => $this->registry->label($module).' diperbarui',
         };
     }
@@ -107,7 +107,7 @@ class WorkflowNotificationService
 
     private function message(string $module, string $action, User $actor): string
     {
-        return $actor->name.' memproses workflow '.$this->registry->label($module).' dengan aksi '.$action.'.';
+        return $actor->name.' memproses pengajuan '.$this->registry->label($module).'.';
     }
 
     private function url(string $module, Model $model): ?string

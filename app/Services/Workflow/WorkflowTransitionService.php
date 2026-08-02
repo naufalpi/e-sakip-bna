@@ -14,6 +14,7 @@ class WorkflowTransitionService
 {
     public function __construct(
         private readonly WorkflowNotificationService $notificationService,
+        private readonly WorkflowModuleRegistry $registry,
     ) {}
 
     /**
@@ -106,22 +107,20 @@ class WorkflowTransitionService
         }
 
         if ($action === 'lock') {
-            if ($actor->isSuperAdmin() || $actor->hasPermission('lock_period')) {
+            if ($actor->isSuperAdmin() || ($actor->hasPermission('lock_period') && $actor->can('view', $model))) {
                 return;
             }
 
             throw new AuthorizationException('Anda tidak berwenang mengunci data ini.');
         }
 
-        $reviewerAllowed = $actor->hasAnyRole([
-            'super_admin',
-            'admin_kabupaten_bagian_organisasi',
-            'admin_kabupaten_bapperida',
-            'admin_kabupaten_inspektorat',
-        ]) || $actor->hasAnyPermission(['verify_realisasi', 'manage_evaluasi', 'evaluasi.manage']);
+        $reviewerAllowed = $actor->hasAnyRole($this->registry->reviewerRoles($module))
+            || ($module === 'realisasi_kinerja' && $actor->hasPermission('verify_realisasi'))
+            || (in_array($module, ['evaluasi_sakip', 'tindak_lanjut_rekomendasi'], true)
+                && $actor->hasAnyPermission(['manage_evaluasi', 'evaluasi.manage']));
 
         if (! $reviewerAllowed) {
-            throw new AuthorizationException('Anda tidak berwenang memproses workflow ini.');
+            throw new AuthorizationException('Anda tidak berwenang memproses pengajuan ini.');
         }
     }
 
@@ -144,7 +143,7 @@ class WorkflowTransitionService
 
         if (! in_array($currentStatus, $allowedStatuses, true)) {
             throw ValidationException::withMessages([
-                'action' => "Aksi workflow tidak valid untuk status {$currentStatus}.",
+                'action' => "Aksi persetujuan tidak valid untuk status {$currentStatus}.",
             ]);
         }
     }
@@ -159,7 +158,7 @@ class WorkflowTransitionService
             'revision' => 'revision',
             'lock' => 'locked',
             'unlock' => 'revision',
-            default => throw new AuthorizationException('Aksi workflow tidak valid.'),
+            default => throw new AuthorizationException('Aksi persetujuan tidak valid.'),
         };
     }
 }

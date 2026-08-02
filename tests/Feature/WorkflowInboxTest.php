@@ -146,7 +146,11 @@ class WorkflowInboxTest extends TestCase
                 ->where('items.total', 1)
                 ->where('items.data.0.module', 'rpjmd')
                 ->where('items.data.0.context.title', 'RPJMD Inbox')
-                ->missing('moduleOptions.2')
+                ->where('moduleOptions.0.value', 'rpjmd')
+                ->where('moduleOptions.1.value', 'rkpd')
+                ->where('moduleOptions.2.value', 'renstra_opd')
+                ->where('moduleOptions.3.value', 'renja_opd')
+                ->missing('moduleOptions.4')
             );
     }
 

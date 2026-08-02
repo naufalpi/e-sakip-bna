@@ -9,7 +9,7 @@ trait PreventsLockedChanges
 {
     /**
      * Data yang sudah masuk review atau final tidak boleh diubah user biasa.
-     * Perubahan resmi harus lewat aksi revisi workflow terlebih dahulu.
+     * Perubahan resmi harus lewat alur perbaikan dan persetujuan terlebih dahulu.
      */
     protected function canChangeLocked(User $user, Model $model): bool
     {

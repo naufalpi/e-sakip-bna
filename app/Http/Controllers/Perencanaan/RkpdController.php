@@ -20,6 +20,7 @@ use App\Models\TargetIndikatorSasaranDaerah;
 use App\Models\TargetIndikatorTujuanDaerah;
 use App\Models\User;
 use App\Services\Perencanaan\PlanningSyncService;
+use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -103,7 +104,7 @@ class RkpdController extends Controller
         return redirect()->route('rkpd.show', $rkpd)->with('success', 'RKPD berhasil dibuat.');
     }
 
-    public function show(Request $request, Rkpd $rkpd): Response
+    public function show(Request $request, Rkpd $rkpd, WorkflowDataService $workflowDataService): Response
     {
         $this->authorize('view', $rkpd);
 
@@ -181,7 +182,11 @@ class RkpdController extends Controller
             'syncPreview' => app(PlanningSyncService::class)->serializePreview($syncBatch),
             'can' => [
                 'manage' => $canManage,
+                'review' => $this->canReviewWorkflow($user),
+                'lock' => $this->canLockWorkflow($user),
+                'unlock' => $this->canUnlockWorkflow($user),
             ],
+            'workflow' => $workflowDataService->forModel($rkpd, 'rkpd'),
         ]);
     }
 
@@ -217,6 +222,21 @@ class RkpdController extends Controller
     {
         return $user->hasRole('admin_opd')
             && ! $user->hasAnyRole(['super_admin', 'admin_kabupaten_bagian_organisasi', 'admin_kabupaten_bapperida', 'admin_kabupaten_inspektorat']);
+    }
+
+    private function canReviewWorkflow(User $user): bool
+    {
+        return $user->hasAnyRole(['super_admin', 'admin_kabupaten_bapperida', 'admin_kabupaten_bagian_organisasi']);
+    }
+
+    private function canLockWorkflow(User $user): bool
+    {
+        return $user->isSuperAdmin() || $user->hasPermission('lock_period');
+    }
+
+    private function canUnlockWorkflow(User $user): bool
+    {
+        return $user->isSuperAdmin();
     }
 
     /**

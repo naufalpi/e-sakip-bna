@@ -7,7 +7,9 @@ use App\Models\Lkjip;
 use App\Models\PerjanjianKinerja;
 use App\Models\RealisasiKinerja;
 use App\Models\RencanaAksi;
+use App\Models\RenjaOpd;
 use App\Models\RenstraOpd;
+use App\Models\Rkpd;
 use App\Models\Rpjmd;
 use App\Models\TindakLanjutRekomendasi;
 use Illuminate\Database\Eloquent\Model;
@@ -21,7 +23,9 @@ class WorkflowModuleRegistry
     {
         return match ($module) {
             'rpjmd' => Rpjmd::class,
+            'rkpd' => Rkpd::class,
             'renstra_opd' => RenstraOpd::class,
+            'renja_opd' => RenjaOpd::class,
             'perjanjian_kinerja' => PerjanjianKinerja::class,
             'rencana_aksi' => RencanaAksi::class,
             'realisasi_kinerja' => RealisasiKinerja::class,
@@ -36,7 +40,9 @@ class WorkflowModuleRegistry
     {
         return match ($module) {
             'rpjmd' => 'RPJMD',
+            'rkpd' => 'RKPD',
             'renstra_opd' => 'Renstra OPD',
+            'renja_opd' => 'Renja OPD',
             'perjanjian_kinerja' => 'Perjanjian Kinerja',
             'rencana_aksi' => 'Rencana Aksi',
             'realisasi_kinerja' => 'Realisasi Kinerja',
@@ -54,7 +60,9 @@ class WorkflowModuleRegistry
     {
         return match ($module) {
             'rpjmd' => ['super_admin', 'admin_kabupaten_bapperida', 'admin_kabupaten_bagian_organisasi'],
+            'rkpd' => ['super_admin', 'admin_kabupaten_bapperida', 'admin_kabupaten_bagian_organisasi'],
             'renstra_opd', 'perjanjian_kinerja', 'rencana_aksi', 'realisasi_kinerja', 'lkjip' => ['super_admin', 'admin_kabupaten_bagian_organisasi'],
+            'renja_opd' => ['super_admin', 'admin_kabupaten_bapperida', 'admin_kabupaten_bagian_organisasi'],
             'evaluasi_sakip', 'tindak_lanjut_rekomendasi' => ['super_admin', 'admin_kabupaten_inspektorat'],
             default => ['super_admin'],
         };

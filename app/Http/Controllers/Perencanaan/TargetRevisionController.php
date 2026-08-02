@@ -71,7 +71,7 @@ class TargetRevisionController extends Controller
     {
         $service->submit($request->user(), $request->validated());
 
-        return back()->with('success', 'Pengajuan revisi target berhasil dikirim untuk review.');
+        return back()->with('success', 'Pengajuan revisi target berhasil dikirim untuk diperiksa.');
     }
 
     public function approve(ReviewTargetRevisionRequest $request, TargetRevision $targetRevision, TargetRevisionService $service): RedirectResponse

@@ -196,7 +196,7 @@ const selectedOpdLabel = computed(() => {
 
 const priorityCards = computed(() => [
     {
-        label: 'Workflow Menunggu',
+        label: 'Pengajuan Menunggu',
         value: props.stats.workflow_pending_count,
         helper: 'Diajukan / revisi',
         icon: ClipboardCheck,
@@ -913,7 +913,7 @@ function booleanClass(value: boolean) {
 
             <div class="rounded-lg border bg-card">
                 <div class="border-b px-4 py-3">
-                    <h2 class="text-sm font-semibold">Status Workflow</h2>
+                    <h2 class="text-sm font-semibold">Status Persetujuan</h2>
                 </div>
                 <div class="divide-y">
                     <div v-for="row in workflowStatus" :key="row.status" class="flex items-center justify-between gap-3 px-4 py-3 text-sm">
@@ -921,7 +921,7 @@ function booleanClass(value: boolean) {
                         <span class="font-semibold">{{ row.count }}</span>
                     </div>
                     <div v-if="workflowStatus.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">
-                        Belum ada workflow pada tahun ini.
+                        Belum ada pengajuan pada tahun ini.
                     </div>
                 </div>
             </div>
@@ -1041,7 +1041,7 @@ function booleanClass(value: boolean) {
 
             <div class="rounded-lg border bg-card">
                 <div class="border-b px-4 py-3">
-                    <h2 class="text-sm font-semibold">Workflow Terbaru</h2>
+                    <h2 class="text-sm font-semibold">Pengajuan Terbaru</h2>
                 </div>
                 <div class="divide-y">
                     <div v-for="row in latestWorkflow" :key="row.id" class="flex items-start justify-between gap-3 px-4 py-3 text-sm">
@@ -1049,13 +1049,13 @@ function booleanClass(value: boolean) {
                             <div class="font-medium">{{ row.module_label }}</div>
                             <div class="mt-1 text-xs text-muted-foreground">
                                 {{ row.submitted_by || 'Belum ada pengaju' }}
-                                <span v-if="row.current_reviewer">/ Reviewer {{ row.current_reviewer }}</span>
+                                <span v-if="row.current_reviewer">/ Pemeriksa {{ row.current_reviewer }}</span>
                             </div>
                         </div>
                         <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status)">{{ row.status_label }}</span>
                     </div>
                     <div v-if="latestWorkflow.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">
-                        Belum ada riwayat workflow.
+                        Belum ada riwayat persetujuan.
                     </div>
                 </div>
             </div>

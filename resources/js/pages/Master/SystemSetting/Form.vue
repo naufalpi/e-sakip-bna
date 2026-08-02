@@ -308,7 +308,7 @@ const submit = () => {
                         <div>
                             <h2 class="text-base font-semibold text-slate-950">Pengaturan yang disarankan</h2>
                             <p class="mt-1 text-sm leading-6 text-slate-600">
-                                Prioritaskan setting identitas aplikasi, tahun default, batas upload, workflow, cache dashboard, dan portal publik.
+                                Prioritaskan setting identitas aplikasi, tahun default, batas upload, pengajuan, cache dashboard, dan portal publik.
                             </p>
                         </div>
                     </div>

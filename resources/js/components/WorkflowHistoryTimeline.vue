@@ -21,7 +21,7 @@ const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
         submitted: 'Diajukan',
-        revision: 'Revisi',
+        revision: 'Perlu Perbaikan',
         verified: 'Terverifikasi',
         approved: 'Disetujui',
         rejected: 'Ditolak',
@@ -33,7 +33,7 @@ const actionLabel = (action: string) =>
         submit: 'Pengajuan',
         verify: 'Verifikasi',
         approve: 'Persetujuan',
-        revision: 'Permintaan revisi',
+        revision: 'Permintaan perbaikan',
         reject: 'Penolakan',
         lock: 'Penguncian',
         unlock: 'Pembukaan kunci',
@@ -42,7 +42,7 @@ const actionLabel = (action: string) =>
 
 <template>
     <section class="rounded-lg border bg-card p-4">
-        <h2 class="text-sm font-semibold">Riwayat Workflow</h2>
+        <h2 class="text-sm font-semibold">Riwayat Persetujuan</h2>
         <div v-if="workflow?.histories?.length" class="mt-3 space-y-3 text-sm">
             <div v-for="history in workflow.histories" :key="history.id" class="rounded-md border bg-background p-3">
                 <div class="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
@@ -62,6 +62,6 @@ const actionLabel = (action: string) =>
                 </div>
             </div>
         </div>
-        <div v-else class="mt-3 text-sm text-muted-foreground">Belum ada riwayat workflow.</div>
+        <div v-else class="mt-3 text-sm text-muted-foreground">Belum ada riwayat persetujuan.</div>
     </section>
 </template>

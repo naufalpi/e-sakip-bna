@@ -132,7 +132,7 @@ const groupIcon = (group: string) => {
                 </div>
                 <h1 class="mt-3 text-2xl font-semibold tracking-normal text-slate-950">Pengaturan Sistem</h1>
                 <p class="mt-1 text-sm leading-6 text-slate-600">
-                    Kelola identitas aplikasi, portal publik, dokumen, workflow, dashboard, evaluasi, integrasi, dan keamanan dari satu tempat.
+                    Kelola identitas aplikasi, portal publik, dokumen, pengajuan, dashboard, evaluasi, integrasi, dan keamanan dari satu tempat.
                 </p>
             </div>
 

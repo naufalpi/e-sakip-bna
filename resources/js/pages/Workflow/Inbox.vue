@@ -86,7 +86,7 @@ const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
         submitted: 'Diajukan',
-        revision: 'Revisi',
+        revision: 'Perlu Perbaikan',
         verified: 'Terverifikasi',
         approved: 'Disetujui',
         rejected: 'Ditolak',
@@ -117,12 +117,12 @@ const formatDate = (value?: string | null) => {
 </script>
 
 <template>
-    <Head title="Inbox Workflow" />
+    <Head title="Pengajuan Masuk" />
     <div class="flex flex-col gap-4 p-4">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-                <h1 class="text-2xl font-semibold tracking-normal">Inbox Workflow</h1>
-                <p class="mt-1 text-sm text-muted-foreground">Antrean pengajuan, verifikasi, persetujuan, dan revisi dokumen kinerja.</p>
+                <h1 class="text-2xl font-semibold tracking-normal">Pengajuan Masuk</h1>
+                <p class="mt-1 text-sm text-muted-foreground">Antrean pengajuan, verifikasi, persetujuan, dan perbaikan dokumen kinerja.</p>
             </div>
             <div class="inline-flex rounded-lg border bg-card p-1">
                 <button
@@ -140,7 +140,7 @@ const formatDate = (value?: string | null) => {
 
         <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <div class="rounded-lg border bg-card p-4">
-                <p class="text-xs font-medium uppercase text-muted-foreground">Perlu Review</p>
+                <p class="text-xs font-medium uppercase text-muted-foreground">Perlu Diperiksa</p>
                 <p class="mt-2 text-2xl font-semibold">{{ summary.need_review }}</p>
             </div>
             <div class="rounded-lg border bg-card p-4">
@@ -152,11 +152,11 @@ const formatDate = (value?: string | null) => {
                 <p class="mt-2 text-2xl font-semibold">{{ summary.verified }}</p>
             </div>
             <div class="rounded-lg border bg-card p-4">
-                <p class="text-xs font-medium uppercase text-muted-foreground">Revisi</p>
+                <p class="text-xs font-medium uppercase text-muted-foreground">Perlu Perbaikan</p>
                 <p class="mt-2 text-2xl font-semibold">{{ summary.revision }}</p>
             </div>
             <div class="rounded-lg border bg-card p-4">
-                <p class="text-xs font-medium uppercase text-muted-foreground">Total Workflow</p>
+                <p class="text-xs font-medium uppercase text-muted-foreground">Total Pengajuan</p>
                 <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
             </div>
         </section>
@@ -168,7 +168,7 @@ const formatDate = (value?: string | null) => {
                     v-model="filterForm.search"
                     type="search"
                     class="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
-                    placeholder="Cari dokumen, OPD, pengaju, atau reviewer"
+                    placeholder="Cari dokumen, OPD, pengaju, atau pemeriksa"
                 />
             </div>
             <select
@@ -204,7 +204,7 @@ const formatDate = (value?: string | null) => {
                             <th class="px-4 py-3">Dokumen</th>
                             <th class="px-4 py-3">OPD / Tahun</th>
                             <th class="px-4 py-3">Status</th>
-                            <th class="px-4 py-3">Pengaju / Reviewer</th>
+                            <th class="px-4 py-3">Pengaju / Pemeriksa</th>
                             <th class="px-4 py-3">Update</th>
                             <th class="px-4 py-3 text-right">Aksi</th>
                         </tr>
@@ -240,7 +240,7 @@ const formatDate = (value?: string | null) => {
                             </td>
                             <td class="px-4 py-3">
                                 <div>{{ row.submitted_by?.name || '-' }}</div>
-                                <div class="text-xs text-muted-foreground">Reviewer: {{ row.current_reviewer?.name || 'Belum ditentukan' }}</div>
+                                <div class="text-xs text-muted-foreground">Pemeriksa: {{ row.current_reviewer?.name || 'Belum ditentukan' }}</div>
                             </td>
                             <td class="px-4 py-3 text-muted-foreground">{{ formatDate(row.updated_at) }}</td>
                             <td class="px-4 py-3 text-right">
@@ -266,7 +266,7 @@ const formatDate = (value?: string | null) => {
                             </td>
                         </tr>
                         <tr v-if="items.data.length === 0">
-                            <td colspan="7" class="px-4 py-12 text-center text-muted-foreground">Belum ada workflow sesuai filter.</td>
+                            <td colspan="7" class="px-4 py-12 text-center text-muted-foreground">Belum ada pengajuan sesuai filter.</td>
                         </tr>
                     </tbody>
                 </table>

@@ -107,7 +107,7 @@ const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
         submitted: 'Diajukan',
-        revision: 'Revisi',
+        revision: 'Perlu Perbaikan',
         verified: 'Terverifikasi',
         approved: 'Disetujui',
         rejected: 'Ditolak',
@@ -217,7 +217,7 @@ function rowProgressPercent(renstra: RenstraRow): number {
                         <option value="">Semua status</option>
                         <option value="draft">Draft</option>
                         <option value="submitted">Diajukan</option>
-                        <option value="revision">Revisi</option>
+                        <option value="revision">Perlu Perbaikan</option>
                         <option value="verified">Terverifikasi</option>
                         <option value="approved">Disetujui</option>
                         <option value="rejected">Ditolak</option>

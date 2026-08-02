@@ -27,6 +27,6 @@ class WorkflowController extends Controller
             ['ip' => $request->ip()]
         );
 
-        return back()->with('success', 'Status workflow berhasil diperbarui.');
+        return back()->with('success', 'Status pengajuan berhasil diperbarui.');
     }
 }
