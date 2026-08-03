@@ -925,13 +925,6 @@ const destroyProgramPeriod = async () => {
                                 />
                                 <InputError :message="singleForm.errors.bidang_urusan_id" />
                             </div>
-                            <div v-else class="grid gap-3 rounded-xl border bg-[#00336C]/[0.025] p-3 lg:col-span-2 md:grid-cols-2">
-                                <div v-for="row in parentContextRows" :key="`single-context-${row.label}`" class="min-w-0 rounded-lg bg-background p-3">
-                                    <div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ row.label }}</div>
-                                    <div class="mt-1 text-sm font-semibold leading-6 text-foreground">{{ row.value }}</div>
-                                </div>
-                            </div>
-
                             <div class="grid gap-2">
                                 <label class="text-sm font-medium" for="single-kode">Kode</label>
                                 <input
@@ -1065,12 +1058,6 @@ const destroyProgramPeriod = async () => {
                                     placement="bottom"
                                 />
                                 <InputError :message="bulkForm.errors.bidang_urusan_id" />
-                            </div>
-                            <div v-else class="grid gap-3 rounded-xl border bg-[#00336C]/[0.025] p-3 md:grid-cols-2">
-                                <div v-for="row in parentContextRows" :key="`bulk-context-${row.label}`" class="min-w-0 rounded-lg bg-background p-3">
-                                    <div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ row.label }}</div>
-                                    <div class="mt-1 text-sm font-semibold leading-6 text-foreground">{{ row.value }}</div>
-                                </div>
                             </div>
                             <div class="grid gap-2">
                                 <label class="text-sm font-medium" for="bulk-status">Status</label>
