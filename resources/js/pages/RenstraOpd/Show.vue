@@ -445,10 +445,12 @@ const indicatorNodeTypes: NodeType[] = ['indikator_tujuan', 'indikator_sasaran',
 const targetNodeTypes: NodeType[] = ['target_tujuan', 'target_sasaran', 'target_program', 'target_kegiatan', 'target_sub_kegiatan'];
 const budgetNodeTypes: NodeType[] = ['anggaran_sub_kegiatan'];
 const textNodeTypes: NodeType[] = ['tujuan', 'sasaran', 'program', 'kegiatan', 'sub_kegiatan'];
+const orderableNodeTypes: NodeType[] = [...textNodeTypes, ...indicatorNodeTypes];
 const isIndicatorType = computed(() => indicatorNodeTypes.includes(form.type));
 const isTargetType = computed(() => targetNodeTypes.includes(form.type));
 const isBudgetType = computed(() => budgetNodeTypes.includes(form.type));
 const isTextNodeType = computed(() => textNodeTypes.includes(form.type));
+const isOrderableNodeType = computed(() => orderableNodeTypes.includes(form.type));
 const hasPaguIndikatif = computed(() => false);
 const usesMasterReference = computed(() => ['program', 'kegiatan', 'sub_kegiatan'].includes(form.type));
 const hasSelectedMasterReference = computed(() =>
@@ -1853,6 +1855,35 @@ const defaultParentIdForType = (type: NodeType): number | string => {
     return bulkRows.value.find((row) => row.type === key && row.id)?.id ?? '';
 };
 
+const orderableBulkRows = (type: NodeType, parentId: number | string = ''): BulkRow[] => {
+    if (!orderableNodeTypes.includes(type)) {
+        return [];
+    }
+
+    const parentKey = parentKeyByType[type];
+    const normalizedParentId = toNumberOrNull(parentId);
+
+    return bulkRows.value.filter((row) => {
+        if (row.type !== type || !row.id) {
+            return false;
+        }
+
+        if (!parentKey) {
+            return true;
+        }
+
+        return normalizedParentId ? Number(row.parent_id) === normalizedParentId : !row.parent_id;
+    });
+};
+
+const nextOrderForType = (type: NodeType, parentId: number | string = ''): number => {
+    const orders = orderableBulkRows(type, parentId)
+        .map((row) => Number(row.urutan || 0))
+        .filter((order) => Number.isFinite(order));
+
+    return Math.max(0, ...orders) + 1;
+};
+
 const selectNodeType = (type: NodeType, parentId: number | string = '') => {
     editingNode.value = null;
     isNodeModalOpen.value = true;
@@ -1860,7 +1891,9 @@ const selectNodeType = (type: NodeType, parentId: number | string = '') => {
 
     nextTick(() => {
         clearNodeForm();
-        form.parent_id = parentId || (shownParentSelectorTypes.includes(type) ? '' : defaultParentIdForType(type));
+        const resolvedParentId = parentId || (shownParentSelectorTypes.includes(type) ? '' : defaultParentIdForType(type));
+        form.parent_id = resolvedParentId;
+        form.urutan = nextOrderForType(type, resolvedParentId);
         applyImplicitReferences(type);
 
         if (targetNodeTypes.includes(type) || budgetNodeTypes.includes(type)) {
@@ -1868,6 +1901,17 @@ const selectNodeType = (type: NodeType, parentId: number | string = '') => {
         }
     });
 };
+
+watch(
+    () => form.parent_id,
+    (parentId) => {
+        if (editingNode.value || !isOrderableNodeType.value) {
+            return;
+        }
+
+        form.urutan = nextOrderForType(form.type, parentId);
+    },
+);
 
 const valueText = (value: unknown) => (value === null || value === undefined ? '' : String(value));
 const normalizedTargetText = (value?: string | number | null) => {
@@ -2531,8 +2575,19 @@ const bulkRowChildActions = (row: BulkRow): Array<{ type: NodeType; label: strin
     return actions[row.type] ?? [];
 };
 
+const sortBulkRowsByOrder = (rows: BulkRow[]): BulkRow[] =>
+    [...rows].sort((a, b) => {
+        const orderDiff = Number(a.urutan || 9999) - Number(b.urutan || 9999);
+
+        if (orderDiff !== 0) {
+            return orderDiff;
+        }
+
+        return bulkRowPrimaryText(a).localeCompare(bulkRowPrimaryText(b), 'id');
+    });
+
 const sectionParentRows = (section: BulkInputSection): BulkRow[] =>
-    section.rows.filter((row) => row.type === section.primaryType && !isBulkTargetRow(row));
+    sortBulkRowsByOrder(section.rows.filter((row) => row.type === section.primaryType && !isBulkTargetRow(row)));
 
 const shouldGroupSection = (section: BulkInputSection): boolean => ['program', 'kegiatan', 'sub-kegiatan'].includes(section.key);
 
@@ -2586,13 +2641,8 @@ const groupedSectionParentRows = (section: BulkInputSection): BulkSectionGroup[]
     return Array.from(groups.values());
 };
 
-const sectionParentRowIndex = (section: BulkInputSection, row: BulkRow): number =>
-    sectionParentRows(section).findIndex((parentRow) => parentRow.key === row.key) + 1;
-
 const sectionIndicatorRows = (section: BulkInputSection, parentRow: BulkRow): BulkRow[] =>
-    section.rows
-        .filter((row) => row.type === section.indicatorType && Number(row.parent_id) === Number(parentRow.id))
-        .sort((a, b) => Number(a.urutan || 0) - Number(b.urutan || 0));
+    sortBulkRowsByOrder(section.rows.filter((row) => row.type === section.indicatorType && Number(row.parent_id) === Number(parentRow.id)));
 
 const indicatorTargetType = (row: BulkRow): NodeType | null => targetTypeByIndicatorType[row.type] ?? null;
 
@@ -2757,7 +2807,7 @@ const onBulkTypeChanged = (row: BulkRow) => {
     row.target = '';
     row.target_text = '';
     row.pagu = '';
-    row.urutan = 1;
+    row.urutan = nextOrderForType(row.type, row.parent_id);
     scheduleBulkAutosave(row);
 };
 
@@ -3473,7 +3523,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 </div>
 
                                 <article
-                                    v-for="parentRow in group.rows"
+                                    v-for="(parentRow, parentIndex) in group.rows"
                                     :key="`grouped-${section.key}-${parentRow.key}`"
                                     class="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm"
                                 >
@@ -3481,7 +3531,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 <div class="flex items-center gap-2 lg:grid lg:justify-items-center">
                                     <span class="text-sm font-semibold uppercase text-slate-500">No</span>
                                     <span class="flex size-9 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-[#00336C]">
-                                        {{ sectionParentRowIndex(section, parentRow) }}
+                                        {{ parentIndex + 1 }}
                                     </span>
                                 </div>
                                 <div class="min-w-0">
@@ -4833,7 +4883,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 <InputError :message="form.errors.indikator" />
                             </div>
 
-                            <div v-if="isIndicatorType" class="grid max-w-xs gap-2">
+                            <div v-if="isOrderableNodeType" class="grid max-w-40 gap-2">
                                 <label class="text-sm font-medium" for="urutan">Urutan</label>
                                 <input
                                     id="urutan"
