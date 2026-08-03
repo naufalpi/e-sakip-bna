@@ -2612,6 +2612,54 @@ const sectionGroupItemLabel = (section: BulkInputSection): string =>
         'sub-kegiatan': 'sub kegiatan',
     })[section.key] ?? 'data';
 
+const sectionIndentClass = (section: BulkInputSection): string =>
+    ({
+        tujuan: '',
+        sasaran: 'md:pl-2',
+        program: 'md:pl-4',
+        kegiatan: 'md:pl-6',
+        'sub-kegiatan': 'md:pl-8',
+    })[section.key] ?? '';
+
+const sectionArticleClass = (section: BulkInputSection): string =>
+    ({
+        tujuan: 'border-l-[5px] border-l-[#00336C]',
+        sasaran: 'border-l-[5px] border-l-sky-500',
+        program: 'border-l-[5px] border-l-blue-600',
+        kegiatan: 'border-l-[5px] border-l-cyan-600',
+        'sub-kegiatan': 'border-l-[5px] border-l-emerald-600',
+    })[section.key] ?? 'border-l-[5px] border-l-blue-200';
+
+const sectionHeaderTintClass = (section: BulkInputSection): string =>
+    ({
+        tujuan: 'from-blue-50/90 via-white to-white',
+        sasaran: 'from-sky-50/90 via-white to-white',
+        program: 'from-blue-50/90 via-white to-white',
+        kegiatan: 'from-cyan-50/90 via-white to-white',
+        'sub-kegiatan': 'from-emerald-50/80 via-white to-white',
+    })[section.key] ?? 'from-slate-50 to-white';
+
+const sectionGroupClass = (section: BulkInputSection): string =>
+    ({
+        program: 'border-sky-200 bg-sky-50/70',
+        kegiatan: 'border-blue-200 bg-blue-50/70',
+        'sub-kegiatan': 'border-cyan-200 bg-cyan-50/70',
+    })[section.key] ?? 'border-blue-100 bg-blue-50/60';
+
+const sectionIndexBadgeClass = (section: BulkInputSection): string =>
+    ({
+        tujuan: 'bg-[#00336C] text-white',
+        sasaran: 'bg-sky-100 text-sky-800',
+        program: 'bg-blue-100 text-blue-800',
+        kegiatan: 'bg-cyan-100 text-cyan-800',
+        'sub-kegiatan': 'bg-emerald-100 text-emerald-800',
+    })[section.key] ?? 'bg-blue-50 text-[#00336C]';
+
+const sectionPrimaryButtonClass = (section: BulkInputSection): string =>
+    section.key === 'sub-kegiatan'
+        ? 'border-[#00336C] bg-[#00336C] px-5 text-white shadow-md shadow-blue-950/10 hover:bg-[#0a4485]'
+        : 'border-blue-100 bg-white px-3 text-slate-800 hover:border-[#00336C]/35 hover:text-[#00336C]';
+
 const sectionParentContextValue = (section: BulkInputSection, row: BulkRow): string => {
     const label = plainNodeText(row.parent_label);
 
@@ -2639,6 +2687,18 @@ const groupedSectionParentRows = (section: BulkInputSection): BulkSectionGroup[]
     });
 
     return Array.from(groups.values());
+};
+
+const sectionGroupProgramLabel = (section: BulkInputSection, group: BulkSectionGroup): string => {
+    if (section.key !== 'sub-kegiatan') {
+        return '';
+    }
+
+    const kegiatanId = group.rows[0]?.parent_id;
+    const kegiatanRow = bulkRows.value.find((row) => row.type === 'kegiatan' && Number(row.id) === Number(kegiatanId));
+    const label = plainNodeText(kegiatanRow?.parent_label);
+
+    return label && label !== '-' ? label : '';
 };
 
 const sectionIndicatorRows = (section: BulkInputSection, parentRow: BulkRow): BulkRow[] =>
@@ -3484,7 +3544,8 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                             </button>
                             <button
                                 type="button"
-                                class="inline-flex min-h-9 items-center gap-2 rounded-md border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-800 transition hover:border-[#00336C]/35 hover:text-[#00336C]"
+                                class="inline-flex min-h-10 items-center gap-2 rounded-md border text-xs font-semibold transition"
+                                :class="sectionPrimaryButtonClass(section)"
                                 @click="selectNodeType(section.primaryType)"
                             >
                                 <Plus class="size-3.5" />
@@ -3499,14 +3560,33 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                             <p class="mt-1">{{ section.emptyDescription }}</p>
                         </div>
 
-                        <div v-else class="grid gap-4 p-4">
-                            <div v-for="group in groupedSectionParentRows(section)" :key="`section-group-${group.key}`" class="grid gap-3">
+                        <div v-else class="grid gap-5 p-4 sm:p-5">
+                            <div
+                                v-for="group in groupedSectionParentRows(section)"
+                                :key="`section-group-${group.key}`"
+                                class="relative grid gap-3"
+                                :class="sectionIndentClass(section)"
+                            >
+                                <span
+                                    v-if="shouldGroupSection(section)"
+                                    class="pointer-events-none absolute bottom-2 left-2 top-14 hidden w-px bg-gradient-to-b from-blue-300 via-blue-100 to-transparent md:block"
+                                />
                                 <div
                                     v-if="shouldGroupSection(section)"
-                                    class="rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-white px-4 py-3 shadow-sm"
+                                    class="relative overflow-hidden rounded-xl border border-l-4 px-4 py-3 shadow-sm"
+                                    :class="sectionGroupClass(section)"
                                 >
                                     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                         <div class="min-w-0">
+                                            <div
+                                                v-if="sectionGroupProgramLabel(section, group)"
+                                                class="mb-2 border-b border-cyan-100 pb-2"
+                                            >
+                                                <p class="text-[11px] font-semibold uppercase tracking-wide text-[#00336C]/70">Program</p>
+                                                <p class="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
+                                                    {{ sectionGroupProgramLabel(section, group) }}
+                                                </p>
+                                            </div>
                                             <p class="text-[11px] font-semibold uppercase tracking-wide text-[#00336C]/70">
                                                 {{ sectionParentContextLabel(section) }}
                                             </p>
@@ -3525,12 +3605,18 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 <article
                                     v-for="(parentRow, parentIndex) in group.rows"
                                     :key="`grouped-${section.key}-${parentRow.key}`"
-                                    class="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm"
+                                    class="relative overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm transition hover:border-blue-200 hover:shadow-md"
+                                    :class="sectionArticleClass(section)"
                                 >
-                            <div class="grid gap-3 border-b bg-white p-4 lg:grid-cols-[4rem_minmax(0,1fr)_auto] lg:items-start">
-                                <div class="flex items-center gap-2 lg:grid lg:justify-items-center">
-                                    <span class="text-sm font-semibold uppercase text-slate-500">No</span>
-                                    <span class="flex size-9 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-[#00336C]">
+                            <div
+                                class="grid gap-3 border-b bg-gradient-to-r p-4 lg:grid-cols-[4rem_minmax(0,1fr)_auto] lg:items-start"
+                                :class="sectionHeaderTintClass(section)"
+                            >
+                                <div class="flex items-center gap-2 lg:justify-center">
+                                    <span
+                                        class="flex size-10 items-center justify-center rounded-full text-sm font-bold shadow-sm ring-1 ring-white/70"
+                                        :class="sectionIndexBadgeClass(section)"
+                                    >
                                         {{ parentIndex + 1 }}
                                     </span>
                                 </div>
@@ -3539,7 +3625,10 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     <h3 class="mt-1 whitespace-pre-line text-base font-semibold leading-6 text-slate-950">
                                         {{ bulkRowPrimaryText(parentRow) }}
                                     </h3>
-                                    <p v-if="parentRowSubtext(parentRow)" class="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
+                                    <p
+                                        v-if="section.key !== 'sub-kegiatan' && parentRowSubtext(parentRow)"
+                                        class="mt-2 max-w-4xl text-sm leading-6 text-slate-600"
+                                    >
                                         {{ parentRowSubtext(parentRow) }}
                                     </p>
                                     <p v-if="parentRow.error" class="mt-2 text-xs font-medium text-red-600">{{ parentRow.error }}</p>
@@ -3583,7 +3672,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 </div>
                             </div>
 
-                            <div class="bg-slate-50/70 p-4">
+                            <div class="border-t border-blue-100 bg-white p-4 sm:p-5">
                                 <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                     <div>
                                         <h4 class="text-sm font-semibold text-slate-950">{{ section.indicatorLabel }}</h4>
@@ -3594,7 +3683,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     </span>
                                 </div>
 
-                                <div class="overflow-x-auto rounded-lg border border-blue-100 bg-white">
+                                <div class="overflow-x-auto rounded-xl border border-blue-100 bg-white shadow-inner shadow-blue-950/5">
                                     <table class="w-full min-w-[1120px] table-fixed text-left text-sm">
                                         <colgroup>
                                             <col style="width: 56px" />
@@ -3606,7 +3695,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                 :key="`indicator-target-col-${section.key}-${parentRow.key}-${period.id}`"
                                                 style="width: 72px"
                                             />
-                                            <col style="width: 128px" />
+                                            <col style="width: 120px" />
                                         </colgroup>
                                         <thead class="border-b bg-blue-50 text-xs uppercase text-[#00336C]">
                                             <tr>
@@ -3619,7 +3708,12 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                 <th :colspan="periodColumns.length" class="border-b border-r border-blue-100 px-2 py-3 text-center">
                                                     Target
                                                 </th>
-                                                <th rowspan="2" class="border-b border-blue-100 px-2 py-3 text-center">Aksi</th>
+                                                <th
+                                                    rowspan="2"
+                                                    class="sticky right-0 z-20 border-b border-l border-blue-100 bg-blue-50 px-2 py-3 text-center shadow-[-10px_0_18px_rgba(15,23,42,0.08)]"
+                                                >
+                                                    Aksi
+                                                </th>
                                             </tr>
                                             <tr>
                                                 <th v-if="baselinePeriod" class="border-r border-amber-100 bg-amber-50/70 px-2 py-3 text-center">
@@ -3686,7 +3780,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                 >
                                                     {{ target.target }}
                                                 </td>
-                                                <td class="px-2 py-4">
+                                                <td class="sticky right-0 border-l border-blue-50 bg-white px-2 py-4 shadow-[-10px_0_18px_rgba(15,23,42,0.06)]">
                                                     <div class="grid justify-items-stretch gap-1.5">
                                                         <button
                                                             v-if="hasBulkRowsToSave(bulkRowsForSingleSave(indicatorRow))"
@@ -4583,9 +4677,6 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                             <div class="text-xs font-semibold uppercase text-muted-foreground">Sub Kegiatan</div>
                                                             <div class="mt-1 text-sm font-medium">
                                                                 {{ sub.nama }}
-                                                            </div>
-                                                            <div v-if="sub.sasaran_sub_kegiatan" class="mt-1 text-xs leading-5 text-slate-600">
-                                                                Sasaran sub kegiatan: {{ sub.sasaran_sub_kegiatan }}
                                                             </div>
                                                         </div>
                                                         <div v-if="can.manage" class="flex flex-wrap items-center justify-end gap-1.5">
