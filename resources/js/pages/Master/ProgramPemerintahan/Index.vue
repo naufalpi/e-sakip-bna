@@ -445,6 +445,31 @@ const parentValue = computed({
         singleForm.bidang_urusan_id = value ?? '';
     },
 });
+const parentContextRows = computed(() => {
+    if (props.level === 'kegiatan') {
+        return [
+            {
+                label: 'Program',
+                value: props.context.program?.label ?? '-',
+            },
+        ];
+    }
+
+    if (props.level === 'sub_kegiatan') {
+        return [
+            {
+                label: 'Program',
+                value: props.context.program?.label ?? props.context.kegiatan?.program_label ?? '-',
+            },
+            {
+                label: 'Kegiatan',
+                value: props.context.kegiatan?.label ?? '-',
+            },
+        ];
+    }
+
+    return [];
+});
 
 const canSubmitSingle = computed(() => {
     const hasParent =
@@ -864,10 +889,18 @@ const destroyProgramPeriod = async () => {
                                 </div>
                                 <div class="min-w-0">
                                     <h2 class="font-semibold">{{ editing.id ? `Edit ${meta.noun}` : `Tambah ${meta.noun}` }}</h2>
-                                    <p class="truncate text-sm text-muted-foreground">
-                                        {{ meta.parent }}:
-                                        {{ props.level === 'program' ? 'pilih bidang urusan' : props.context.program?.label || props.context.kegiatan?.label }}
-                                    </p>
+                                    <p v-if="props.level === 'program'" class="text-sm text-muted-foreground">Pilih bidang urusan.</p>
+                                    <div v-else class="mt-1 flex max-w-3xl flex-wrap gap-1.5">
+                                        <span
+                                            v-for="row in parentContextRows"
+                                            :key="`single-heading-${row.label}`"
+                                            class="inline-flex max-w-full items-center rounded-full bg-[#00336C]/5 px-2.5 py-1 text-xs font-medium text-muted-foreground"
+                                            :title="row.value"
+                                        >
+                                            <span class="mr-1 font-semibold text-[#00336C]">{{ row.label }}:</span>
+                                            <span class="truncate">{{ row.value }}</span>
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                             <button
@@ -892,9 +925,11 @@ const destroyProgramPeriod = async () => {
                                 />
                                 <InputError :message="singleForm.errors.bidang_urusan_id" />
                             </div>
-                            <div v-else class="rounded-xl border bg-background p-3 lg:col-span-2">
-                                <div class="text-xs font-semibold uppercase text-muted-foreground">{{ meta.parent }}</div>
-                                <div class="mt-1 text-sm font-semibold">{{ props.context.program?.label || props.context.kegiatan?.label }}</div>
+                            <div v-else class="grid gap-3 rounded-xl border bg-[#00336C]/[0.025] p-3 lg:col-span-2 md:grid-cols-2">
+                                <div v-for="row in parentContextRows" :key="`single-context-${row.label}`" class="min-w-0 rounded-lg bg-background p-3">
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ row.label }}</div>
+                                    <div class="mt-1 text-sm font-semibold leading-6 text-foreground">{{ row.value }}</div>
+                                </div>
                             </div>
 
                             <div class="grid gap-2">
@@ -1031,9 +1066,11 @@ const destroyProgramPeriod = async () => {
                                 />
                                 <InputError :message="bulkForm.errors.bidang_urusan_id" />
                             </div>
-                            <div v-else class="rounded-xl border bg-background p-3">
-                                <div class="text-xs font-semibold uppercase text-muted-foreground">{{ meta.parent }}</div>
-                                <div class="mt-1 text-sm font-semibold">{{ props.context.program?.label || props.context.kegiatan?.label }}</div>
+                            <div v-else class="grid gap-3 rounded-xl border bg-[#00336C]/[0.025] p-3 md:grid-cols-2">
+                                <div v-for="row in parentContextRows" :key="`bulk-context-${row.label}`" class="min-w-0 rounded-lg bg-background p-3">
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ row.label }}</div>
+                                    <div class="mt-1 text-sm font-semibold leading-6 text-foreground">{{ row.value }}</div>
+                                </div>
                             </div>
                             <div class="grid gap-2">
                                 <label class="text-sm font-medium" for="bulk-status">Status</label>
