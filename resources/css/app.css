@@ -661,7 +661,10 @@ html {
     }
 
     .esakip-swal-actions {
-        gap: 0.65rem;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.9rem;
         margin-top: 1.35rem;
     }
 
@@ -671,6 +674,7 @@ html {
         align-items: center;
         justify-content: center;
         border-radius: 0.7rem;
+        margin: 0 !important;
         padding: 0.62rem 1rem;
         font-size: 0.875rem;
         font-weight: 700;
