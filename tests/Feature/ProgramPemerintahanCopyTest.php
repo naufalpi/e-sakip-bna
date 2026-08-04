@@ -6,8 +6,13 @@ use App\Models\BidangUrusan;
 use App\Models\KegiatanPemerintahan;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
+use App\Models\ProgramRpjmd;
+use App\Models\Rpjmd;
+use App\Models\RpjmdVisi;
+use App\Models\SasaranDaerah;
 use App\Models\SatuanIndikator;
 use App\Models\SubKegiatanPemerintahan;
+use App\Models\TujuanDaerah;
 use App\Models\UrusanPemerintahan;
 use App\Services\Master\CopyProgramKegiatanReferenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -163,6 +168,76 @@ class ProgramPemerintahanCopyTest extends TestCase
             'periode_tahun_id' => $periodeIds[2030],
             'kegiatan_pemerintahan_id' => $targetKegiatan->id,
             'kode' => '2.16.03.2.01.0001',
+        ]);
+    }
+
+    public function test_delete_program_period_ignores_program_rpjmd_from_deleted_rpjmd(): void
+    {
+        $periode = PeriodeTahun::create([
+            'tahun' => 2030,
+            'nama' => 'Tahun 2030',
+            'status' => 'draft',
+        ]);
+        $urusan = UrusanPemerintahan::create([
+            'kode' => '2',
+            'nama' => 'Urusan Wajib Non Pelayanan Dasar',
+            'status' => 'active',
+        ]);
+        $bidang = BidangUrusan::create([
+            'urusan_pemerintahan_id' => $urusan->id,
+            'kode' => '2.16',
+            'nama' => 'Urusan Pemerintahan Bidang Komunikasi dan Informatika',
+            'status' => 'active',
+        ]);
+        $program = ProgramPemerintahan::create([
+            'bidang_urusan_id' => $bidang->id,
+            'tahun_awal' => 2030,
+            'tahun_akhir' => 2034,
+            'kode' => '2.16.03',
+            'nama' => 'Program Pengelolaan Aplikasi Informatika',
+            'status' => 'active',
+        ]);
+        $rpjmd = Rpjmd::create([
+            'periode_tahun_id' => $periode->id,
+            'judul' => 'RPJMD 2030-2034',
+            'tahun_awal' => 2030,
+            'tahun_akhir' => 2034,
+            'status' => 'draft',
+        ]);
+        $visi = RpjmdVisi::create([
+            'rpjmd_id' => $rpjmd->id,
+            'visi' => 'Visi Daerah',
+            'urutan' => 1,
+        ]);
+        $tujuan = TujuanDaerah::create([
+            'rpjmd_visi_id' => $visi->id,
+            'tujuan' => 'Tujuan Daerah',
+            'urutan' => 1,
+        ]);
+        $sasaran = SasaranDaerah::create([
+            'tujuan_daerah_id' => $tujuan->id,
+            'sasaran' => 'Sasaran Daerah',
+            'urutan' => 1,
+        ]);
+
+        ProgramRpjmd::create([
+            'sasaran_daerah_id' => $sasaran->id,
+            'program_pemerintahan_id' => $program->id,
+            'kode' => $program->kode,
+            'nama' => $program->nama,
+            'status' => 'draft',
+        ]);
+
+        $rpjmd->delete();
+
+        $result = app(CopyProgramKegiatanReferenceService::class)
+            ->deleteProgramPeriod(2030, 2034);
+
+        $this->assertSame(1, $result['program_deleted']);
+        $this->assertSame(0, $result['kegiatan_deleted']);
+        $this->assertSame(0, $result['sub_kegiatan_deleted']);
+        $this->assertDatabaseMissing('program_pemerintahan', [
+            'id' => $program->id,
         ]);
     }
 }

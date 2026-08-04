@@ -5,7 +5,9 @@ namespace App\Services\Master;
 use App\Models\KegiatanPemerintahan;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
+use App\Models\ProgramRpjmd;
 use App\Models\SubKegiatanPemerintahan;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -480,33 +482,49 @@ class CopyProgramKegiatanReferenceService
      */
     private function programRpjmdUsages(Collection $programIds): array
     {
-        $programRpjmdIds = collect();
-
-        if ($this->canUseColumn('program_rpjmd', 'program_pemerintahan_id') && $programIds->isNotEmpty()) {
-            $query = DB::table('program_rpjmd')->whereIn('program_pemerintahan_id', $programIds);
-            $this->whereNotDeleted($query, 'program_rpjmd');
-            $programRpjmdIds = $programRpjmdIds->merge((clone $query)->pluck('id'));
-        }
-
-        if (Schema::hasTable('program_rpjmd_program_pemerintahan') && $programIds->isNotEmpty()) {
-            $query = DB::table('program_rpjmd_program_pemerintahan')
-                ->join('program_rpjmd', 'program_rpjmd.id', '=', 'program_rpjmd_program_pemerintahan.program_rpjmd_id')
-                ->whereIn('program_rpjmd_program_pemerintahan.program_pemerintahan_id', $programIds);
-            $this->whereNotDeleted($query, 'program_rpjmd');
-            $programRpjmdIds = $programRpjmdIds->merge((clone $query)->pluck('program_rpjmd.id'));
-        }
-
-        $programRpjmdIds = $programRpjmdIds->map(fn (int|string $id) => (int) $id)->unique()->values();
-
-        if ($programRpjmdIds->isEmpty()) {
+        if ($programIds->isEmpty()) {
             return [];
         }
 
-        $query = DB::table('program_rpjmd')->whereIn('id', $programRpjmdIds);
-        $this->whereNotDeleted($query, 'program_rpjmd');
+        $canUseDirectReference = $this->canUseColumn('program_rpjmd', 'program_pemerintahan_id');
+        $canUsePivotReference = Schema::hasTable('program_rpjmd_program_pemerintahan');
+
+        if (! $canUseDirectReference && ! $canUsePivotReference) {
+            return [];
+        }
+
+        $query = ProgramRpjmd::query()
+            ->where(function (EloquentBuilder $query) use ($programIds, $canUseDirectReference, $canUsePivotReference): void {
+                $hasCondition = false;
+
+                if ($canUseDirectReference) {
+                    $query->whereIn('program_pemerintahan_id', $programIds);
+                    $hasCondition = true;
+                }
+
+                if ($canUsePivotReference) {
+                    $method = $hasCondition ? 'orWhereHas' : 'whereHas';
+                    $query->{$method}('programPemerintahanReferences', fn (EloquentBuilder $query) => $query->whereIn('program_pemerintahan.id', $programIds));
+                }
+            })
+            ->where(function (EloquentBuilder $query): void {
+                $query
+                    ->whereHas('sasaran.tujuan.visi.rpjmd')
+                    ->orWhereHas('sasaran.tujuan.misi.rpjmd')
+                    ->orWhereHas('sasaran.tujuan.misiTerkait.rpjmd')
+                    ->orWhereHas('indikatorSasaran.sasaran.tujuan.visi.rpjmd')
+                    ->orWhereHas('indikatorSasaran.sasaran.tujuan.misi.rpjmd')
+                    ->orWhereHas('indikatorSasaran.sasaran.tujuan.misiTerkait.rpjmd');
+            });
+
+        $count = (int) (clone $query)->count();
+
+        if ($count < 1) {
+            return [];
+        }
 
         return [[
-            'count' => (int) (clone $query)->count(),
+            'count' => $count,
             'items' => (clone $query)
                 ->orderBy('id')
                 ->limit(5)
