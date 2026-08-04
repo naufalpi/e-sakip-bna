@@ -1095,3 +1095,16 @@ html {
 .dark .admin-main-shell :is(.shadow-sm, .shadow-md, .shadow-lg) {
     --tw-shadow-color: rgb(0 0 0 / 0.3);
 }
+
+/* SweetAlert is imported outside Tailwind layers, so keep these final overrides unlayered. */
+.swal2-actions.esakip-swal-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    column-gap: 1.15rem !important;
+    row-gap: 0.8rem !important;
+}
+
+.swal2-actions.esakip-swal-actions > .swal2-styled.esakip-swal-button {
+    margin: 0 !important;
+}

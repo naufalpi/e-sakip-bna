@@ -54,6 +54,7 @@ export async function confirmAction(options: ConfirmOptions): Promise<boolean> {
         cancelButtonText: options.cancelButtonText ?? 'Batal',
         focusCancel: options.focusCancel ?? false,
         customClass: {
+            actions: 'esakip-swal-actions',
             confirmButton: options.destructive
                 ? 'esakip-swal-button esakip-swal-confirm esakip-swal-confirm-danger'
                 : 'esakip-swal-button esakip-swal-confirm',
