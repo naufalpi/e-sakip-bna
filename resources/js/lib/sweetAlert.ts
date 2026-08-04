@@ -7,6 +7,7 @@ type ConfirmOptions = {
     confirmButtonText?: string;
     cancelButtonText?: string;
     focusCancel?: boolean;
+    destructive?: boolean;
 };
 
 export type FlashNotification = {
@@ -48,9 +49,16 @@ export async function confirmAction(options: ConfirmOptions): Promise<boolean> {
         text: options.text,
         icon: options.icon ?? 'question',
         showCancelButton: true,
+        showDenyButton: false,
         confirmButtonText: options.confirmButtonText ?? 'Ya, lanjutkan',
         cancelButtonText: options.cancelButtonText ?? 'Batal',
         focusCancel: options.focusCancel ?? false,
+        customClass: {
+            confirmButton: options.destructive
+                ? 'esakip-swal-button esakip-swal-confirm esakip-swal-confirm-danger'
+                : 'esakip-swal-button esakip-swal-confirm',
+            cancelButton: 'esakip-swal-button esakip-swal-cancel',
+        },
     });
 
     return result.isConfirmed;
@@ -64,6 +72,7 @@ export function confirmDelete(text: string, options: Omit<ConfirmOptions, 'text'
         confirmButtonText: 'Ya, hapus',
         cancelButtonText: options.cancelButtonText ?? 'Batal',
         focusCancel: options.focusCancel ?? true,
+        destructive: true,
     });
 }
 
