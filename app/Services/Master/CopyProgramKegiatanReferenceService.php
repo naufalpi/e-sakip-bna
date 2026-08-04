@@ -6,8 +6,11 @@ use App\Models\KegiatanPemerintahan;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
 use App\Models\SubKegiatanPemerintahan;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 class CopyProgramKegiatanReferenceService
@@ -443,39 +446,371 @@ class CopyProgramKegiatanReferenceService
 
     private function ensurePeriodIsUnused($programIds, $kegiatanIds, $subKegiatanIds): void
     {
-        $checks = [
-            ['program_rpjmd', 'program_pemerintahan_id', $programIds, 'program RPJMD'],
-            ['program_rpjmd_program_pemerintahan', 'program_pemerintahan_id', $programIds, 'program RPJMD'],
-            ['opd_program', 'program_pemerintahan_id', $programIds, 'Renstra OPD'],
-            ['opd_kegiatan', 'kegiatan_pemerintahan_id', $kegiatanIds, 'Renstra OPD'],
-            ['opd_sub_kegiatan', 'sub_kegiatan_pemerintahan_id', $subKegiatanIds, 'Renstra OPD'],
-            ['rkpd_items', 'program_pemerintahan_id', $programIds, 'RKPD'],
-            ['rkpd_items', 'kegiatan_pemerintahan_id', $kegiatanIds, 'RKPD'],
-            ['rkpd_items', 'sub_kegiatan_pemerintahan_id', $subKegiatanIds, 'RKPD'],
-            ['renja_opd_items', 'program_pemerintahan_id', $programIds, 'Renja OPD'],
-            ['renja_opd_items', 'kegiatan_pemerintahan_id', $kegiatanIds, 'Renja OPD'],
-            ['renja_opd_items', 'sub_kegiatan_pemerintahan_id', $subKegiatanIds, 'Renja OPD'],
-        ];
+        $usage = [];
 
-        foreach ($checks as [$table, $column, $ids, $label]) {
-            if ($this->tableUsesIds($table, $column, $ids)) {
-                throw new InvalidArgumentException("Periode ini sudah dipakai di {$label}. Hapus atau lepaskan relasinya terlebih dahulu.");
-            }
+        foreach ($this->programRpjmdUsages($programIds) as $item) {
+            $this->addUsage($usage, 'RPJMD Kabupaten', $item['count'], $item['items'], 'Menu RPJMD Kabupaten, lalu lepaskan Program RPJMD yang memakai program master periode ini.');
+        }
+
+        foreach ($this->renstraUsages($programIds, $kegiatanIds, $subKegiatanIds) as $item) {
+            $this->addUsage($usage, 'Renstra OPD', $item['count'], $item['items'], 'Menu Renstra OPD, buka dokumen terkait, lalu hapus/lepas program, kegiatan, atau sub kegiatan yang memakai master ini.');
+        }
+
+        $this->addUsage(
+            $usage,
+            'RKPD Kabupaten',
+            ...$this->rkpdUsage($programIds, $kegiatanIds, $subKegiatanIds),
+            hint: 'Menu RKPD Kabupaten, buka dokumen terkait, lalu hapus baris RKPD yang memakai master ini.',
+        );
+
+        $this->addUsage(
+            $usage,
+            'Renja OPD',
+            ...$this->renjaUsage($programIds, $kegiatanIds, $subKegiatanIds),
+            hint: 'Menu Renja OPD, buka dokumen terkait, lalu hapus baris Renja yang memakai master ini.',
+        );
+
+        if ($usage !== []) {
+            throw new InvalidArgumentException($this->formatUsageMessage($usage));
         }
     }
 
-    private function tableUsesIds(string $table, string $column, $ids): bool
+    /**
+     * @return array<int, array{count: int, items: array<int, string>}>
+     */
+    private function programRpjmdUsages(Collection $programIds): array
     {
-        if ($ids->isEmpty() || ! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
-            return false;
+        $programRpjmdIds = collect();
+
+        if ($this->canUseColumn('program_rpjmd', 'program_pemerintahan_id') && $programIds->isNotEmpty()) {
+            $query = DB::table('program_rpjmd')->whereIn('program_pemerintahan_id', $programIds);
+            $this->whereNotDeleted($query, 'program_rpjmd');
+            $programRpjmdIds = $programRpjmdIds->merge((clone $query)->pluck('id'));
         }
 
-        $query = DB::table($table)->whereIn($column, $ids);
+        if (Schema::hasTable('program_rpjmd_program_pemerintahan') && $programIds->isNotEmpty()) {
+            $query = DB::table('program_rpjmd_program_pemerintahan')
+                ->join('program_rpjmd', 'program_rpjmd.id', '=', 'program_rpjmd_program_pemerintahan.program_rpjmd_id')
+                ->whereIn('program_rpjmd_program_pemerintahan.program_pemerintahan_id', $programIds);
+            $this->whereNotDeleted($query, 'program_rpjmd');
+            $programRpjmdIds = $programRpjmdIds->merge((clone $query)->pluck('program_rpjmd.id'));
+        }
 
+        $programRpjmdIds = $programRpjmdIds->map(fn (int|string $id) => (int) $id)->unique()->values();
+
+        if ($programRpjmdIds->isEmpty()) {
+            return [];
+        }
+
+        $query = DB::table('program_rpjmd')->whereIn('id', $programRpjmdIds);
+        $this->whereNotDeleted($query, 'program_rpjmd');
+
+        return [[
+            'count' => (int) (clone $query)->count(),
+            'items' => (clone $query)
+                ->orderBy('id')
+                ->limit(5)
+                ->get(['id', 'kode', 'nama'])
+                ->map(fn ($row) => $this->formatCodeName($row->kode ?? null, $row->nama ?? null, 'Program RPJMD #'.$row->id))
+                ->all(),
+        ]];
+    }
+
+    /**
+     * @return array<int, array{count: int, items: array<int, string>}>
+     */
+    private function renstraUsages(Collection $programIds, Collection $kegiatanIds, Collection $subKegiatanIds): array
+    {
+        return array_values(array_filter([
+            $this->opdProgramUsage($programIds),
+            $this->opdKegiatanUsage($kegiatanIds),
+            $this->opdSubKegiatanUsage($subKegiatanIds),
+        ], fn (array $usage) => $usage['count'] > 0));
+    }
+
+    /**
+     * @return array{count: int, items: array<int, string>}
+     */
+    private function opdProgramUsage(Collection $programIds): array
+    {
+        if ($programIds->isEmpty() || ! $this->canUseColumn('opd_program', 'program_pemerintahan_id')) {
+            return ['count' => 0, 'items' => []];
+        }
+
+        $query = DB::table('opd_program')
+            ->leftJoin('renstra_opd', 'renstra_opd.id', '=', 'opd_program.renstra_opd_id')
+            ->leftJoin('opds', 'opds.id', '=', 'renstra_opd.opd_id')
+            ->whereIn('opd_program.program_pemerintahan_id', $programIds);
+        $this->whereNotDeleted($query, 'opd_program');
+        $this->whereNotDeleted($query, 'renstra_opd');
+
+        return [
+            'count' => (int) (clone $query)->count(),
+            'items' => (clone $query)
+                ->orderBy('opd_program.id')
+                ->limit(5)
+                ->get([
+                    'opd_program.id',
+                    'opd_program.kode',
+                    'opd_program.nama',
+                    'renstra_opd.judul as dokumen',
+                    'opds.nama as opd',
+                ])
+                ->map(fn ($row) => $this->formatDocumentUsage($row->dokumen ?? null, $row->opd ?? null, 'Program', $row->kode ?? null, $row->nama ?? null, 'Opd Program #'.$row->id))
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return array{count: int, items: array<int, string>}
+     */
+    private function opdKegiatanUsage(Collection $kegiatanIds): array
+    {
+        if ($kegiatanIds->isEmpty() || ! $this->canUseColumn('opd_kegiatan', 'kegiatan_pemerintahan_id')) {
+            return ['count' => 0, 'items' => []];
+        }
+
+        $query = DB::table('opd_kegiatan')
+            ->leftJoin('opd_program', 'opd_program.id', '=', 'opd_kegiatan.opd_program_id')
+            ->leftJoin('renstra_opd', 'renstra_opd.id', '=', 'opd_program.renstra_opd_id')
+            ->leftJoin('opds', 'opds.id', '=', 'renstra_opd.opd_id')
+            ->whereIn('opd_kegiatan.kegiatan_pemerintahan_id', $kegiatanIds);
+        $this->whereNotDeleted($query, 'opd_kegiatan');
+        $this->whereNotDeleted($query, 'opd_program');
+        $this->whereNotDeleted($query, 'renstra_opd');
+
+        return [
+            'count' => (int) (clone $query)->count(),
+            'items' => (clone $query)
+                ->orderBy('opd_kegiatan.id')
+                ->limit(5)
+                ->get([
+                    'opd_kegiatan.id',
+                    'opd_kegiatan.kode',
+                    'opd_kegiatan.nama',
+                    'renstra_opd.judul as dokumen',
+                    'opds.nama as opd',
+                ])
+                ->map(fn ($row) => $this->formatDocumentUsage($row->dokumen ?? null, $row->opd ?? null, 'Kegiatan', $row->kode ?? null, $row->nama ?? null, 'Opd Kegiatan #'.$row->id))
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return array{count: int, items: array<int, string>}
+     */
+    private function opdSubKegiatanUsage(Collection $subKegiatanIds): array
+    {
+        if ($subKegiatanIds->isEmpty() || ! $this->canUseColumn('opd_sub_kegiatan', 'sub_kegiatan_pemerintahan_id')) {
+            return ['count' => 0, 'items' => []];
+        }
+
+        $query = DB::table('opd_sub_kegiatan')
+            ->leftJoin('opd_kegiatan', 'opd_kegiatan.id', '=', 'opd_sub_kegiatan.opd_kegiatan_id')
+            ->leftJoin('opd_program', 'opd_program.id', '=', 'opd_kegiatan.opd_program_id')
+            ->leftJoin('renstra_opd', 'renstra_opd.id', '=', 'opd_program.renstra_opd_id')
+            ->leftJoin('opds', 'opds.id', '=', 'renstra_opd.opd_id')
+            ->whereIn('opd_sub_kegiatan.sub_kegiatan_pemerintahan_id', $subKegiatanIds);
+        $this->whereNotDeleted($query, 'opd_sub_kegiatan');
+        $this->whereNotDeleted($query, 'opd_kegiatan');
+        $this->whereNotDeleted($query, 'opd_program');
+        $this->whereNotDeleted($query, 'renstra_opd');
+
+        return [
+            'count' => (int) (clone $query)->count(),
+            'items' => (clone $query)
+                ->orderBy('opd_sub_kegiatan.id')
+                ->limit(5)
+                ->get([
+                    'opd_sub_kegiatan.id',
+                    'opd_sub_kegiatan.kode',
+                    'opd_sub_kegiatan.nama',
+                    'renstra_opd.judul as dokumen',
+                    'opds.nama as opd',
+                ])
+                ->map(fn ($row) => $this->formatDocumentUsage($row->dokumen ?? null, $row->opd ?? null, 'Sub kegiatan', $row->kode ?? null, $row->nama ?? null, 'Opd Sub Kegiatan #'.$row->id))
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return array{0: int, 1: array<int, string>}
+     */
+    private function rkpdUsage(Collection $programIds, Collection $kegiatanIds, Collection $subKegiatanIds): array
+    {
+        if (! Schema::hasTable('rkpd_items') || ($programIds->isEmpty() && $kegiatanIds->isEmpty() && $subKegiatanIds->isEmpty())) {
+            return [0, []];
+        }
+
+        $query = DB::table('rkpd_items')
+            ->leftJoin('rkpd', 'rkpd.id', '=', 'rkpd_items.rkpd_id')
+            ->leftJoin('opds', 'opds.id', '=', 'rkpd_items.opd_id');
+        $this->whereReferenceMatches($query, 'rkpd_items', $programIds, $kegiatanIds, $subKegiatanIds);
+        $this->whereNotDeleted($query, 'rkpd_items');
+        $this->whereNotDeleted($query, 'rkpd');
+
+        return [
+            (int) (clone $query)->count(),
+            (clone $query)
+                ->orderBy('rkpd_items.id')
+                ->limit(5)
+                ->get([
+                    'rkpd_items.id',
+                    'rkpd_items.kode',
+                    'rkpd_items.nama_urusan_bidang_program_kegiatan_sub as nama',
+                    'rkpd.judul as dokumen',
+                    'rkpd.tahun',
+                    'opds.nama as opd',
+                ])
+                ->map(fn ($row) => $this->formatDocumentUsage($row->dokumen ?? ('RKPD Tahun '.($row->tahun ?? '-')), $row->opd ?? null, 'Baris RKPD', $row->kode ?? null, $row->nama ?? null, 'RKPD Item #'.$row->id))
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return array{0: int, 1: array<int, string>}
+     */
+    private function renjaUsage(Collection $programIds, Collection $kegiatanIds, Collection $subKegiatanIds): array
+    {
+        if (! Schema::hasTable('renja_opd_items') || ($programIds->isEmpty() && $kegiatanIds->isEmpty() && $subKegiatanIds->isEmpty())) {
+            return [0, []];
+        }
+
+        $query = DB::table('renja_opd_items')
+            ->leftJoin('renja_opd', 'renja_opd.id', '=', 'renja_opd_items.renja_opd_id')
+            ->leftJoin('opds', 'opds.id', '=', 'renja_opd.opd_id');
+        $this->whereReferenceMatches($query, 'renja_opd_items', $programIds, $kegiatanIds, $subKegiatanIds);
+        $this->whereNotDeleted($query, 'renja_opd_items');
+        $this->whereNotDeleted($query, 'renja_opd');
+
+        return [
+            (int) (clone $query)->count(),
+            (clone $query)
+                ->orderBy('renja_opd_items.id')
+                ->limit(5)
+                ->get([
+                    'renja_opd_items.id',
+                    'renja_opd_items.kode',
+                    'renja_opd_items.nama_sub_kegiatan as nama',
+                    'renja_opd.judul as dokumen',
+                    'renja_opd.tahun',
+                    'opds.nama as opd',
+                ])
+                ->map(fn ($row) => $this->formatDocumentUsage($row->dokumen ?? ('Renja Tahun '.($row->tahun ?? '-')), $row->opd ?? null, 'Baris Renja', $row->kode ?? null, $row->nama ?? null, 'Renja Item #'.$row->id))
+                ->all(),
+        ];
+    }
+
+    private function whereReferenceMatches(Builder $query, string $table, Collection $programIds, Collection $kegiatanIds, Collection $subKegiatanIds): void
+    {
+        $query->where(function (Builder $query) use ($table, $programIds, $kegiatanIds, $subKegiatanIds): void {
+            $hasCondition = false;
+
+            if ($programIds->isNotEmpty() && Schema::hasColumn($table, 'program_pemerintahan_id')) {
+                $query->whereIn("{$table}.program_pemerintahan_id", $programIds);
+                $hasCondition = true;
+            }
+
+            if ($kegiatanIds->isNotEmpty() && Schema::hasColumn($table, 'kegiatan_pemerintahan_id')) {
+                $method = $hasCondition ? 'orWhereIn' : 'whereIn';
+                $query->{$method}("{$table}.kegiatan_pemerintahan_id", $kegiatanIds);
+                $hasCondition = true;
+            }
+
+            if ($subKegiatanIds->isNotEmpty() && Schema::hasColumn($table, 'sub_kegiatan_pemerintahan_id')) {
+                $method = $hasCondition ? 'orWhereIn' : 'whereIn';
+                $query->{$method}("{$table}.sub_kegiatan_pemerintahan_id", $subKegiatanIds);
+                $hasCondition = true;
+            }
+
+            if (! $hasCondition) {
+                $query->whereRaw('1 = 0');
+            }
+        });
+    }
+
+    /**
+     * @param  array<string, array{count: int, items: array<int, string>, hint: string}>  $usage
+     */
+    private function addUsage(array &$usage, string $module, int $count, array $items, string $hint): void
+    {
+        if ($count < 1) {
+            return;
+        }
+
+        if (! isset($usage[$module])) {
+            $usage[$module] = [
+                'count' => 0,
+                'items' => [],
+                'hint' => $hint,
+            ];
+        }
+
+        $usage[$module]['count'] += $count;
+        $usage[$module]['items'] = collect([...$usage[$module]['items'], ...$items])
+            ->filter()
+            ->unique()
+            ->take(5)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, array{count: int, items: array<int, string>, hint: string}>  $usage
+     */
+    private function formatUsageMessage(array $usage): string
+    {
+        $lines = ['Periode RPJMD ini belum bisa dihapus karena masih dipakai oleh data berikut:'];
+
+        foreach ($usage as $module => $detail) {
+            $lines[] = "- {$module}: {$detail['count']} data";
+
+            foreach ($detail['items'] as $item) {
+                $lines[] = "  - {$item}";
+            }
+
+            if ($detail['count'] > count($detail['items'])) {
+                $lines[] = '  - dan '.($detail['count'] - count($detail['items'])).' data lainnya';
+            }
+
+            $lines[] = "  Lokasi: {$detail['hint']}";
+        }
+
+        $lines[] = 'Hapus data atau lepaskan relasinya terlebih dahulu, lalu ulangi Hapus Periode.';
+
+        return implode("\n", $lines);
+    }
+
+    private function formatDocumentUsage(?string $document, ?string $opd, string $type, ?string $code, ?string $name, string $fallback): string
+    {
+        $parts = array_filter([
+            $document ? Str::limit($document, 80) : null,
+            $opd ? Str::limit($opd, 60) : null,
+            $type.': '.$this->formatCodeName($code, $name, $fallback),
+        ]);
+
+        return implode(' / ', $parts);
+    }
+
+    private function formatCodeName(?string $code, ?string $name, string $fallback): string
+    {
+        $text = trim(implode(' - ', array_filter([
+            trim((string) $code) !== '' ? trim((string) $code) : null,
+            trim((string) $name) !== '' ? trim((string) $name) : null,
+        ])));
+
+        return Str::limit($text !== '' ? $text : $fallback, 110);
+    }
+
+    private function canUseColumn(string $table, string $column): bool
+    {
+        return Schema::hasTable($table) && Schema::hasColumn($table, $column);
+    }
+
+    private function whereNotDeleted(Builder $query, string $table): void
+    {
         if (Schema::hasColumn($table, 'deleted_at')) {
-            $query->whereNull('deleted_at');
+            $query->whereNull("{$table}.deleted_at");
         }
-
-        return $query->exists();
     }
 }

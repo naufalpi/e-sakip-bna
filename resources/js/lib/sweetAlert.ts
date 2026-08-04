@@ -110,6 +110,30 @@ export function toast(message: string, icon: SweetAlertIcon = 'success', options
     });
 }
 
+function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (character) => {
+        const entities: Record<string, string> = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;',
+        };
+
+        return entities[character] ?? character;
+    });
+}
+
+function alertLongError(message: string): Promise<unknown> {
+    return appSwal.fire({
+        title: 'Data belum bisa diproses',
+        html: `<pre style="white-space:pre-wrap;text-align:left;font:inherit;line-height:1.65;margin:0;">${escapeHtml(message)}</pre>`,
+        icon: 'error',
+        width: 760,
+        confirmButtonText: 'Mengerti',
+    });
+}
+
 export function notifyFlash(flash?: FlashNotification | null): Promise<unknown> | null {
     if (!flash) {
         return null;
@@ -129,6 +153,10 @@ export function notifyFlash(flash?: FlashNotification | null): Promise<unknown> 
 
         if (typeof value === 'string' && value.trim().length > 0) {
             const message = statusMessages[value] ?? value;
+
+            if (icon === 'error' && (message.includes('\n') || message.length > 180)) {
+                return alertLongError(message);
+            }
 
             return toast(message, icon);
         }
