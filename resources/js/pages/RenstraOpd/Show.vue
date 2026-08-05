@@ -853,10 +853,42 @@ const subKegiatanMasterOptions = computed(() => {
 
     return uniqueOptions(filteredOptions, (option) => `${option.kegiatan_pemerintahan_id ?? ''}|${option.kode ?? option.label}`);
 });
+const selectedParentSubKegiatanMasterIds = computed(() => {
+    if (form.type !== 'sub_kegiatan') {
+        return new Set<number>();
+    }
+
+    const editingSubKegiatanId = editingNode.value?.type === 'sub_kegiatan' ? editingNode.value.id : null;
+    const usedIds = (selectedParentKegiatan.value?.sub_kegiatan ?? [])
+        .filter((subKegiatan) => editingSubKegiatanId === null || Number(subKegiatan.id) !== editingSubKegiatanId)
+        .map((subKegiatan) => toNumberOrNull(subKegiatan.sub_kegiatan_pemerintahan_id))
+        .filter((id): id is number => id !== null);
+
+    return new Set(usedIds);
+});
 const programRpjmdSelectOptions = computed(() => withEmptyOption(props.rpjmdReferenceOptions.program_rpjmd ?? [], 'Tidak dihubungkan'));
 const programMasterSelectOptions = computed(() => withEmptyOption(programMasterOptions.value, 'Tidak memakai master'));
 const kegiatanMasterSelectOptions = computed(() => kegiatanMasterOptions.value);
-const subKegiatanMasterSelectOptions = computed(() => subKegiatanMasterOptions.value);
+const subKegiatanMasterSelectOptions = computed(() =>
+    subKegiatanMasterOptions.value.map((option) => {
+        const optionId = toNumberOrNull(option.id);
+
+        if (!optionId || !selectedParentSubKegiatanMasterIds.value.has(optionId)) {
+            return option;
+        }
+
+        const description = option.description?.includes('Sudah dipilih di kegiatan ini')
+            ? option.description
+            : [option.description, 'Sudah dipilih di kegiatan ini'].filter(Boolean).join(' - ');
+
+        return {
+            ...option,
+            badge: 'Sudah dipilih',
+            description,
+            disabled: true,
+        };
+    }),
+);
 const opdUnitSelectOptions = computed(() => withEmptyOption(opdUnitOptions.value, 'Tidak ditentukan'));
 const satuanSelectOptions = computed(() => withEmptyOption(props.satuanOptions, 'Pilih satuan'));
 const isRequiredMasterMissing = computed(

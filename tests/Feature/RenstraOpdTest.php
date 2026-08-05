@@ -11,6 +11,7 @@ use App\Models\IndikatorTujuanDaerah;
 use App\Models\KegiatanPemerintahan;
 use App\Models\Opd;
 use App\Models\OpdProgram;
+use App\Models\OpdSubKegiatan;
 use App\Models\OpdUnit;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
@@ -832,6 +833,33 @@ class RenstraOpdTest extends TestCase
             'kode' => '9.99.01.2.01.0001',
             'nama' => 'Sub Kegiatan Master Renstra',
         ]);
+
+        $subKegiatanOpd = OpdSubKegiatan::where('opd_kegiatan_id', $kegiatanOpd->id)
+            ->where('sub_kegiatan_pemerintahan_id', $subKegiatanMaster->id)
+            ->firstOrFail();
+
+        $this->actingAs($user)
+            ->from(route('renstra-opd.show', $renstra))
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'sub_kegiatan',
+                'parent_id' => $kegiatanOpd->id,
+                'sub_kegiatan_pemerintahan_id' => $subKegiatanMaster->id,
+                'opd_unit_id' => $unit->id,
+            ])
+            ->assertRedirect(route('renstra-opd.show', $renstra))
+            ->assertSessionHasErrors('sub_kegiatan_pemerintahan_id');
+
+        $this->actingAs($user)
+            ->from(route('renstra-opd.show', $renstra))
+            ->put(route('renstra-opd.nodes.update', [$renstra, 'sub_kegiatan', $subKegiatanOpd->id]), [
+                'type' => 'sub_kegiatan',
+                'parent_id' => $kegiatanOpd->id,
+                'sub_kegiatan_pemerintahan_id' => $subKegiatanMaster->id,
+                'opd_unit_id' => $unit->id,
+                'urutan' => 2,
+            ])
+            ->assertRedirect(route('renstra-opd.show', $renstra))
+            ->assertSessionHasNoErrors();
     }
 
     public function test_renstra_node_autosave_updates_existing_cascading_data(): void

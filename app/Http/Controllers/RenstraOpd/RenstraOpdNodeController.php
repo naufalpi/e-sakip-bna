@@ -293,7 +293,7 @@ class RenstraOpdNodeController extends Controller
 
                 $subKegiatan->update([
                     'opd_kegiatan_id' => $kegiatan->id,
-                    ...$this->subKegiatanPayload($renstra, $kegiatan, $data),
+                    ...$this->subKegiatanPayload($renstra, $kegiatan, $data, $subKegiatan->id),
                 ]);
 
                 $this->ensureSubKegiatanIndicatorSnapshot($subKegiatan->refresh());
@@ -571,13 +571,26 @@ class RenstraOpdNodeController extends Controller
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    private function subKegiatanPayload(RenstraOpd $renstra, OpdKegiatan $kegiatan, array $data): array
+    private function subKegiatanPayload(RenstraOpd $renstra, OpdKegiatan $kegiatan, array $data, ?int $ignoreId = null): array
     {
         $reference = SubKegiatanPemerintahan::query()->findOrFail($data['sub_kegiatan_pemerintahan_id']);
 
         if ($kegiatan->kegiatan_pemerintahan_id && (int) $reference->kegiatan_pemerintahan_id !== (int) $kegiatan->kegiatan_pemerintahan_id) {
             throw ValidationException::withMessages([
                 'sub_kegiatan_pemerintahan_id' => 'Sub kegiatan master harus berada di bawah kegiatan master induk.',
+            ]);
+        }
+
+        $duplicateQuery = $kegiatan->subKegiatan()
+            ->where('sub_kegiatan_pemerintahan_id', $reference->id);
+
+        if ($ignoreId !== null) {
+            $duplicateQuery->whereKeyNot($ignoreId);
+        }
+
+        if ($duplicateQuery->exists()) {
+            throw ValidationException::withMessages([
+                'sub_kegiatan_pemerintahan_id' => 'Sub kegiatan ini sudah dipilih pada kegiatan tersebut.',
             ]);
         }
 
