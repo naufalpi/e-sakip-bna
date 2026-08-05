@@ -550,20 +550,18 @@ class RenstraOpdNodeController extends Controller
      */
     private function kegiatanPayload(OpdProgram $program, array $data): array
     {
-        $reference = filled($data['kegiatan_pemerintahan_id'] ?? null)
-            ? KegiatanPemerintahan::query()->findOrFail($data['kegiatan_pemerintahan_id'])
-            : null;
+        $reference = KegiatanPemerintahan::query()->findOrFail($data['kegiatan_pemerintahan_id']);
 
-        if ($reference && $program->program_pemerintahan_id && (int) $reference->program_pemerintahan_id !== (int) $program->program_pemerintahan_id) {
+        if ($program->program_pemerintahan_id && (int) $reference->program_pemerintahan_id !== (int) $program->program_pemerintahan_id) {
             throw ValidationException::withMessages([
                 'kegiatan_pemerintahan_id' => 'Kegiatan master harus berada di bawah program master induk.',
             ]);
         }
 
         return [
-            'kegiatan_pemerintahan_id' => $reference?->id,
-            'kode' => $reference?->kode ?? ($data['kode'] ?? null),
-            'nama' => $reference?->nama ?? $this->requiredText($data, 'uraian', 'Nama kegiatan OPD wajib diisi.'),
+            'kegiatan_pemerintahan_id' => $reference->id,
+            'kode' => $reference->kode,
+            'nama' => $reference->nama,
             'sasaran_kegiatan' => $data['sasaran_level'] ?? null,
             'urutan' => $data['urutan'] ?? 1,
         ];
@@ -575,22 +573,20 @@ class RenstraOpdNodeController extends Controller
      */
     private function subKegiatanPayload(RenstraOpd $renstra, OpdKegiatan $kegiatan, array $data): array
     {
-        $reference = filled($data['sub_kegiatan_pemerintahan_id'] ?? null)
-            ? SubKegiatanPemerintahan::query()->findOrFail($data['sub_kegiatan_pemerintahan_id'])
-            : null;
+        $reference = SubKegiatanPemerintahan::query()->findOrFail($data['sub_kegiatan_pemerintahan_id']);
 
-        if ($reference && $kegiatan->kegiatan_pemerintahan_id && (int) $reference->kegiatan_pemerintahan_id !== (int) $kegiatan->kegiatan_pemerintahan_id) {
+        if ($kegiatan->kegiatan_pemerintahan_id && (int) $reference->kegiatan_pemerintahan_id !== (int) $kegiatan->kegiatan_pemerintahan_id) {
             throw ValidationException::withMessages([
                 'sub_kegiatan_pemerintahan_id' => 'Sub kegiatan master harus berada di bawah kegiatan master induk.',
             ]);
         }
 
         return [
-            'sub_kegiatan_pemerintahan_id' => $reference?->id,
+            'sub_kegiatan_pemerintahan_id' => $reference->id,
             'opd_unit_id' => $this->validatedOpdUnitId($renstra, $data['opd_unit_id'] ?? null),
-            'kode' => $reference?->kode ?? ($data['kode'] ?? null),
-            'nama' => $reference?->nama ?? $this->requiredText($data, 'uraian', 'Nama sub kegiatan OPD wajib diisi.'),
-            'sasaran_sub_kegiatan' => filled($data['sasaran_level'] ?? null) ? $data['sasaran_level'] : $reference?->sasaran_sub_kegiatan,
+            'kode' => $reference->kode,
+            'nama' => $reference->nama,
+            'sasaran_sub_kegiatan' => $reference->sasaran_sub_kegiatan,
             'urutan' => $data['urutan'] ?? 1,
         ];
     }

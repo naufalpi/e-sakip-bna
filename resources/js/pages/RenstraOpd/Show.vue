@@ -855,10 +855,15 @@ const subKegiatanMasterOptions = computed(() => {
 });
 const programRpjmdSelectOptions = computed(() => withEmptyOption(props.rpjmdReferenceOptions.program_rpjmd ?? [], 'Tidak dihubungkan'));
 const programMasterSelectOptions = computed(() => withEmptyOption(programMasterOptions.value, 'Tidak memakai master'));
-const kegiatanMasterSelectOptions = computed(() => withEmptyOption(kegiatanMasterOptions.value, 'Tidak memakai master'));
-const subKegiatanMasterSelectOptions = computed(() => withEmptyOption(subKegiatanMasterOptions.value, 'Tidak memakai master'));
+const kegiatanMasterSelectOptions = computed(() => kegiatanMasterOptions.value);
+const subKegiatanMasterSelectOptions = computed(() => subKegiatanMasterOptions.value);
 const opdUnitSelectOptions = computed(() => withEmptyOption(opdUnitOptions.value, 'Tidak ditentukan'));
 const satuanSelectOptions = computed(() => withEmptyOption(props.satuanOptions, 'Pilih satuan'));
+const isRequiredMasterMissing = computed(
+    () =>
+        (form.type === 'kegiatan' && !form.kegiatan_pemerintahan_id) ||
+        (form.type === 'sub_kegiatan' && !form.sub_kegiatan_pemerintahan_id),
+);
 
 const renstraSummary = computed(() => {
     const summary = {
@@ -3151,6 +3156,7 @@ watch(
 
         form.kode = valueText(reference.kode);
         form.uraian = valueText(reference.nama ?? reference.label);
+        form.sasaran_level = valueText(reference.sasaran_sub_kegiatan);
     },
 );
 
@@ -4922,6 +4928,15 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     empty-text="Kegiatan belum tersedia"
                                 />
                                 <InputError :message="form.errors.kegiatan_pemerintahan_id" />
+                                <div v-if="selectedKegiatanMaster" class="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-sm">
+                                    <span class="text-xs font-semibold uppercase text-slate-500">Kegiatan OPD</span>
+                                    <p class="mt-1 font-semibold leading-6 text-slate-950">
+                                        {{ selectedKegiatanMaster.nama || selectedKegiatanMaster.label }}
+                                    </p>
+                                </div>
+                                <p v-else class="text-xs leading-5 text-slate-500">
+                                    Kegiatan wajib dipilih dari master. Jika belum tersedia, hubungi admin kabupaten.
+                                </p>
                             </div>
 
                             <div v-if="form.type === 'sub_kegiatan'" class="grid gap-2 rounded-xl border bg-muted/20 p-3">
@@ -4935,9 +4950,29 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     empty-text="Sub kegiatan belum tersedia"
                                 />
                                 <InputError :message="form.errors.sub_kegiatan_pemerintahan_id" />
+                                <div v-if="selectedSubKegiatanMaster" class="grid gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-3 text-sm">
+                                    <div>
+                                        <span class="text-xs font-semibold uppercase text-slate-500">Sub Kegiatan OPD</span>
+                                        <p class="mt-1 font-semibold leading-6 text-slate-950">
+                                            {{ selectedSubKegiatanMaster.nama || selectedSubKegiatanMaster.label }}
+                                        </p>
+                                    </div>
+                                    <div class="rounded-md border border-white/80 bg-white/80 px-3 py-2">
+                                        <span class="text-xs font-semibold uppercase text-slate-500">Sasaran Sub Kegiatan</span>
+                                        <p
+                                            class="mt-1 leading-6"
+                                            :class="selectedSubKegiatanMaster.sasaran_sub_kegiatan ? 'text-slate-800' : 'text-slate-500'"
+                                        >
+                                            {{ selectedSubKegiatanMaster.sasaran_sub_kegiatan || 'Belum ada sasaran sub kegiatan pada master.' }}
+                                        </p>
+                                    </div>
+                                </div>
+                                <p v-else class="text-xs leading-5 text-slate-500">
+                                    Sub kegiatan wajib dipilih dari master. Jika belum tersedia, hubungi admin kabupaten.
+                                </p>
                             </div>
 
-                            <div v-if="isTextNodeType && form.type !== 'program'" class="grid gap-2">
+                            <div v-if="isTextNodeType && !['program', 'kegiatan', 'sub_kegiatan'].includes(form.type)" class="grid gap-2">
                                 <label class="text-sm font-medium" for="uraian">{{ selectedTypeLabel }}</label>
                                 <textarea
                                     id="uraian"
@@ -4949,9 +4984,9 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 <InputError :message="form.errors.uraian" />
                             </div>
 
-                            <div v-if="['program', 'kegiatan', 'sub_kegiatan'].includes(form.type)" class="grid gap-2">
+                            <div v-if="['program', 'kegiatan'].includes(form.type)" class="grid gap-2">
                                 <label class="text-sm font-medium" for="sasaran_level">
-                                    {{ form.type === 'program' ? 'Sasaran Program' : form.type === 'kegiatan' ? 'Sasaran Kegiatan' : 'Sasaran Sub Kegiatan' }}
+                                    {{ form.type === 'program' ? 'Sasaran Program' : 'Sasaran Kegiatan' }}
                                 </label>
                                 <textarea
                                     id="sasaran_level"
@@ -5141,7 +5176,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                             <div class="mt-2 flex w-full items-center justify-end border-t border-slate-200 bg-card pt-4">
                                 <button
                                     type="submit"
-                                    :disabled="form.processing || isTargetBatchSaving"
+                                    :disabled="form.processing || isTargetBatchSaving || isRequiredMasterMissing"
                                     class="inline-flex min-h-11 min-w-40 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/10 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     <Save class="size-4" />

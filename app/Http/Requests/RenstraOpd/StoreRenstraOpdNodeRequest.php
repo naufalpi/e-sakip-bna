@@ -54,8 +54,8 @@ class StoreRenstraOpdNodeRequest extends FormRequest
             'program_rpjmd_id' => ['nullable', 'integer', 'exists:program_rpjmd,id'],
             'indikator_program_rpjmd_id' => ['nullable', 'integer', 'exists:indikator_program_rpjmd,id'],
             'program_pemerintahan_id' => ['nullable', 'integer', 'exists:program_pemerintahan,id'],
-            'kegiatan_pemerintahan_id' => ['nullable', 'integer', 'exists:kegiatan_pemerintahan,id'],
-            'sub_kegiatan_pemerintahan_id' => ['nullable', 'integer', 'exists:sub_kegiatan_pemerintahan,id'],
+            'kegiatan_pemerintahan_id' => ['nullable', 'required_if:type,kegiatan', 'integer', 'exists:kegiatan_pemerintahan,id'],
+            'sub_kegiatan_pemerintahan_id' => ['nullable', 'required_if:type,sub_kegiatan', 'integer', 'exists:sub_kegiatan_pemerintahan,id'],
             'opd_unit_id' => ['nullable', 'integer', 'exists:opd_units,id'],
             'kode' => ['nullable', 'string', 'max:80'],
             'uraian' => ['nullable', 'string'],
@@ -74,6 +74,17 @@ class StoreRenstraOpdNodeRequest extends FormRequest
             'pagu' => ['nullable', 'numeric'],
             'pagu_indikatif' => ['nullable', 'numeric'],
             'urutan' => ['nullable', 'integer', 'min:1', 'max:999'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'kegiatan_pemerintahan_id.required_if' => 'Pilih kegiatan dari master terlebih dahulu.',
+            'sub_kegiatan_pemerintahan_id.required_if' => 'Pilih sub kegiatan dari master terlebih dahulu.',
         ];
     }
 
