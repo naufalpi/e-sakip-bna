@@ -12,12 +12,15 @@ import {
     ClipboardList,
     Eye,
     FileText,
+    Folder,
+    FolderOpen,
     Layers3,
     Link2,
     Network,
     Pencil,
     Plus,
     Save,
+    Search,
     Table2,
     Target,
     Trash2,
@@ -463,6 +466,10 @@ const isNodeModalOpen = ref(false);
 const formPanel = ref<HTMLElement | null>(null);
 const bulkRows = ref<BulkRow[]>([]);
 const expandedBulkSections = ref<string[]>([]);
+const expandedSubKegiatanProgramIds = ref<number[]>([]);
+const selectedSubKegiatanKegiatanId = ref<number | null>(null);
+const subKegiatanDetailRef = ref<HTMLElement | HTMLElement[] | null>(null);
+const subKegiatanFocusSearch = ref('');
 const bulkSaveTimers = new Map<string, number>();
 const bulkLastSavedAt = ref('');
 const bulkDraftCounter = ref(0);
@@ -1069,7 +1076,7 @@ const bulkInputSections = computed<BulkInputSection[]>(() => [
     {
         key: 'sub-kegiatan',
         title: 'Sub Kegiatan OPD',
-        helper: 'Sasaran sub kegiatan, indikator sub kegiatan, dan target 5 tahunan.',
+        helper: 'Sub kegiatan, indikator, target, dan pagu.',
         emptyTitle: 'Belum ada sub kegiatan OPD',
         emptyDescription: 'Tambahkan sub kegiatan setelah kegiatan OPD tersedia.',
         primaryType: 'sub_kegiatan',
@@ -2626,7 +2633,7 @@ const sortBulkRowsByOrder = (rows: BulkRow[]): BulkRow[] =>
 const sectionParentRows = (section: BulkInputSection): BulkRow[] =>
     sortBulkRowsByOrder(section.rows.filter((row) => row.type === section.primaryType && !isBulkTargetRow(row)));
 
-const shouldGroupSection = (section: BulkInputSection): boolean => ['program', 'kegiatan', 'sub-kegiatan'].includes(section.key);
+const shouldGroupSection = (section: BulkInputSection): boolean => ['program', 'kegiatan'].includes(section.key);
 
 const sectionParentContextLabel = (section: BulkInputSection): string =>
     ({
@@ -2655,7 +2662,7 @@ const sectionIndentClass = (section: BulkInputSection): string =>
         sasaran: 'md:pl-2',
         program: 'md:pl-4',
         kegiatan: 'md:pl-6',
-        'sub-kegiatan': 'md:pl-8',
+        'sub-kegiatan': '',
     })[section.key] ?? '';
 
 const sectionArticleClass = (section: BulkInputSection): string =>
@@ -2740,6 +2747,242 @@ const sectionGroupProgramLabel = (section: BulkInputSection, group: BulkSectionG
 
 const sectionIndicatorRows = (section: BulkInputSection, parentRow: BulkRow): BulkRow[] =>
     sortBulkRowsByOrder(section.rows.filter((row) => row.type === section.indicatorType && Number(row.parent_id) === Number(parentRow.id)));
+
+type SubKegiatanKegiatanFolder = {
+    key: string;
+    programId: number;
+    kegiatanId: number;
+    kegiatanName: string;
+    subKegiatanCount: number;
+    indicatorCount: number;
+};
+
+type SubKegiatanProgramFolder = {
+    key: string;
+    programId: number;
+    programName: string;
+    kegiatanCount: number;
+    subKegiatanCount: number;
+    indicatorCount: number;
+    kegiatan: SubKegiatanKegiatanFolder[];
+};
+
+const subKegiatanProgramFolders = computed<SubKegiatanProgramFolder[]>(() =>
+    sortBulkRowsByOrder(programRows.value.filter((row) => row.type === 'program' && Boolean(row.id))).map((programRow) => {
+        const kegiatan = sortBulkRowsByOrder(
+            kegiatanRows.value.filter((row) => row.type === 'kegiatan' && Number(row.parent_id) === Number(programRow.id) && Boolean(row.id)),
+        ).map((kegiatanRow) => {
+            const subRows = subKegiatanRows.value.filter(
+                (subRow) => subRow.type === 'sub_kegiatan' && Number(subRow.parent_id) === Number(kegiatanRow.id),
+            );
+            const indicatorCount = subRows.reduce(
+                (total, subRow) =>
+                    total +
+                    subKegiatanRows.value.filter(
+                        (indicatorRow) =>
+                            indicatorRow.type === 'indikator_sub_kegiatan' && Number(indicatorRow.parent_id) === Number(subRow.id),
+                    ).length,
+                0,
+            );
+
+            return {
+                key: `sub-kegiatan-folder-kegiatan-${kegiatanRow.id}`,
+                programId: Number(programRow.id),
+                kegiatanId: Number(kegiatanRow.id),
+                kegiatanName: bulkRowPrimaryText(kegiatanRow),
+                subKegiatanCount: subRows.length,
+                indicatorCount,
+            };
+        });
+
+        return {
+            key: `sub-kegiatan-folder-program-${programRow.id}`,
+            programId: Number(programRow.id),
+            programName: bulkRowPrimaryText(programRow),
+            kegiatanCount: kegiatan.length,
+            subKegiatanCount: kegiatan.reduce((total, item) => total + item.subKegiatanCount, 0),
+            indicatorCount: kegiatan.reduce((total, item) => total + item.indicatorCount, 0),
+            kegiatan,
+        };
+    }),
+);
+
+const filteredSubKegiatanFocusItems = computed(() => {
+    const keyword = subKegiatanFocusSearch.value.trim().toLowerCase();
+
+    if (!keyword) {
+        return subKegiatanProgramFolders.value;
+    }
+
+    return subKegiatanProgramFolders.value
+        .map((program) => {
+            const programMatches = program.programName.toLowerCase().includes(keyword);
+
+            return {
+                ...program,
+                kegiatan: programMatches
+                    ? program.kegiatan
+                    : program.kegiatan.filter((item) =>
+                          `${program.programName} ${item.kegiatanName}`.toLowerCase().includes(keyword),
+                      ),
+            };
+        })
+        .filter((program) => program.programName.toLowerCase().includes(keyword) || program.kegiatan.length > 0);
+});
+
+const activeSubKegiatanFocus = computed(
+    () =>
+        subKegiatanProgramFolders.value
+            .flatMap((program) => program.kegiatan.map((kegiatan) => ({ ...kegiatan, programName: program.programName })))
+            .find((item) => item.kegiatanId === selectedSubKegiatanKegiatanId.value) ?? null,
+);
+
+watch(
+    subKegiatanProgramFolders,
+    (items) => {
+        const kegiatanIds = items.flatMap((program) => program.kegiatan.map((kegiatan) => kegiatan.kegiatanId));
+
+        expandedSubKegiatanProgramIds.value = expandedSubKegiatanProgramIds.value.filter((id) =>
+            items.some((program) => program.programId === id),
+        );
+
+        if (kegiatanIds.length === 0) {
+            selectedSubKegiatanKegiatanId.value = null;
+            return;
+        }
+
+        if (!kegiatanIds.includes(Number(selectedSubKegiatanKegiatanId.value))) {
+            selectedSubKegiatanKegiatanId.value = null;
+        }
+    },
+    { immediate: true },
+);
+
+const isSubKegiatanProgramOpen = (programId: number): boolean => expandedSubKegiatanProgramIds.value.includes(programId);
+
+const resolveTemplateRefElement = (value: HTMLElement | HTMLElement[] | null): HTMLElement | null => {
+    if (Array.isArray(value)) {
+        return value[0] ?? null;
+    }
+
+    return value;
+};
+
+const findScrollableParent = (element: HTMLElement): HTMLElement | Window => {
+    let parent = element.parentElement;
+
+    while (parent) {
+        const style = window.getComputedStyle(parent);
+        const canScroll = /(auto|scroll|overlay)/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight;
+
+        if (canScroll) {
+            return parent;
+        }
+
+        parent = parent.parentElement;
+    }
+
+    return window;
+};
+
+const scrollToSubKegiatanDetail = async () => {
+    await nextTick();
+
+    window.requestAnimationFrame(() => {
+        const target = resolveTemplateRefElement(subKegiatanDetailRef.value);
+
+        if (!target) {
+            return;
+        }
+
+        const topbarHeight = document.querySelector<HTMLElement>('.admin-topbar')?.getBoundingClientRect().height ?? 64;
+        const scrollOffset = topbarHeight + 18;
+        const scrollParent = findScrollableParent(target);
+
+        if (scrollParent === window) {
+            const top = target.getBoundingClientRect().top + window.scrollY - scrollOffset;
+
+            window.scrollTo({
+                top: Math.max(top, 0),
+                behavior: 'smooth',
+            });
+
+            return;
+        }
+
+        const parent = scrollParent as HTMLElement;
+        const parentRect = parent.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const top = parent.scrollTop + targetRect.top - parentRect.top - scrollOffset;
+
+        parent.scrollTo({
+            top: Math.max(top, 0),
+            behavior: 'smooth',
+        });
+    });
+};
+
+const toggleSubKegiatanProgram = (programId: number) => {
+    if (isSubKegiatanProgramOpen(programId)) {
+        expandedSubKegiatanProgramIds.value = expandedSubKegiatanProgramIds.value.filter((id) => id !== programId);
+
+        if (activeSubKegiatanFocus.value?.programId === programId) {
+            selectedSubKegiatanKegiatanId.value = null;
+        }
+
+        return;
+    }
+
+    expandedSubKegiatanProgramIds.value = [...expandedSubKegiatanProgramIds.value, programId];
+};
+
+const selectSubKegiatanKegiatan = async (programId: number, kegiatanId: number) => {
+    if (!isSubKegiatanProgramOpen(programId)) {
+        expandedSubKegiatanProgramIds.value = [...expandedSubKegiatanProgramIds.value, programId];
+    }
+
+    selectedSubKegiatanKegiatanId.value = kegiatanId;
+    await scrollToSubKegiatanDetail();
+};
+
+const focusedSubKegiatanRows = (section: BulkInputSection): BulkRow[] => {
+    const focus = activeSubKegiatanFocus.value;
+
+    if (!focus) {
+        return [];
+    }
+
+    return sectionParentRows(section).filter((row) => Number(row.parent_id) === focus.kegiatanId);
+};
+
+const focusedSubKegiatanIndicatorCount = (section: BulkInputSection): number =>
+    focusedSubKegiatanRows(section).reduce((total, row) => total + sectionIndicatorRows(section, row).length, 0);
+
+const focusedSubKegiatanGroups = (section: BulkInputSection): BulkSectionGroup[] => {
+    const focus = activeSubKegiatanFocus.value;
+
+    if (!focus) {
+        return [];
+    }
+
+    return [
+        {
+            key: `sub-kegiatan-focused-${focus.kegiatanId}`,
+            label: focus.kegiatanName,
+            rows: focusedSubKegiatanRows(section),
+        },
+    ];
+};
+
+const openFocusedSubKegiatanModal = () => {
+    const focus = activeSubKegiatanFocus.value;
+
+    if (!focus) {
+        return;
+    }
+
+    selectNodeType('sub_kegiatan', focus.kegiatanId);
+};
 
 const indicatorTargetType = (row: BulkRow): NodeType | null => targetTypeByIndicatorType[row.type] ?? null;
 
@@ -3581,6 +3824,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 Simpan Data
                             </button>
                             <button
+                                v-if="section.key !== 'sub-kegiatan'"
                                 type="button"
                                 class="inline-flex min-h-10 items-center gap-2 rounded-md border text-xs font-semibold transition"
                                 :class="sectionPrimaryButtonClass(section)"
@@ -3592,15 +3836,169 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                             </div>
                         </div>
 
-                        <div v-if="sectionParentRows(section).length === 0" class="p-8 text-center text-sm text-muted-foreground">
+                        <div
+                            v-if="section.key === 'sub-kegiatan' && subKegiatanProgramFolders.length === 0"
+                            class="p-8 text-center text-sm text-muted-foreground"
+                        >
+                            <Target class="mx-auto size-10 text-muted-foreground" />
+                            <p class="mt-3 font-semibold text-foreground">Belum ada kegiatan OPD</p>
+                            <p class="mt-1">Tambahkan kegiatan terlebih dahulu sebelum mengisi sub kegiatan.</p>
+                        </div>
+
+                        <div
+                            v-else-if="section.key !== 'sub-kegiatan' && sectionParentRows(section).length === 0"
+                            class="p-8 text-center text-sm text-muted-foreground"
+                        >
                             <Target class="mx-auto size-10 text-muted-foreground" />
                             <p class="mt-3 font-semibold text-foreground">{{ section.emptyTitle }}</p>
                             <p class="mt-1">{{ section.emptyDescription }}</p>
                         </div>
 
-                        <div v-else class="grid gap-5 p-4 sm:p-5">
+                        <div v-else class="grid gap-4 p-4 sm:p-5">
+                            <div v-if="section.key === 'sub-kegiatan'" class="space-y-4">
+                                <div class="rounded-2xl border border-blue-100 bg-white shadow-sm">
+                                    <div class="flex flex-col gap-3 border-b border-blue-100 p-4 lg:flex-row lg:items-center lg:justify-between">
+                                        <div>
+                                            <p class="text-sm font-semibold text-slate-950">Pilih program dan kegiatan</p>
+                                        </div>
+                                        <div class="relative w-full lg:w-80">
+                                            <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                                            <input
+                                                v-model="subKegiatanFocusSearch"
+                                                type="search"
+                                                class="h-10 w-full rounded-lg border border-blue-100 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-[#00336C]/50 focus:ring-2 focus:ring-[#00336C]/15"
+                                                placeholder="Cari program atau kegiatan"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="grid gap-2 p-3">
+                                        <div
+                                            v-for="program in filteredSubKegiatanFocusItems"
+                                            :key="program.key"
+                                            class="overflow-hidden rounded-xl border border-blue-100 bg-white"
+                                        >
+                                            <button
+                                                type="button"
+                                                class="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-blue-50/60"
+                                                @click="toggleSubKegiatanProgram(program.programId)"
+                                            >
+                                                <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#00336C]">
+                                                    <FolderOpen v-if="isSubKegiatanProgramOpen(program.programId)" class="size-4" />
+                                                    <Folder v-else class="size-4" />
+                                                </span>
+                                                <span class="min-w-0 flex-1">
+                                                    <span class="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
+                                                        {{ program.programName }}
+                                                    </span>
+                                                    <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
+                                                        <span>{{ program.kegiatanCount }} kegiatan</span>
+                                                        <span class="text-slate-300">/</span>
+                                                        <span>{{ program.subKegiatanCount }} sub kegiatan</span>
+                                                        <span class="text-slate-300">/</span>
+                                                        <span>{{ program.indicatorCount }} indikator</span>
+                                                    </span>
+                                                </span>
+                                                <ChevronDown
+                                                    class="size-4 shrink-0 text-slate-500 transition"
+                                                    :class="isSubKegiatanProgramOpen(program.programId) ? 'rotate-180' : ''"
+                                                />
+                                            </button>
+
+                                            <div v-if="isSubKegiatanProgramOpen(program.programId)" class="border-t border-blue-100 bg-slate-50/60 px-4 py-3">
+                                                <div v-if="program.kegiatan.length > 0" class="ml-6 border-l border-blue-200 pl-5 sm:ml-11">
+                                                    <button
+                                                        v-for="(item, itemIndex) in program.kegiatan"
+                                                        :key="item.key"
+                                                        type="button"
+                                                        class="relative mb-2 flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition last:mb-0"
+                                                        :class="
+                                                            activeSubKegiatanFocus?.kegiatanId === item.kegiatanId
+                                                                ? 'border-[#00336C] bg-[#00336C] text-white shadow-sm'
+                                                                : 'border-blue-100 bg-white text-slate-800 hover:border-blue-200 hover:bg-blue-50/50'
+                                                        "
+                                                        @click="selectSubKegiatanKegiatan(program.programId, item.kegiatanId)"
+                                                    >
+                                                        <span
+                                                            class="pointer-events-none absolute -left-5 top-1/2 hidden h-px w-5 -translate-y-1/2 bg-blue-200 sm:block"
+                                                        />
+                                                        <span
+                                                            class="flex size-7 shrink-0 items-center justify-center rounded-md text-xs font-bold"
+                                                            :class="
+                                                                activeSubKegiatanFocus?.kegiatanId === item.kegiatanId
+                                                                    ? 'bg-white/15 text-white'
+                                                                    : 'bg-blue-50 text-[#00336C]'
+                                                            "
+                                                        >
+                                                            {{ itemIndex + 1 }}
+                                                        </span>
+                                                        <span class="min-w-0 flex-1">
+                                                            <span class="line-clamp-2 text-sm font-semibold leading-5">
+                                                                {{ item.kegiatanName }}
+                                                            </span>
+                                                            <span
+                                                                class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold"
+                                                                :class="
+                                                                    activeSubKegiatanFocus?.kegiatanId === item.kegiatanId
+                                                                        ? 'text-blue-100'
+                                                                        : 'text-slate-500'
+                                                                "
+                                                            >
+                                                                <span>{{ item.subKegiatanCount }} sub kegiatan</span>
+                                                                <span class="opacity-60">/</span>
+                                                                <span>{{ item.indicatorCount }} indikator</span>
+                                                            </span>
+                                                        </span>
+                                                    </button>
+                                                </div>
+
+                                                <div v-else class="ml-6 border-l border-blue-200 px-5 py-3 text-sm text-slate-500 sm:ml-11">
+                                                    Belum ada kegiatan pada program ini.
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            v-if="filteredSubKegiatanFocusItems.length === 0"
+                                            class="rounded-xl border border-dashed border-blue-200 p-6 text-center text-sm text-slate-500"
+                                        >
+                                            Program atau kegiatan tidak ditemukan.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div
+                                    v-if="activeSubKegiatanFocus"
+                                    ref="subKegiatanDetailRef"
+                                    class="flex flex-col gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-4 sm:flex-row sm:items-center sm:justify-between"
+                                >
+                                    <div class="min-w-0">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">
+                                            {{ activeSubKegiatanFocus.programName }}
+                                        </p>
+                                        <h3 class="mt-1 line-clamp-2 text-base font-semibold leading-6 text-slate-950">
+                                            {{ activeSubKegiatanFocus.kegiatanName }}
+                                        </h3>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#00336C] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0a4485]"
+                                        @click="openFocusedSubKegiatanModal"
+                                    >
+                                        <Plus class="size-4" />
+                                        Sub Kegiatan OPD
+                                    </button>
+                                </div>
+                                <div
+                                    v-else
+                                    class="rounded-xl border border-dashed border-blue-200 bg-blue-50/30 p-6 text-center text-sm text-slate-600"
+                                >
+                                    Buka program, lalu pilih kegiatan untuk melihat sub kegiatan.
+                                </div>
+                            </div>
+
                             <div
-                                v-for="group in groupedSectionParentRows(section)"
+                                v-for="group in section.key === 'sub-kegiatan' ? focusedSubKegiatanGroups(section) : groupedSectionParentRows(section)"
                                 :key="`section-group-${group.key}`"
                                 class="relative grid gap-3"
                                 :class="sectionIndentClass(section)"
@@ -3871,6 +4269,14 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 </div>
                             </div>
                                 </article>
+                                <div
+                                    v-if="section.key === 'sub-kegiatan' && group.rows.length === 0"
+                                    class="rounded-2xl border border-dashed border-blue-200 bg-blue-50/35 p-8 text-center text-sm text-slate-600"
+                                >
+                                    <Target class="mx-auto size-9 text-[#00336C]/50" />
+                                    <p class="mt-3 font-semibold text-slate-950">Belum ada sub kegiatan</p>
+                                    <p class="mt-1">Tambahkan sub kegiatan untuk kegiatan yang dipilih.</p>
+                                </div>
                             </div>
 
                             <div v-if="false" class="hidden">
