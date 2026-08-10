@@ -648,6 +648,23 @@ const addPreviewSum = (map: Map<string, PreviewSum>, key: string, item: Row) => 
     map.set(key, current);
 };
 
+const groupedPreviewItems = computed(() => {
+    const groups = new Map<string, Row[]>();
+
+    props.previewItems.forEach((item) => {
+        const opdId = item.opd_id ?? item.opd?.id;
+        const key = opdId ? `opd:${opdId}` : `opd:${item.perangkat_daerah_penanggung_jawab || 'tanpa-opd'}`;
+        const items = groups.get(key) ?? [];
+
+        items.push(item);
+        groups.set(key, items);
+    });
+
+    return [...groups.values()];
+});
+
+const orderedPreviewItems = computed(() => groupedPreviewItems.value.flat());
+
 const previewGroupSums = computed(() => {
     const sums = {
         opd: new Map<string, PreviewSum>(),
@@ -657,7 +674,7 @@ const previewGroupSums = computed(() => {
         kegiatan: new Map<string, PreviewSum>(),
     };
 
-    props.previewItems.forEach((item) => {
+    orderedPreviewItems.value.forEach((item) => {
         addPreviewSum(sums.opd, previewKey(item.opd_id), item);
         addPreviewSum(sums.urusan, previewKey(item.opd_id, item.urusan), item);
         addPreviewSum(sums.bidang, previewKey(item.opd_id, item.bidang), item);
@@ -686,7 +703,7 @@ const officialPreviewRows = computed<OfficialPreviewRow[]>(() => {
     };
     let itemNumber = 1;
 
-    props.previewItems.forEach((item) => {
+    orderedPreviewItems.value.forEach((item) => {
         const opdKey = String(item.opd_id ?? '');
         const urusanKey = item.urusan || '-';
         const bidangKey = item.bidang || '-';
