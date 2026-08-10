@@ -92,7 +92,7 @@ const updateDropdownPosition = (force = false) => {
     const margin = 12;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const panelMaxHeight = Math.min(420, viewportHeight - margin * 2);
+    const maximumPanelHeight = Math.min(420, viewportHeight - margin * 2);
     const panelWidth = Math.min(Math.max(rect.width, 320), viewportWidth - margin * 2);
     const left = Math.min(Math.max(rect.left, margin), viewportWidth - panelWidth - margin);
     const spaceBelow = viewportHeight - rect.bottom;
@@ -103,12 +103,15 @@ const updateDropdownPosition = (force = false) => {
     } else if (props.placement === 'top') {
         openUpwards.value = true;
     } else {
-        openUpwards.value = spaceBelow < Math.min(320, panelMaxHeight) && spaceAbove > spaceBelow;
+        openUpwards.value = spaceBelow < Math.min(320, maximumPanelHeight) && spaceAbove > spaceBelow;
     }
+
+    const availableHeight = openUpwards.value ? spaceAbove - margin - 8 : spaceBelow - margin - 8;
+    const panelMaxHeight = Math.min(maximumPanelHeight, Math.max(120, availableHeight));
 
     dropdownStyle.value = {
         left: `${left}px`,
-        top: openUpwards.value ? 'auto' : `${Math.min(rect.bottom + 8, viewportHeight - panelMaxHeight - margin)}px`,
+        top: openUpwards.value ? 'auto' : `${rect.bottom + 8}px`,
         bottom: openUpwards.value ? `${Math.min(viewportHeight - rect.top + 8, viewportHeight - margin)}px` : 'auto',
         width: `${panelWidth}px`,
         maxHeight: `${panelMaxHeight}px`,

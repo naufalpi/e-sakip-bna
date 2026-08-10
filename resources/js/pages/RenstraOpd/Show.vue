@@ -3096,46 +3096,51 @@ const findScrollableParent = (element: HTMLElement): HTMLElement | Window => {
     return window;
 };
 
-const scrollToDetail = async (detailRef: HTMLElement | HTMLElement[] | null) => {
+const waitForAnimationFrame = () =>
+    new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+    });
+
+const scrollToDetail = async (resolveDetailRef: () => HTMLElement | HTMLElement[] | null) => {
     await nextTick();
+    await waitForAnimationFrame();
+    await waitForAnimationFrame();
 
-    window.requestAnimationFrame(() => {
-        const target = resolveTemplateRefElement(detailRef);
+    const target = resolveTemplateRefElement(resolveDetailRef());
 
-        if (!target) {
-            return;
-        }
+    if (!target) {
+        return;
+    }
 
-        const topbarHeight = document.querySelector<HTMLElement>('.admin-topbar')?.getBoundingClientRect().height ?? 64;
-        const scrollOffset = topbarHeight + 18;
-        const scrollParent = findScrollableParent(target);
+    const topbarHeight = document.querySelector<HTMLElement>('.admin-topbar')?.getBoundingClientRect().height ?? 64;
+    const scrollOffset = topbarHeight + 18;
+    const scrollParent = findScrollableParent(target);
 
-        if (scrollParent === window) {
-            const top = target.getBoundingClientRect().top + window.scrollY - scrollOffset;
+    if (scrollParent === window) {
+        const top = target.getBoundingClientRect().top + window.scrollY - scrollOffset;
 
-            window.scrollTo({
-                top: Math.max(top, 0),
-                behavior: 'smooth',
-            });
-
-            return;
-        }
-
-        const parent = scrollParent as HTMLElement;
-        const parentRect = parent.getBoundingClientRect();
-        const targetRect = target.getBoundingClientRect();
-        const top = parent.scrollTop + targetRect.top - parentRect.top - scrollOffset;
-
-        parent.scrollTo({
+        window.scrollTo({
             top: Math.max(top, 0),
             behavior: 'smooth',
         });
+
+        return;
+    }
+
+    const parent = scrollParent as HTMLElement;
+    const parentRect = parent.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const top = parent.scrollTop + targetRect.top - parentRect.top - scrollOffset;
+
+    parent.scrollTo({
+        top: Math.max(top, 0),
+        behavior: 'smooth',
     });
 };
 
-const scrollToProgramDetail = async () => scrollToDetail(programDetailRef.value);
-const scrollToKegiatanDetail = async () => scrollToDetail(kegiatanDetailRef.value);
-const scrollToSubKegiatanDetail = async () => scrollToDetail(subKegiatanDetailRef.value);
+const scrollToProgramDetail = async () => scrollToDetail(() => programDetailRef.value);
+const scrollToKegiatanDetail = async () => scrollToDetail(() => kegiatanDetailRef.value);
+const scrollToSubKegiatanDetail = async () => scrollToDetail(() => subKegiatanDetailRef.value);
 
 const isProgramSasaranOpen = (sasaranId: number): boolean => expandedProgramSasaranIds.value.includes(sasaranId);
 
@@ -5953,6 +5958,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                         id="program_rpjmd_id"
                                         v-model="form.program_rpjmd_id"
                                         :options="programRpjmdSelectOptions"
+                                        placement="bottom"
                                         placeholder="Pilih program"
                                         empty-text="Program RPJMD belum tersedia"
                                     />
@@ -5995,6 +6001,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     v-model="form.sub_kegiatan_pemerintahan_id"
                                     :options="subKegiatanMasterSelectOptions"
                                     :disabled="needsParent && !form.parent_id"
+                                    placement="bottom"
                                     placeholder="Pilih sub kegiatan"
                                     empty-text="Sub kegiatan belum tersedia"
                                 />
