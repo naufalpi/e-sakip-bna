@@ -91,6 +91,9 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('renstra-opd/import/{importBatch}/apply', [RenstraOpdImportController::class, 'apply'])->name('renstra-opd.import.apply');
     Route::get('renstra-opd/import/{importBatch}', [RenstraOpdImportController::class, 'show'])->name('renstra-opd.import.show');
     Route::get('renstra-opd/{renstra_opd}/preview/export', [RenstraOpdController::class, 'exportPreview'])->name('renstra-opd.preview.export');
+    Route::get('renstra-opd/{renstra_opd}/kelola/{section}', [RenstraOpdController::class, 'manage'])
+        ->where('section', 'tujuan|sasaran|program|kegiatan|sub-kegiatan')
+        ->name('renstra-opd.manage');
     Route::resource('renstra-opd', RenstraOpdController::class);
     Route::post('renstra-opd/{renstra_opd}/nodes', [RenstraOpdNodeController::class, 'store'])->name('renstra-opd.nodes.store');
     Route::post('renstra-opd/{renstra_opd}/nodes/autosave', [RenstraOpdNodeController::class, 'autosaveStore'])->name('renstra-opd.nodes.autosave-store');

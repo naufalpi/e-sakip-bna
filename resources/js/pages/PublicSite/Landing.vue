@@ -184,7 +184,7 @@ function changeYear(event: Event): void {
 </script>
 
 <template>
-    <Head :title="currentSection ? currentSection.title : 'Beranda Publik'" />
+    <Head :title="currentSection ? currentSection.title : 'E-SAKIP Kabupaten Banjarnegara'" />
 
     <div class="public-site min-h-dvh bg-white text-slate-900">
         <PublicSiteHeader :home-url="props.section_urls.home" :nav-items="navItems" :entry-url="entryUrl" :entry-label="entryLabel" />

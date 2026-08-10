@@ -44,7 +44,7 @@ if (typeof document !== 'undefined') {
 }
 
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
+    title: (title) => (title === appName ? title : `${title} - ${appName}`),
     resolve: async (name) => {
         const page = await resolveAppPageComponent(name);
         const component = page.default;

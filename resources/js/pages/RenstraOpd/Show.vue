@@ -301,6 +301,7 @@ type BulkInputSection = {
     actions: BulkAction[];
     rows: BulkRow[];
 };
+type RenstraManagementSection = 'tujuan' | 'sasaran' | 'program' | 'kegiatan' | 'sub-kegiatan';
 type BulkSectionGroup = {
     key: string;
     label: string;
@@ -333,6 +334,7 @@ const props = defineProps<{
         lock: boolean;
     };
     workflow: Workflow;
+    activeSection?: RenstraManagementSection | null;
 }>();
 
 const typeOptions: Array<{ value: NodeType; label: string }> = [
@@ -460,12 +462,19 @@ const hasSelectedMasterReference = computed(() =>
     Boolean(form.program_pemerintahan_id || form.kegiatan_pemerintahan_id || form.sub_kegiatan_pemerintahan_id),
 );
 const editingNode = ref<{ type: NodeType; id: number } | null>(null);
-const viewMode = ref<'tree' | 'table' | 'bulk'>(props.can.manage ? 'bulk' : 'tree');
-const previewMode = ref<'tree' | 'table'>('tree');
+const viewMode = ref<'table' | 'bulk'>(props.can.manage ? 'bulk' : 'table');
 const isNodeModalOpen = ref(false);
 const formPanel = ref<HTMLElement | null>(null);
 const bulkRows = ref<BulkRow[]>([]);
 const expandedBulkSections = ref<string[]>([]);
+const expandedProgramSasaranIds = ref<number[]>([]);
+const selectedProgramFocusId = ref<number | null>(null);
+const programDetailRef = ref<HTMLElement | HTMLElement[] | null>(null);
+const programFocusSearch = ref('');
+const expandedKegiatanProgramIds = ref<number[]>([]);
+const selectedKegiatanFocusId = ref<number | null>(null);
+const kegiatanDetailRef = ref<HTMLElement | HTMLElement[] | null>(null);
+const kegiatanFocusSearch = ref('');
 const expandedSubKegiatanProgramIds = ref<number[]>([]);
 const selectedSubKegiatanKegiatanId = ref<number | null>(null);
 const subKegiatanDetailRef = ref<HTMLElement | HTMLElement[] | null>(null);
@@ -1087,6 +1096,30 @@ const bulkInputSections = computed<BulkInputSection[]>(() => [
         rows: subKegiatanRows.value,
     },
 ]);
+
+const renstraManagementSectionKeys: RenstraManagementSection[] = ['tujuan', 'sasaran', 'program', 'kegiatan', 'sub-kegiatan'];
+const activeManagementSection = computed<RenstraManagementSection | null>(() =>
+    props.activeSection && renstraManagementSectionKeys.includes(props.activeSection) ? props.activeSection : null,
+);
+const isDedicatedManagementPage = computed(() => activeManagementSection.value !== null);
+const activeBulkInputSections = computed(() =>
+    activeManagementSection.value
+        ? bulkInputSections.value.filter((section) => section.key === activeManagementSection.value)
+        : [],
+);
+const activeManagementSectionTitle = computed(
+    () => activeBulkInputSections.value[0]?.title ?? 'RENSTRA OPD',
+);
+
+watch(
+    activeManagementSection,
+    (section) => {
+        if (section && !expandedBulkSections.value.includes(section)) {
+            expandedBulkSections.value = [section];
+        }
+    },
+    { immediate: true },
+);
 
 const isBulkSectionExpanded = (sectionKey: string) => expandedBulkSections.value.includes(sectionKey);
 
@@ -2699,10 +2732,8 @@ const sectionIndexBadgeClass = (section: BulkInputSection): string =>
         'sub-kegiatan': 'bg-emerald-100 text-emerald-800',
     })[section.key] ?? 'bg-blue-50 text-[#00336C]';
 
-const sectionPrimaryButtonClass = (section: BulkInputSection): string =>
-    section.key === 'sub-kegiatan'
-        ? 'border-[#00336C] bg-[#00336C] px-5 text-white shadow-md shadow-blue-950/10 hover:bg-[#0a4485]'
-        : 'border-blue-100 bg-white px-3 text-slate-800 hover:border-[#00336C]/35 hover:text-[#00336C]';
+const sectionPrimaryButtonClass = (): string =>
+    'border-[#00336C] bg-[#00336C] px-5 text-white shadow-md shadow-blue-950/10 hover:bg-[#0a4485] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/30';
 
 const sectionParentContextValue = (section: BulkInputSection, row: BulkRow): string => {
     const label = plainNodeText(row.parent_label);
@@ -2747,6 +2778,154 @@ const sectionGroupProgramLabel = (section: BulkInputSection, group: BulkSectionG
 
 const sectionIndicatorRows = (section: BulkInputSection, parentRow: BulkRow): BulkRow[] =>
     sortBulkRowsByOrder(section.rows.filter((row) => row.type === section.indicatorType && Number(row.parent_id) === Number(parentRow.id)));
+
+type ProgramSasaranItem = {
+    key: string;
+    sasaranId: number;
+    programId: number;
+    programName: string;
+    indicatorCount: number;
+};
+
+type ProgramSasaranFolder = {
+    key: string;
+    sasaranId: number;
+    sasaranName: string;
+    programCount: number;
+    indicatorCount: number;
+    programs: ProgramSasaranItem[];
+};
+
+type KegiatanProgramItem = {
+    key: string;
+    programId: number;
+    kegiatanId: number;
+    kegiatanName: string;
+    indicatorCount: number;
+};
+
+type KegiatanProgramFolder = {
+    key: string;
+    programId: number;
+    programName: string;
+    kegiatanCount: number;
+    indicatorCount: number;
+    kegiatan: KegiatanProgramItem[];
+};
+
+const programSasaranFolders = computed<ProgramSasaranFolder[]>(() =>
+    sortBulkRowsByOrder(sasaranRows.value.filter((row) => row.type === 'sasaran' && Boolean(row.id))).map((sasaranRow) => {
+        const programs = sortBulkRowsByOrder(
+            programRows.value.filter((row) => row.type === 'program' && Number(row.parent_id) === Number(sasaranRow.id) && Boolean(row.id)),
+        ).map((programRow) => {
+            const indicatorCount = programRows.value.filter(
+                (indicatorRow) => indicatorRow.type === 'indikator_program' && Number(indicatorRow.parent_id) === Number(programRow.id),
+            ).length;
+
+            return {
+                key: `program-folder-program-${programRow.id}`,
+                sasaranId: Number(sasaranRow.id),
+                programId: Number(programRow.id),
+                programName: bulkRowPrimaryText(programRow),
+                indicatorCount,
+            };
+        });
+
+        return {
+            key: `program-folder-sasaran-${sasaranRow.id}`,
+            sasaranId: Number(sasaranRow.id),
+            sasaranName: bulkRowPrimaryText(sasaranRow),
+            programCount: programs.length,
+            indicatorCount: programs.reduce((total, item) => total + item.indicatorCount, 0),
+            programs,
+        };
+    }),
+);
+
+const filteredProgramFocusItems = computed(() => {
+    const keyword = programFocusSearch.value.trim().toLowerCase();
+
+    if (!keyword) {
+        return programSasaranFolders.value;
+    }
+
+    return programSasaranFolders.value
+        .map((sasaran) => {
+            const sasaranMatches = sasaran.sasaranName.toLowerCase().includes(keyword);
+
+            return {
+                ...sasaran,
+                programs: sasaranMatches
+                    ? sasaran.programs
+                    : sasaran.programs.filter((item) => `${sasaran.sasaranName} ${item.programName}`.toLowerCase().includes(keyword)),
+            };
+        })
+        .filter((sasaran) => sasaran.sasaranName.toLowerCase().includes(keyword) || sasaran.programs.length > 0);
+});
+
+const activeProgramFocus = computed(
+    () =>
+        programSasaranFolders.value
+            .flatMap((sasaran) => sasaran.programs.map((program) => ({ ...program, sasaranName: sasaran.sasaranName })))
+            .find((item) => item.programId === selectedProgramFocusId.value) ?? null,
+);
+
+const kegiatanProgramFolders = computed<KegiatanProgramFolder[]>(() =>
+    sortBulkRowsByOrder(programRows.value.filter((row) => row.type === 'program' && Boolean(row.id))).map((programRow) => {
+        const kegiatan = sortBulkRowsByOrder(
+            kegiatanRows.value.filter((row) => row.type === 'kegiatan' && Number(row.parent_id) === Number(programRow.id) && Boolean(row.id)),
+        ).map((kegiatanRow) => {
+            const indicatorCount = kegiatanRows.value.filter(
+                (indicatorRow) => indicatorRow.type === 'indikator_kegiatan' && Number(indicatorRow.parent_id) === Number(kegiatanRow.id),
+            ).length;
+
+            return {
+                key: `kegiatan-folder-kegiatan-${kegiatanRow.id}`,
+                programId: Number(programRow.id),
+                kegiatanId: Number(kegiatanRow.id),
+                kegiatanName: bulkRowPrimaryText(kegiatanRow),
+                indicatorCount,
+            };
+        });
+
+        return {
+            key: `kegiatan-folder-program-${programRow.id}`,
+            programId: Number(programRow.id),
+            programName: bulkRowPrimaryText(programRow),
+            kegiatanCount: kegiatan.length,
+            indicatorCount: kegiatan.reduce((total, item) => total + item.indicatorCount, 0),
+            kegiatan,
+        };
+    }),
+);
+
+const filteredKegiatanFocusItems = computed(() => {
+    const keyword = kegiatanFocusSearch.value.trim().toLowerCase();
+
+    if (!keyword) {
+        return kegiatanProgramFolders.value;
+    }
+
+    return kegiatanProgramFolders.value
+        .map((program) => {
+            const programMatches = program.programName.toLowerCase().includes(keyword);
+
+            return {
+                ...program,
+                kegiatan: programMatches
+                    ? program.kegiatan
+                    : program.kegiatan.filter((item) => `${program.programName} ${item.kegiatanName}`.toLowerCase().includes(keyword)),
+            };
+        })
+        .filter((program) => program.programName.toLowerCase().includes(keyword) || program.kegiatan.length > 0);
+});
+
+const activeKegiatanFocus = computed(
+    () =>
+        kegiatanProgramFolders.value
+            .flatMap((program) => program.kegiatan.map((kegiatan) => ({ ...kegiatan, programName: program.programName })))
+            .find((item) => item.kegiatanId === selectedKegiatanFocusId.value) ?? null,
+);
 
 type SubKegiatanKegiatanFolder = {
     key: string;
@@ -2838,6 +3017,38 @@ const activeSubKegiatanFocus = computed(
 );
 
 watch(
+    programSasaranFolders,
+    (items) => {
+        const programIds = items.flatMap((sasaran) => sasaran.programs.map((program) => program.programId));
+
+        expandedProgramSasaranIds.value = expandedProgramSasaranIds.value.filter((id) =>
+            items.some((sasaran) => sasaran.sasaranId === id),
+        );
+
+        if (programIds.length === 0 || !programIds.includes(Number(selectedProgramFocusId.value))) {
+            selectedProgramFocusId.value = null;
+        }
+    },
+    { immediate: true },
+);
+
+watch(
+    kegiatanProgramFolders,
+    (items) => {
+        const kegiatanIds = items.flatMap((program) => program.kegiatan.map((kegiatan) => kegiatan.kegiatanId));
+
+        expandedKegiatanProgramIds.value = expandedKegiatanProgramIds.value.filter((id) =>
+            items.some((program) => program.programId === id),
+        );
+
+        if (kegiatanIds.length === 0 || !kegiatanIds.includes(Number(selectedKegiatanFocusId.value))) {
+            selectedKegiatanFocusId.value = null;
+        }
+    },
+    { immediate: true },
+);
+
+watch(
     subKegiatanProgramFolders,
     (items) => {
         const kegiatanIds = items.flatMap((program) => program.kegiatan.map((kegiatan) => kegiatan.kegiatanId));
@@ -2885,11 +3096,11 @@ const findScrollableParent = (element: HTMLElement): HTMLElement | Window => {
     return window;
 };
 
-const scrollToSubKegiatanDetail = async () => {
+const scrollToDetail = async (detailRef: HTMLElement | HTMLElement[] | null) => {
     await nextTick();
 
     window.requestAnimationFrame(() => {
-        const target = resolveTemplateRefElement(subKegiatanDetailRef.value);
+        const target = resolveTemplateRefElement(detailRef);
 
         if (!target) {
             return;
@@ -2920,6 +3131,60 @@ const scrollToSubKegiatanDetail = async () => {
             behavior: 'smooth',
         });
     });
+};
+
+const scrollToProgramDetail = async () => scrollToDetail(programDetailRef.value);
+const scrollToKegiatanDetail = async () => scrollToDetail(kegiatanDetailRef.value);
+const scrollToSubKegiatanDetail = async () => scrollToDetail(subKegiatanDetailRef.value);
+
+const isProgramSasaranOpen = (sasaranId: number): boolean => expandedProgramSasaranIds.value.includes(sasaranId);
+
+const toggleProgramSasaran = (sasaranId: number) => {
+    if (isProgramSasaranOpen(sasaranId)) {
+        expandedProgramSasaranIds.value = expandedProgramSasaranIds.value.filter((id) => id !== sasaranId);
+
+        if (activeProgramFocus.value?.sasaranId === sasaranId) {
+            selectedProgramFocusId.value = null;
+        }
+
+        return;
+    }
+
+    expandedProgramSasaranIds.value = [...expandedProgramSasaranIds.value, sasaranId];
+};
+
+const selectProgramFocus = async (sasaranId: number, programId: number) => {
+    if (!isProgramSasaranOpen(sasaranId)) {
+        expandedProgramSasaranIds.value = [...expandedProgramSasaranIds.value, sasaranId];
+    }
+
+    selectedProgramFocusId.value = programId;
+    await scrollToProgramDetail();
+};
+
+const isKegiatanProgramOpen = (programId: number): boolean => expandedKegiatanProgramIds.value.includes(programId);
+
+const toggleKegiatanProgram = (programId: number) => {
+    if (isKegiatanProgramOpen(programId)) {
+        expandedKegiatanProgramIds.value = expandedKegiatanProgramIds.value.filter((id) => id !== programId);
+
+        if (activeKegiatanFocus.value?.programId === programId) {
+            selectedKegiatanFocusId.value = null;
+        }
+
+        return;
+    }
+
+    expandedKegiatanProgramIds.value = [...expandedKegiatanProgramIds.value, programId];
+};
+
+const selectKegiatanFocus = async (programId: number, kegiatanId: number) => {
+    if (!isKegiatanProgramOpen(programId)) {
+        expandedKegiatanProgramIds.value = [...expandedKegiatanProgramIds.value, programId];
+    }
+
+    selectedKegiatanFocusId.value = kegiatanId;
+    await scrollToKegiatanDetail();
 };
 
 const toggleSubKegiatanProgram = (programId: number) => {
@@ -2970,6 +3235,50 @@ const focusedSubKegiatanGroups = (section: BulkInputSection): BulkSectionGroup[]
             key: `sub-kegiatan-focused-${focus.kegiatanId}`,
             label: focus.kegiatanName,
             rows: focusedSubKegiatanRows(section),
+        },
+    ];
+};
+
+const focusedProgramGroups = (section: BulkInputSection): BulkSectionGroup[] => {
+    const focus = activeProgramFocus.value;
+
+    if (!focus) {
+        return [];
+    }
+
+    const row = sectionParentRows(section).find((item) => Number(item.id) === focus.programId);
+
+    if (!row) {
+        return [];
+    }
+
+    return [
+        {
+            key: `program-focused-${focus.programId}`,
+            label: focus.sasaranName,
+            rows: [row],
+        },
+    ];
+};
+
+const focusedKegiatanGroups = (section: BulkInputSection): BulkSectionGroup[] => {
+    const focus = activeKegiatanFocus.value;
+
+    if (!focus) {
+        return [];
+    }
+
+    const row = sectionParentRows(section).find((item) => Number(item.id) === focus.kegiatanId);
+
+    if (!row) {
+        return [];
+    }
+
+    return [
+        {
+            key: `kegiatan-focused-${focus.kegiatanId}`,
+            label: focus.programName,
+            rows: [row],
         },
     ];
 };
@@ -3559,8 +3868,9 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
 </script>
 
 <template>
-    <Head title="Cascading Renstra OPD" />
+    <Head :title="isDedicatedManagementPage ? `Kelola ${activeManagementSectionTitle} - RENSTRA OPD` : 'Cascading Renstra OPD'" />
     <div class="flex flex-col gap-4 p-4">
+        <template v-if="!isDedicatedManagementPage">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
                 <div class="flex flex-wrap items-center gap-2">
@@ -3690,6 +4000,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
             </div>
             <div v-else class="p-6 text-sm text-slate-500">Renstra belum terhubung ke struktur RPJMD.</div>
         </section>
+        </template>
 
         <section class="overflow-hidden rounded-xl border border-blue-100 bg-card shadow-sm">
             <div class="flex flex-col gap-3 bg-[linear-gradient(135deg,#f8fbff,#eaf4ff)] p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -3698,8 +4009,16 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         <Table2 class="size-5" />
                     </span>
                     <div class="min-w-0">
-                        <h2 class="text-lg font-semibold text-slate-950">Input RENSTRA OPD</h2>
-                        <p class="mt-1 text-sm text-slate-600">Isi arah OPD terlebih dahulu, lalu lanjutkan program dan kegiatan.</p>
+                        <h2 class="text-lg font-semibold text-slate-950">
+                            {{ isDedicatedManagementPage ? `Kelola ${activeManagementSectionTitle}` : 'Kelola RENSTRA OPD' }}
+                        </h2>
+                        <p class="mt-1 text-sm text-slate-600">
+                            {{
+                                isDedicatedManagementPage
+                                    ? 'Lengkapi data, indikator, dan target pada bagian ini.'
+                                    : 'Pilih bagian yang akan diisi. Setiap bagian dibuka pada halaman tersendiri.'
+                            }}
+                        </p>
                     </div>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
@@ -3745,16 +4064,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         @click="viewMode = 'bulk'"
                     >
                         <Table2 class="size-4" />
-                        Input Data
-                    </button>
-                    <button
-                        type="button"
-                        class="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-semibold transition"
-                        :class="viewMode === 'tree' ? 'bg-[#00336C] text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-[#00336C]'"
-                        @click="viewMode = 'tree'"
-                    >
-                        <Layers3 class="size-4" />
-                        Preview Tree
+                        {{ isDedicatedManagementPage ? `Kelola ${activeManagementSectionTitle}` : 'Kelola Data' }}
                     </button>
                     <button
                         type="button"
@@ -3770,14 +4080,46 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
         </section>
 
         <div class="grid min-w-0 gap-4 pb-10">
-            <section v-if="viewMode === 'bulk' && can.manage" class="grid gap-4">
-                <section
+            <section v-if="viewMode === 'bulk' && can.manage && !isDedicatedManagementPage" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <Link
                     v-for="section in bulkInputSections"
+                    :key="`manage-${section.key}`"
+                    :href="route('renstra-opd.manage', { renstra_opd: renstra.id, section: section.key })"
+                    class="group flex min-h-40 flex-col justify-between rounded-xl border border-blue-100 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#00336C]/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/30"
+                >
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 class="text-base font-semibold text-slate-950">{{ section.title }}</h3>
+                                <span
+                                    class="rounded-full border px-2.5 py-1 text-xs font-semibold"
+                                    :class="bulkSectionStatus(section).className"
+                                >
+                                    {{ bulkSectionStatus(section).label }}
+                                </span>
+                            </div>
+                            <p class="mt-2 text-sm leading-6 text-slate-600">{{ bulkSectionSummary(section) }}</p>
+                        </div>
+                        <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#00336C] transition group-hover:bg-[#00336C] group-hover:text-white">
+                            <ChevronsRight class="size-4" />
+                        </span>
+                    </div>
+                    <span class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#00336C]">
+                        Kelola {{ section.title }}
+                        <ChevronsRight class="size-4 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                </Link>
+            </section>
+
+            <section v-else-if="viewMode === 'bulk' && can.manage && isDedicatedManagementPage" class="grid gap-4">
+                <section
+                    v-for="section in activeBulkInputSections"
                     :key="section.key"
                     class="overflow-hidden rounded-2xl border border-blue-100 bg-card shadow-sm transition"
                     :class="isBulkSectionExpanded(section.key) ? 'border-[#00336C]/30 shadow-md' : 'hover:border-blue-200 hover:shadow-md'"
                 >
                     <button
+                        v-if="!isDedicatedManagementPage"
                         type="button"
                         class="group grid w-full gap-4 p-5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/30 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                         :class="isBulkSectionExpanded(section.key) ? 'bg-blue-50/55' : 'bg-white hover:bg-blue-50/30'"
@@ -3807,7 +4149,29 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         </span>
                     </button>
 
-                    <div v-show="isBulkSectionExpanded(section.key)" class="border-t border-blue-50">
+                    <div v-else class="flex flex-col gap-3 bg-blue-50/55 p-5 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 class="text-lg font-semibold text-slate-950">{{ section.title }}</h3>
+                                <span
+                                    class="rounded-full border px-2.5 py-1 text-xs font-semibold"
+                                    :class="bulkSectionStatus(section).className"
+                                >
+                                    {{ bulkSectionStatus(section).label }}
+                                </span>
+                            </div>
+                            <p class="mt-1 text-sm text-slate-600">{{ bulkSectionSummary(section) }}</p>
+                        </div>
+                        <Link
+                            :href="route('renstra-opd.show', renstra.id)"
+                            class="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#00336C] bg-[#00336C] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0a4485] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/30"
+                        >
+                            <ArrowLeft class="size-4" />
+                            Kembali
+                        </Link>
+                    </div>
+
+                    <div v-show="isDedicatedManagementPage || isBulkSectionExpanded(section.key)" class="border-t border-blue-50">
                         <div class="flex flex-col gap-3 border-b border-blue-50 bg-slate-50/70 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
                             <div class="text-sm font-medium text-slate-700">
                                 Kelola {{ section.title }}
@@ -3827,7 +4191,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 v-if="section.key !== 'sub-kegiatan'"
                                 type="button"
                                 class="inline-flex min-h-10 items-center gap-2 rounded-md border text-xs font-semibold transition"
-                                :class="sectionPrimaryButtonClass(section)"
+                                :class="sectionPrimaryButtonClass()"
                                 @click="selectNodeType(section.primaryType)"
                             >
                                 <Plus class="size-3.5" />
@@ -3855,7 +4219,247 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         </div>
 
                         <div v-else class="grid gap-4 p-4 sm:p-5">
-                            <div v-if="section.key === 'sub-kegiatan'" class="space-y-4">
+                            <div v-if="section.key === 'program'" class="space-y-4">
+                                <div class="rounded-2xl border border-blue-100 bg-white shadow-sm">
+                                    <div class="flex flex-col gap-3 border-b border-blue-100 p-4 lg:flex-row lg:items-center lg:justify-between">
+                                        <p class="text-sm font-semibold text-slate-950">Pilih sasaran OPD</p>
+                                        <div class="relative w-full lg:w-80">
+                                            <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                                            <input
+                                                v-model="programFocusSearch"
+                                                type="search"
+                                                class="h-10 w-full rounded-lg border border-blue-100 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-[#00336C]/50 focus:ring-2 focus:ring-[#00336C]/15"
+                                                placeholder="Cari sasaran atau program"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="grid gap-2 p-3">
+                                        <div
+                                            v-for="sasaran in filteredProgramFocusItems"
+                                            :key="sasaran.key"
+                                            class="overflow-hidden rounded-xl border border-blue-100 bg-white"
+                                        >
+                                            <button
+                                                type="button"
+                                                class="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-blue-50/60"
+                                                @click="toggleProgramSasaran(sasaran.sasaranId)"
+                                            >
+                                                <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#00336C]">
+                                                    <FolderOpen v-if="isProgramSasaranOpen(sasaran.sasaranId)" class="size-4" />
+                                                    <Folder v-else class="size-4" />
+                                                </span>
+                                                <span class="min-w-0 flex-1">
+                                                    <span class="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
+                                                        {{ sasaran.sasaranName }}
+                                                    </span>
+                                                    <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
+                                                        <span>{{ sasaran.programCount }} program</span>
+                                                        <span class="text-slate-300">/</span>
+                                                        <span>{{ sasaran.indicatorCount }} indikator</span>
+                                                    </span>
+                                                </span>
+                                                <ChevronDown
+                                                    class="size-4 shrink-0 text-slate-500 transition"
+                                                    :class="isProgramSasaranOpen(sasaran.sasaranId) ? 'rotate-180' : ''"
+                                                />
+                                            </button>
+
+                                            <div v-if="isProgramSasaranOpen(sasaran.sasaranId)" class="border-t border-blue-100 bg-slate-50/60 px-4 py-3">
+                                                <div v-if="sasaran.programs.length > 0" class="ml-6 border-l border-blue-200 pl-5 sm:ml-11">
+                                                    <button
+                                                        v-for="(item, itemIndex) in sasaran.programs"
+                                                        :key="item.key"
+                                                        type="button"
+                                                        class="relative mb-2 flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition last:mb-0"
+                                                        :class="
+                                                            activeProgramFocus?.programId === item.programId
+                                                                ? 'border-[#00336C] bg-[#00336C] text-white shadow-sm'
+                                                                : 'border-blue-100 bg-white text-slate-800 hover:border-blue-200 hover:bg-blue-50/50'
+                                                        "
+                                                        @click="selectProgramFocus(sasaran.sasaranId, item.programId)"
+                                                    >
+                                                        <span
+                                                            class="pointer-events-none absolute -left-5 top-1/2 hidden h-px w-5 -translate-y-1/2 bg-blue-200 sm:block"
+                                                        />
+                                                        <span
+                                                            class="flex size-7 shrink-0 items-center justify-center rounded-md text-xs font-bold"
+                                                            :class="
+                                                                activeProgramFocus?.programId === item.programId
+                                                                    ? 'bg-white/15 text-white'
+                                                                    : 'bg-blue-50 text-[#00336C]'
+                                                            "
+                                                        >
+                                                            {{ itemIndex + 1 }}
+                                                        </span>
+                                                        <span class="min-w-0 flex-1">
+                                                            <span class="line-clamp-2 text-sm font-semibold leading-5">
+                                                                {{ item.programName }}
+                                                            </span>
+                                                            <span
+                                                                class="mt-1 block text-[11px] font-semibold"
+                                                                :class="activeProgramFocus?.programId === item.programId ? 'text-blue-100' : 'text-slate-500'"
+                                                            >
+                                                                {{ item.indicatorCount }} indikator
+                                                            </span>
+                                                        </span>
+                                                    </button>
+                                                </div>
+
+                                                <div v-else class="ml-6 border-l border-blue-200 px-5 py-3 text-sm text-slate-500 sm:ml-11">
+                                                    Belum ada program pada sasaran ini.
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            v-if="filteredProgramFocusItems.length === 0"
+                                            class="rounded-xl border border-dashed border-blue-200 p-6 text-center text-sm text-slate-500"
+                                        >
+                                            Sasaran atau program tidak ditemukan.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div
+                                    v-if="activeProgramFocus"
+                                    ref="programDetailRef"
+                                    class="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3"
+                                >
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">Sasaran OPD</p>
+                                    <p class="mt-1 text-sm font-semibold text-slate-950">{{ activeProgramFocus.sasaranName }}</p>
+                                    <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">Program OPD</p>
+                                    <p class="mt-1 text-base font-semibold leading-6 text-slate-950">{{ activeProgramFocus.programName }}</p>
+                                </div>
+                                <div
+                                    v-else
+                                    class="rounded-xl border border-dashed border-blue-200 bg-blue-50/30 p-6 text-center text-sm text-slate-600"
+                                >
+                                    Buka sasaran, lalu pilih program untuk melihat rinciannya.
+                                </div>
+                            </div>
+
+                            <div v-else-if="section.key === 'kegiatan'" class="space-y-4">
+                                <div class="rounded-2xl border border-blue-100 bg-white shadow-sm">
+                                    <div class="flex flex-col gap-3 border-b border-blue-100 p-4 lg:flex-row lg:items-center lg:justify-between">
+                                        <p class="text-sm font-semibold text-slate-950">Pilih program OPD</p>
+                                        <div class="relative w-full lg:w-80">
+                                            <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                                            <input
+                                                v-model="kegiatanFocusSearch"
+                                                type="search"
+                                                class="h-10 w-full rounded-lg border border-blue-100 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-[#00336C]/50 focus:ring-2 focus:ring-[#00336C]/15"
+                                                placeholder="Cari program atau kegiatan"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="grid gap-2 p-3">
+                                        <div
+                                            v-for="program in filteredKegiatanFocusItems"
+                                            :key="program.key"
+                                            class="overflow-hidden rounded-xl border border-blue-100 bg-white"
+                                        >
+                                            <button
+                                                type="button"
+                                                class="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-blue-50/60"
+                                                @click="toggleKegiatanProgram(program.programId)"
+                                            >
+                                                <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#00336C]">
+                                                    <FolderOpen v-if="isKegiatanProgramOpen(program.programId)" class="size-4" />
+                                                    <Folder v-else class="size-4" />
+                                                </span>
+                                                <span class="min-w-0 flex-1">
+                                                    <span class="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
+                                                        {{ program.programName }}
+                                                    </span>
+                                                    <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
+                                                        <span>{{ program.kegiatanCount }} kegiatan</span>
+                                                        <span class="text-slate-300">/</span>
+                                                        <span>{{ program.indicatorCount }} indikator</span>
+                                                    </span>
+                                                </span>
+                                                <ChevronDown
+                                                    class="size-4 shrink-0 text-slate-500 transition"
+                                                    :class="isKegiatanProgramOpen(program.programId) ? 'rotate-180' : ''"
+                                                />
+                                            </button>
+
+                                            <div v-if="isKegiatanProgramOpen(program.programId)" class="border-t border-blue-100 bg-slate-50/60 px-4 py-3">
+                                                <div v-if="program.kegiatan.length > 0" class="ml-6 border-l border-blue-200 pl-5 sm:ml-11">
+                                                    <button
+                                                        v-for="(item, itemIndex) in program.kegiatan"
+                                                        :key="item.key"
+                                                        type="button"
+                                                        class="relative mb-2 flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition last:mb-0"
+                                                        :class="
+                                                            activeKegiatanFocus?.kegiatanId === item.kegiatanId
+                                                                ? 'border-[#00336C] bg-[#00336C] text-white shadow-sm'
+                                                                : 'border-blue-100 bg-white text-slate-800 hover:border-blue-200 hover:bg-blue-50/50'
+                                                        "
+                                                        @click="selectKegiatanFocus(program.programId, item.kegiatanId)"
+                                                    >
+                                                        <span
+                                                            class="pointer-events-none absolute -left-5 top-1/2 hidden h-px w-5 -translate-y-1/2 bg-blue-200 sm:block"
+                                                        />
+                                                        <span
+                                                            class="flex size-7 shrink-0 items-center justify-center rounded-md text-xs font-bold"
+                                                            :class="
+                                                                activeKegiatanFocus?.kegiatanId === item.kegiatanId
+                                                                    ? 'bg-white/15 text-white'
+                                                                    : 'bg-blue-50 text-[#00336C]'
+                                                            "
+                                                        >
+                                                            {{ itemIndex + 1 }}
+                                                        </span>
+                                                        <span class="min-w-0 flex-1">
+                                                            <span class="line-clamp-2 text-sm font-semibold leading-5">
+                                                                {{ item.kegiatanName }}
+                                                            </span>
+                                                            <span
+                                                                class="mt-1 block text-[11px] font-semibold"
+                                                                :class="activeKegiatanFocus?.kegiatanId === item.kegiatanId ? 'text-blue-100' : 'text-slate-500'"
+                                                            >
+                                                                {{ item.indicatorCount }} indikator
+                                                            </span>
+                                                        </span>
+                                                    </button>
+                                                </div>
+
+                                                <div v-else class="ml-6 border-l border-blue-200 px-5 py-3 text-sm text-slate-500 sm:ml-11">
+                                                    Belum ada kegiatan pada program ini.
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            v-if="filteredKegiatanFocusItems.length === 0"
+                                            class="rounded-xl border border-dashed border-blue-200 p-6 text-center text-sm text-slate-500"
+                                        >
+                                            Program atau kegiatan tidak ditemukan.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div
+                                    v-if="activeKegiatanFocus"
+                                    ref="kegiatanDetailRef"
+                                    class="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3"
+                                >
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">Program OPD</p>
+                                    <p class="mt-1 text-sm font-semibold text-slate-950">{{ activeKegiatanFocus.programName }}</p>
+                                    <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">Kegiatan OPD</p>
+                                    <p class="mt-1 text-base font-semibold leading-6 text-slate-950">{{ activeKegiatanFocus.kegiatanName }}</p>
+                                </div>
+                                <div
+                                    v-else
+                                    class="rounded-xl border border-dashed border-blue-200 bg-blue-50/30 p-6 text-center text-sm text-slate-600"
+                                >
+                                    Buka program, lalu pilih kegiatan untuk melihat rinciannya.
+                                </div>
+                            </div>
+
+                            <div v-else-if="section.key === 'sub-kegiatan'" class="space-y-4">
                                 <div class="rounded-2xl border border-blue-100 bg-white shadow-sm">
                                     <div class="flex flex-col gap-3 border-b border-blue-100 p-4 lg:flex-row lg:items-center lg:justify-between">
                                         <div>
@@ -3998,7 +4602,13 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                             </div>
 
                             <div
-                                v-for="group in section.key === 'sub-kegiatan' ? focusedSubKegiatanGroups(section) : groupedSectionParentRows(section)"
+                                v-for="group in section.key === 'sub-kegiatan'
+                                    ? focusedSubKegiatanGroups(section)
+                                    : section.key === 'program'
+                                      ? focusedProgramGroups(section)
+                                      : section.key === 'kegiatan'
+                                        ? focusedKegiatanGroups(section)
+                                        : groupedSectionParentRows(section)"
                                 :key="`section-group-${group.key}`"
                                 class="relative grid gap-3"
                                 :class="sectionIndentClass(section)"
@@ -4643,7 +5253,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                 </div>
             </section>
 
-            <section v-else class="rounded-lg border bg-card">
+            <section v-else-if="false" class="rounded-lg border bg-card">
                 <div class="flex items-center gap-2 border-b p-4">
                     <Layers3 class="size-5 text-emerald-700" />
                     <div>
@@ -5228,11 +5838,12 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                 </div>
             </section>
 
-            <aside
-                v-if="can.manage && isNodeModalOpen"
-                ref="formPanel"
-                class="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/45 p-3 backdrop-blur-sm sm:p-5"
-            >
+            <Teleport to="body">
+                <aside
+                    v-if="can.manage && isNodeModalOpen"
+                    ref="formPanel"
+                    class="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-slate-950/45 p-3 backdrop-blur-sm sm:p-5"
+                >
                 <div :class="['w-full space-y-4', isTargetType || isBudgetType ? 'max-w-4xl' : 'max-w-3xl']">
                     <section
                         v-if="isNodeModalOpen"
@@ -5625,7 +6236,8 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                     </section>
 
                 </div>
-            </aside>
+                </aside>
+            </Teleport>
         </div>
     </div>
 </template>

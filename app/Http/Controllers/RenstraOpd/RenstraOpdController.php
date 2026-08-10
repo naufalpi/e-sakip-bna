@@ -138,6 +138,25 @@ class RenstraOpdController extends Controller
 
     public function show(Request $request, RenstraOpd $renstraOpd, WorkflowDataService $workflowDataService): Response
     {
+        return $this->renderShow($request, $renstraOpd, $workflowDataService);
+    }
+
+    public function manage(
+        Request $request,
+        RenstraOpd $renstraOpd,
+        string $section,
+        WorkflowDataService $workflowDataService,
+    ): Response {
+        return $this->renderShow($request, $renstraOpd, $workflowDataService, $section);
+    }
+
+    private function renderShow(
+        Request $request,
+        RenstraOpd $renstraOpd,
+        WorkflowDataService $workflowDataService,
+        ?string $activeSection = null,
+    ): Response
+    {
         $this->authorize('view', $renstraOpd);
 
         $manage = $request->user()->can('update', $renstraOpd);
@@ -196,6 +215,7 @@ class RenstraOpdController extends Controller
                 'lock' => $this->canLockWorkflow($request->user()),
             ],
             'workflow' => $workflowDataService->forModel($renstraOpd, 'renstra_opd'),
+            'activeSection' => $activeSection,
         ]);
     }
 
