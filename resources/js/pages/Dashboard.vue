@@ -608,7 +608,7 @@ function booleanClass(value: boolean) {
 
 <template>
     <Head :title="dashboard.title" />
-    <div class="dashboard-shell flex h-full flex-1 flex-col gap-5 p-4 lg:p-5">
+    <div class="dashboard-shell flex min-h-[calc(100dvh-4rem)] w-full flex-none flex-col gap-5 p-4 lg:p-5">
         <section class="dashboard-page-head">
             <div class="dashboard-page-head__title">
                 <div class="dashboard-page-head__eyebrow">Ringkasan kinerja</div>
@@ -3384,6 +3384,199 @@ function booleanClass(value: boolean) {
 :global(.dark) .dashboard-quarter-chart__bar,
 :global(.dark) .dashboard-trend-chart__row > div {
     background: #273449;
+}
+
+:global(.dark) .dashboard-shell {
+    --dashboard-line: rgb(51 65 85 / 0.88);
+    --dashboard-shadow: 0 1rem 2.4rem rgb(0 0 0 / 0.28);
+    background:
+        radial-gradient(circle at 12% -6%, rgb(37 99 235 / 0.16), transparent 27rem),
+        radial-gradient(circle at 92% 4%, rgb(14 165 233 / 0.12), transparent 25rem),
+        linear-gradient(180deg, #0b1220 0%, #0f172a 52%, #0b1220 100%);
+    color: #e5e7eb;
+}
+
+:global(.dark) .dashboard-overview,
+:global(.dark) .dashboard-filters,
+:global(.dark) .dashboard-kpi-card,
+:global(.dark) .dashboard-board-card,
+:global(.dark) .dashboard-panel,
+:global(.dark) .dashboard-metric-card,
+:global(.dark) .dashboard-priority-card,
+:global(.dark) .dashboard-document-item,
+:global(.dark) .dashboard-completion-item,
+:global(.dark) .dashboard-ranking-row,
+:global(.dark) .dashboard-status-row,
+:global(.dark) .dashboard-evaluation-row,
+:global(.dark) .dashboard-workflow-row,
+:global(.dark) .dashboard-recommendation-row {
+    border-color: rgb(51 65 85 / 0.84);
+    background:
+        linear-gradient(180deg, rgb(15 23 42 / 0.94), rgb(15 23 42 / 0.78));
+    box-shadow: var(--dashboard-shadow);
+}
+
+:global(.dark) .dashboard-filterbar {
+    border-color: rgb(51 65 85 / 0.84);
+    background: rgb(15 23 42 / 0.76);
+    box-shadow: 0 0.8rem 1.8rem rgb(0 0 0 / 0.2);
+}
+
+:global(.dark) .dashboard-board-card__header,
+:global(.dark) .dashboard-panel__header,
+:global(.dark) .dashboard-document-card__footer,
+:global(.dark) .dashboard-quarter-card__legend,
+:global(.dark) .dashboard-trend-card__status,
+:global(.dark) .dashboard-shell :deep(.dashboard-panel > .border-b) {
+    border-color: rgb(51 65 85 / 0.82);
+    background: transparent;
+}
+
+:global(.dark) .dashboard-page-head h1,
+:global(.dark) .dashboard-overview h1,
+:global(.dark) .dashboard-section-heading h2,
+:global(.dark) .dashboard-kpi-card__body strong,
+:global(.dark) .dashboard-board-card__header h2,
+:global(.dark) .dashboard-panel__heading h2,
+:global(.dark) .dashboard-metric-card__value,
+:global(.dark) .dashboard-priority-card__value,
+:global(.dark) .dashboard-priority-row__value,
+:global(.dark) .dashboard-module-row__label,
+:global(.dark) .dashboard-ranking-row strong,
+:global(.dark) .dashboard-status-row strong,
+:global(.dark) .dashboard-evaluation-row strong,
+:global(.dark) .dashboard-workflow-row strong,
+:global(.dark) .dashboard-recommendation-row strong,
+:global(.dark) .dashboard-data-table strong,
+:global(.dark) .dashboard-document-grid strong,
+:global(.dark) .dashboard-document-item strong {
+    color: #f8fafc;
+}
+
+:global(.dark) .dashboard-page-head__eyebrow,
+:global(.dark) .dashboard-page-head__title > p,
+:global(.dark) .dashboard-overview__description,
+:global(.dark) .dashboard-filters__note,
+:global(.dark) .dashboard-control > span,
+:global(.dark) .dashboard-kpi-card__body p,
+:global(.dark) .dashboard-kpi-card__body > span,
+:global(.dark) .dashboard-board-card__header p,
+:global(.dark) .dashboard-panel__heading p,
+:global(.dark) .dashboard-metric-card__label,
+:global(.dark) .dashboard-metric-card__footer,
+:global(.dark) .dashboard-priority-list__items p,
+:global(.dark) .dashboard-detail-label span,
+:global(.dark) .dashboard-panel__page-size,
+:global(.dark) .dashboard-panel__period,
+:global(.dark) .dashboard-data-table,
+:global(.dark) .dashboard-year-row,
+:global(.dark) .dashboard-recommendation-row p,
+:global(.dark) .dashboard-status-row p,
+:global(.dark) .dashboard-workflow-row p,
+:global(.dark) .dashboard-evaluation-row p {
+    color: #94a3b8;
+}
+
+:global(.dark) .dashboard-eyebrow,
+:global(.dark) .dashboard-panel__eyebrow,
+:global(.dark) .dashboard-data-link,
+:global(.dark) .dashboard-data-link--small {
+    color: #93c5fd;
+}
+
+:global(.dark) .dashboard-context span,
+:global(.dark) .dashboard-live-status {
+    border-color: rgb(16 185 129 / 0.32);
+    background: rgb(6 78 59 / 0.34);
+    color: #a7f3d0;
+}
+
+:global(.dark) .dashboard-control select,
+:global(.dark) .dashboard-reset,
+:global(.dark) .dashboard-filterbar select,
+:global(.dark) .dashboard-filterbar__reset,
+:global(.dark) .dashboard-panel__page-size select,
+:global(.dark) .dashboard-pagination button {
+    border-color: rgb(71 85 105 / 0.88);
+    background: rgb(15 23 42 / 0.9);
+    color: #e2e8f0;
+}
+
+:global(.dark) .dashboard-control select:hover,
+:global(.dark) .dashboard-reset:hover,
+:global(.dark) .dashboard-filterbar select:hover,
+:global(.dark) .dashboard-filterbar__reset:hover,
+:global(.dark) .dashboard-panel__page-size select:hover,
+:global(.dark) .dashboard-pagination button:not(:disabled):hover {
+    border-color: rgb(96 165 250 / 0.78);
+    background: rgb(30 41 59 / 0.9);
+    color: #f8fafc;
+}
+
+:global(.dark) .dashboard-quick-link {
+    border-color: rgb(51 65 85 / 0.86);
+    background: rgb(15 23 42 / 0.78);
+    color: #cbd5e1;
+    box-shadow: none;
+}
+
+:global(.dark) .dashboard-quick-link:hover {
+    border-color: rgb(96 165 250 / 0.72);
+    background: rgb(30 41 59 / 0.88);
+    color: #bfdbfe;
+}
+
+:global(.dark) .dashboard-kpi-card__icon,
+:global(.dark) .dashboard-metric-card__icon,
+:global(.dark) .dashboard-priority-card__icon,
+:global(.dark) .dashboard-priority-row__icon,
+:global(.dark) .dashboard-panel__icon {
+    filter: saturate(0.9) brightness(0.92);
+}
+
+:global(.dark) .dashboard-data-table {
+    border-color: rgb(51 65 85 / 0.86);
+    background: rgb(15 23 42 / 0.58);
+}
+
+:global(.dark) .dashboard-data-table thead {
+    border-color: rgb(51 65 85 / 0.86);
+    background: rgb(30 41 59 / 0.86);
+    color: #cbd5e1;
+}
+
+:global(.dark) .dashboard-data-table td {
+    border-color: rgb(51 65 85 / 0.7);
+}
+
+:global(.dark) .dashboard-data-table tbody tr:not(:has(td[colspan])):hover,
+:global(.dark) .dashboard-ranking-row:hover,
+:global(.dark) .dashboard-status-row:hover,
+:global(.dark) .dashboard-evaluation-row:hover,
+:global(.dark) .dashboard-workflow-row:hover,
+:global(.dark) .dashboard-recommendation-row:hover {
+    background: rgb(30 41 59 / 0.66);
+}
+
+:global(.dark) .dashboard-module-row__track,
+:global(.dark) .dashboard-year-row__track,
+:global(.dark) .dashboard-quarter-chart__bar,
+:global(.dark) .dashboard-trend-chart__row > div,
+:global(.dark) .dashboard-panel .bg-muted {
+    background: rgb(51 65 85 / 0.64);
+}
+
+:global(.dark) .dashboard-progress-ring::before {
+    background: #111827;
+}
+
+:global(.dark) .dashboard-pagination {
+    border-color: rgb(51 65 85 / 0.82);
+    color: #94a3b8;
+}
+
+:global(.dark) .dashboard-pagination strong {
+    color: #f8fafc;
 }
 
 @media (max-width: 1200px) {

@@ -2,9 +2,12 @@
 
 namespace App\Services\Workflow;
 
+use App\Models\RenstraOpd;
+use App\Models\Rpjmd;
 use App\Models\User;
 use App\Models\WorkflowHistory;
 use App\Models\WorkflowSubmission;
+use App\Services\Perencanaan\DocumentVersionActivationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +18,7 @@ class WorkflowTransitionService
     public function __construct(
         private readonly WorkflowNotificationService $notificationService,
         private readonly WorkflowModuleRegistry $registry,
+        private readonly DocumentVersionActivationService $documentVersionActivationService,
     ) {}
 
     /**
@@ -41,7 +45,18 @@ class WorkflowTransitionService
                 ]);
             }
 
+            if ($action === 'withdraw' && $model->isFillable('submitted_by')) {
+                $model->forceFill([
+                    'submitted_by' => null,
+                    'submitted_at' => null,
+                ]);
+            }
+
             $model->save();
+
+            if ($action === 'approve' && ($model instanceof Rpjmd || $model instanceof RenstraOpd)) {
+                $this->documentVersionActivationService->activateAfterApproval($model, $actor);
+            }
 
             $existingSubmission = WorkflowSubmission::query()
                 ->where('related_table', $relatedTable)
@@ -49,16 +64,22 @@ class WorkflowTransitionService
                 ->where('module', $module)
                 ->first();
 
+            $currentReviewerId = $action === 'withdraw' ? null : $reviewerId;
+
             $submission = WorkflowSubmission::updateOrCreate([
                 'related_table' => $relatedTable,
                 'related_id' => $relatedId,
                 'module' => $module,
             ], [
                 'status' => $newStatus,
-                'submitted_by' => $action === 'submit' ? $actor->id : $existingSubmission?->submitted_by,
-                'current_reviewer_id' => $reviewerId,
-                'submitted_at' => $action === 'submit' ? now() : $existingSubmission?->submitted_at,
-                'reviewed_at' => $action === 'submit' ? null : now(),
+                'submitted_by' => $action === 'submit'
+                    ? $actor->id
+                    : ($action === 'withdraw' ? null : $existingSubmission?->submitted_by),
+                'current_reviewer_id' => $currentReviewerId,
+                'submitted_at' => $action === 'submit'
+                    ? now()
+                    : ($action === 'withdraw' ? null : $existingSubmission?->submitted_at),
+                'reviewed_at' => in_array($action, ['submit', 'withdraw'], true) ? null : now(),
                 'note' => $note,
                 'metadata' => $metadata ?: null,
             ]);
@@ -72,13 +93,13 @@ class WorkflowTransitionService
                 'to_status' => $newStatus,
                 'action' => $action,
                 'actor_id' => $actor->id,
-                'reviewer_id' => $reviewerId,
+                'reviewer_id' => $currentReviewerId,
                 'notes' => $note,
                 'metadata' => $metadata ?: null,
             ]);
 
             $freshSubmission = $submission->fresh(['histories.actor', 'submittedBy', 'currentReviewer']);
-            $this->notificationService->notify($model, $module, $action, $actor, $freshSubmission, $reviewerId, $metadata);
+            $this->notificationService->notify($model, $module, $action, $actor, $freshSubmission, $currentReviewerId, $metadata);
 
             return $freshSubmission;
         });
@@ -86,6 +107,10 @@ class WorkflowTransitionService
 
     private function authorizeAction(Model $model, string $module, string $action, User $actor): void
     {
+        if (($model instanceof Rpjmd || $model instanceof RenstraOpd) && $model->isArchivedVersion()) {
+            throw new AuthorizationException('Versi arsip tidak dapat diproses. Buat dokumen Perubahan dari versi aktif.');
+        }
+
         if ($action === 'unlock') {
             if ($actor->isSuperAdmin()) {
                 return;
@@ -104,6 +129,28 @@ class WorkflowTransitionService
             }
 
             throw new AuthorizationException('Anda tidak berwenang mengajukan data ini.');
+        }
+
+        if ($action === 'withdraw') {
+            if (! $actor->can('update', $model)) {
+                throw new AuthorizationException('Anda tidak berwenang menarik pengajuan ini.');
+            }
+
+            if ($actor->isSuperAdmin()) {
+                return;
+            }
+
+            $submission = WorkflowSubmission::query()
+                ->where('related_table', $model->getTable())
+                ->where('related_id', (int) $model->getKey())
+                ->where('module', $module)
+                ->first();
+
+            if ($submission && (int) $submission->submitted_by === (int) $actor->id) {
+                return;
+            }
+
+            throw new AuthorizationException('Hanya pembuat pengajuan atau Super Admin yang dapat menarik pengajuan ini.');
         }
 
         if ($action === 'lock') {
@@ -133,6 +180,7 @@ class WorkflowTransitionService
     {
         $allowedStatuses = match ($action) {
             'submit' => ['draft', 'revision', 'rejected'],
+            'withdraw' => ['submitted'],
             'verify' => ['submitted'],
             'approve' => ['submitted', 'verified'],
             'reject', 'revision' => ['submitted', 'verified'],
@@ -152,6 +200,7 @@ class WorkflowTransitionService
     {
         return match ($action) {
             'submit' => 'submitted',
+            'withdraw' => 'draft',
             'verify' => 'verified',
             'approve' => 'approved',
             'reject' => 'rejected',

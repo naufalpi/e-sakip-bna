@@ -62,15 +62,6 @@ class CopyProgramKegiatanReferenceService
                 ->get(['id', 'tahun'])
                 ->keyBy('tahun');
 
-            $missingYears = collect([...$sourceYears, ...$targetYears])
-                ->unique()
-                ->reject(fn (int $year) => $periodeByYear->has($year))
-                ->values();
-
-            if ($missingYears->isNotEmpty()) {
-                throw new InvalidArgumentException('Periode tahun belum tersedia: '.$missingYears->join(', ').'. Lengkapi menu Periode Tahun terlebih dahulu.');
-            }
-
             $targetProgramsBySourceId = [];
 
             $sourcePrograms->each(function (ProgramPemerintahan $sourceProgram) use ($targetTahunAwal, $targetTahunAkhir, &$result, &$targetProgramsBySourceId): void {
@@ -91,7 +82,14 @@ class CopyProgramKegiatanReferenceService
                 $result[$created ? 'program_created' : 'program_existing']++;
             });
 
+            // Program merupakan referensi lima tahunan dan tetap dapat disalin ke
+            // periode RPJMD berikutnya. Kegiatan/sub kegiatan hanya ikut disalin
+            // apabila tahun sumber dan tujuan keduanya sudah tersedia.
             foreach ($this->copyYearPairs($sourceYears, $targetYears, $sourcePrograms->pluck('id')) as $yearPair) {
+                if (! $periodeByYear->has($yearPair['source_year']) || ! $periodeByYear->has($yearPair['target_year'])) {
+                    continue;
+                }
+
                 $sourcePeriodeTahunId = (int) $periodeByYear[$yearPair['source_year']]->id;
                 $targetPeriodeTahunId = (int) $periodeByYear[$yearPair['target_year']]->id;
 

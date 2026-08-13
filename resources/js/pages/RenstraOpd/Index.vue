@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
-import { confirmDelete } from '@/lib/sweetAlert';
+import { confirmDelete, promptTextArea } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowRight, GitBranch, Layers3, Pencil, Plus, Search, Trash2 } from 'lucide-vue-next';
+import { ArrowRight, GitBranch, Layers3, Pencil, Plus, RotateCcw, Search, Trash2 } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
 
 type Option = { id: number; label: string };
@@ -14,12 +14,23 @@ type RenstraRow = {
     tahun_awal: number;
     tahun_akhir: number;
     status: string;
+    jenis_versi?: string | null;
+    nomor_versi?: number | null;
+    is_active_version?: boolean | null;
+    version_label?: string | null;
+    perlu_penyesuaian_rpjmd?: boolean;
+    rpjmd_perubahan_terbaru?: { id: number; judul: string; version_label: string } | null;
     opd?: { id: number; kode: string; nama: string; singkatan?: string | null } | null;
     rpjmd?: { id: number; judul: string; tahun_awal: number; tahun_akhir: number } | null;
     periode_tahun?: { id: number; tahun: number; nama: string } | null;
     progress: {
-        tujuan_count: number;
-        program_count: number;
+        percentage: number;
+        stages_filled: number;
+        stages_total: number;
+        indicators_filled: number;
+        indicators_total: number;
+        targets_filled: number;
+        targets_total: number;
         status: string;
     };
 };
@@ -78,7 +89,39 @@ const resetFilters = () => {
     applyFiltersNow();
 };
 
+const cancelableRevisionStatuses = ['draft', 'revision', 'rejected'];
+
+const canCancelRevision = (renstra: RenstraRow) => renstra.jenis_versi === 'perubahan' && cancelableRevisionStatuses.includes(renstra.status);
+const deleteActionTitle = (renstra: RenstraRow) => (canCancelRevision(renstra) ? 'Batalkan Perubahan Renstra' : 'Hapus Renstra');
+const deleteActionClass = (renstra: RenstraRow) =>
+    canCancelRevision(renstra)
+        ? 'border-amber-200 text-amber-800 hover:bg-amber-50 dark:border-amber-400/30 dark:text-amber-100 dark:hover:bg-amber-500/10'
+        : 'border-red-200 text-red-700 hover:bg-red-50 dark:border-red-500/30 dark:text-red-200 dark:hover:bg-red-500/10';
+
+const cancelRevision = async (renstra: RenstraRow) => {
+    const reason = await promptTextArea({
+        title: 'Batalkan Perubahan Renstra?',
+        text: 'Renstra sebelumnya akan aktif kembali.',
+        inputLabel: 'Alasan pembatalan',
+        inputPlaceholder: 'Tuliskan alasan pembatalan perubahan.',
+        confirmButtonText: 'Batalkan Perubahan',
+        minLength: 5,
+        destructive: true,
+    });
+
+    if (!reason) {
+        return;
+    }
+
+    router.post(route('renstra-opd.revisions.cancel', renstra.id), { alasan_pembatalan: reason }, { preserveScroll: true });
+};
+
 const destroy = async (renstra: RenstraRow) => {
+    if (canCancelRevision(renstra)) {
+        await cancelRevision(renstra);
+        return;
+    }
+
     if (await confirmDelete(`Hapus Renstra ${renstra.opd?.singkatan || renstra.opd?.nama || ''} ${renstra.tahun_awal}-${renstra.tahun_akhir}?`)) {
         router.delete(route('renstra-opd.destroy', renstra.id));
     }
@@ -125,22 +168,29 @@ const statusClass = (status: string) =>
         locked: 'bg-zinc-200 text-zinc-800 ring-zinc-300',
     })[status] ?? 'bg-slate-100 text-slate-700 ring-slate-200';
 
-const progressClass = (status: string) =>
-    status === 'terisi' ? 'bg-blue-100 text-blue-800 ring-blue-200' : 'bg-amber-100 text-amber-800 ring-amber-200';
+const versionLabel = (renstra: RenstraRow) => renstra.version_label || (renstra.jenis_versi === 'perubahan' ? 'Perubahan' : 'Murni');
 
-function rowProgressPercent(renstra: RenstraRow): number {
-    let percent = 0;
+const versionClass = (renstra: RenstraRow) =>
+    renstra.jenis_versi === 'perubahan'
+        ? 'bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-200 dark:ring-amber-500/30'
+        : 'bg-blue-50 text-[#00336C] ring-blue-200 dark:bg-blue-500/15 dark:text-blue-200 dark:ring-blue-500/30';
 
-    if (renstra.progress.tujuan_count > 0) {
-        percent += 50;
-    }
+const targetCoverageLabel = (renstra: RenstraRow) =>
+    renstra.progress.targets_total > 0
+        ? `${renstra.progress.targets_filled}/${renstra.progress.targets_total} target`
+        : 'Belum ada indikator';
 
-    if (renstra.progress.program_count > 0) {
-        percent += 50;
-    }
+const targetCoverageValue = (renstra: RenstraRow) =>
+    renstra.progress.targets_total > 0
+        ? `${renstra.progress.targets_filled}/${renstra.progress.targets_total}`
+        : '-';
 
-    return percent;
-}
+const indicatorCoverageLabel = (renstra: RenstraRow) => {
+    const filled = Number(renstra.progress.indicators_filled ?? 0);
+    const total = Number(renstra.progress.indicators_total ?? 0);
+
+    return total > 0 ? `${filled}/${total}` : `${filled} terisi`;
+};
 </script>
 
 <template>
@@ -284,34 +334,40 @@ function rowProgressPercent(renstra: RenstraRow): number {
             </div>
 
             <div class="hidden overflow-x-auto lg:block">
-                <table class="w-full text-left text-sm">
+                <table class="min-w-[1080px] w-full text-left text-sm">
                     <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
                         <tr>
-                            <th class="px-4 py-3">OPD</th>
-                            <th class="px-4 py-3">Dokumen Renstra</th>
-                            <th class="px-4 py-3">Kelengkapan Cascading</th>
-                            <th class="px-4 py-3">Status</th>
-                            <th class="px-4 py-3 text-right">Aksi</th>
+                            <th class="w-72 px-5 py-3">OPD</th>
+                            <th class="min-w-[31rem] px-5 py-3">Dokumen Renstra</th>
+                            <th class="w-64 px-4 py-3">Kelengkapan Cascading</th>
+                            <th class="w-32 px-4 py-3">Status</th>
+                            <th class="w-44 px-5 py-3 text-right">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="renstra in renstras.data" :key="renstra.id" class="border-b align-top last:border-0 hover:bg-muted/40">
-                            <td class="min-w-72 px-4 py-4">
+                        <tr v-for="renstra in renstras.data" :key="renstra.id" class="border-b align-top last:border-0 hover:bg-blue-50/30">
+                            <td class="w-72 px-5 py-5">
                                 <div class="font-semibold text-slate-950">{{ renstra.opd?.singkatan || renstra.opd?.nama || '-' }}</div>
                                 <div class="mt-1 text-xs text-muted-foreground">{{ renstra.opd?.kode || 'Kode belum diisi' }}</div>
-                                <p v-if="renstra.rpjmd" class="mt-3 flex max-w-md items-start gap-1.5 text-xs leading-5 text-slate-600">
+                                <p v-if="renstra.rpjmd" class="mt-3 flex items-start gap-1.5 text-xs leading-5 text-slate-600">
                                     <GitBranch class="mt-0.5 size-3.5 shrink-0 text-[#00336C]" />
                                     <span class="line-clamp-2">
-                                        Terhubung RPJMD {{ renstra.rpjmd.tahun_awal }}-{{ renstra.rpjmd.tahun_akhir }}:
+                                        RPJMD {{ renstra.rpjmd.tahun_awal }}-{{ renstra.rpjmd.tahun_akhir }}<br />
                                         {{ renstra.rpjmd.judul }}
                                     </span>
                                 </p>
                                 <p v-else class="mt-3 text-xs font-medium text-amber-700">Belum terhubung RPJMD</p>
                             </td>
-                            <td class="min-w-80 px-4 py-4">
-                                <div class="font-semibold text-slate-950">{{ renstra.judul }}</div>
-                                <div class="mt-1 text-xs text-muted-foreground">{{ renstra.nomor_dokumen || 'Nomor dokumen belum diisi' }}</div>
-                                <div class="mt-3 flex flex-wrap gap-2">
+                            <td class="min-w-[31rem] px-5 py-5">
+                                <h3 class="font-semibold leading-6 text-slate-950">
+                                    {{ renstra.judul }}
+                                    <span class="ml-1.5 inline-flex translate-y-[-1px] rounded-full px-2.5 py-1 align-middle text-xs font-semibold ring-1" :class="versionClass(renstra)">
+                                        {{ versionLabel(renstra) }}
+                                    </span>
+                                </h3>
+                                <div class="mt-1.5 text-xs text-muted-foreground">{{ renstra.nomor_dokumen || 'Nomor dokumen belum diisi' }}</div>
+                                <p v-if="renstra.is_active_version === false" class="mt-1 text-xs text-muted-foreground">Versi arsip</p>
+                                <div class="mt-3 flex flex-wrap items-center gap-2">
                                     <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
                                         {{ renstra.tahun_awal }}-{{ renstra.tahun_akhir }}
                                     </span>
@@ -319,33 +375,45 @@ function rowProgressPercent(renstra: RenstraRow): number {
                                         {{ renstra.periode_tahun?.nama || 'Periode belum diisi' }}
                                     </span>
                                 </div>
-                            </td>
-                            <td class="min-w-72 px-4 py-4">
-                                <div class="flex items-center justify-between gap-3">
-                                    <span class="text-xs font-semibold uppercase text-muted-foreground">Progress</span>
-                                    <span class="text-xs font-semibold text-slate-700">{{ rowProgressPercent(renstra) }}%</span>
-                                </div>
-                                <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-                                    <div class="h-full rounded-full bg-[#00336C]" :style="{ width: `${rowProgressPercent(renstra)}%` }"></div>
-                                </div>
-                                <div class="mt-3 flex flex-wrap gap-1.5">
-                                    <span class="rounded-full px-2 py-1 text-xs font-medium ring-1" :class="progressClass(renstra.progress.status)">
-                                        {{ renstra.progress.status === 'terisi' ? 'Terisi' : 'Belum lengkap' }}
-                                    </span>
-                                    <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                                        {{ renstra.progress.tujuan_count }} tujuan
-                                    </span>
-                                    <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                                        {{ renstra.progress.program_count }} program
-                                    </span>
+                                <div
+                                    v-if="renstra.perlu_penyesuaian_rpjmd"
+                                    class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900"
+                                >
+                                    RPJMD {{ renstra.rpjmd_perubahan_terbaru?.version_label || 'Perubahan' }} sudah disahkan. Buat Perubahan Renstra untuk menyesuaikan dokumen ini.
                                 </div>
                             </td>
-                            <td class="px-4 py-4">
+                            <td class="w-64 px-4 py-5 align-middle">
+                                <div class="flex items-baseline justify-between gap-2">
+                                    <span class="text-xs font-medium text-muted-foreground">Kelengkapan</span>
+                                    <span class="text-sm font-semibold tabular-nums text-[#00336C]">{{ renstra.progress.percentage }}%</span>
+                                </div>
+                                <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                                    <div
+                                        class="h-full rounded-full bg-[#00336C] transition-[width] duration-300"
+                                        :style="{ width: `${renstra.progress.percentage}%` }"
+                                    ></div>
+                                </div>
+                                <div class="mt-3 grid grid-cols-3 divide-x divide-slate-200 text-xs">
+                                    <div class="pr-2">
+                                        <div class="font-semibold tabular-nums text-slate-800">{{ renstra.progress.stages_filled }}/{{ renstra.progress.stages_total }}</div>
+                                        <div class="mt-0.5 text-muted-foreground">Tahap</div>
+                                    </div>
+                                    <div class="px-2">
+                                        <div class="font-semibold tabular-nums text-slate-800">{{ indicatorCoverageLabel(renstra) }}</div>
+                                        <div class="mt-0.5 text-muted-foreground">Indikator</div>
+                                    </div>
+                                    <div class="pl-2">
+                                        <div class="font-semibold tabular-nums text-slate-800">{{ targetCoverageValue(renstra) }}</div>
+                                        <div class="mt-0.5 text-muted-foreground">Target</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="w-32 px-4 py-5 align-middle">
                                 <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1" :class="statusClass(renstra.status)">
                                     {{ statusLabel(renstra.status) }}
                                 </span>
                             </td>
-                            <td class="px-4 py-4 text-right">
+                            <td class="w-44 px-5 py-5 text-right align-middle">
                                 <div class="inline-flex gap-2">
                                     <Link
                                         :href="route('renstra-opd.show', renstra.id)"
@@ -366,12 +434,14 @@ function rowProgressPercent(renstra: RenstraRow): number {
                                     <button
                                         v-if="can.manage"
                                         type="button"
-                                        class="inline-flex h-9 items-center justify-center rounded-md border px-2 text-red-700 hover:bg-red-50"
-                                        title="Hapus Renstra"
-                                        aria-label="Hapus Renstra"
+                                        class="inline-flex h-9 items-center justify-center rounded-md border px-2 transition"
+                                        :class="deleteActionClass(renstra)"
+                                        :title="deleteActionTitle(renstra)"
+                                        :aria-label="deleteActionTitle(renstra)"
                                         @click="destroy(renstra)"
                                     >
-                                        <Trash2 class="size-4" />
+                                        <RotateCcw v-if="canCancelRevision(renstra)" class="size-4" />
+                                        <Trash2 v-else class="size-4" />
                                     </button>
                                 </div>
                             </td>
@@ -398,9 +468,14 @@ function rowProgressPercent(renstra: RenstraRow): number {
                                 {{ renstra.opd?.singkatan || renstra.opd?.nama || '-' }}
                             </h3>
                         </div>
-                        <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ring-1" :class="statusClass(renstra.status)">
-                            {{ statusLabel(renstra.status) }}
-                        </span>
+                        <div class="flex shrink-0 flex-col items-end gap-2">
+                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1" :class="versionClass(renstra)">
+                                {{ versionLabel(renstra) }}
+                            </span>
+                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1" :class="statusClass(renstra.status)">
+                                {{ statusLabel(renstra.status) }}
+                            </span>
+                        </div>
                     </div>
 
                     <div class="mt-4">
@@ -410,20 +485,21 @@ function rowProgressPercent(renstra: RenstraRow): number {
 
                     <div class="mt-4 grid gap-3 rounded-md border bg-card p-3">
                         <div class="flex items-center justify-between text-xs">
-                            <span class="font-semibold uppercase text-muted-foreground">Cascading</span>
-                            <span class="font-semibold">{{ rowProgressPercent(renstra) }}%</span>
+                            <span class="font-semibold uppercase text-muted-foreground">Kelengkapan</span>
+                            <span class="font-semibold tabular-nums text-[#00336C]">{{ renstra.progress.percentage }}%</span>
                         </div>
-                        <div class="h-2 overflow-hidden rounded-full bg-slate-100">
-                            <div class="h-full rounded-full bg-[#00336C]" :style="{ width: `${rowProgressPercent(renstra)}%` }"></div>
+                        <div class="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                                class="h-full rounded-full bg-[#00336C] transition-[width] duration-300"
+                                :style="{ width: `${renstra.progress.percentage}%` }"
+                            ></div>
                         </div>
-                        <div class="flex flex-wrap gap-1.5">
-                            <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ renstra.progress.tujuan_count }} tujuan</span>
-                            <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700"
-                                >{{ renstra.progress.program_count }} program</span
-                            >
-                            <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700"
-                                >{{ renstra.tahun_awal }}-{{ renstra.tahun_akhir }}</span
-                            >
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                            <span>{{ renstra.progress.stages_filled }}/{{ renstra.progress.stages_total }} tahap</span>
+                            <span class="text-slate-300">|</span>
+                            <span>{{ indicatorCoverageLabel(renstra) }} indikator</span>
+                            <span class="text-slate-300">|</span>
+                            <span>{{ targetCoverageLabel(renstra) }}</span>
                         </div>
                     </div>
 

@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
-type WorkflowAction = 'submit' | 'verify' | 'approve' | 'revision' | 'reject' | 'lock' | 'unlock';
+type WorkflowAction = 'submit' | 'withdraw' | 'verify' | 'approve' | 'revision' | 'reject' | 'lock' | 'unlock';
 type WorkflowActionItem = {
     action: WorkflowAction;
     label: string;
@@ -26,12 +26,16 @@ const props = withDefaults(
         canReview: boolean;
         canLock?: boolean;
         canUnlock?: boolean;
+        canWithdraw?: boolean;
         showVerify?: boolean;
+        buttonClass?: string;
     }>(),
     {
         canLock: false,
         canUnlock: false,
+        canWithdraw: false,
         showVerify: true,
+        buttonClass: '',
     },
 );
 
@@ -96,6 +100,20 @@ const actions = computed(() => {
             notePlaceholder: 'Contoh: Data sudah dilengkapi dan siap diperiksa.',
             noteRequired: false,
             confirmClassName: 'bg-blue-700 text-white hover:bg-blue-800',
+        });
+    }
+
+    if (props.canWithdraw && props.status === 'submitted') {
+        items.push({
+            action: 'withdraw',
+            label: 'Tarik Pengajuan',
+            className: 'border border-amber-200 bg-white text-amber-700 hover:bg-amber-50',
+            title: 'Tarik Pengajuan',
+            description: 'Dokumen kembali ke Draft agar bisa diperbaiki atau dibatalkan.',
+            noteLabel: 'Alasan penarikan',
+            notePlaceholder: 'Tuliskan alasan penarikan pengajuan.',
+            noteRequired: true,
+            confirmClassName: 'bg-amber-600 text-white hover:bg-amber-700',
         });
     }
 
@@ -192,7 +210,7 @@ const actions = computed(() => {
         :key="item.action"
         type="button"
         class="rounded-md px-3 py-2 text-sm font-medium"
-        :class="item.className"
+        :class="[item.className, props.buttonClass, `workflow-action--${item.action}`]"
         @click="openTransitionDialog(item)"
     >
         {{ item.label }}

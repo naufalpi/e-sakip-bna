@@ -10,6 +10,17 @@ type ConfirmOptions = {
     destructive?: boolean;
 };
 
+type PromptTextAreaOptions = {
+    title: string;
+    text?: string;
+    inputLabel?: string;
+    inputPlaceholder?: string;
+    confirmButtonText?: string;
+    cancelButtonText?: string;
+    minLength?: number;
+    destructive?: boolean;
+};
+
 export type FlashNotification = {
     success?: string | null;
     error?: string | null;
@@ -75,6 +86,42 @@ export function confirmDelete(text: string, options: Omit<ConfirmOptions, 'text'
         focusCancel: options.focusCancel ?? true,
         destructive: true,
     });
+}
+
+export async function promptTextArea(options: PromptTextAreaOptions): Promise<string | null> {
+    const result = await appSwal.fire({
+        title: options.title,
+        text: options.text,
+        input: 'textarea',
+        inputLabel: options.inputLabel,
+        inputPlaceholder: options.inputPlaceholder,
+        inputAttributes: {
+            'aria-label': options.inputLabel ?? options.title,
+        },
+        showCancelButton: true,
+        confirmButtonText: options.confirmButtonText ?? 'Simpan',
+        cancelButtonText: options.cancelButtonText ?? 'Batal',
+        focusCancel: true,
+        preConfirm: (value) => {
+            const note = `${value ?? ''}`.trim();
+
+            if (options.minLength && note.length < options.minLength) {
+                Swal.showValidationMessage(`Minimal ${options.minLength} karakter.`);
+                return false;
+            }
+
+            return note;
+        },
+        customClass: {
+            actions: 'esakip-swal-actions',
+            confirmButton: options.destructive
+                ? 'esakip-swal-button esakip-swal-confirm esakip-swal-confirm-danger'
+                : 'esakip-swal-button esakip-swal-confirm',
+            cancelButton: 'esakip-swal-button esakip-swal-cancel',
+        },
+    });
+
+    return result.isConfirmed ? `${result.value ?? ''}`.trim() : null;
 }
 
 export function alertSuccess(title: string, text?: string): Promise<unknown> {

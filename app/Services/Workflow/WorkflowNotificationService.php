@@ -81,6 +81,7 @@ class WorkflowNotificationService
     {
         return match ($action) {
             'submit' => $this->registry->label($module).' diajukan',
+            'withdraw' => $this->registry->label($module).' ditarik dari pengajuan',
             'verify' => $this->registry->label($module).' diverifikasi',
             'approve' => $this->registry->label($module).' disetujui',
             'reject' => $this->registry->label($module).' ditolak',
@@ -95,6 +96,7 @@ class WorkflowNotificationService
     {
         return match ($action) {
             'submit' => 'workflow_submitted',
+            'withdraw' => 'workflow_withdrawn',
             'verify' => 'workflow_verified',
             'approve' => 'workflow_approved',
             'reject' => 'workflow_rejected',

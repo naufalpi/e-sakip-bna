@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Rpjmd;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Perencanaan\CancelDocumentRevisionRequest;
+use App\Http\Requests\Perencanaan\StoreDocumentRevisionRequest;
 use App\Http\Requests\Rpjmd\StoreRpjmdRequest;
 use App\Http\Requests\Rpjmd\UpdateRpjmdRequest;
 use App\Models\IndikatorProgramRpjmd;
@@ -22,11 +24,15 @@ use App\Models\SystemSetting;
 use App\Models\TujuanDaerah;
 use App\Models\UrusanPemerintahan;
 use App\Models\User;
+use App\Models\WorkflowSubmission;
+use App\Services\Perencanaan\CancelDocumentRevisionService;
+use App\Services\Perencanaan\DocumentRevisionService;
 use App\Services\Rpjmd\RpjmdPreviewExcelExportService;
 use App\Services\Rpjmd\RpjmdProgramPengampuResolver;
 use App\Services\Workflow\WorkflowDataService;
 use App\Support\SystemSettingCatalog;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -65,6 +71,10 @@ class RpjmdController extends Controller
                 'tahun_awal' => $rpjmd->tahun_awal,
                 'tahun_akhir' => $rpjmd->tahun_akhir,
                 'status' => $rpjmd->status,
+                'jenis_versi' => $rpjmd->jenis_versi,
+                'nomor_versi' => $rpjmd->nomor_versi,
+                'is_active_version' => $rpjmd->is_active_version,
+                'version_label' => $rpjmd->versionLabel(),
                 'periode_tahun' => $rpjmd->periodeTahun ? [
                     'id' => $rpjmd->periodeTahun->id,
                     'tahun' => $rpjmd->periodeTahun->tahun,
@@ -166,6 +176,9 @@ class RpjmdController extends Controller
             'programPemerintahanOptions' => $manage ? $this->programPemerintahanOptions($rpjmd) : [],
             'can' => [
                 'manage' => $manage,
+                'createRevision' => $request->user()->can('createRevision', $rpjmd),
+                'cancelRevision' => $request->user()->can('cancelRevision', $rpjmd),
+                'withdraw' => $this->canWithdrawWorkflow($request->user(), $rpjmd, 'rpjmd'),
                 'review' => $this->canReviewWorkflow($request->user()),
                 'lock' => $this->canLockWorkflow($request->user()),
                 'unlock' => $this->canUnlockWorkflow($request->user()),
@@ -215,9 +228,44 @@ class RpjmdController extends Controller
         return redirect()->route('rpjmd.show', $rpjmd)->with('success', 'RPJMD berhasil diperbarui.');
     }
 
+    public function storeRevision(
+        StoreDocumentRevisionRequest $request,
+        Rpjmd $rpjmd,
+        DocumentRevisionService $revisionService,
+    ): RedirectResponse {
+        $this->authorize('createRevision', $rpjmd);
+
+        $revision = $revisionService->createRpjmdRevision(
+            $rpjmd,
+            $request->validated(),
+            $request->user(),
+        );
+
+        return redirect()
+            ->route('rpjmd.show', $revision)
+            ->with('success', 'Versi perubahan RPJMD berhasil dibuat. Lengkapi perubahan lalu ajukan untuk persetujuan.');
+    }
+
+    public function cancelRevision(
+        CancelDocumentRevisionRequest $request,
+        Rpjmd $rpjmd,
+        CancelDocumentRevisionService $service,
+    ): RedirectResponse {
+        $this->authorize('cancelRevision', $rpjmd);
+
+        $previous = $service->cancelRpjmdRevision($rpjmd, $request->validated(), $request->user());
+
+        return ($previous ? redirect()->route('rpjmd.show', $previous) : redirect()->route('rpjmd.index'))
+            ->with('success', 'Perubahan RPJMD dibatalkan. Versi sebelumnya aktif kembali.');
+    }
+
     public function destroy(Rpjmd $rpjmd): RedirectResponse
     {
         $this->authorize('delete', $rpjmd);
+
+        if ($rpjmd->jenis_versi === 'perubahan') {
+            return back()->with('error', $this->revisionDeleteBlockedMessage((string) $rpjmd->status, 'RPJMD'));
+        }
 
         $rpjmd->delete();
 
@@ -673,6 +721,42 @@ class RpjmdController extends Controller
         return $user->isSuperAdmin();
     }
 
+    private function canWithdrawWorkflow(User $user, Model $model, string $module): bool
+    {
+        if ((string) ($model->getAttribute('status') ?? '') !== 'submitted') {
+            return false;
+        }
+
+        if (! $user->can('update', $model)) {
+            return false;
+        }
+
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        $submittedBy = WorkflowSubmission::query()
+            ->where('related_table', $model->getTable())
+            ->where('related_id', (int) $model->getKey())
+            ->where('module', $module)
+            ->value('submitted_by');
+
+        return $submittedBy !== null && (int) $submittedBy === (int) $user->id;
+    }
+
+    private function revisionDeleteBlockedMessage(string $status, string $label): string
+    {
+        if (in_array($status, ['draft', 'revision', 'rejected'], true)) {
+            return "{$label} Perubahan belum resmi. Gunakan tombol Batalkan Perubahan agar versi sebelumnya aktif kembali.";
+        }
+
+        if (in_array($status, ['submitted', 'verified'], true)) {
+            return "{$label} Perubahan sedang diajukan. Tarik pengajuan terlebih dahulu jika perlu dibatalkan.";
+        }
+
+        return "{$label} Perubahan sudah resmi. Buat Perubahan berikutnya untuk koreksi.";
+    }
+
     /**
      * @return array{struktur_tujuan_mode: string, struktur_sasaran_mode: string}
      */
@@ -724,6 +808,14 @@ class RpjmdController extends Controller
             'tahun_awal' => $rpjmd->tahun_awal,
             'tahun_akhir' => $rpjmd->tahun_akhir,
             'status' => $rpjmd->status,
+            'jenis_versi' => $rpjmd->jenis_versi,
+            'nomor_versi' => $rpjmd->nomor_versi,
+            'parent_version_id' => $rpjmd->parent_version_id,
+            'is_active_version' => $rpjmd->is_active_version,
+            'version_label' => $rpjmd->versionLabel(),
+            'alasan_perubahan' => $rpjmd->alasan_perubahan,
+            'dasar_perubahan' => $rpjmd->dasar_perubahan,
+            'tanggal_berlaku' => $rpjmd->tanggal_berlaku?->toDateString(),
             'struktur_tujuan_mode' => $rpjmd->struktur_tujuan_mode,
             'struktur_sasaran_mode' => $rpjmd->struktur_sasaran_mode,
             'keterangan' => $rpjmd->keterangan,

@@ -90,6 +90,82 @@ html {
     body {
         @apply bg-background text-foreground;
     }
+
+    html.dark,
+    body.dark,
+    html.dark body,
+    html.dark #app,
+    .dark,
+    .dark body,
+    .dark #app,
+    .dark .group\/sidebar-wrapper {
+        min-height: 100%;
+        background-color: #08111f !important;
+    }
+
+    html.dark,
+    body.dark,
+    .dark {
+        color-scheme: dark;
+        scrollbar-color: rgb(71 85 105 / 0.95) #08111f;
+    }
+
+    html.dark body,
+    body.dark {
+        min-height: 100%;
+        overflow-x: hidden;
+        background-color: #08111f !important;
+    }
+
+    html.dark ::-webkit-scrollbar,
+    body.dark ::-webkit-scrollbar,
+    .dark ::-webkit-scrollbar,
+    html.dark::-webkit-scrollbar,
+    body.dark::-webkit-scrollbar,
+    .dark::-webkit-scrollbar,
+    .dark body::-webkit-scrollbar {
+        width: 0.65rem;
+        height: 0.65rem;
+    }
+
+    html.dark ::-webkit-scrollbar-track,
+    body.dark ::-webkit-scrollbar-track,
+    .dark ::-webkit-scrollbar-track,
+    html.dark::-webkit-scrollbar-track,
+    body.dark::-webkit-scrollbar-track,
+    .dark::-webkit-scrollbar-track,
+    .dark body::-webkit-scrollbar-track,
+    html.dark ::-webkit-scrollbar-corner,
+    body.dark ::-webkit-scrollbar-corner,
+    .dark ::-webkit-scrollbar-corner,
+    html.dark::-webkit-scrollbar-corner,
+    body.dark::-webkit-scrollbar-corner,
+    .dark::-webkit-scrollbar-corner,
+    .dark body::-webkit-scrollbar-corner {
+        background: #08111f !important;
+    }
+
+    html.dark ::-webkit-scrollbar-thumb,
+    body.dark ::-webkit-scrollbar-thumb,
+    .dark ::-webkit-scrollbar-thumb,
+    html.dark::-webkit-scrollbar-thumb,
+    body.dark::-webkit-scrollbar-thumb,
+    .dark::-webkit-scrollbar-thumb,
+    .dark body::-webkit-scrollbar-thumb {
+        border: 2px solid #08111f;
+        border-radius: 999px;
+        background: rgb(71 85 105 / 0.92);
+    }
+
+    html.dark ::-webkit-scrollbar-thumb:hover,
+    body.dark ::-webkit-scrollbar-thumb:hover,
+    .dark ::-webkit-scrollbar-thumb:hover,
+    html.dark::-webkit-scrollbar-thumb:hover,
+    body.dark::-webkit-scrollbar-thumb:hover,
+    .dark::-webkit-scrollbar-thumb:hover,
+    .dark body::-webkit-scrollbar-thumb:hover {
+        background: rgb(100 116 139 / 0.96);
+    }
 }
 
 @layer components {
@@ -131,33 +207,35 @@ html {
     }
 
     .app-sidebar-header {
-        gap: 0.5rem;
+        height: 4rem;
+        min-height: 4rem;
+        align-items: center;
+        gap: 0;
         border-bottom: 1px solid rgb(203 213 225 / 0.82);
-        padding: 0.75rem 0.75rem 0.6rem;
+        padding: 0 0.75rem;
+        background: #fff;
     }
 
     .app-sidebar-brand {
-        min-height: 3.35rem !important;
-        border: 1px solid rgb(191 219 254 / 0.85);
-        border-radius: 0.9rem !important;
-        background: linear-gradient(180deg, #ffffff, #f4f9ff);
+        min-height: 2.75rem !important;
+        border: 0;
+        border-radius: 0.5rem !important;
+        padding-inline: 0.25rem !important;
+        background: transparent;
         color: #00336c;
-        box-shadow:
-            0 0.45rem 1.1rem rgb(15 23 42 / 0.055),
-            inset 0 1px 0 rgb(255 255 255);
+        box-shadow: none;
     }
 
     .app-sidebar-brand:hover,
     .app-sidebar-brand:focus-visible {
-        background: linear-gradient(180deg, #ffffff, #eef6ff);
+        background: transparent;
         color: #00336c;
     }
 
     .app-sidebar-logo-mark {
-        border: 1px solid rgb(191 219 254 / 0.9);
-        box-shadow:
-            0 0.4rem 0.9rem rgb(15 23 42 / 0.08),
-            inset 0 0 0 1px rgb(0 51 108 / 0.08);
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
     }
 
     .app-sidebar-brand-text span:first-child {
@@ -408,19 +486,25 @@ html {
         background: linear-gradient(180deg, rgb(247 251 255 / 0.82), rgb(255 255 255 / 0.94));
     }
 
-    .admin-main-shell {
-        position: relative;
-        isolation: isolate;
-        overflow: hidden;
-        border-color: rgb(203 213 225 / 0.8) !important;
-        background:
-            radial-gradient(circle at 6% 0%, rgb(0 51 108 / 0.09), transparent 19rem),
-            radial-gradient(circle at 96% 10%, rgb(14 165 233 / 0.1), transparent 22rem),
-            linear-gradient(180deg, #f8fbff 0%, #f6f8fb 48%, #ffffff 100%);
-        box-shadow:
-            0 1.25rem 3rem rgb(15 23 42 / 0.08),
-            inset 0 1px 0 rgb(255 255 255 / 0.9);
-    }
+.admin-main-shell {
+    --admin-header-height: 4rem;
+    --admin-shell-inset: 0px;
+    position: relative;
+    isolation: isolate;
+    margin: 0 !important;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible !important;
+    border-radius: 0 !important;
+    border-color: rgb(203 213 225 / 0.8) !important;
+    background:
+        radial-gradient(circle at 6% 0%, rgb(0 51 108 / 0.09), transparent 19rem),
+        radial-gradient(circle at 96% 10%, rgb(14 165 233 / 0.1), transparent 22rem),
+        linear-gradient(180deg, #f8fbff 0%, #f6f8fb 48%, #ffffff 100%);
+    box-shadow:
+        0 1.25rem 3rem rgb(15 23 42 / 0.08),
+        inset 0 1px 0 rgb(255 255 255 / 0.9);
+}
 
     .admin-main-shell::before {
         position: absolute;
@@ -434,16 +518,35 @@ html {
         mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.55), transparent 48rem);
     }
 
-    .admin-topbar {
-        position: sticky;
-        top: 0;
-        z-index: 30;
-        height: 4rem;
-        border-bottom: 1px solid rgb(203 213 225 / 0.82) !important;
-        background: rgb(255 255 255 / 0.82);
-        backdrop-filter: blur(18px);
-        box-shadow: 0 0.75rem 1.8rem rgb(15 23 42 / 0.045);
+.admin-topbar {
+    position: sticky;
+    top: var(--admin-shell-inset);
+    right: 0;
+    left: 0;
+    z-index: 90;
+    height: var(--admin-header-height);
+    min-height: var(--admin-header-height);
+    flex: 0 0 var(--admin-header-height);
+    align-self: stretch;
+    isolation: isolate;
+    transform: none !important;
+    will-change: auto;
+    border-bottom: 1px solid rgb(203 213 225 / 0.82) !important;
+    background: rgb(255 255 255 / 0.58);
+    background-clip: padding-box;
+    -webkit-backdrop-filter: blur(12px) saturate(1.08);
+    backdrop-filter: blur(12px) saturate(1.08);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.85);
+}
+
+@media (min-width: 768px) {
+    .admin-main-shell {
+        --admin-shell-inset: 0.5rem;
+        margin: 0.5rem 0.5rem 0.5rem 0 !important;
+        min-height: calc(100vh - 1rem);
+        min-height: calc(100dvh - 1rem);
     }
+}
 
     .admin-topbar [data-sidebar='trigger'] {
         border: 1px solid rgb(203 213 225 / 0.9);
@@ -496,6 +599,9 @@ html {
 
     .admin-page-stage {
         z-index: 1;
+        min-height: calc(100vh - var(--admin-header-height) - var(--admin-shell-inset) - var(--admin-shell-inset));
+        min-height: calc(100dvh - var(--admin-header-height) - var(--admin-shell-inset) - var(--admin-shell-inset));
+        background: transparent;
     }
 
     .admin-page-stage > div {
@@ -536,7 +642,13 @@ html {
     }
 
     .admin-route-loader {
+        position: absolute;
+        top: var(--admin-header-height);
+        right: 0;
+        left: 0;
+        z-index: 89;
         height: 2px;
+        pointer-events: none;
         overflow: hidden;
         background: transparent;
         opacity: 0;
@@ -881,27 +993,27 @@ html {
     border-color: rgb(51 65 85 / 0.78);
 }
 
+.dark .app-sidebar-header {
+    background: #0f172a;
+}
+
 .dark .app-sidebar-brand {
-    border-color: rgb(59 130 246 / 0.32);
-    background: linear-gradient(180deg, rgb(15 23 42 / 0.95), rgb(15 23 42 / 0.72));
+    border-color: transparent;
+    background: transparent;
     color: rgb(219 234 254);
-    box-shadow:
-        0 0.45rem 1.1rem rgb(0 0 0 / 0.2),
-        inset 0 1px 0 rgb(255 255 255 / 0.06);
+    box-shadow: none;
 }
 
 .dark .app-sidebar-brand:hover,
 .dark .app-sidebar-brand:focus-visible {
-    background: linear-gradient(180deg, rgb(30 41 59 / 0.96), rgb(15 23 42 / 0.82));
+    background: transparent;
     color: rgb(239 246 255);
 }
 
 .dark .app-sidebar-logo-mark {
-    border-color: rgb(96 165 250 / 0.38);
-    background: rgb(248 250 252);
-    box-shadow:
-        0 0.45rem 1rem rgb(0 0 0 / 0.28),
-        inset 0 0 0 1px rgb(255 255 255 / 0.28);
+    border-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 .dark .app-sidebar-brand-text span:first-child {
@@ -979,6 +1091,10 @@ html {
         inset 0 1px 0 rgb(255 255 255 / 0.04);
 }
 
+.dark .admin-page-stage {
+    background: #08111f;
+}
+
 .dark .admin-main-shell::before {
     background-image:
         linear-gradient(rgb(148 163 184 / 0.045) 1px, transparent 1px), linear-gradient(90deg, rgb(148 163 184 / 0.045) 1px, transparent 1px);
@@ -987,8 +1103,10 @@ html {
 
 .dark .admin-topbar {
     border-color: rgb(51 65 85 / 0.78) !important;
-    background: rgb(15 23 42 / 0.82);
-    box-shadow: 0 0.75rem 1.8rem rgb(0 0 0 / 0.22);
+    background: rgb(15 23 42 / 0.64);
+    -webkit-backdrop-filter: blur(12px) saturate(1.08);
+    backdrop-filter: blur(12px) saturate(1.08);
+    box-shadow: inset 0 1px 0 rgb(148 163 184 / 0.08);
 }
 
 .dark .admin-topbar [data-sidebar='trigger'],
@@ -1107,4 +1225,275 @@ html {
 
 .swal2-actions.esakip-swal-actions > .swal2-styled.esakip-swal-button {
     margin: 0 !important;
+}
+
+/* Dashboard dark-mode hardening.
+   Dashboard.vue has a dense scoped visual system; keep final admin overrides here
+   so dark mode stays consistent across cards, tables, and chart surfaces. */
+.dark .admin-main-shell .dashboard-shell {
+    --dashboard-line: rgb(51 65 85 / 0.9) !important;
+    --dashboard-shadow: 0 1rem 2.4rem rgb(0 0 0 / 0.28) !important;
+    background:
+        radial-gradient(circle at 12% -8%, rgb(37 99 235 / 0.16), transparent 28rem),
+        radial-gradient(circle at 92% 4%, rgb(14 165 233 / 0.12), transparent 25rem),
+        linear-gradient(180deg, #0b1220 0%, #0f172a 52%, #0b1220 100%) !important;
+    color: rgb(226 232 240) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-kpi-card, .dashboard-board-card, .dashboard-panel, .dashboard-metric-card, .dashboard-priority-card, .dashboard-ranking-row, .dashboard-status-row, .dashboard-data-table, .dashboard-document-item) {
+    border-color: rgb(51 65 85 / 0.88) !important;
+    background: linear-gradient(180deg, rgb(15 23 42 / 0.94), rgb(15 23 42 / 0.8)) !important;
+    box-shadow: var(--dashboard-shadow) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-page-head h1, .dashboard-overview h1, .dashboard-section-heading h2, .dashboard-kpi-card__body strong, .dashboard-board-card__header h2, .dashboard-panel__heading h2, .dashboard-metric-card__value, .dashboard-priority-card__value, .dashboard-priority-row__value, .dashboard-ranking-row strong, .dashboard-status-row strong, .dashboard-data-table strong, .dashboard-document-grid strong, .dashboard-document-item strong) {
+    color: rgb(248 250 252) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-page-head__eyebrow, .dashboard-page-head__title > p, .dashboard-overview__description, .dashboard-filters__note, .dashboard-kpi-card__body p, .dashboard-kpi-card__body > span, .dashboard-board-card__header p, .dashboard-panel__heading p, .dashboard-metric-card__label, .dashboard-metric-card__footer, .dashboard-priority-list__items p, .dashboard-priority-row__content span, .dashboard-panel__page-size, .dashboard-panel__period, .dashboard-data-table, .dashboard-status-row p) {
+    color: rgb(148 163 184) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-page-head__eyebrow, .dashboard-panel__eyebrow, .dashboard-data-link, .dashboard-data-link--small) {
+    color: rgb(125 211 252) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-filterbar, .dashboard-control, .dashboard-filters) {
+    border-color: rgb(51 65 85 / 0.86) !important;
+    background: rgb(15 23 42 / 0.86) !important;
+    box-shadow: 0 1rem 2rem rgb(0 0 0 / 0.18) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-filterbar select, .dashboard-filterbar__reset, .dashboard-panel__page-size select, .dashboard-pagination button) {
+    border-color: rgb(71 85 105 / 0.9) !important;
+    background: rgb(15 23 42 / 0.92) !important;
+    color: rgb(226 232 240) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-filterbar select:hover, .dashboard-filterbar__reset:hover, .dashboard-panel__page-size select:hover, .dashboard-pagination button:hover) {
+    border-color: rgb(96 165 250 / 0.56) !important;
+    background: rgb(30 41 59 / 0.92) !important;
+    color: rgb(248 250 252) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-board-card__header, .dashboard-panel__header, .dashboard-document-card__footer, .dashboard-quarter-card__legend, .dashboard-trend-card__status, .dashboard-shell .dashboard-panel > .border-b) {
+    border-color: rgb(51 65 85 / 0.86) !important;
+    background: transparent !important;
+}
+
+.dark .admin-main-shell .dashboard-data-table {
+    border-color: rgb(51 65 85 / 0.9) !important;
+    background: rgb(15 23 42 / 0.74) !important;
+}
+
+.dark .admin-main-shell .dashboard-data-table thead {
+    background: rgb(15 23 42 / 0.96) !important;
+}
+
+.dark .admin-main-shell .dashboard-data-table th {
+    color: rgb(148 163 184) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-data-table td, .dashboard-ranking-row, .dashboard-status-row) {
+    border-color: rgb(51 65 85 / 0.82) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-data-table tbody tr:not(:has(td[colspan])):hover, .dashboard-ranking-row:hover, .dashboard-status-row:hover) {
+    background: rgb(30 41 59 / 0.7) !important;
+}
+
+.dark .admin-main-shell .dashboard-document-grid > div {
+    border-color: rgb(51 65 85 / 0.84) !important;
+    background: rgb(30 41 59 / 0.58) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-quarter-chart__bar, .dashboard-trend-chart__row > div, .dashboard-panel .bg-muted, .dashboard-panel .h-2) {
+    background: rgb(51 65 85 / 0.7) !important;
+}
+
+.dark .admin-main-shell :is(.dashboard-kpi-card__icon, .dashboard-metric-card__icon, .dashboard-priority-card__icon, .dashboard-priority-row__icon, .dashboard-panel__icon) {
+    filter: saturate(0.96) brightness(0.94);
+}
+
+.dark .admin-main-shell .dashboard-document-card__footer {
+    color: rgb(148 163 184) !important;
+}
+
+/* The page itself owns vertical overflow: never create a second scrollport in
+   the admin shell. A fixed topbar height also keeps its sticky position stable. */
+.admin-main-shell,
+.admin-page-stage,
+.admin-page-stage > div {
+    min-width: 0;
+    overflow: visible !important;
+}
+
+.admin-page-stage {
+    min-height: calc(100vh - var(--admin-header-height) - var(--admin-shell-inset) - var(--admin-shell-inset));
+    min-height: calc(100dvh - var(--admin-header-height) - var(--admin-shell-inset) - var(--admin-shell-inset));
+}
+
+.admin-main-shell .dashboard-shell {
+    min-height: calc(100dvh - var(--admin-header-height) - var(--admin-shell-inset) - var(--admin-shell-inset));
+}
+
+.admin-topbar {
+    transition: none !important;
+}
+
+/* Final dashboard surface mapping. These selectors deliberately sit after the
+   scoped dashboard styles so no light surface can leak into dark mode. */
+.dark .admin-main-shell .dashboard-shell {
+    --dashboard-surface: rgb(15 23 42 / 0.94);
+    --dashboard-surface-raised: rgb(30 41 59 / 0.88);
+    background-color: #0b1220 !important;
+}
+
+.dark .admin-main-shell .dashboard-shell :is(
+    .dashboard-kpi-card,
+    .dashboard-board-card,
+    .dashboard-panel,
+    .dashboard-metric-card,
+    .dashboard-priority-card,
+    .dashboard-completion-item,
+    .dashboard-document-item,
+    .dashboard-document-grid > div
+) {
+    border-color: rgb(51 65 85 / 0.88) !important;
+    background-color: var(--dashboard-surface) !important;
+    background-image: linear-gradient(180deg, rgb(15 23 42 / 0.96), rgb(15 23 42 / 0.8)) !important;
+}
+
+.dark .admin-main-shell .dashboard-shell :is(
+    .dashboard-progress-ring::before,
+    .dashboard-panel__header,
+    .dashboard-document-card__footer,
+    .dashboard-quarter-card__legend,
+    .dashboard-trend-card__status
+) {
+    background-color: var(--dashboard-surface) !important;
+}
+
+/* Document controls: establish a clear action hierarchy without changing
+   workflow behavior. */
+.document-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.document-action {
+    display: inline-flex;
+    min-height: 2.6rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.65rem;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.8125rem;
+    font-weight: 650;
+    line-height: 1.2;
+    text-decoration: none;
+    transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+
+.document-action:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.document-action:focus-visible {
+    outline: 2px solid rgb(37 99 235 / 0.45);
+    outline-offset: 2px;
+}
+
+.document-action--secondary,
+.document-action--workflow {
+    border: 1px solid rgb(203 213 225 / 0.94);
+    background: rgb(255 255 255 / 0.8);
+    color: rgb(51 65 85);
+    box-shadow: inset 0 1px 0 rgb(255 255 255), 0 0.25rem 0.65rem rgb(15 23 42 / 0.04);
+}
+
+.document-action--secondary:hover:not(:disabled),
+.document-action--workflow:hover:not(:disabled) {
+    border-color: rgb(147 197 253 / 0.95);
+    background: rgb(239 246 255 / 0.92);
+    color: #00336c;
+}
+
+.document-action--primary {
+    border: 1px solid rgb(147 197 253 / 0.9);
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    color: #164eaa;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 0.35rem 0.8rem rgb(37 99 235 / 0.1);
+}
+
+.document-action--primary:hover:not(:disabled) {
+    border-color: rgb(59 130 246 / 0.84);
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    color: #00336c;
+}
+
+.document-action--warning {
+    border: 1px solid rgb(251 191 36 / 0.72);
+    background: linear-gradient(135deg, #fffbeb, #fef3c7);
+    color: #92400e;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 0.35rem 0.8rem rgb(180 83 9 / 0.08);
+}
+
+.document-action--warning:hover:not(:disabled) {
+    border-color: rgb(217 119 6 / 0.78);
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #78350f;
+}
+
+.document-action.workflow-action--lock {
+    border-color: rgb(51 65 85 / 0.82);
+    background: linear-gradient(135deg, #334155, #1e293b);
+    color: #f8fafc;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 0.35rem 0.85rem rgb(15 23 42 / 0.16);
+}
+
+.document-action.workflow-action--lock:hover:not(:disabled) {
+    border-color: #0f172a;
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    color: #fff;
+}
+
+.document-action.workflow-action--unlock,
+.document-action.workflow-action--withdraw,
+.document-action.workflow-action--revision {
+    border-color: rgb(251 191 36 / 0.72);
+    background: rgb(255 251 235 / 0.88);
+    color: #92400e;
+}
+
+.document-action.workflow-action--submit,
+.document-action.workflow-action--approve {
+    border-color: rgb(16 185 129 / 0.62);
+    background: linear-gradient(135deg, #047857, #059669);
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 0.35rem 0.85rem rgb(5 150 105 / 0.16);
+}
+
+.dark .document-action--secondary,
+.dark .document-action--workflow {
+    border-color: rgb(71 85 105 / 0.86);
+    background: rgb(15 23 42 / 0.74);
+    color: rgb(203 213 225);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.dark .document-action--primary {
+    border-color: rgb(59 130 246 / 0.55);
+    background: linear-gradient(135deg, rgb(30 58 138 / 0.5), rgb(30 64 175 / 0.34));
+    color: rgb(191 219 254);
+}
+
+.dark .document-action--warning {
+    border-color: rgb(245 158 11 / 0.48);
+    background: linear-gradient(135deg, rgb(120 53 15 / 0.48), rgb(146 64 14 / 0.34));
+    color: rgb(253 230 138);
 }

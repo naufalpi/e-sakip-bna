@@ -39,6 +39,10 @@ class RpjmdPolicy
 
     public function update(User $user, Rpjmd $rpjmd): bool
     {
+        if ($rpjmd->isArchivedVersion()) {
+            return false;
+        }
+
         if (! $this->canChangeLocked($user, $rpjmd)) {
             return false;
         }
@@ -49,6 +53,21 @@ class RpjmdPolicy
     public function delete(User $user, Rpjmd $rpjmd): bool
     {
         return $this->update($user, $rpjmd);
+    }
+
+    public function createRevision(User $user, Rpjmd $rpjmd): bool
+    {
+        return $rpjmd->is_active_version
+            && in_array($rpjmd->status, ['approved', 'locked'], true)
+            && $user->hasAnyPermission(['rpjmd.manage', 'manage_rpjmd']);
+    }
+
+    public function cancelRevision(User $user, Rpjmd $rpjmd): bool
+    {
+        return $rpjmd->jenis_versi === 'perubahan'
+            && in_array((string) $rpjmd->status, ['draft', 'revision', 'rejected'], true)
+            && ! $rpjmd->isArchivedVersion()
+            && $user->hasAnyPermission(['rpjmd.manage', 'manage_rpjmd']);
     }
 
     private function canViewAllRpjmd(User $user): bool

@@ -29,9 +29,9 @@ const { isNavigating } = useInertiaNavigationIndicator();
             <div class="admin-route-loader" :class="{ 'is-visible': isNavigating }" aria-hidden="true">
                 <span />
             </div>
-            <div class="admin-page-stage relative flex min-w-0 flex-1 flex-col">
+            <div class="admin-page-stage relative flex min-w-0 flex-none flex-col">
                 <Transition name="page-drop" appear>
-                    <div :key="pageTransitionKey" class="flex min-w-0 flex-1 flex-col">
+                    <div :key="pageTransitionKey" class="min-w-0">
                         <slot />
                     </div>
                 </Transition>

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\RenstraOpd;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Perencanaan\CancelDocumentRevisionRequest;
+use App\Http\Requests\Perencanaan\StoreDocumentRevisionRequest;
 use App\Http\Requests\RenstraOpd\StoreRenstraOpdRequest;
 use App\Http\Requests\RenstraOpd\UpdateRenstraOpdRequest;
 use App\Models\IndikatorOpdKegiatan;
@@ -31,9 +33,13 @@ use App\Models\SubKegiatanPemerintahan;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
 use App\Models\User;
+use App\Models\WorkflowSubmission;
+use App\Services\Perencanaan\CancelDocumentRevisionService;
+use App\Services\Perencanaan\DocumentRevisionService;
 use App\Services\Renstra\RenstraPreviewExcelExportService;
 use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -51,8 +57,19 @@ class RenstraOpdController extends Controller
         $user = $request->user();
 
         $renstras = RenstraOpd::query()
-            ->with(['opd:id,kode,nama,singkatan', 'rpjmd:id,judul,tahun_awal,tahun_akhir,status', 'periodeTahun:id,tahun,nama'])
-            ->withCount(['tujuan', 'programs'])
+            ->with([
+                'opd:id,kode,nama,singkatan',
+                'rpjmd:id,judul,tahun_awal,tahun_akhir,status',
+                'rpjmdPerubahanTerbaru:id,judul,jenis_versi,nomor_versi',
+                'periodeTahun:id,tahun,nama',
+            ])
+            ->with([
+                'tujuan.indikator.targets.periodeTahun:id,tahun',
+                'tujuan.sasaran.indikator.targets.periodeTahun:id,tahun',
+                'programs.indikator.targets.periodeTahun:id,tahun',
+                'programs.kegiatan.indikator.targets.periodeTahun:id,tahun',
+                'programs.kegiatan.subKegiatan.indikator.targets.periodeTahun:id,tahun',
+            ])
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $query->where(function (Builder $query) use ($search) {
@@ -76,6 +93,16 @@ class RenstraOpdController extends Controller
                 'tahun_awal' => $renstra->tahun_awal,
                 'tahun_akhir' => $renstra->tahun_akhir,
                 'status' => $renstra->status,
+                'jenis_versi' => $renstra->jenis_versi,
+                'nomor_versi' => $renstra->nomor_versi,
+                'is_active_version' => $renstra->is_active_version,
+                'version_label' => $renstra->versionLabel(),
+                'perlu_penyesuaian_rpjmd' => $renstra->perlu_penyesuaian_rpjmd,
+                'rpjmd_perubahan_terbaru' => $renstra->rpjmdPerubahanTerbaru ? [
+                    'id' => $renstra->rpjmdPerubahanTerbaru->id,
+                    'judul' => $renstra->rpjmdPerubahanTerbaru->judul,
+                    'version_label' => $renstra->rpjmdPerubahanTerbaru->versionLabel(),
+                ] : null,
                 'opd' => $renstra->opd ? [
                     'id' => $renstra->opd->id,
                     'kode' => $renstra->opd->kode,
@@ -93,11 +120,7 @@ class RenstraOpdController extends Controller
                     'tahun' => $renstra->periodeTahun->tahun,
                     'nama' => $renstra->periodeTahun->nama,
                 ] : null,
-                'progress' => [
-                    'tujuan_count' => $renstra->tujuan_count,
-                    'program_count' => $renstra->programs_count,
-                    'status' => $renstra->tujuan_count > 0 && $renstra->programs_count > 0 ? 'terisi' : 'belum_lengkap',
-                ],
+                'progress' => $this->cascadingProgress($renstra),
             ]);
 
         return Inertia::render('RenstraOpd/Index', [
@@ -155,8 +178,7 @@ class RenstraOpdController extends Controller
         RenstraOpd $renstraOpd,
         WorkflowDataService $workflowDataService,
         ?string $activeSection = null,
-    ): Response
-    {
+    ): Response {
         $this->authorize('view', $renstraOpd);
 
         $manage = $request->user()->can('update', $renstraOpd);
@@ -199,6 +221,7 @@ class RenstraOpdController extends Controller
             'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.satuanIndikator:id,nama,simbol',
             'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.opdPenanggungJawab:id,kode,nama,singkatan',
             'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.targets.periodeTahun:id,tahun,nama',
+            'rpjmdPerubahanTerbaru:id,judul,jenis_versi,nomor_versi',
         ]);
 
         return Inertia::render('RenstraOpd/Show', [
@@ -211,6 +234,9 @@ class RenstraOpdController extends Controller
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
             'can' => [
                 'manage' => $manage,
+                'createRevision' => $request->user()->can('createRevision', $renstraOpd),
+                'cancelRevision' => $request->user()->can('cancelRevision', $renstraOpd),
+                'withdraw' => $this->canWithdrawWorkflow($request->user(), $renstraOpd, 'renstra_opd'),
                 'review' => $this->canReviewWorkflow($request->user()),
                 'lock' => $this->canLockWorkflow($request->user()),
             ],
@@ -268,9 +294,44 @@ class RenstraOpdController extends Controller
         return redirect()->route('renstra-opd.show', $renstraOpd)->with('success', 'Renstra OPD berhasil diperbarui.');
     }
 
+    public function storeRevision(
+        StoreDocumentRevisionRequest $request,
+        RenstraOpd $renstraOpd,
+        DocumentRevisionService $revisionService,
+    ): RedirectResponse {
+        $this->authorize('createRevision', $renstraOpd);
+
+        $revision = $revisionService->createRenstraRevision(
+            $renstraOpd,
+            $request->validated(),
+            $request->user(),
+        );
+
+        return redirect()
+            ->route('renstra-opd.show', $revision)
+            ->with('success', 'Versi perubahan Renstra OPD berhasil dibuat. Lengkapi perubahan lalu ajukan untuk persetujuan.');
+    }
+
+    public function cancelRevision(
+        CancelDocumentRevisionRequest $request,
+        RenstraOpd $renstraOpd,
+        CancelDocumentRevisionService $service,
+    ): RedirectResponse {
+        $this->authorize('cancelRevision', $renstraOpd);
+
+        $previous = $service->cancelRenstraRevision($renstraOpd, $request->validated(), $request->user());
+
+        return ($previous ? redirect()->route('renstra-opd.show', $previous) : redirect()->route('renstra-opd.index'))
+            ->with('success', 'Perubahan Renstra OPD dibatalkan. Versi sebelumnya aktif kembali.');
+    }
+
     public function destroy(RenstraOpd $renstraOpd): RedirectResponse
     {
         $this->authorize('delete', $renstraOpd);
+
+        if ($renstraOpd->jenis_versi === 'perubahan') {
+            return back()->with('error', $this->revisionDeleteBlockedMessage((string) $renstraOpd->status, 'Renstra OPD'));
+        }
 
         $renstraOpd->delete();
 
@@ -292,6 +353,42 @@ class RenstraOpdController extends Controller
     private function canLockWorkflow(User $user): bool
     {
         return $user->isSuperAdmin() || $user->hasPermission('lock_period');
+    }
+
+    private function canWithdrawWorkflow(User $user, Model $model, string $module): bool
+    {
+        if ((string) ($model->getAttribute('status') ?? '') !== 'submitted') {
+            return false;
+        }
+
+        if (! $user->can('update', $model)) {
+            return false;
+        }
+
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        $submittedBy = WorkflowSubmission::query()
+            ->where('related_table', $model->getTable())
+            ->where('related_id', (int) $model->getKey())
+            ->where('module', $module)
+            ->value('submitted_by');
+
+        return $submittedBy !== null && (int) $submittedBy === (int) $user->id;
+    }
+
+    private function revisionDeleteBlockedMessage(string $status, string $label): string
+    {
+        if (in_array($status, ['draft', 'revision', 'rejected'], true)) {
+            return "{$label} Perubahan belum resmi. Gunakan tombol Batalkan Perubahan agar versi sebelumnya aktif kembali.";
+        }
+
+        if (in_array($status, ['submitted', 'verified'], true)) {
+            return "{$label} Perubahan sedang diajukan. Tarik pengajuan terlebih dahulu jika perlu dibatalkan.";
+        }
+
+        return "{$label} Perubahan sudah resmi. Buat Perubahan berikutnya untuk koreksi.";
     }
 
     /**
@@ -697,6 +794,71 @@ class RenstraOpdController extends Controller
     }
 
     /**
+     * Measure the actual cascading coverage instead of treating the presence of
+     * a tujuan and program as a completed Renstra.
+     *
+     * @return array<string, int|string>
+     */
+    private function cascadingProgress(RenstraOpd $renstra): array
+    {
+        $tujuan = $renstra->tujuan;
+        $sasaran = $tujuan->flatMap(fn (TujuanOpd $item) => $item->sasaran);
+        $programs = $renstra->programs;
+        $kegiatan = $programs->flatMap(fn (OpdProgram $item) => $item->kegiatan);
+        $subKegiatan = $kegiatan->flatMap(fn (OpdKegiatan $item) => $item->subKegiatan);
+
+        $stages = collect([
+            $tujuan,
+            $sasaran,
+            $programs,
+            $kegiatan,
+            $subKegiatan,
+        ]);
+
+        $stagesFilled = $stages->filter(fn (Collection $items) => $items->isNotEmpty())->count();
+        $indicatorParentsTotal = (int) $stages->sum(fn (Collection $items) => $items->count());
+        $indicatorParentsFilled = (int) $stages->sum(
+            fn (Collection $items) => $items->filter(fn ($item) => $item->indikator->isNotEmpty())->count(),
+        );
+
+        $indicators = $tujuan
+            ->flatMap(fn (TujuanOpd $item) => $item->indikator)
+            ->merge($sasaran->flatMap(fn (SasaranOpd $item) => $item->indikator))
+            ->merge($programs->flatMap(fn (OpdProgram $item) => $item->indikator))
+            ->merge($kegiatan->flatMap(fn (OpdKegiatan $item) => $item->indikator))
+            ->merge($subKegiatan->flatMap(fn (OpdSubKegiatan $item) => $item->indikator));
+
+        $targetYears = range((int) $renstra->tahun_awal, (int) $renstra->tahun_akhir + 1);
+        $targetsTotal = $indicators->count() * count($targetYears);
+        $targetsFilled = $indicators->sum(function ($indicator) use ($targetYears): int {
+            return $indicator->targets
+                ->filter(function ($target) use ($targetYears): bool {
+                    return in_array((int) $target->periodeTahun?->tahun, $targetYears, true)
+                        && ($target->target !== null || filled($target->target_text));
+                })
+                ->unique('periode_tahun_id')
+                ->count();
+        });
+
+        $percentage = (int) round(
+            (($stagesFilled / 5) * 40)
+            + ($indicatorParentsTotal > 0 ? (($indicatorParentsFilled / $indicatorParentsTotal) * 40) : 0)
+            + ($targetsTotal > 0 ? (($targetsFilled / $targetsTotal) * 20) : 0),
+        );
+
+        return [
+            'percentage' => min($percentage, 100),
+            'stages_filled' => $stagesFilled,
+            'stages_total' => 5,
+            'indicators_filled' => $indicatorParentsFilled,
+            'indicators_total' => $indicatorParentsTotal,
+            'targets_filled' => $targetsFilled,
+            'targets_total' => $targetsTotal,
+            'status' => $percentage === 100 ? 'terisi' : 'belum_lengkap',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function serializeRenstra(RenstraOpd $renstra): array
@@ -708,6 +870,20 @@ class RenstraOpdController extends Controller
             'tahun_awal' => $renstra->tahun_awal,
             'tahun_akhir' => $renstra->tahun_akhir,
             'status' => $renstra->status,
+            'jenis_versi' => $renstra->jenis_versi,
+            'nomor_versi' => $renstra->nomor_versi,
+            'parent_version_id' => $renstra->parent_version_id,
+            'is_active_version' => $renstra->is_active_version,
+            'version_label' => $renstra->versionLabel(),
+            'perlu_penyesuaian_rpjmd' => $renstra->perlu_penyesuaian_rpjmd,
+            'rpjmd_perubahan_terbaru' => $renstra->rpjmdPerubahanTerbaru ? [
+                'id' => $renstra->rpjmdPerubahanTerbaru->id,
+                'judul' => $renstra->rpjmdPerubahanTerbaru->judul,
+                'version_label' => $renstra->rpjmdPerubahanTerbaru->versionLabel(),
+            ] : null,
+            'alasan_perubahan' => $renstra->alasan_perubahan,
+            'dasar_perubahan' => $renstra->dasar_perubahan,
+            'tanggal_berlaku' => $renstra->tanggal_berlaku?->toDateString(),
             'keterangan' => $renstra->keterangan,
             'opd' => $renstra->opd ? [
                 'id' => $renstra->opd->id,
@@ -774,50 +950,50 @@ class RenstraOpdController extends Controller
                             'program_pemerintahan' => $this->serializeProgramPemerintahan($programPemerintahan),
                             'indikator' => $program->indikator->map(fn (IndikatorOpdProgram $indikator) => $this->serializeIndikator($indikator, 'indikatorProgramRpjmd')),
                             'kegiatan' => $program->kegiatan->map(fn (OpdKegiatan $kegiatan) => [
-                            'id' => $kegiatan->id,
-                            'kegiatan_pemerintahan_id' => $kegiatan->kegiatan_pemerintahan_id,
-                            'kode' => $kegiatan->kode,
-                            'nama' => $kegiatan->nama,
-                            'sasaran_kegiatan' => $kegiatan->sasaran_kegiatan,
-                            'pagu_indikatif' => $this->kegiatanBudgetTotal($kegiatan),
-                            'urutan' => $kegiatan->urutan,
-                            'kegiatan_pemerintahan' => $kegiatan->kegiatanPemerintahan ? [
-                                'kode' => $kegiatan->kegiatanPemerintahan->kode,
-                                'nama' => $kegiatan->kegiatanPemerintahan->nama,
-                                'program_pemerintahan_id' => $kegiatan->kegiatanPemerintahan->program_pemerintahan_id,
-                            ] : null,
-                            'indikator' => $kegiatan->indikator->map(fn (IndikatorOpdKegiatan $indikator) => $this->serializeIndikator($indikator)),
-                            'sub_kegiatan' => $kegiatan->subKegiatan->map(fn (OpdSubKegiatan $subKegiatan) => [
-                                'id' => $subKegiatan->id,
-                                'sub_kegiatan_pemerintahan_id' => $subKegiatan->sub_kegiatan_pemerintahan_id,
-                                'opd_unit_id' => $subKegiatan->opd_unit_id,
-                                'kode' => $subKegiatan->kode,
-                                'nama' => $subKegiatan->nama,
-                                'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
-                                'pagu_indikatif' => $this->subKegiatanBudgetTotal($subKegiatan),
-                                'urutan' => $subKegiatan->urutan,
-                                'anggaran' => $subKegiatan->anggaranTahunan->map(fn ($anggaran) => [
-                                    'id' => $anggaran->id,
-                                    'periode_tahun' => [
-                                        'id' => $anggaran->periodeTahun->id,
-                                        'tahun' => $anggaran->periodeTahun->tahun,
-                                        'nama' => $anggaran->periodeTahun->nama,
-                                    ],
-                                    'anggaran' => $anggaran->anggaran,
+                                'id' => $kegiatan->id,
+                                'kegiatan_pemerintahan_id' => $kegiatan->kegiatan_pemerintahan_id,
+                                'kode' => $kegiatan->kode,
+                                'nama' => $kegiatan->nama,
+                                'sasaran_kegiatan' => $kegiatan->sasaran_kegiatan,
+                                'pagu_indikatif' => $this->kegiatanBudgetTotal($kegiatan),
+                                'urutan' => $kegiatan->urutan,
+                                'kegiatan_pemerintahan' => $kegiatan->kegiatanPemerintahan ? [
+                                    'kode' => $kegiatan->kegiatanPemerintahan->kode,
+                                    'nama' => $kegiatan->kegiatanPemerintahan->nama,
+                                    'program_pemerintahan_id' => $kegiatan->kegiatanPemerintahan->program_pemerintahan_id,
+                                ] : null,
+                                'indikator' => $kegiatan->indikator->map(fn (IndikatorOpdKegiatan $indikator) => $this->serializeIndikator($indikator)),
+                                'sub_kegiatan' => $kegiatan->subKegiatan->map(fn (OpdSubKegiatan $subKegiatan) => [
+                                    'id' => $subKegiatan->id,
+                                    'sub_kegiatan_pemerintahan_id' => $subKegiatan->sub_kegiatan_pemerintahan_id,
+                                    'opd_unit_id' => $subKegiatan->opd_unit_id,
+                                    'kode' => $subKegiatan->kode,
+                                    'nama' => $subKegiatan->nama,
+                                    'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
+                                    'pagu_indikatif' => $this->subKegiatanBudgetTotal($subKegiatan),
+                                    'urutan' => $subKegiatan->urutan,
+                                    'anggaran' => $subKegiatan->anggaranTahunan->map(fn ($anggaran) => [
+                                        'id' => $anggaran->id,
+                                        'periode_tahun' => [
+                                            'id' => $anggaran->periodeTahun->id,
+                                            'tahun' => $anggaran->periodeTahun->tahun,
+                                            'nama' => $anggaran->periodeTahun->nama,
+                                        ],
+                                        'anggaran' => $anggaran->anggaran,
+                                    ]),
+                                    'sub_kegiatan_pemerintahan' => $subKegiatan->subKegiatanPemerintahan ? [
+                                        'kode' => $subKegiatan->subKegiatanPemerintahan->kode,
+                                        'nama' => $subKegiatan->subKegiatanPemerintahan->nama,
+                                        'kegiatan_pemerintahan_id' => $subKegiatan->subKegiatanPemerintahan->kegiatan_pemerintahan_id,
+                                    ] : null,
+                                    'opd_unit' => $subKegiatan->opdUnit ? [
+                                        'kode' => $subKegiatan->opdUnit->kode,
+                                        'nama' => $subKegiatan->opdUnit->nama,
+                                        'jenis_unit' => $subKegiatan->opdUnit->jenis_unit,
+                                    ] : null,
+                                    'indikator' => $subKegiatan->indikator->map(fn (IndikatorSubKegiatan $indikator) => $this->serializeIndikator($indikator)),
                                 ]),
-                                'sub_kegiatan_pemerintahan' => $subKegiatan->subKegiatanPemerintahan ? [
-                                    'kode' => $subKegiatan->subKegiatanPemerintahan->kode,
-                                    'nama' => $subKegiatan->subKegiatanPemerintahan->nama,
-                                    'kegiatan_pemerintahan_id' => $subKegiatan->subKegiatanPemerintahan->kegiatan_pemerintahan_id,
-                                ] : null,
-                                'opd_unit' => $subKegiatan->opdUnit ? [
-                                    'kode' => $subKegiatan->opdUnit->kode,
-                                    'nama' => $subKegiatan->opdUnit->nama,
-                                    'jenis_unit' => $subKegiatan->opdUnit->jenis_unit,
-                                ] : null,
-                                'indikator' => $subKegiatan->indikator->map(fn (IndikatorSubKegiatan $indikator) => $this->serializeIndikator($indikator)),
                             ]),
-                        ]),
                         ];
                     }),
                 ]),

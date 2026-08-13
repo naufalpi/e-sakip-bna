@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
-import { confirmDelete } from '@/lib/sweetAlert';
+import { confirmDelete, promptTextArea } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowRight, CalendarRange, Eye, FilePlus2, FileText, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-vue-next';
+import { ArrowRight, CalendarRange, Eye, FilePlus2, FileText, Pencil, Plus, RefreshCw, RotateCcw, Search, ShieldCheck, Trash2 } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
 
 type RpjmdRow = {
@@ -12,6 +12,10 @@ type RpjmdRow = {
     tahun_awal: number;
     tahun_akhir: number;
     status: string;
+    jenis_versi?: string | null;
+    nomor_versi?: number | null;
+    is_active_version?: boolean | null;
+    version_label?: string | null;
     periode_tahun?: { id: number; tahun: number; nama: string } | null;
 };
 
@@ -67,7 +71,40 @@ const resetFilters = () => {
     applyFiltersNow();
 };
 
+const cancelableRevisionStatuses = ['draft', 'revision', 'rejected'];
+
+const canCancelRevision = (rpjmd: RpjmdRow) => rpjmd.jenis_versi === 'perubahan' && cancelableRevisionStatuses.includes(rpjmd.status);
+const deleteActionLabel = (rpjmd: RpjmdRow) => (canCancelRevision(rpjmd) ? 'Batalkan' : 'Hapus');
+const deleteActionTitle = (rpjmd: RpjmdRow) => (canCancelRevision(rpjmd) ? 'Batalkan Perubahan RPJMD' : 'Hapus RPJMD');
+const deleteActionClass = (rpjmd: RpjmdRow) =>
+    canCancelRevision(rpjmd)
+        ? 'border-amber-200 text-amber-800 hover:bg-amber-50 dark:border-amber-400/30 dark:text-amber-100 dark:hover:bg-amber-500/10'
+        : 'border-red-200 text-red-700 hover:bg-red-50 dark:border-red-500/30 dark:text-red-200 dark:hover:bg-red-500/10';
+
+const cancelRevision = async (rpjmd: RpjmdRow) => {
+    const reason = await promptTextArea({
+        title: 'Batalkan Perubahan RPJMD?',
+        text: 'Versi sebelumnya akan aktif kembali.',
+        inputLabel: 'Alasan pembatalan',
+        inputPlaceholder: 'Tuliskan alasan pembatalan perubahan.',
+        confirmButtonText: 'Batalkan Perubahan',
+        minLength: 5,
+        destructive: true,
+    });
+
+    if (!reason) {
+        return;
+    }
+
+    router.post(route('rpjmd.revisions.cancel', rpjmd.id), { alasan_pembatalan: reason }, { preserveScroll: true });
+};
+
 const destroy = async (rpjmd: RpjmdRow) => {
+    if (canCancelRevision(rpjmd)) {
+        await cancelRevision(rpjmd);
+        return;
+    }
+
     if (await confirmDelete(`Hapus RPJMD ${rpjmd.tahun_awal}-${rpjmd.tahun_akhir}?`)) {
         router.delete(route('rpjmd.destroy', rpjmd.id));
     }
@@ -95,6 +132,13 @@ const statusClass = (status: string) =>
         rejected: 'border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-200',
         locked: 'border-zinc-300 bg-zinc-100 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/70 dark:text-zinc-200',
     })[status] ?? 'border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200';
+
+const versionLabel = (rpjmd: RpjmdRow) => rpjmd.version_label || (rpjmd.jenis_versi === 'perubahan' ? 'Perubahan' : 'Murni');
+
+const versionClass = (rpjmd: RpjmdRow) =>
+    rpjmd.jenis_versi === 'perubahan'
+        ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200'
+        : 'border-blue-200 bg-blue-50 text-[#00336C] dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-200';
 </script>
 
 <template>
@@ -219,10 +263,18 @@ const statusClass = (status: string) =>
                             <h3 class="font-semibold leading-6 text-foreground">{{ rpjmd.judul }}</h3>
                             <p class="mt-1 text-xs leading-5 text-muted-foreground">{{ rpjmd.nomor_perda || 'Nomor perda belum diisi' }}</p>
                         </div>
-                        <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold" :class="statusClass(rpjmd.status)">
-                            <span class="size-1.5 rounded-full bg-current"></span>
-                            {{ statusLabel(rpjmd.status) }}
-                        </span>
+                        <div class="flex shrink-0 flex-col items-end gap-2">
+                            <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold" :class="versionClass(rpjmd)">
+                                {{ versionLabel(rpjmd) }}
+                            </span>
+                            <span
+                                class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold"
+                                :class="statusClass(rpjmd.status)"
+                            >
+                                <span class="size-1.5 rounded-full bg-current"></span>
+                                {{ statusLabel(rpjmd.status) }}
+                            </span>
+                        </div>
                     </div>
 
                     <div class="mt-4 rounded-lg border bg-background px-3 py-2 text-sm">
@@ -250,11 +302,15 @@ const statusClass = (status: string) =>
                         <button
                             v-if="can.manage"
                             type="button"
-                            class="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-500/30 dark:text-red-200 dark:hover:bg-red-500/10"
+                            class="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition"
+                            :class="deleteActionClass(rpjmd)"
+                            :title="deleteActionTitle(rpjmd)"
+                            :aria-label="deleteActionTitle(rpjmd)"
                             @click="destroy(rpjmd)"
                         >
-                            <Trash2 class="size-4" />
-                            Hapus
+                            <RotateCcw v-if="canCancelRevision(rpjmd)" class="size-4" />
+                            <Trash2 v-else class="size-4" />
+                            {{ deleteActionLabel(rpjmd) }}
                         </button>
                     </div>
                 </article>
@@ -264,8 +320,9 @@ const statusClass = (status: string) =>
                 <table class="w-full text-left text-sm">
                     <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
                         <tr>
-                            <th class="w-[58%] px-5 py-3.5">Dokumen</th>
+                            <th class="w-[48%] px-5 py-3.5">Dokumen</th>
                             <th class="px-5 py-3.5">Periode</th>
+                            <th class="px-5 py-3.5">Versi</th>
                             <th class="px-5 py-3.5">Status</th>
                             <th class="px-5 py-3.5 text-right">Aksi</th>
                         </tr>
@@ -286,6 +343,12 @@ const statusClass = (status: string) =>
                             <td class="px-5 py-4">
                                 <div class="font-semibold">{{ rpjmd.tahun_awal }}-{{ rpjmd.tahun_akhir }}</div>
                                 <div class="text-xs text-muted-foreground">{{ rpjmd.periode_tahun?.nama || '-' }}</div>
+                            </td>
+                            <td class="px-5 py-4">
+                                <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold" :class="versionClass(rpjmd)">
+                                    {{ versionLabel(rpjmd) }}
+                                </span>
+                                <div v-if="rpjmd.is_active_version === false" class="mt-1 text-xs text-muted-foreground">Arsip perubahan</div>
                             </td>
                             <td class="px-5 py-4">
                                 <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold" :class="statusClass(rpjmd.status)">
@@ -313,11 +376,15 @@ const statusClass = (status: string) =>
                                     <button
                                         v-if="can.manage"
                                         type="button"
-                                        class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-medium text-red-700 transition hover:bg-red-50 dark:border-red-500/30 dark:text-red-200 dark:hover:bg-red-500/10"
+                                        class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-medium transition"
+                                        :class="deleteActionClass(rpjmd)"
+                                        :title="deleteActionTitle(rpjmd)"
+                                        :aria-label="deleteActionTitle(rpjmd)"
                                         @click="destroy(rpjmd)"
                                     >
-                                        <Trash2 class="size-3.5" />
-                                        Hapus
+                                        <RotateCcw v-if="canCancelRevision(rpjmd)" class="size-3.5" />
+                                        <Trash2 v-else class="size-3.5" />
+                                        {{ deleteActionLabel(rpjmd) }}
                                     </button>
                                 </div>
                             </td>

@@ -33,6 +33,10 @@ class RenstraOpdPolicy
 
     public function update(User $user, RenstraOpd $renstraOpd): bool
     {
+        if ($renstraOpd->isArchivedVersion()) {
+            return false;
+        }
+
         if (! $this->canChangeLocked($user, $renstraOpd)) {
             return false;
         }
@@ -53,6 +57,28 @@ class RenstraOpdPolicy
     public function delete(User $user, RenstraOpd $renstraOpd): bool
     {
         return $this->update($user, $renstraOpd);
+    }
+
+    public function createRevision(User $user, RenstraOpd $renstraOpd): bool
+    {
+        if (! $renstraOpd->is_active_version || ! in_array($renstraOpd->status, ['approved', 'locked'], true)) {
+            return false;
+        }
+
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        return $user->hasAnyPermission(['renstra.manage', 'manage_renstra_opd'])
+            && filled($user->opd_id)
+            && (int) $renstraOpd->opd_id === (int) $user->opd_id;
+    }
+
+    public function cancelRevision(User $user, RenstraOpd $renstraOpd): bool
+    {
+        return $renstraOpd->jenis_versi === 'perubahan'
+            && in_array((string) $renstraOpd->status, ['draft', 'revision', 'rejected'], true)
+            && $this->update($user, $renstraOpd);
     }
 
     private function canViewAllRenstra(User $user): bool

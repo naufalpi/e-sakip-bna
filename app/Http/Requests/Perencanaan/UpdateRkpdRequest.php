@@ -53,6 +53,16 @@ class UpdateRkpdRequest extends FormRequest
         ];
     }
 
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'periode_tahun_id.unique' => 'RKPD untuk tahun tersebut sudah ada. Silakan buka dokumen RKPD yang sudah dibuat atau pilih tahun lain.',
+        ];
+    }
+
     private function uppercaseValue(mixed $value, bool $nullable = false): ?string
     {
         $text = trim((string) ($value ?? ''));

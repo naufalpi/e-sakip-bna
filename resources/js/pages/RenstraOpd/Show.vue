@@ -3,7 +3,7 @@ import InputError from '@/components/InputError.vue';
 import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
-import { confirmDelete } from '@/lib/sweetAlert';
+import { confirmDelete, promptTextArea } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     ArrowLeft,
@@ -14,6 +14,7 @@ import {
     FileText,
     Folder,
     FolderOpen,
+    GitBranch,
     Layers3,
     Link2,
     Network,
@@ -190,6 +191,16 @@ type Renstra = {
     tahun_awal: number;
     tahun_akhir: number;
     status: string;
+    jenis_versi: 'murni' | 'perubahan';
+    nomor_versi: number;
+    parent_version_id?: number | null;
+    is_active_version: boolean;
+    alasan_perubahan?: string | null;
+    dasar_perubahan?: string | null;
+    tanggal_berlaku?: string | null;
+    version_label: string;
+    perlu_penyesuaian_rpjmd?: boolean;
+    rpjmd_perubahan_terbaru?: { id: number; judul: string; version_label: string } | null;
     keterangan?: string | null;
     opd?: { id: number; kode: string; nama: string; singkatan?: string | null } | null;
     rpjmd?: { id: number; judul: string; tahun_awal: number; tahun_akhir: number } | null;
@@ -332,6 +343,9 @@ const props = defineProps<{
         manage: boolean;
         review: boolean;
         lock: boolean;
+        createRevision: boolean;
+        cancelRevision?: boolean;
+        withdraw?: boolean;
     };
     workflow: Workflow;
     activeSection?: RenstraManagementSection | null;
@@ -421,6 +435,46 @@ const form = useForm({
     pagu_indikatif: '',
     urutan: 1,
 });
+
+const revisionModalOpen = ref(false);
+const revisionForm = useForm({
+    alasan_perubahan: '',
+    dasar_perubahan: '',
+    tanggal_berlaku: '',
+});
+
+const openRevisionModal = () => {
+    revisionForm.reset();
+    revisionForm.clearErrors();
+    revisionModalOpen.value = true;
+};
+
+const submitRevision = () => {
+    revisionForm.post(route('renstra-opd.revisions.store', props.renstra.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            revisionModalOpen.value = false;
+        },
+    });
+};
+
+const cancelRevision = async () => {
+    const reason = await promptTextArea({
+        title: 'Batalkan Perubahan Renstra?',
+        text: 'Renstra sebelumnya akan aktif kembali.',
+        inputLabel: 'Alasan pembatalan',
+        inputPlaceholder: 'Tuliskan alasan pembatalan perubahan.',
+        confirmButtonText: 'Batalkan Perubahan',
+        minLength: 5,
+        destructive: true,
+    });
+
+    if (!reason) {
+        return;
+    }
+
+    router.post(route('renstra-opd.revisions.cancel', props.renstra.id), { alasan_pembatalan: reason });
+};
 
 const selectedTypeLabel = computed(() => typeOptions.find((type) => type.value === form.type)?.label ?? 'Data Cascading');
 const parentKey = computed(() => parentKeyByType[form.type]);
@@ -3804,6 +3858,8 @@ const statusClass = (status: string) =>
         locked: 'bg-zinc-200 text-zinc-800',
     })[status] ?? 'bg-slate-100 text-slate-700';
 
+const isAwaitingApproval = computed(() => !props.renstra.is_active_version && ['submitted', 'verified'].includes(props.renstra.status));
+
 const linkClass = (linked: boolean) => (linked ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800');
 const linkLabel = (linked: boolean) => (linked ? 'Terhubung RPJMD' : 'Belum terhubung');
 const formatCurrency = (value?: string | number | null) => {
@@ -3880,27 +3936,50 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
             <div>
                 <div class="flex flex-wrap items-center gap-2">
                     <h1 class="text-2xl font-semibold tracking-normal">{{ renstra.judul }}</h1>
+                    <span class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">
+                        {{ renstra.version_label }}
+                    </span>
                     <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(renstra.status)">
                         {{ statusLabel(renstra.status) }}
+                    </span>
+                    <span v-if="isAwaitingApproval" class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
+                        Menunggu disetujui
                     </span>
                 </div>
                 <p class="mt-1 text-sm text-muted-foreground">
                     {{ renstra.opd?.singkatan || renstra.opd?.nama || '-' }} - {{ renstra.tahun_awal }}-{{ renstra.tahun_akhir }}
                 </p>
             </div>
-            <div class="flex gap-2">
-                <Link :href="route('renstra-opd.index')" class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted">
+            <div class="document-actions">
+                <Link :href="route('renstra-opd.index')" class="document-action document-action--secondary">
                     <ArrowLeft class="size-4" />
                     Kembali
                 </Link>
                 <Link
                     v-if="can.manage"
                     :href="route('renstra-opd.edit', renstra.id)"
-                    class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                    class="document-action document-action--secondary"
                 >
                     <Pencil class="size-4" />
                     Edit
                 </Link>
+                <button
+                    v-if="can.createRevision"
+                    type="button"
+                    class="document-action document-action--primary"
+                    @click="openRevisionModal"
+                >
+                    <GitBranch class="size-4" />
+                    Buat Perubahan
+                </button>
+                <button
+                    v-if="renstra.jenis_versi === 'perubahan' && can.cancelRevision"
+                    type="button"
+                    class="document-action document-action--warning"
+                    @click="cancelRevision"
+                >
+                    Batalkan Perubahan
+                </button>
                 <WorkflowActionButtons
                     module="renstra_opd"
                     :model-id="renstra.id"
@@ -3908,9 +3987,37 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                     :can-manage="can.manage"
                     :can-review="can.review"
                     :can-lock="can.lock"
+                    :can-withdraw="can.withdraw"
                     :show-verify="false"
+                    button-class="document-action document-action--workflow"
                 />
             </div>
+        </div>
+
+        <div v-if="renstra.perlu_penyesuaian_rpjmd" class="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <p class="font-semibold">Penyesuaian RPJMD diperlukan</p>
+                <p class="mt-0.5 text-xs leading-5 text-amber-800">
+                    RPJMD {{ renstra.rpjmd_perubahan_terbaru?.version_label || 'Perubahan' }} telah disahkan. Buat Perubahan Renstra sebelum mengubah acuan dan cascading.
+                </p>
+            </div>
+            <button
+                v-if="can.createRevision"
+                type="button"
+                class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
+                @click="openRevisionModal"
+            >
+                <GitBranch class="size-4" />
+                Buat Perubahan
+            </button>
+            <button
+                v-else-if="renstra.jenis_versi === 'perubahan' && can.cancelRevision"
+                type="button"
+                class="inline-flex shrink-0 items-center justify-center rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
+                @click="cancelRevision"
+            >
+                Batalkan Perubahan
+            </button>
         </div>
 
         <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
@@ -6247,4 +6354,44 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
             </Teleport>
         </div>
     </div>
+
+    <Teleport to="body">
+        <div v-if="revisionModalOpen" class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/45 p-4" @click.self="revisionModalOpen = false">
+            <form class="w-full max-w-xl rounded-xl bg-white shadow-2xl" @submit.prevent="submitRevision">
+                <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-900">Buat Versi Perubahan Renstra</p>
+                        <p class="mt-1 text-sm text-slate-500">Cascading dari {{ renstra.version_label }} akan disalin ke dokumen baru berstatus Draft.</p>
+                    </div>
+                    <button type="button" class="rounded-md p-2 text-slate-500 hover:bg-slate-100" aria-label="Tutup" @click="revisionModalOpen = false">&times;</button>
+                </div>
+                <div class="space-y-4 px-6 py-5">
+                    <div>
+                        <label for="renstra-revision-reason" class="text-sm font-medium text-slate-800">Alasan Perubahan</label>
+                        <textarea id="renstra-revision-reason" v-model="revisionForm.alasan_perubahan" rows="4" class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" placeholder="Jelaskan alasan perubahan dokumen" />
+                        <InputError :message="revisionForm.errors.alasan_perubahan" class="mt-1" />
+                    </div>
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label for="renstra-revision-basis" class="text-sm font-medium text-slate-800">Dasar Perubahan</label>
+                            <input id="renstra-revision-basis" v-model="revisionForm.dasar_perubahan" type="text" class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" placeholder="Contoh: Perkada Perubahan" />
+                            <InputError :message="revisionForm.errors.dasar_perubahan" class="mt-1" />
+                        </div>
+                        <div>
+                            <label for="renstra-revision-date" class="text-sm font-medium text-slate-800">Tanggal Berlaku</label>
+                            <input id="renstra-revision-date" v-model="revisionForm.tanggal_berlaku" type="date" class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+                            <InputError :message="revisionForm.errors.tanggal_berlaku" class="mt-1" />
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+                    <button type="button" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" @click="revisionModalOpen = false">Batal</button>
+                    <button type="submit" :disabled="revisionForm.processing" class="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <GitBranch class="size-4" />
+                        Buat Perubahan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </Teleport>
 </template>

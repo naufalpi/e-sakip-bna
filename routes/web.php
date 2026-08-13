@@ -79,6 +79,8 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('rpjmd/import/{importBatch}/apply', [RpjmdImportController::class, 'apply'])->name('rpjmd.import.apply');
     Route::get('rpjmd/import/{importBatch}', [RpjmdImportController::class, 'show'])->name('rpjmd.import.show');
     Route::get('rpjmd/{rpjmd}/preview/export', [RpjmdController::class, 'exportPreview'])->name('rpjmd.preview.export');
+    Route::post('rpjmd/{rpjmd}/perubahan', [RpjmdController::class, 'storeRevision'])->name('rpjmd.revisions.store');
+    Route::post('rpjmd/{rpjmd}/perubahan/batalkan', [RpjmdController::class, 'cancelRevision'])->name('rpjmd.revisions.cancel');
     Route::resource('rpjmd', RpjmdController::class);
     Route::post('rpjmd/{rpjmd}/nodes', [RpjmdNodeController::class, 'store'])->name('rpjmd.nodes.store');
     Route::post('rpjmd/{rpjmd}/nodes/bulk', [RpjmdNodeController::class, 'bulkStore'])->name('rpjmd.nodes.bulk-store');
@@ -91,6 +93,8 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('renstra-opd/import/{importBatch}/apply', [RenstraOpdImportController::class, 'apply'])->name('renstra-opd.import.apply');
     Route::get('renstra-opd/import/{importBatch}', [RenstraOpdImportController::class, 'show'])->name('renstra-opd.import.show');
     Route::get('renstra-opd/{renstra_opd}/preview/export', [RenstraOpdController::class, 'exportPreview'])->name('renstra-opd.preview.export');
+    Route::post('renstra-opd/{renstra_opd}/perubahan', [RenstraOpdController::class, 'storeRevision'])->name('renstra-opd.revisions.store');
+    Route::post('renstra-opd/{renstra_opd}/perubahan/batalkan', [RenstraOpdController::class, 'cancelRevision'])->name('renstra-opd.revisions.cancel');
     Route::get('renstra-opd/{renstra_opd}/kelola/{section}', [RenstraOpdController::class, 'manage'])
         ->where('section', 'tujuan|sasaran|program|kegiatan|sub-kegiatan')
         ->name('renstra-opd.manage');

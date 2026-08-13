@@ -5,9 +5,9 @@ import RpjmdOpdMultiSelect from '@/components/RpjmdOpdMultiSelect.vue';
 import RpjmdPerformanceTreeDiagram from '@/components/RpjmdPerformanceTreeDiagram.vue';
 import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
-import { confirmDelete, toast } from '@/lib/sweetAlert';
+import { confirmDelete, promptTextArea, toast } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { CheckCircle2, Download, Eye, EyeOff, GitBranch, LoaderCircle, Network, Pencil, Plus, Rows3, Save, Table2, Trash2 } from 'lucide-vue-next'; 
+import { ArrowLeft, CheckCircle2, Download, Eye, EyeOff, GitBranch, LoaderCircle, Network, Pencil, Plus, Rows3, Save, Table2, Trash2 } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 
 type Option = {
@@ -161,6 +161,14 @@ type RpjmdDetail = {
     tahun_awal: number;
     tahun_akhir: number;
     status: string;
+    jenis_versi: 'murni' | 'perubahan';
+    nomor_versi: number;
+    parent_version_id?: number | null;
+    is_active_version: boolean;
+    alasan_perubahan?: string | null;
+    dasar_perubahan?: string | null;
+    tanggal_berlaku?: string | null;
+    version_label: string;
     struktur_tujuan_mode: string;
     struktur_sasaran_mode: string;
     keterangan?: string | null;
@@ -284,6 +292,9 @@ const props = defineProps<{
         review: boolean;
         lock: boolean;
         unlock: boolean;
+        createRevision: boolean;
+        cancelRevision?: boolean;
+        withdraw?: boolean;
     };
 }>();
 
@@ -442,6 +453,46 @@ const form = useForm({
     is_utama: true,
     urutan: 1,
 });
+
+const revisionModalOpen = ref(false);
+const revisionForm = useForm({
+    alasan_perubahan: '',
+    dasar_perubahan: '',
+    tanggal_berlaku: '',
+});
+
+const openRevisionModal = () => {
+    revisionForm.reset();
+    revisionForm.clearErrors();
+    revisionModalOpen.value = true;
+};
+
+const submitRevision = () => {
+    revisionForm.post(route('rpjmd.revisions.store', props.rpjmd.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            revisionModalOpen.value = false;
+        },
+    });
+};
+
+const cancelRevision = async () => {
+    const reason = await promptTextArea({
+        title: 'Batalkan Perubahan RPJMD?',
+        text: 'Versi sebelumnya akan aktif kembali.',
+        inputLabel: 'Alasan pembatalan',
+        inputPlaceholder: 'Tuliskan alasan pembatalan perubahan.',
+        confirmButtonText: 'Batalkan Perubahan',
+        minLength: 5,
+        destructive: true,
+    });
+
+    if (!reason) {
+        return;
+    }
+
+    router.post(route('rpjmd.revisions.cancel', props.rpjmd.id), { alasan_pembatalan: reason });
+};
 
 let bulkRowClientCounter = 0;
 const makeBulkRowClientId = () => `bulk-row-${Date.now()}-${bulkRowClientCounter++}`;
@@ -2955,6 +3006,8 @@ const statusClass = (status: string) =>
         locked: 'bg-zinc-200 text-zinc-800',
     })[status] ?? 'bg-slate-100 text-slate-700';
 
+const isAwaitingApproval = computed(() => !props.rpjmd.is_active_version && ['submitted', 'verified'].includes(props.rpjmd.status));
+
 const targetDisplay = (target: Target) => formatTargetNumber(target.target) || '-';
 const targetTriwulanDisplay = (target: TargetTriwulan) => formatTargetNumber(target.target_angka) || '-';
 const targetTriwulanError = (index: number, field: 'triwulan' | 'target_text' | 'target_angka') =>
@@ -2975,24 +3028,50 @@ const triwulanLabel = (triwulan: string) =>
             <div>
                 <div class="flex flex-wrap items-center gap-2">
                     <h1 class="text-2xl font-semibold tracking-normal">{{ rpjmd.judul }}</h1>
+                    <span class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">
+                        {{ rpjmd.version_label }}
+                    </span>
                     <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(rpjmd.status)">
                         {{ statusLabel(rpjmd.status) }}
+                    </span>
+                    <span v-if="isAwaitingApproval" class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
+                        Menunggu disetujui
                     </span>
                 </div>
                 <p class="mt-1 text-sm text-muted-foreground">
                     {{ rpjmd.tahun_awal }}-{{ rpjmd.tahun_akhir }} - {{ rpjmd.nomor_perda || 'Nomor perda belum diisi' }}
                 </p>
             </div>
-            <div class="flex gap-2">
-                <Link :href="route('rpjmd.index')" class="rounded-md border px-3 py-2 text-sm hover:bg-muted">Kembali</Link>
+            <div class="document-actions">
+                <Link :href="route('rpjmd.index')" class="document-action document-action--secondary">
+                    <ArrowLeft class="size-4" />
+                    Kembali
+                </Link>
                 <Link
                     v-if="can.manage"
                     :href="route('rpjmd.edit', rpjmd.id)"
-                    class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                    class="document-action document-action--secondary"
                 >
                     <Pencil class="size-4" />
                     Edit
                 </Link>
+                <button
+                    v-if="can.createRevision"
+                    type="button"
+                    class="document-action document-action--primary"
+                    @click="openRevisionModal"
+                >
+                    <GitBranch class="size-4" />
+                    Buat Perubahan
+                </button>
+                <button
+                    v-if="rpjmd.jenis_versi === 'perubahan' && can.cancelRevision"
+                    type="button"
+                    class="document-action document-action--warning"
+                    @click="cancelRevision"
+                >
+                    Batalkan Perubahan
+                </button>
                 <WorkflowActionButtons
                     module="rpjmd"
                     :model-id="rpjmd.id"
@@ -3001,7 +3080,9 @@ const triwulanLabel = (triwulan: string) =>
                     :can-review="can.review"
                     :can-lock="can.lock"
                     :can-unlock="can.unlock"
+                    :can-withdraw="can.withdraw"
                     :show-verify="false"
+                    button-class="document-action document-action--workflow"
                 />
             </div>
         </div>
@@ -5119,4 +5200,44 @@ const triwulanLabel = (triwulan: string) =>
             </aside>
         </div>
     </div>
+
+    <Teleport to="body">
+        <div v-if="revisionModalOpen" class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/45 p-4" @click.self="revisionModalOpen = false">
+            <form class="w-full max-w-xl rounded-xl bg-white shadow-2xl" @submit.prevent="submitRevision">
+                <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-900">Buat Versi Perubahan RPJMD</p>
+                        <p class="mt-1 text-sm text-slate-500">Cascading dari {{ rpjmd.version_label }} akan disalin ke dokumen baru berstatus Draft.</p>
+                    </div>
+                    <button type="button" class="rounded-md p-2 text-slate-500 hover:bg-slate-100" aria-label="Tutup" @click="revisionModalOpen = false">&times;</button>
+                </div>
+                <div class="space-y-4 px-6 py-5">
+                    <div>
+                        <label for="rpjmd-revision-reason" class="text-sm font-medium text-slate-800">Alasan Perubahan</label>
+                        <textarea id="rpjmd-revision-reason" v-model="revisionForm.alasan_perubahan" rows="4" class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" placeholder="Jelaskan alasan perubahan dokumen" />
+                        <InputError :message="revisionForm.errors.alasan_perubahan" class="mt-1" />
+                    </div>
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label for="rpjmd-revision-basis" class="text-sm font-medium text-slate-800">Dasar Perubahan</label>
+                            <input id="rpjmd-revision-basis" v-model="revisionForm.dasar_perubahan" type="text" class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" placeholder="Contoh: Perda Perubahan" />
+                            <InputError :message="revisionForm.errors.dasar_perubahan" class="mt-1" />
+                        </div>
+                        <div>
+                            <label for="rpjmd-revision-date" class="text-sm font-medium text-slate-800">Tanggal Berlaku</label>
+                            <input id="rpjmd-revision-date" v-model="revisionForm.tanggal_berlaku" type="date" class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+                            <InputError :message="revisionForm.errors.tanggal_berlaku" class="mt-1" />
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+                    <button type="button" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" @click="revisionModalOpen = false">Batal</button>
+                    <button type="submit" :disabled="revisionForm.processing" class="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <GitBranch class="size-4" />
+                        Buat Perubahan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </Teleport>
 </template>

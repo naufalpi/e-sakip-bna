@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Services\Perencanaan\PlanningSyncService;
 use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -96,10 +97,14 @@ class RkpdController extends Controller
 
     public function store(StoreRkpdRequest $request): RedirectResponse
     {
-        $rkpd = Rkpd::create([
-            ...$request->validated(),
-            'status' => $request->validated('status') ?: 'draft',
-        ]);
+        try {
+            $rkpd = Rkpd::create([
+                ...$request->validated(),
+                'status' => $request->validated('status') ?: 'draft',
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            return $this->duplicateYearRedirect();
+        }
 
         return redirect()->route('rkpd.show', $rkpd)->with('success', 'RKPD berhasil dibuat.');
     }
@@ -204,7 +209,11 @@ class RkpdController extends Controller
 
     public function update(UpdateRkpdRequest $request, Rkpd $rkpd): RedirectResponse
     {
-        $rkpd->update($request->validated());
+        try {
+            $rkpd->update($request->validated());
+        } catch (UniqueConstraintViolationException) {
+            return $this->duplicateYearRedirect();
+        }
 
         return redirect()->route('rkpd.show', $rkpd)->with('success', 'RKPD berhasil diperbarui.');
     }
@@ -222,6 +231,15 @@ class RkpdController extends Controller
     {
         return $user->hasRole('admin_opd')
             && ! $user->hasAnyRole(['super_admin', 'admin_kabupaten_bagian_organisasi', 'admin_kabupaten_bapperida', 'admin_kabupaten_inspektorat']);
+    }
+
+    private function duplicateYearRedirect(): RedirectResponse
+    {
+        return back()
+            ->withErrors([
+                'tahun' => 'RKPD untuk tahun tersebut sudah ada. Silakan buka dokumen RKPD yang sudah dibuat atau pilih tahun lain.',
+            ])
+            ->withInput();
     }
 
     private function canReviewWorkflow(User $user): bool
