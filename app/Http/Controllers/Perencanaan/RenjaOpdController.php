@@ -187,6 +187,10 @@ class RenjaOpdController extends Controller
             ],
             'filters' => $filters,
             'subKegiatanOptions' => $canManage ? $this->subKegiatanOptions($renjaOpd) : [],
+            'existingSubKegiatanRows' => $canManage ? $renjaOpd->items()->get(['id', 'sub_kegiatan_pemerintahan_id'])->map(fn (RenjaOpdItem $item) => [
+                'id' => $item->id,
+                'sub_kegiatan_pemerintahan_id' => $item->sub_kegiatan_pemerintahan_id,
+            ])->all() : [],
             'syncPreview' => app(PlanningSyncService::class)->serializePreview($syncBatch),
             'can' => [
                 'manage' => $canManage,

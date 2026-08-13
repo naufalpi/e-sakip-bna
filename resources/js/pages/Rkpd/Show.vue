@@ -164,6 +164,7 @@ const props = defineProps<{
     summary: { items_count: number; opd_count: number; total_pagu: number; total_prakiraan_maju: number };
     opdOptions: Option[];
     subKegiatanOptions: Option[];
+    existingSubKegiatanRows: Array<{ id: number; opd_id: number | null; sub_kegiatan_pemerintahan_id: number | null }>;
     programRpjmdOptions: Option[];
     syncPreview?: SyncPreview | null;
     workflow: Workflow;
@@ -226,6 +227,9 @@ const selectedProgramRpjmd = computed(() => props.programRpjmdOptions.find((opti
 const selectedSubKegiatan = computed(() =>
     props.subKegiatanOptions.find((option) => String(option.id) === String(form.sub_kegiatan_pemerintahan_id)),
 );
+const existingSubKegiatanRowByKey = computed(() => new Map(
+    props.existingSubKegiatanRows.map((row) => [`${row.opd_id}:${row.sub_kegiatan_pemerintahan_id}`, row.id]),
+));
 const selectedKegiatan = computed(() =>
     kegiatanOptions.value.find((option) => String(option.id) === String(selectedKegiatanPemerintahanId.value)),
 );
@@ -350,12 +354,18 @@ const subKegiatanOptionsForSelectedKegiatan = computed<Option[]>(() => {
 
     return props.subKegiatanOptions
         .filter((option) => String(option.kegiatan_id || '') === String(selectedKegiatanPemerintahanId.value))
-        .map((option) => ({
-            ...option,
-            group: selectedKegiatan.value?.label || option.description,
-            description: option.indikator_sub_kegiatan || option.description,
-            badge: option.satuan_label,
-        }));
+        .map((option) => {
+            const existingRowId = existingSubKegiatanRowByKey.value.get(`${form.opd_id}:${option.id}`);
+            const alreadyAdded = Boolean(existingRowId && existingRowId !== editingId.value);
+
+            return {
+                ...option,
+                group: selectedKegiatan.value?.label || option.description,
+                description: alreadyAdded ? 'Sudah diinput pada RKPD' : (option.indikator_sub_kegiatan || option.description),
+                badge: alreadyAdded ? 'Sudah ada' : option.satuan_label,
+                disabled: alreadyAdded,
+            };
+        });
 });
 
 const scrollToForm = () => {

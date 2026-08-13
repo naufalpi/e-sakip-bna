@@ -271,7 +271,7 @@ onBeforeUnmount(() => {
                             v-for="option in group.options"
                             :key="String(optionValue(option))"
                             type="button"
-                            class="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-50"
+                            class="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:bg-white disabled:text-slate-300 disabled:opacity-75 dark:disabled:bg-slate-950 dark:disabled:text-slate-600"
                             :class="
                                 sameValue(optionValue(option), modelValue)
                                     ? 'bg-[#00336C] text-white shadow-sm'

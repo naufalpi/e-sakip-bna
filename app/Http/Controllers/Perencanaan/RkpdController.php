@@ -174,6 +174,17 @@ class RkpdController extends Controller
                 ->first()
             : null;
 
+        $existingSubKegiatanRows = $rkpd->items()
+            ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
+            ->when($user->hasOpdUnitScope(), fn (Builder $query) => $query->where('opd_unit_id', $user->opd_unit_id))
+            ->get(['id', 'opd_id', 'sub_kegiatan_pemerintahan_id'])
+            ->map(fn (RkpdItem $item) => [
+                'id' => $item->id,
+                'opd_id' => $item->opd_id,
+                'sub_kegiatan_pemerintahan_id' => $item->sub_kegiatan_pemerintahan_id,
+            ])
+            ->all();
+
         return Inertia::render('Rkpd/Show', [
             'rkpd' => $this->serializeRkpd($rkpd),
             'items' => $items,
@@ -183,6 +194,7 @@ class RkpdController extends Controller
             'summary' => $this->summary($rkpd, $user),
             'opdOptions' => $this->opdOptions($user),
             'subKegiatanOptions' => $canManage ? $this->subKegiatanOptions((int) $rkpd->periode_tahun_id) : [],
+            'existingSubKegiatanRows' => $canManage ? $existingSubKegiatanRows : [],
             'programRpjmdOptions' => $canManage ? $this->programRpjmdOptions($rkpd->rpjmd_id) : [],
             'syncPreview' => app(PlanningSyncService::class)->serializePreview($syncBatch),
             'can' => [

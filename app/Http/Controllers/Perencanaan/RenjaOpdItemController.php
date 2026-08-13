@@ -12,6 +12,7 @@ use App\Services\Perencanaan\RenjaProgramScopeService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class RenjaOpdItemController extends Controller
 {
@@ -19,6 +20,7 @@ class RenjaOpdItemController extends Controller
 
     public function store(StoreRenjaOpdItemRequest $request, RenjaOpd $renjaOpd): RedirectResponse
     {
+        $this->ensureSubKegiatanAvailable($renjaOpd, (int) $request->validated('sub_kegiatan_pemerintahan_id'));
         $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), $renjaOpd);
 
         $renjaOpd->items()->create($this->payload($request->validated(), $subKegiatan, [
@@ -32,6 +34,8 @@ class RenjaOpdItemController extends Controller
     public function update(UpdateRenjaOpdItemRequest $request, RenjaOpd $renjaOpd, RenjaOpdItem $item): RedirectResponse
     {
         abort_unless((int) $item->renja_opd_id === (int) $renjaOpd->id, 404);
+
+        $this->ensureSubKegiatanAvailable($renjaOpd, (int) $request->validated('sub_kegiatan_pemerintahan_id'), $item->id);
 
         $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), $renjaOpd);
 
@@ -64,6 +68,20 @@ class RenjaOpdItemController extends Controller
             ->where('periode_tahun_id', $renjaOpd->periode_tahun_id)
             ->whereHas('kegiatanPemerintahan', fn (Builder $query) => $query->whereIn('program_pemerintahan_id', $programPemerintahanIds))
             ->findOrFail($id);
+    }
+
+    private function ensureSubKegiatanAvailable(RenjaOpd $renjaOpd, int $subKegiatanId, ?int $exceptItemId = null): void
+    {
+        $exists = $renjaOpd->items()
+            ->where('sub_kegiatan_pemerintahan_id', $subKegiatanId)
+            ->when($exceptItemId, fn ($query) => $query->where('id', '!=', $exceptItemId))
+            ->exists();
+
+        if ($exists) {
+            throw ValidationException::withMessages([
+                'sub_kegiatan_pemerintahan_id' => 'Sub kegiatan tersebut sudah diinput pada Renja OPD ini.',
+            ]);
+        }
     }
 
     /**

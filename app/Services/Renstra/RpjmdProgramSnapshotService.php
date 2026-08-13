@@ -126,6 +126,8 @@ class RpjmdProgramSnapshotService
             return;
         }
 
+        $target = $this->normalizeNumericTarget($targetRpjmd->target);
+
         $targetOpd = TargetIndikatorOpdProgram::query()
             ->where('indikator_opd_program_id', $indikator->id)
             ->where('periode_tahun_id', $targetRpjmd->periode_tahun_id)
@@ -135,7 +137,7 @@ class RpjmdProgramSnapshotService
             TargetIndikatorOpdProgram::create([
                 'indikator_opd_program_id' => $indikator->id,
                 'periode_tahun_id' => $targetRpjmd->periode_tahun_id,
-                'target' => $targetRpjmd->target,
+                'target' => $target,
                 'target_text' => $targetRpjmd->target_text,
                 'pagu' => null,
             ]);
@@ -145,10 +147,29 @@ class RpjmdProgramSnapshotService
 
         if (blank($targetOpd->target) && blank($targetOpd->target_text)) {
             $targetOpd->update([
-                'target' => $targetRpjmd->target,
+                'target' => $target,
                 'target_text' => $targetRpjmd->target_text,
                 'pagu' => null,
             ]);
         }
+    }
+
+    private function normalizeNumericTarget(mixed $target): ?string
+    {
+        if (blank($target)) {
+            return null;
+        }
+
+        $value = preg_replace('/\s+/', '', (string) $target) ?? '';
+
+        if (str_contains($value, ',') && str_contains($value, '.')) {
+            $value = strrpos($value, ',') > strrpos($value, '.')
+                ? str_replace(['.', ','], ['', '.'], $value)
+                : str_replace(',', '', $value);
+        } elseif (str_contains($value, ',')) {
+            $value = str_replace(',', '.', $value);
+        }
+
+        return is_numeric($value) ? $value : null;
     }
 }

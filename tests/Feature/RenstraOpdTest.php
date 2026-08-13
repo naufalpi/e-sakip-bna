@@ -479,8 +479,8 @@ class RenstraOpdTest extends TestCase
         TargetIndikatorProgramRpjmd::create([
             'indikator_program_rpjmd_id' => $tree['indikator_program']->id,
             'periode_tahun_id' => $periode->id,
-            'target' => 88.5,
-            'target_text' => '88,5 persen',
+            'target' => '0,55',
+            'target_text' => '0,55 persen',
         ]);
 
         $renstra = RenstraOpd::create([
@@ -530,7 +530,8 @@ class RenstraOpdTest extends TestCase
         $this->assertDatabaseHas('target_indikator_opd_program', [
             'indikator_opd_program_id' => $indikatorOpd->id,
             'periode_tahun_id' => $periode->id,
-            'target_text' => '88,5 persen',
+            'target' => 0.55,
+            'target_text' => '0,55 persen',
             'pagu' => null,
         ]);
     }

@@ -10,11 +10,13 @@ use App\Models\RkpdItem;
 use App\Models\SubKegiatanPemerintahan;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class RkpdItemController extends Controller
 {
     public function store(StoreRkpdItemRequest $request, Rkpd $rkpd): RedirectResponse
     {
+        $this->ensureSubKegiatanAvailable($rkpd, (int) $request->validated('opd_id'), (int) $request->validated('sub_kegiatan_pemerintahan_id'));
         $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), (int) $rkpd->periode_tahun_id);
 
         $rkpd->items()->create($this->payload($request->validated(), $subKegiatan, [
@@ -28,6 +30,8 @@ class RkpdItemController extends Controller
     public function update(UpdateRkpdItemRequest $request, Rkpd $rkpd, RkpdItem $item): RedirectResponse
     {
         abort_unless((int) $item->rkpd_id === (int) $rkpd->id, 404);
+
+        $this->ensureSubKegiatanAvailable($rkpd, (int) $request->validated('opd_id'), (int) $request->validated('sub_kegiatan_pemerintahan_id'), $item->id);
 
         $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), (int) $rkpd->periode_tahun_id);
 
@@ -55,6 +59,21 @@ class RkpdItemController extends Controller
             ->with('kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan')
             ->where('periode_tahun_id', $periodeTahunId)
             ->findOrFail($id);
+    }
+
+    private function ensureSubKegiatanAvailable(Rkpd $rkpd, int $opdId, int $subKegiatanId, ?int $exceptItemId = null): void
+    {
+        $exists = $rkpd->items()
+            ->where('opd_id', $opdId)
+            ->where('sub_kegiatan_pemerintahan_id', $subKegiatanId)
+            ->when($exceptItemId, fn ($query) => $query->where('id', '!=', $exceptItemId))
+            ->exists();
+
+        if ($exists) {
+            throw ValidationException::withMessages([
+                'sub_kegiatan_pemerintahan_id' => 'Sub kegiatan tersebut sudah diinput pada RKPD untuk OPD yang dipilih.',
+            ]);
+        }
     }
 
     /**

@@ -178,6 +178,7 @@ const props = defineProps<{
     };
     filters: { search?: string; status?: string };
     subKegiatanOptions: Option[];
+    existingSubKegiatanRows: Array<{ id: number; sub_kegiatan_pemerintahan_id: number | null }>;
     syncPreview?: SyncPreview | null;
     workflow: Workflow;
     can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean };
@@ -267,8 +268,23 @@ const kegiatanOptions = computed<Option[]>(() =>
     ),
 );
 
+const existingSubKegiatanRowById = computed(() => new Map(
+    props.existingSubKegiatanRows.map((row) => [String(row.sub_kegiatan_pemerintahan_id), row.id]),
+));
 const subKegiatanOptionsForSelectedKegiatan = computed(() =>
-    props.subKegiatanOptions.filter((option) => String(option.kegiatan_id ?? '') === String(selectedKegiatanPemerintahanId.value)),
+    props.subKegiatanOptions
+        .filter((option) => String(option.kegiatan_id ?? '') === String(selectedKegiatanPemerintahanId.value))
+        .map((option) => {
+            const existingRowId = existingSubKegiatanRowById.value.get(String(option.id));
+            const alreadyAdded = Boolean(existingRowId && existingRowId !== editingId.value);
+
+            return {
+                ...option,
+                description: alreadyAdded ? 'Sudah diinput pada Renja' : option.description,
+                badge: alreadyAdded ? 'Sudah ada' : option.satuan_label,
+                disabled: alreadyAdded,
+            };
+        }),
 );
 
 const selectedSubKegiatan = computed(() =>
