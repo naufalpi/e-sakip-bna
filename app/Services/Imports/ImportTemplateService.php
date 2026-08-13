@@ -15,6 +15,7 @@ class ImportTemplateService
         [$filename, $sheets] = match ($module) {
             'rpjmd' => ['template-import-rpjmd-banjarnegara.xlsx', $this->rpjmdSheets()],
             'renstra_opd' => ['template-import-renstra-opd-banjarnegara.xlsx', $this->renstraSheets()],
+            'rkpd' => ['template-import-rkpd-banjarnegara.xlsx', $this->rkpdSheets()],
             default => throw new RuntimeException('Template import tidak tersedia.'),
         };
 
@@ -54,6 +55,28 @@ class ImportTemplateService
                 ['misi_kode_terkait', 'Opsional pada baris tujuan. Pisahkan beberapa kode misi dengan koma untuk tujuan lintas misi.'],
                 ['indikator_tujuan_kode_terkait', 'Opsional pada baris sasaran untuk pola sasaran melalui indikator tujuan. Pisahkan beberapa kode dengan koma.'],
                 ['opd_kode', 'Untuk baris indikator dapat diisi sebagai PD penanggung jawab. Untuk opd_penanggung_jawab wajib diisi.'],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, array<int, array<int, string|int|float|null>>>
+     */
+    private function rkpdSheets(): array
+    {
+        return [
+            'Baris RKPD' => [
+                ['opd_kode', 'sub_kegiatan_kode', 'program_rpjmd_kode', 'indikator', 'target_akhir_renstra', 'realisasi_capaian_renja_tahun_lalu', 'prakiraan_capaian_target_renja_tahun_berjalan', 'target', 'pagu_indikatif', 'lokasi', 'sumber_dana', 'prioritas_nasional', 'prioritas_daerah', 'kelompok_sasaran', 'prakiraan_maju_target', 'prakiraan_maju_pagu_indikatif', 'perangkat_daerah_penanggung_jawab', 'urutan'],
+                ['1.01', '1.01.01.2.01.0001', 'PR-1', 'Persentase dokumen selesai', '100%', '90%', '95%', '100%', 150000000, 'Banjarnegara', 'APBD', 'Prioritas Nasional', 'Prioritas Daerah', 'Masyarakat', '100%', 175000000, null, 1],
+            ],
+            'Petunjuk' => [
+                ['Kolom', 'Keterangan'],
+                ['opd_kode', 'Wajib. Kode OPD harus sama dengan master OPD aktif.'],
+                ['sub_kegiatan_kode', 'Wajib. Kode sub kegiatan harus tersedia pada master untuk tahun RKPD.'],
+                ['program_rpjmd_kode', 'Opsional. Gunakan kode Program RPJMD bila baris perlu dihubungkan ke RPJMD.'],
+                ['perangkat_daerah_penanggung_jawab', 'Opsional. Bila dikosongkan, otomatis diisi dari OPD yang cocok dengan opd_kode saat preview.'],
+                ['pagu_indikatif / prakiraan_maju_pagu_indikatif', 'Opsional. Isi angka tanpa Rp; pemisah ribuan diperbolehkan.'],
+                ['urutan', 'Opsional. Bila kosong, sistem menempatkan baris setelah urutan terakhir.'],
             ],
         ];
     }

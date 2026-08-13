@@ -55,6 +55,10 @@ class ImportColumnValidationService
                 'referensi RPJMD' => ['rpjmd_id', 'rpjmd_judul', 'judul_rpjmd'],
                 'uraian data' => ['uraian', 'nama', 'judul', 'renstra_judul', 'tujuan', 'sasaran', 'program', 'kegiatan', 'sub_kegiatan', 'indikator'],
             ],
+            'rkpd' => [
+                'identitas OPD' => ['opd_id', 'opd_kode', 'kode_opd'],
+                'kode sub kegiatan' => ['sub_kegiatan_kode', 'kode_sub_kegiatan'],
+            ],
             default => [],
         };
     }
@@ -190,6 +194,17 @@ class ImportColumnValidationService
                 'target_triwulan',
                 'target_triwulan_text',
                 'target_anggaran',
+            ])),
+            'rkpd' => array_values(array_unique([
+                ...$common,
+                'opd_id', 'opd_kode', 'kode_opd',
+                'sub_kegiatan_id', 'sub_kegiatan_kode', 'kode_sub_kegiatan',
+                'program_rpjmd_id', 'program_rpjmd_kode', 'kode_program_rpjmd',
+                'indikator', 'target_akhir_renstra', 'realisasi_capaian_renja_tahun_lalu',
+                'prakiraan_capaian_target_renja_tahun_berjalan', 'target', 'pagu_indikatif',
+                'lokasi', 'sumber_dana', 'prioritas_nasional', 'prioritas_daerah',
+                'kelompok_sasaran', 'prakiraan_maju_target', 'prakiraan_maju_pagu_indikatif',
+                'perangkat_daerah_penanggung_jawab',
             ])),
             default => $common,
         };

@@ -6,7 +6,7 @@ import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, ClipboardList, Pencil, Plus, Save, Search, Target, Trash2, X } from 'lucide-vue-next';
+import { ArrowLeft, ClipboardList, FileSpreadsheet, Pencil, Plus, Save, Search, Target, Trash2, X } from 'lucide-vue-next';
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 type Option = {
@@ -1083,6 +1083,14 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             Preview Tabel
                         </button>
                     </div>
+                    <Link
+                        v-if="can.manage && rkpdItemView === 'input'"
+                        :href="route('rkpd.items.import.create', rkpd.id)"
+                        class="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-[#00336C] transition hover:border-blue-300 hover:bg-blue-100"
+                    >
+                        <FileSpreadsheet class="size-4" />
+                        Import Excel
+                    </Link>
                     <button
                         v-if="can.manage && rkpdItemView === 'input'"
                         type="button"

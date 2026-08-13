@@ -167,6 +167,7 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
     - prakiraan maju,
     - PD penanggung jawab.
 - Form input RKPD dibuat menurun satu kolom.
+- Baris RKPD dapat diimport melalui Excel dua tahap: download template, upload dan validasi per baris, preview, lalu tombol `Terapkan Import`. Import diblokir bila masih ada baris tidak valid.
 - Alur pilihan:
     - pilih OPD,
     - pilih program sesuai OPD,
