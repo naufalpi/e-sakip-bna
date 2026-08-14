@@ -483,7 +483,20 @@ class RenstraOpdController extends Controller
             'indikator_tujuan' => IndikatorTujuanOpd::query()->whereHas('tujuan', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
             'sasaran' => SasaranOpd::query()->whereHas('tujuan', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'sasaran'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all(),
             'indikator_sasaran' => IndikatorSasaranOpd::query()->whereHas('sasaran.tujuan', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'program' => OpdProgram::query()->where('renstra_opd_id', $renstra->id)->orderBy('urutan')->get(['id', 'kode', 'nama'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->nama)])->values()->all(),
+            'program' => OpdProgram::query()
+                ->where('renstra_opd_id', $renstra->id)
+                ->with('sasaran:id,kode,sasaran')
+                ->orderBy('urutan')
+                ->get(['id', 'sasaran_opd_id', 'kode', 'nama'])
+                ->map(fn (OpdProgram $item) => [
+                    'id' => $item->id,
+                    'label' => $this->nodeLabel($item->kode, $item->nama),
+                    'description' => $item->sasaran
+                        ? 'Sasaran OPD: '.$this->nodeLabel($item->sasaran->kode, $item->sasaran->sasaran)
+                        : null,
+                ])
+                ->values()
+                ->all(),
             'indikator_program' => IndikatorOpdProgram::query()->whereHas('program', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
             'kegiatan' => OpdKegiatan::query()->whereHas('program', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'nama'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->nama)])->values()->all(),
             'indikator_kegiatan' => IndikatorOpdKegiatan::query()->whereHas('kegiatan.program', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
