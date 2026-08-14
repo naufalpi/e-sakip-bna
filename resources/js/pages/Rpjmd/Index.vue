@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
-import { confirmDelete, promptTextArea } from '@/lib/sweetAlert';
+import { confirmDocumentDelete, promptTextArea } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowRight, CalendarRange, Eye, FilePlus2, FileText, Pencil, Plus, RefreshCw, RotateCcw, Search, ShieldCheck, Trash2 } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
@@ -105,7 +105,7 @@ const destroy = async (rpjmd: RpjmdRow) => {
         return;
     }
 
-    if (await confirmDelete(`Hapus RPJMD ${rpjmd.tahun_awal}-${rpjmd.tahun_akhir}?`)) {
+    if (await confirmDocumentDelete(`Hapus RPJMD ${rpjmd.tahun_awal}-${rpjmd.tahun_akhir}?`)) {
         router.delete(route('rpjmd.destroy', rpjmd.id));
     }
 };

@@ -88,6 +88,46 @@ export function confirmDelete(text: string, options: Omit<ConfirmOptions, 'text'
     });
 }
 
+export async function confirmDocumentDelete(text: string): Promise<boolean> {
+    const firstNumber = Math.floor(Math.random() * 8) + 2;
+    const secondNumber = Math.floor(Math.random() * 8) + 2;
+    const answer = firstNumber + secondNumber;
+    const calculation = `${firstNumber} + ${secondNumber}`;
+
+    const result = await appSwal.fire({
+        title: 'Hapus dokumen?',
+        text,
+        icon: 'warning',
+        input: 'text',
+        inputLabel: `Untuk melanjutkan, jawab: ${calculation} =`,
+        inputPlaceholder: 'Masukkan hasil penjumlahan',
+        inputAttributes: {
+            'aria-label': `Jawaban untuk ${calculation}`,
+            inputmode: 'numeric',
+            autocomplete: 'off',
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Ya, hapus dokumen',
+        cancelButtonText: 'Batal',
+        focusCancel: true,
+        preConfirm: (value) => {
+            if (Number(`${value ?? ''}`.trim()) !== answer) {
+                Swal.showValidationMessage('Jawaban penjumlahan belum tepat. Dokumen tidak dihapus.');
+                return false;
+            }
+
+            return true;
+        },
+        customClass: {
+            actions: 'esakip-swal-actions',
+            confirmButton: 'esakip-swal-button esakip-swal-confirm esakip-swal-confirm-danger',
+            cancelButton: 'esakip-swal-button esakip-swal-cancel',
+        },
+    });
+
+    return result.isConfirmed;
+}
+
 export async function promptTextArea(options: PromptTextAreaOptions): Promise<string | null> {
     const result = await appSwal.fire({
         title: options.title,

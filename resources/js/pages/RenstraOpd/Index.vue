@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
-import { confirmDelete, promptTextArea } from '@/lib/sweetAlert';
+import { confirmDocumentDelete, promptTextArea } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowRight, GitBranch, Layers3, Pencil, Plus, RotateCcw, Search, Trash2 } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
@@ -122,7 +122,7 @@ const destroy = async (renstra: RenstraRow) => {
         return;
     }
 
-    if (await confirmDelete(`Hapus Renstra ${renstra.opd?.singkatan || renstra.opd?.nama || ''} ${renstra.tahun_awal}-${renstra.tahun_akhir}?`)) {
+    if (await confirmDocumentDelete(`Hapus Renstra ${renstra.opd?.singkatan || renstra.opd?.nama || ''} ${renstra.tahun_awal}-${renstra.tahun_akhir}?`)) {
         router.delete(route('renstra-opd.destroy', renstra.id));
     }
 };

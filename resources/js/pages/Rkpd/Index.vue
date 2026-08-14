@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
-import { confirmDelete } from '@/lib/sweetAlert';
+import { confirmDocumentDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowRight, CalendarDays, FileText, Plus, Search, Trash2 } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
@@ -54,7 +54,7 @@ const resetFilters = () => {
 };
 
 const destroy = async (row: Row) => {
-    if (await confirmDelete(`Hapus RKPD ${row.tahun} - ${row.judul}?`)) {
+    if (await confirmDocumentDelete(`Hapus RKPD ${row.tahun} - ${row.judul}?`)) {
         router.delete(route('rkpd.destroy', row.id));
     }
 };
