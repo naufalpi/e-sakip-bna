@@ -4281,17 +4281,12 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
 
                             <div class="mt-4 divide-y divide-slate-200/80 border-y border-slate-200/80 dark:divide-slate-700 dark:border-slate-700">
                                 <article
-                                    v-for="(group, groupIndex) in rpjmdContext.program_groups"
+                                    v-for="group in rpjmdContext.program_groups"
                                     :key="`rpjmd-context-${group.sasaran?.id || group.programs[0]?.id}`"
                                     class="grid min-w-0 py-4 lg:grid-cols-[minmax(17rem,0.72fr)_minmax(0,1.28fr)]"
                                 >
                                     <div class="min-w-0 pb-4 lg:border-r lg:border-slate-200 lg:pb-0 lg:pr-6 dark:lg:border-slate-700">
-                                        <div class="flex items-center gap-2">
-                                            <span class="font-mono text-[10px] font-bold tabular-nums text-blue-500 dark:text-blue-300">
-                                                {{ String(groupIndex + 1).padStart(2, '0') }}
-                                            </span>
-                                            <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Sasaran RPJMD</p>
-                                        </div>
+                                        <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Sasaran RPJMD</p>
                                         <div class="mt-2 flex items-start gap-2.5">
                                             <span
                                                 v-if="group.sasaran?.kode"
