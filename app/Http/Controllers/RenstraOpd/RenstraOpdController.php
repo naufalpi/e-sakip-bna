@@ -764,6 +764,11 @@ class RenstraOpdController extends Controller
                 ->all(),
             'program_groups' => $programs
                 ->groupBy(fn (ProgramRpjmd $program) => (string) ($program->sasaran_daerah_id ?? "program-{$program->id}"))
+                ->sortBy(fn (Collection $items) => sprintf(
+                    '%010d-%010d',
+                    $items->first()?->sasaran?->urutan ?? PHP_INT_MAX,
+                    $items->first()?->sasaran?->id ?? PHP_INT_MAX,
+                ))
                 ->map(function (Collection $items) use ($renstra) {
                     /** @var ProgramRpjmd $first */
                     $first = $items->first();
@@ -790,6 +795,7 @@ class RenstraOpdController extends Controller
                             'sasaran' => $sasaran->sasaran,
                         ] : null,
                         'programs' => $items
+                            ->sortBy(fn (ProgramRpjmd $program) => sprintf('%010d-%010d', $program->urutan ?? PHP_INT_MAX, $program->id))
                             ->map(function (ProgramRpjmd $program) use ($renstra) {
                                 $preferredReference = $program->preferredProgramPemerintahanReferenceForOpd(
                                     filled($renstra->opd_id) ? (int) $renstra->opd_id : null,

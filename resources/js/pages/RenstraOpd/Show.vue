@@ -533,6 +533,7 @@ const expandedSubKegiatanProgramIds = ref<number[]>([]);
 const selectedSubKegiatanKegiatanId = ref<number | null>(null);
 const subKegiatanDetailRef = ref<HTMLElement | HTMLElement[] | null>(null);
 const subKegiatanFocusSearch = ref('');
+const isRpjmdContextExpanded = ref(true);
 const bulkSaveTimers = new Map<string, number>();
 const bulkLastSavedAt = ref('');
 const bulkDraftCounter = ref(0);
@@ -1076,6 +1077,7 @@ const targetInputPeriods = computed(() =>
     baselinePeriod.value ? [baselinePeriod.value, ...periodColumns.value] : periodColumns.value,
 );
 const hasRpjmdContext = computed(() => props.rpjmdContext.visi.length > 0 || props.rpjmdContext.program_groups.length > 0);
+const rpjmdContextProgramCount = computed(() => props.rpjmdContext.program_groups.reduce((total, group) => total + group.programs.length, 0));
 const directionRows = computed(() => bulkRows.value.filter((row) => directionNodeTypes.includes(row.type)));
 const implementationRows = computed(() => bulkRows.value.filter((row) => implementationNodeTypes.includes(row.type)));
 const tujuanRows = computed(() => bulkRows.value.filter((row) => tujuanNodeTypes.includes(row.type)));
@@ -4133,80 +4135,195 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
 
         <WorkflowHistoryTimeline :workflow="workflow" />
 
-        <section class="overflow-hidden rounded-xl border border-blue-100 bg-card shadow-sm">
-            <div class="flex flex-col gap-3 border-b bg-[linear-gradient(135deg,#f8fbff,#eaf4ff)] p-4 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex min-w-0 items-start gap-3">
-                    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#00336C] text-white">
+        <section
+            class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_12px_36px_-28px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-900"
+        >
+            <header
+                class="relative flex min-h-[4.75rem] items-center justify-between gap-4 bg-[linear-gradient(110deg,#f7fbff_0%,#ffffff_48%,#f8fafc_100%)] px-4 py-3.5 sm:px-5 dark:bg-none dark:bg-slate-900"
+            >
+                <span class="absolute inset-x-0 top-0 h-0.5 bg-[linear-gradient(90deg,#00336C_0%,#2583d8_42%,transparent_88%)]" />
+
+                <div class="flex min-w-0 items-center gap-3.5">
+                    <span
+                        class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#00336C] text-white shadow-[0_8px_18px_-10px_rgba(0,51,108,0.9)]"
+                    >
                         <Network class="size-5" />
                     </span>
                     <div class="min-w-0">
-                        <h2 class="text-base font-semibold text-slate-950">Acuan RPJMD</h2>
-                    </div>
-                </div>
-                <span class="w-fit rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-semibold text-[#00336C]">
-                    {{ renstra.rpjmd ? `${renstra.rpjmd.tahun_awal}-${renstra.rpjmd.tahun_akhir}` : 'Belum terhubung RPJMD' }}
-                </span>
-            </div>
-
-            <div v-if="hasRpjmdContext" class="grid lg:grid-cols-[23rem_minmax(0,1fr)]">
-                <aside class="border-b p-5 lg:border-b-0 lg:border-r">
-                    <div>
-                        <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]">Visi Kabupaten</p>
-                        <div class="mt-3 space-y-2">
-                            <p v-for="visi in rpjmdContext.visi" :key="visi.id" class="text-sm font-semibold leading-6 text-slate-950">
-                                {{ visi.visi }}
-                            </p>
-                            <p v-if="rpjmdContext.visi.length === 0" class="text-sm text-slate-500">Visi belum diisi.</p>
-                        </div>
-                    </div>
-                    <div class="mt-6">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Misi</p>
-                        <ol class="mt-3 space-y-2.5">
-                            <li v-for="misi in rpjmdContext.misi" :key="misi.id" class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-2 text-sm leading-5 text-slate-700">
-                                <span class="font-semibold text-[#00336C]">{{ misi.kode || misi.urutan }}</span>
-                                <span>{{ misi.misi }}</span>
-                            </li>
-                            <li v-if="rpjmdContext.misi.length === 0" class="text-sm text-slate-500">Misi belum diisi.</li>
-                        </ol>
-                    </div>
-                </aside>
-
-                <div class="divide-y p-5">
-                    <article
-                        v-for="group in rpjmdContext.program_groups"
-                        :key="`rpjmd-context-${group.sasaran?.id || group.programs[0]?.id}`"
-                        class="py-4 first:pt-0 last:pb-0"
-                    >
-                        <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-                            <div class="min-w-0">
-                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tujuan Kabupaten</p>
-                                <p class="mt-1 text-sm font-semibold leading-6 text-slate-950">
-                                    {{ group.tujuan ? nodeText(group.tujuan.kode, group.tujuan.tujuan) : '-' }}
-                                </p>
-                            </div>
-                            <div class="min-w-0">
-                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Sasaran Terhubung</p>
-                                <p class="mt-1 text-sm font-semibold leading-6 text-[#00336C]">
-                                    {{ group.sasaran ? nodeText(group.sasaran.kode, group.sasaran.sasaran) : '-' }}
-                                </p>
-                            </div>
-                        </div>
-                        <div class="mt-3 flex flex-wrap gap-2">
-                            <span
-                                v-for="program in group.programs"
-                                :key="program.id"
-                                class="inline-flex max-w-full rounded-lg border border-blue-100 bg-blue-50/45 px-3 py-2 text-sm font-semibold leading-5 text-slate-950"
-                            >
-                                {{ nodeText(program.kode, program.nama) }}
+                        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Acuan Perencanaan</p>
+                        <div class="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                            <h2 class="text-base font-bold tracking-[-0.01em] text-slate-950 dark:text-white">RPJMD Kabupaten</h2>
+                            <span class="text-xs font-semibold tabular-nums text-[#00336C] dark:text-blue-300">
+                                {{ renstra.rpjmd ? `${renstra.rpjmd.tahun_awal}—${renstra.rpjmd.tahun_akhir}` : 'Belum terhubung' }}
                             </span>
                         </div>
-                    </article>
-                    <div v-if="rpjmdContext.program_groups.length === 0" class="rounded-xl border border-dashed p-6 text-sm text-slate-500">
-                        Belum ada program RPJMD yang relevan dengan OPD ini.
                     </div>
                 </div>
-            </div>
-            <div v-else class="p-6 text-sm text-slate-500">Renstra belum terhubung ke struktur RPJMD.</div>
+
+                <div class="flex shrink-0 items-center gap-3 sm:gap-4">
+                    <dl class="hidden items-center divide-x divide-slate-200 sm:flex dark:divide-slate-700">
+                        <div class="pr-4 text-right">
+                            <dt class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Sasaran</dt>
+                            <dd class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">
+                                {{ rpjmdContext.program_groups.length }}
+                            </dd>
+                        </div>
+                        <div class="pl-4 text-right">
+                            <dt class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Program</dt>
+                            <dd class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">{{ rpjmdContextProgramCount }}</dd>
+                        </div>
+                    </dl>
+                    <button
+                        type="button"
+                        class="inline-flex size-11 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white/85 text-slate-500 shadow-sm transition duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-[#00336C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/30 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:bg-slate-700 dark:hover:text-blue-300"
+                        :aria-label="isRpjmdContextExpanded ? 'Sembunyikan acuan RPJMD' : 'Tampilkan acuan RPJMD'"
+                        :title="isRpjmdContextExpanded ? 'Sembunyikan acuan RPJMD' : 'Tampilkan acuan RPJMD'"
+                        :aria-expanded="isRpjmdContextExpanded"
+                        aria-controls="rpjmd-reference-detail"
+                        @click="isRpjmdContextExpanded = !isRpjmdContextExpanded"
+                    >
+                        <ChevronDown
+                            class="size-5 transition-transform duration-200 motion-reduce:transition-none"
+                            :class="{ 'rotate-180': isRpjmdContextExpanded }"
+                        />
+                    </button>
+                </div>
+            </header>
+
+            <Transition
+                enter-active-class="transition-opacity duration-200 motion-reduce:transition-none"
+                enter-from-class="opacity-0"
+                leave-active-class="transition-opacity duration-150 motion-reduce:transition-none"
+                leave-to-class="opacity-0"
+            >
+                <div v-if="isRpjmdContextExpanded" id="rpjmd-reference-detail" class="border-t border-slate-200/80 dark:border-slate-700">
+                    <div v-if="hasRpjmdContext">
+                        <div class="grid lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+                            <section
+                                class="min-w-0 border-b border-slate-200/80 bg-slate-50/65 px-4 py-4 sm:px-5 lg:border-b-0 lg:border-r dark:border-slate-700 dark:bg-slate-800/45"
+                            >
+                                <div class="flex items-center gap-2">
+                                    <span class="font-mono text-[10px] font-bold text-blue-500 dark:text-blue-300">01</span>
+                                    <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Visi Kabupaten</p>
+                                </div>
+                                <div class="mt-3 max-w-2xl">
+                                    <p
+                                        v-for="visi in rpjmdContext.visi"
+                                        :key="visi.id"
+                                        class="text-[15px] font-semibold leading-6 tracking-[-0.005em] text-slate-900 dark:text-slate-100"
+                                    >
+                                        {{ visi.visi }}
+                                    </p>
+                                    <p v-if="rpjmdContext.visi.length === 0" class="text-sm text-slate-500 dark:text-slate-400">Visi belum diisi.</p>
+                                </div>
+                            </section>
+
+                            <section class="min-w-0 px-4 py-4 sm:px-5">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-mono text-[10px] font-bold text-blue-500 dark:text-blue-300">02</span>
+                                        <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Misi Kabupaten</p>
+                                    </div>
+                                    <span class="text-[10px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">
+                                        {{ rpjmdContext.misi.length }} misi
+                                    </span>
+                                </div>
+                                <ol class="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                                    <li
+                                        v-for="misi in rpjmdContext.misi"
+                                        :key="misi.id"
+                                        class="grid min-w-0 grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-2 text-xs leading-5 text-slate-600 dark:text-slate-300"
+                                    >
+                                        <span class="font-mono font-bold tabular-nums text-[#00336C] dark:text-blue-300">{{ misi.kode || misi.urutan }}</span>
+                                        <span>{{ misi.misi }}</span>
+                                    </li>
+                                    <li v-if="rpjmdContext.misi.length === 0" class="text-sm text-slate-500 dark:text-slate-400">Misi belum diisi.</li>
+                                </ol>
+                            </section>
+                        </div>
+
+                        <section class="border-t border-slate-200/80 px-4 py-5 sm:px-5 dark:border-slate-700">
+                            <div class="flex items-end justify-between gap-4">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-mono text-[10px] font-bold text-blue-500 dark:text-blue-300">03</span>
+                                        <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                                            Cascading Sasaran &amp; Program
+                                        </p>
+                                    </div>
+                                    <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                                        Program RPJMD yang relevan sebagai acuan penyusunan RENSTRA OPD.
+                                    </p>
+                                </div>
+                                <span class="hidden text-xs font-semibold tabular-nums text-slate-400 sm:inline dark:text-slate-500">
+                                    {{ rpjmdContextProgramCount }} program
+                                </span>
+                            </div>
+
+                            <div class="mt-4 divide-y divide-slate-200/80 border-y border-slate-200/80 dark:divide-slate-700 dark:border-slate-700">
+                                <article
+                                    v-for="(group, groupIndex) in rpjmdContext.program_groups"
+                                    :key="`rpjmd-context-${group.sasaran?.id || group.programs[0]?.id}`"
+                                    class="grid min-w-0 py-4 lg:grid-cols-[minmax(17rem,0.72fr)_minmax(0,1.28fr)]"
+                                >
+                                    <div class="min-w-0 pb-4 lg:border-r lg:border-slate-200 lg:pb-0 lg:pr-6 dark:lg:border-slate-700">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-mono text-[10px] font-bold tabular-nums text-blue-500 dark:text-blue-300">
+                                                {{ String(groupIndex + 1).padStart(2, '0') }}
+                                            </span>
+                                            <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Sasaran RPJMD</p>
+                                        </div>
+                                        <div class="mt-2 flex items-start gap-2.5">
+                                            <span
+                                                v-if="group.sasaran?.kode"
+                                                class="mt-0.5 shrink-0 font-mono text-xs font-bold text-[#00336C] dark:text-blue-300"
+                                            >
+                                                {{ group.sasaran.kode }}
+                                            </span>
+                                            <p class="text-sm font-semibold leading-6 text-slate-900 dark:text-slate-100">
+                                                {{ group.sasaran?.sasaran || '-' }}
+                                            </p>
+                                        </div>
+                                        <div v-if="group.tujuan" class="mt-2 border-l border-slate-200 pl-2.5 dark:border-slate-700">
+                                            <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Turunan tujuan</p>
+                                            <p class="mt-0.5 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                                {{ nodeText(group.tujuan.kode, group.tujuan.tujuan) }}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="min-w-0 border-t border-slate-100 pt-4 lg:border-t-0 lg:pl-6 lg:pt-0 dark:border-slate-800">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Program pendukung</p>
+                                            <span class="text-[10px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">
+                                                {{ group.programs.length }} program
+                                            </span>
+                                        </div>
+                                        <ol class="mt-2.5 grid gap-x-7 gap-y-0 sm:grid-cols-2">
+                                            <li
+                                                v-for="program in group.programs"
+                                                :key="program.id"
+                                                class="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-2 border-b border-slate-100 py-2 first:pt-0 dark:border-slate-800"
+                                            >
+                                                <span class="font-mono text-xs font-semibold tabular-nums text-[#00336C] dark:text-blue-300">
+                                                    {{ program.kode || '—' }}
+                                                </span>
+                                                <span class="text-xs font-medium leading-5 text-slate-700 dark:text-slate-300">{{ program.nama }}</span>
+                                            </li>
+                                        </ol>
+                                    </div>
+                                </article>
+                            </div>
+                            <div v-if="rpjmdContext.program_groups.length === 0" class="py-4 text-sm text-slate-500 dark:text-slate-400">
+                                Belum ada program RPJMD yang relevan dengan OPD ini.
+                            </div>
+                        </section>
+                    </div>
+                    <div v-else class="border-t border-slate-200 p-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                        Renstra belum terhubung ke struktur RPJMD.
+                    </div>
+                </div>
+            </Transition>
         </section>
         </template>
 
