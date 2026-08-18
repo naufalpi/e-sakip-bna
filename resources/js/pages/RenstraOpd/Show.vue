@@ -1078,6 +1078,16 @@ const targetInputPeriods = computed(() =>
 );
 const hasRpjmdContext = computed(() => props.rpjmdContext.visi.length > 0 || props.rpjmdContext.program_groups.length > 0);
 const rpjmdContextProgramCount = computed(() => props.rpjmdContext.program_groups.reduce((total, group) => total + group.programs.length, 0));
+const rpjmdContextMisiColumns = computed(() => {
+    const midpoint = Math.ceil(props.rpjmdContext.misi.length / 2);
+
+    return [props.rpjmdContext.misi.slice(0, midpoint), props.rpjmdContext.misi.slice(midpoint)].filter((column) => column.length > 0);
+});
+const rpjmdProgramColumns = (programs: RpjmdContext['program_groups'][number]['programs']) => {
+    const midpoint = Math.ceil(programs.length / 2);
+
+    return [programs.slice(0, midpoint), programs.slice(midpoint)].filter((column) => column.length > 0);
+};
 const directionRows = computed(() => bulkRows.value.filter((row) => directionNodeTypes.includes(row.type)));
 const implementationRows = computed(() => bulkRows.value.filter((row) => implementationNodeTypes.includes(row.type)));
 const tujuanRows = computed(() => bulkRows.value.filter((row) => tujuanNodeTypes.includes(row.type)));
@@ -4198,7 +4208,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
             >
                 <div v-if="isRpjmdContextExpanded" id="rpjmd-reference-detail" class="border-t border-slate-200/80 dark:border-slate-700">
                     <div v-if="hasRpjmdContext">
-                        <div class="grid lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+                        <div class="grid lg:grid-cols-[minmax(0,0.76fr)_minmax(0,1.24fr)]">
                             <section
                                 class="min-w-0 border-b border-slate-200/80 bg-slate-50/65 px-4 py-4 sm:px-5 lg:border-b-0 lg:border-r dark:border-slate-700 dark:bg-slate-800/45"
                             >
@@ -4228,17 +4238,26 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                         {{ rpjmdContext.misi.length }} misi
                                     </span>
                                 </div>
-                                <ol class="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
-                                    <li
-                                        v-for="misi in rpjmdContext.misi"
-                                        :key="misi.id"
-                                        class="grid min-w-0 grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-2 text-xs leading-5 text-slate-600 dark:text-slate-300"
+                                <div v-if="rpjmdContextMisiColumns.length" class="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                                    <ol
+                                        v-for="(column, columnIndex) in rpjmdContextMisiColumns"
+                                        :key="`rpjmd-misi-column-${columnIndex}`"
+                                        class="space-y-2"
+                                        :class="columnIndex > 0 ? 'sm:border-l sm:border-slate-200 sm:pl-6 dark:sm:border-slate-700' : ''"
                                     >
-                                        <span class="font-mono font-bold tabular-nums text-[#00336C] dark:text-blue-300">{{ misi.kode || misi.urutan }}</span>
-                                        <span>{{ misi.misi }}</span>
-                                    </li>
-                                    <li v-if="rpjmdContext.misi.length === 0" class="text-sm text-slate-500 dark:text-slate-400">Misi belum diisi.</li>
-                                </ol>
+                                        <li
+                                            v-for="misi in column"
+                                            :key="misi.id"
+                                            class="grid min-w-0 grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-2 text-xs leading-5 text-slate-600 dark:text-slate-300"
+                                        >
+                                            <span class="font-mono font-bold tabular-nums text-[#00336C] dark:text-blue-300">
+                                                {{ misi.kode || misi.urutan }}
+                                            </span>
+                                            <span>{{ misi.misi }}</span>
+                                        </li>
+                                    </ol>
+                                </div>
+                                <p v-else class="mt-3 text-sm text-slate-500 dark:text-slate-400">Misi belum diisi.</p>
                             </section>
                         </div>
 
@@ -4284,12 +4303,6 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                 {{ group.sasaran?.sasaran || '-' }}
                                             </p>
                                         </div>
-                                        <div v-if="group.tujuan" class="mt-2 border-l border-slate-200 pl-2.5 dark:border-slate-700">
-                                            <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Turunan tujuan</p>
-                                            <p class="mt-0.5 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                                {{ nodeText(group.tujuan.kode, group.tujuan.tujuan) }}
-                                            </p>
-                                        </div>
                                     </div>
 
                                     <div class="min-w-0 border-t border-slate-100 pt-4 lg:border-t-0 lg:pl-6 lg:pt-0 dark:border-slate-800">
@@ -4299,18 +4312,24 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                 {{ group.programs.length }} program
                                             </span>
                                         </div>
-                                        <ol class="mt-2.5 grid gap-x-7 gap-y-0 sm:grid-cols-2">
-                                            <li
-                                                v-for="program in group.programs"
-                                                :key="program.id"
-                                                class="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-2 border-b border-slate-100 py-2 first:pt-0 dark:border-slate-800"
+                                        <div class="mt-2.5 grid gap-x-7 gap-y-0 sm:grid-cols-2">
+                                            <ol
+                                                v-for="(column, columnIndex) in rpjmdProgramColumns(group.programs)"
+                                                :key="`rpjmd-program-column-${group.sasaran?.id || group.programs[0]?.id}-${columnIndex}`"
+                                                :class="columnIndex > 0 ? 'sm:border-l sm:border-slate-100 sm:pl-7 dark:sm:border-slate-800' : ''"
                                             >
-                                                <span class="font-mono text-xs font-semibold tabular-nums text-[#00336C] dark:text-blue-300">
-                                                    {{ program.kode || '—' }}
-                                                </span>
-                                                <span class="text-xs font-medium leading-5 text-slate-700 dark:text-slate-300">{{ program.nama }}</span>
-                                            </li>
-                                        </ol>
+                                                <li
+                                                    v-for="program in column"
+                                                    :key="program.id"
+                                                    class="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-2 border-b border-slate-100 py-2 first:pt-0 dark:border-slate-800"
+                                                >
+                                                    <span class="font-mono text-xs font-semibold tabular-nums text-[#00336C] dark:text-blue-300">
+                                                        {{ program.kode || '—' }}
+                                                    </span>
+                                                    <span class="text-xs font-medium leading-5 text-slate-700 dark:text-slate-300">{{ program.nama }}</span>
+                                                </li>
+                                            </ol>
+                                        </div>
                                     </div>
                                 </article>
                             </div>
