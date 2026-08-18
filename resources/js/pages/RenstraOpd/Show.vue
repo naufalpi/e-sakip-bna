@@ -2862,6 +2862,7 @@ type KegiatanProgramFolder = {
     key: string;
     programId: number;
     programName: string;
+    sasaranId: number | null;
     sasaranName: string | null;
     kegiatanCount: number;
     indicatorCount: number;
@@ -2870,7 +2871,21 @@ type KegiatanProgramFolder = {
 
 type ProgramFolderSource = {
     programRow: BulkRow;
+    sasaranId: number | null;
     sasaranName: string | null;
+};
+
+const sasaranInfoClass = (sasaranId: number | null) => {
+    const palettes = [
+        'text-amber-700 dark:text-amber-300',
+        'text-rose-700 dark:text-rose-300',
+        'text-sky-700 dark:text-sky-300',
+        'text-emerald-700 dark:text-emerald-300',
+        'text-violet-700 dark:text-violet-300',
+        'text-teal-700 dark:text-teal-300',
+    ];
+
+    return sasaranId === null ? 'text-slate-500 dark:text-slate-400' : palettes[Math.abs(sasaranId) % palettes.length];
 };
 
 const programSasaranFolders = computed<ProgramSasaranFolder[]>(() =>
@@ -2940,19 +2955,19 @@ const programFolderSources = computed<ProgramFolderSource[]>(() => {
         sasaran.programs.flatMap((program) => {
             const programRow = rowsById.get(program.programId);
 
-            return programRow ? [{ programRow, sasaranName: sasaran.sasaranName }] : [];
+            return programRow ? [{ programRow, sasaranId: sasaran.sasaranId, sasaranName: sasaran.sasaranName }] : [];
         }),
     );
     const includedProgramIds = new Set(sources.map(({ programRow }) => Number(programRow.id)));
     const unlinkedPrograms = sortBulkRowsByOrder(
         programRows.value.filter((row) => row.type === 'program' && Boolean(row.id) && !includedProgramIds.has(Number(row.id))),
-    ).map((programRow) => ({ programRow, sasaranName: null }));
+    ).map((programRow) => ({ programRow, sasaranId: null, sasaranName: null }));
 
     return [...sources, ...unlinkedPrograms];
 });
 
 const kegiatanProgramFolders = computed<KegiatanProgramFolder[]>(() =>
-    programFolderSources.value.map(({ programRow, sasaranName }) => {
+    programFolderSources.value.map(({ programRow, sasaranId, sasaranName }) => {
         const kegiatan = sortBulkRowsByOrder(
             kegiatanRows.value.filter((row) => row.type === 'kegiatan' && Number(row.parent_id) === Number(programRow.id) && Boolean(row.id)),
         ).map((kegiatanRow) => {
@@ -2973,6 +2988,7 @@ const kegiatanProgramFolders = computed<KegiatanProgramFolder[]>(() =>
             key: `kegiatan-folder-program-${programRow.id}`,
             programId: Number(programRow.id),
             programName: bulkRowPrimaryText(programRow),
+            sasaranId,
             sasaranName,
             kegiatanCount: kegiatan.length,
             indicatorCount: kegiatan.reduce((total, item) => total + item.indicatorCount, 0),
@@ -3026,6 +3042,7 @@ type SubKegiatanProgramFolder = {
     key: string;
     programId: number;
     programName: string;
+    sasaranId: number | null;
     sasaranName: string | null;
     kegiatanCount: number;
     subKegiatanCount: number;
@@ -3034,7 +3051,7 @@ type SubKegiatanProgramFolder = {
 };
 
 const subKegiatanProgramFolders = computed<SubKegiatanProgramFolder[]>(() =>
-    programFolderSources.value.map(({ programRow, sasaranName }) => {
+    programFolderSources.value.map(({ programRow, sasaranId, sasaranName }) => {
         const kegiatan = sortBulkRowsByOrder(
             kegiatanRows.value.filter((row) => row.type === 'kegiatan' && Number(row.parent_id) === Number(programRow.id) && Boolean(row.id)),
         ).map((kegiatanRow) => {
@@ -3065,6 +3082,7 @@ const subKegiatanProgramFolders = computed<SubKegiatanProgramFolder[]>(() =>
             key: `sub-kegiatan-folder-program-${programRow.id}`,
             programId: Number(programRow.id),
             programName: bulkRowPrimaryText(programRow),
+            sasaranId,
             sasaranName,
             kegiatanCount: kegiatan.length,
             subKegiatanCount: kegiatan.reduce((total, item) => total + item.subKegiatanCount, 0),
@@ -4521,7 +4539,11 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                     <span class="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
                                                         {{ program.programName }}
                                                     </span>
-                                                    <span v-if="program.sasaranName" class="mt-0.5 block line-clamp-1 text-[11px] font-medium text-slate-500">
+                                                    <span
+                                                        v-if="program.sasaranName"
+                                                        class="mt-0.5 block line-clamp-1 text-[11px] font-medium"
+                                                        :class="sasaranInfoClass(program.sasaranId)"
+                                                    >
                                                         Sasaran OPD: {{ program.sasaranName }}
                                                     </span>
                                                     <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
@@ -4646,7 +4668,11 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                     <span class="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
                                                         {{ program.programName }}
                                                     </span>
-                                                    <span v-if="program.sasaranName" class="mt-0.5 block line-clamp-1 text-[11px] font-medium text-slate-500">
+                                                    <span
+                                                        v-if="program.sasaranName"
+                                                        class="mt-0.5 block line-clamp-1 text-[11px] font-medium"
+                                                        :class="sasaranInfoClass(program.sasaranId)"
+                                                    >
                                                         Sasaran OPD: {{ program.sasaranName }}
                                                     </span>
                                                     <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
