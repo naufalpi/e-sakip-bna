@@ -246,7 +246,9 @@ class RenstraOpdNodeController extends Controller
                     ...$this->programPayload($renstra, $data),
                 ]);
 
-                $this->syncRpjmdProgramSnapshot($program->refresh());
+                if ($program->wasChanged('program_rpjmd_id')) {
+                    $this->syncRpjmdProgramSnapshot($program->refresh());
+                }
             }),
             'indikator_program' => tap($this->indikatorProgram($renstra, $id), function (IndikatorOpdProgram $indikator) use ($renstra, $data) {
                 $program = filled($data['parent_id'] ?? null) ? $this->program($renstra, $data['parent_id']) : $indikator->program;

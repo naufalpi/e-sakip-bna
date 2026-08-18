@@ -534,6 +534,20 @@ class RenstraOpdTest extends TestCase
             'target_text' => '0,55 persen',
             'pagu' => null,
         ]);
+
+        $indikatorOpd->delete();
+
+        $this->actingAs($user)
+            ->patchJson(route('renstra-opd.nodes.autosave', [$renstra, 'program', $programOpd->id]), [
+                'type' => 'program',
+                'parent_id' => $sasaran->id,
+                'program_rpjmd_id' => $tree['program_rpjmd']->id,
+                'urutan' => 2,
+            ])
+            ->assertOk();
+
+        $this->assertSoftDeleted('indikator_opd_program', ['id' => $indikatorOpd->id]);
+        $this->assertSame(0, IndikatorOpdProgram::query()->where('opd_program_id', $programOpd->id)->count());
     }
 
     public function test_cascading_opd_can_link_to_rpjmd_and_save_yearly_targets(): void
