@@ -21,6 +21,12 @@ type PromptTextAreaOptions = {
     destructive?: boolean;
 };
 
+export type CascadingDeleteImpact = {
+    label: string;
+    count: number;
+    examples?: string[];
+};
+
 export type FlashNotification = {
     success?: string | null;
     error?: string | null;
@@ -86,6 +92,60 @@ export function confirmDelete(text: string, options: Omit<ConfirmOptions, 'text'
         focusCancel: options.focusCancel ?? true,
         destructive: true,
     });
+}
+
+export async function confirmCascadingDelete(label: string, impacts: CascadingDeleteImpact[]): Promise<boolean> {
+    const firstNumber = Math.floor(Math.random() * 8) + 2;
+    const secondNumber = Math.floor(Math.random() * 8) + 2;
+    const answer = firstNumber + secondNumber;
+    const calculation = `${firstNumber} + ${secondNumber}`;
+    const affectedData = impacts.filter((impact) => impact.count > 0);
+    const impactHtml = affectedData.length
+        ? `<div class="esakip-cascade-summary"><p>Data berikut juga akan dihapus:</p><div class="esakip-cascade-impact-list">${affectedData
+              .map((impact) => {
+                  const examples = impact.examples?.length
+                      ? `<div class="esakip-cascade-examples">${impact.examples.map((example) => `<div>- ${escapeHtml(example)}</div>`).join('')}</div>`
+                      : '';
+
+                  return `<div class="esakip-cascade-impact"><strong>${impact.count} ${escapeHtml(impact.label)}</strong>${examples}</div>`;
+              })
+              .join('')}</div></div>`
+        : '<p class="esakip-cascade-empty">Tidak ada data turunan yang terhubung.</p>';
+
+    const result = await appSwal.fire({
+        title: `Hapus ${label}?`,
+        html: `<p class="esakip-cascade-intro">Tindakan ini tidak dapat dibatalkan.</p>${impactHtml}`,
+        icon: 'warning',
+        input: 'text',
+        inputLabel: `Untuk mengonfirmasi, jawab: ${calculation} =`,
+        inputPlaceholder: 'Masukkan hasil penjumlahan',
+        inputAttributes: {
+            'aria-label': `Jawaban untuk ${calculation}`,
+            inputmode: 'numeric',
+            autocomplete: 'off',
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Ya, hapus data',
+        cancelButtonText: 'Batal',
+        focusCancel: true,
+        preConfirm: (value) => {
+            if (Number(`${value ?? ''}`.trim()) !== answer) {
+                Swal.showValidationMessage('Jawaban penjumlahan belum tepat. Data tidak dihapus.');
+                return false;
+            }
+
+            return true;
+        },
+        customClass: {
+            popup: 'esakip-swal-popup esakip-swal-cascading-popup',
+            htmlContainer: 'esakip-swal-text esakip-swal-cascading-text',
+            actions: 'esakip-swal-actions',
+            confirmButton: 'esakip-swal-button esakip-swal-confirm esakip-swal-confirm-danger',
+            cancelButton: 'esakip-swal-button esakip-swal-cancel',
+        },
+    });
+
+    return result.isConfirmed;
 }
 
 export async function confirmDocumentDelete(text: string): Promise<boolean> {

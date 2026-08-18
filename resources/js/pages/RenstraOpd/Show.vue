@@ -3,7 +3,7 @@ import InputError from '@/components/InputError.vue';
 import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
-import { confirmDelete, promptTextArea } from '@/lib/sweetAlert';
+import { confirmCascadingDelete, confirmDelete, type CascadingDeleteImpact, promptTextArea } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     ArrowLeft,
@@ -3882,8 +3882,50 @@ const submitNode = () => {
     form.post(route('renstra-opd.nodes.store', props.renstra.id), options);
 };
 
+const rowsByParent = (type: NodeType, parentIds: number[]) =>
+    bulkRows.value.filter((row) => row.type === type && parentIds.includes(Number(row.parent_id)) && Boolean(row.id));
+
+const deleteImpactExamples = (rows: BulkRow[]) =>
+    rows
+        .slice(0, 3)
+        .map((row) => bulkRowPrimaryText(row))
+        .filter((label) => label !== '-' && label !== 'Data belum diisi');
+
+const cascadingDeleteImpact = (type: Extract<NodeType, 'tujuan' | 'sasaran' | 'program' | 'kegiatan'>, id: number): CascadingDeleteImpact[] => {
+    const tujuanIds = type === 'tujuan' ? [id] : [];
+    const sasaranRowsForDelete = type === 'tujuan' ? rowsByParent('sasaran', tujuanIds) : type === 'sasaran' ? bulkRows.value.filter((row) => row.type === 'sasaran' && Number(row.id) === id) : [];
+    const sasaranIds = sasaranRowsForDelete.map((row) => Number(row.id));
+    const programRowsForDelete = ['tujuan', 'sasaran'].includes(type)
+        ? rowsByParent('program', sasaranIds)
+        : type === 'program'
+          ? bulkRows.value.filter((row) => row.type === 'program' && Number(row.id) === id)
+          : [];
+    const programIds = programRowsForDelete.map((row) => Number(row.id));
+    const kegiatanRowsForDelete = ['tujuan', 'sasaran', 'program'].includes(type)
+        ? rowsByParent('kegiatan', programIds)
+        : type === 'kegiatan'
+          ? bulkRows.value.filter((row) => row.type === 'kegiatan' && Number(row.id) === id)
+          : [];
+    const kegiatanIds = kegiatanRowsForDelete.map((row) => Number(row.id));
+    const subKegiatanRowsForDelete = rowsByParent('sub_kegiatan', kegiatanIds);
+    const budgetRowsForDelete = rowsByParent('anggaran_sub_kegiatan', subKegiatanRowsForDelete.map((row) => Number(row.id)));
+
+    return [
+        { label: 'sasaran', count: type === 'tujuan' ? sasaranRowsForDelete.length : 0, examples: deleteImpactExamples(sasaranRowsForDelete) },
+        { label: 'program', count: ['tujuan', 'sasaran'].includes(type) ? programRowsForDelete.length : 0, examples: deleteImpactExamples(programRowsForDelete) },
+        { label: 'kegiatan', count: ['tujuan', 'sasaran', 'program'].includes(type) ? kegiatanRowsForDelete.length : 0, examples: deleteImpactExamples(kegiatanRowsForDelete) },
+        { label: 'sub kegiatan', count: subKegiatanRowsForDelete.length, examples: deleteImpactExamples(subKegiatanRowsForDelete) },
+        { label: 'data pagu indikatif', count: budgetRowsForDelete.length },
+    ];
+};
+
 const destroyNode = async (type: NodeType, id: number, label: string) => {
-    if (await confirmDelete(`Hapus ${label}? Data turunan juga dapat terpengaruh.`)) {
+    const needsCascadingConfirmation = ['tujuan', 'sasaran', 'program', 'kegiatan'].includes(type);
+    const confirmed = needsCascadingConfirmation
+        ? await confirmCascadingDelete(label, cascadingDeleteImpact(type as Extract<NodeType, 'tujuan' | 'sasaran' | 'program' | 'kegiatan'>, id))
+        : await confirmDelete(`Hapus ${label}? Data turunan juga dapat terpengaruh.`);
+
+    if (confirmed) {
         router.delete(route('renstra-opd.nodes.destroy', [props.renstra.id, type, id]), {
             preserveScroll: true,
         });

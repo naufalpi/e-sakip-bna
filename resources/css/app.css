@@ -772,6 +772,95 @@ html {
         line-height: 1.65;
     }
 
+    .esakip-swal-cascading-popup {
+        width: min(58rem, calc(100vw - 2rem));
+        padding: 1.15rem 1.65rem 1.3rem;
+    }
+
+    .esakip-swal-cascading-popup .esakip-swal-title {
+        font-size: 1.25rem;
+    }
+
+    .esakip-swal-cascading-popup .swal2-icon {
+        width: 3.8rem;
+        height: 3.8rem;
+        margin: 0.2rem auto 0.65rem;
+    }
+
+    .esakip-swal-cascading-popup .swal2-icon .swal2-icon-content {
+        font-size: 2.6rem;
+    }
+
+    .esakip-swal-cascading-text {
+        margin-top: 0.65rem;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .esakip-cascade-intro,
+    .esakip-cascade-empty {
+        margin: 0;
+    }
+
+    .esakip-cascade-summary {
+        margin-top: 0.9rem;
+        padding: 0.75rem 0;
+        border-top: 1px solid rgb(226 232 240);
+        border-bottom: 1px solid rgb(226 232 240);
+        text-align: left;
+    }
+
+    .esakip-cascade-summary > p {
+        margin: 0 0 0.65rem;
+        color: rgb(71 85 105);
+        font-size: 0.82rem;
+        font-weight: 750;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .esakip-cascade-impact-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.8rem 1.35rem;
+    }
+
+    .esakip-cascade-impact {
+        min-width: 0;
+        border-left: 2px solid rgb(251 191 36);
+        padding-left: 0.7rem;
+        color: rgb(51 65 85);
+    }
+
+    .esakip-cascade-impact strong {
+        display: block;
+        color: rgb(30 41 59);
+        font-size: 0.94rem;
+        font-weight: 750;
+    }
+
+    .esakip-cascade-examples {
+        margin-top: 0.3rem;
+        color: rgb(100 116 139);
+        font-size: 0.84rem;
+        line-height: 1.46;
+    }
+
+    .esakip-cascade-examples > div {
+        overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 42rem) {
+        .esakip-swal-cascading-popup {
+            width: calc(100vw - 1rem);
+            padding: 1rem 1.1rem;
+        }
+
+        .esakip-cascade-impact-list {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+
     .esakip-swal-actions {
         display: flex;
         flex-wrap: wrap;
