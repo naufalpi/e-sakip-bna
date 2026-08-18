@@ -486,7 +486,13 @@ class RenstraOpdController extends Controller
             'program' => OpdProgram::query()
                 ->where('renstra_opd_id', $renstra->id)
                 ->with('sasaran:id,kode,sasaran')
-                ->orderBy('urutan')
+                ->orderBy(
+                    SasaranOpd::query()
+                        ->select('urutan')
+                        ->whereColumn('sasaran_opd.id', 'opd_program.sasaran_opd_id'),
+                )
+                ->orderBy('opd_program.urutan')
+                ->orderBy('opd_program.id')
                 ->get(['id', 'sasaran_opd_id', 'kode', 'nama'])
                 ->map(fn (OpdProgram $item) => [
                     'id' => $item->id,
