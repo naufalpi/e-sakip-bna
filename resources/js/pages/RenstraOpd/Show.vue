@@ -2862,9 +2862,15 @@ type KegiatanProgramFolder = {
     key: string;
     programId: number;
     programName: string;
+    sasaranName: string | null;
     kegiatanCount: number;
     indicatorCount: number;
     kegiatan: KegiatanProgramItem[];
+};
+
+type ProgramFolderSource = {
+    programRow: BulkRow;
+    sasaranName: string | null;
 };
 
 const programSasaranFolders = computed<ProgramSasaranFolder[]>(() =>
@@ -2924,8 +2930,29 @@ const activeProgramFocus = computed(
             .find((item) => item.programId === selectedProgramFocusId.value) ?? null,
 );
 
+const programFolderSources = computed<ProgramFolderSource[]>(() => {
+    const rowsById = new Map(
+        programRows.value
+            .filter((row) => row.type === 'program' && Boolean(row.id))
+            .map((row) => [Number(row.id), row]),
+    );
+    const sources = programSasaranFolders.value.flatMap((sasaran) =>
+        sasaran.programs.flatMap((program) => {
+            const programRow = rowsById.get(program.programId);
+
+            return programRow ? [{ programRow, sasaranName: sasaran.sasaranName }] : [];
+        }),
+    );
+    const includedProgramIds = new Set(sources.map(({ programRow }) => Number(programRow.id)));
+    const unlinkedPrograms = sortBulkRowsByOrder(
+        programRows.value.filter((row) => row.type === 'program' && Boolean(row.id) && !includedProgramIds.has(Number(row.id))),
+    ).map((programRow) => ({ programRow, sasaranName: null }));
+
+    return [...sources, ...unlinkedPrograms];
+});
+
 const kegiatanProgramFolders = computed<KegiatanProgramFolder[]>(() =>
-    sortBulkRowsByOrder(programRows.value.filter((row) => row.type === 'program' && Boolean(row.id))).map((programRow) => {
+    programFolderSources.value.map(({ programRow, sasaranName }) => {
         const kegiatan = sortBulkRowsByOrder(
             kegiatanRows.value.filter((row) => row.type === 'kegiatan' && Number(row.parent_id) === Number(programRow.id) && Boolean(row.id)),
         ).map((kegiatanRow) => {
@@ -2946,6 +2973,7 @@ const kegiatanProgramFolders = computed<KegiatanProgramFolder[]>(() =>
             key: `kegiatan-folder-program-${programRow.id}`,
             programId: Number(programRow.id),
             programName: bulkRowPrimaryText(programRow),
+            sasaranName,
             kegiatanCount: kegiatan.length,
             indicatorCount: kegiatan.reduce((total, item) => total + item.indicatorCount, 0),
             kegiatan,
@@ -2962,13 +2990,15 @@ const filteredKegiatanFocusItems = computed(() => {
 
     return kegiatanProgramFolders.value
         .map((program) => {
-            const programMatches = program.programName.toLowerCase().includes(keyword);
+            const programMatches = `${program.programName} ${program.sasaranName ?? ''}`.toLowerCase().includes(keyword);
 
             return {
                 ...program,
                 kegiatan: programMatches
                     ? program.kegiatan
-                    : program.kegiatan.filter((item) => `${program.programName} ${item.kegiatanName}`.toLowerCase().includes(keyword)),
+                    : program.kegiatan.filter((item) =>
+                          `${program.programName} ${program.sasaranName ?? ''} ${item.kegiatanName}`.toLowerCase().includes(keyword),
+                      ),
             };
         })
         .filter((program) => program.programName.toLowerCase().includes(keyword) || program.kegiatan.length > 0);
@@ -2977,7 +3007,9 @@ const filteredKegiatanFocusItems = computed(() => {
 const activeKegiatanFocus = computed(
     () =>
         kegiatanProgramFolders.value
-            .flatMap((program) => program.kegiatan.map((kegiatan) => ({ ...kegiatan, programName: program.programName })))
+            .flatMap((program) =>
+                program.kegiatan.map((kegiatan) => ({ ...kegiatan, programName: program.programName, sasaranName: program.sasaranName })),
+            )
             .find((item) => item.kegiatanId === selectedKegiatanFocusId.value) ?? null,
 );
 
@@ -2994,6 +3026,7 @@ type SubKegiatanProgramFolder = {
     key: string;
     programId: number;
     programName: string;
+    sasaranName: string | null;
     kegiatanCount: number;
     subKegiatanCount: number;
     indicatorCount: number;
@@ -3001,7 +3034,7 @@ type SubKegiatanProgramFolder = {
 };
 
 const subKegiatanProgramFolders = computed<SubKegiatanProgramFolder[]>(() =>
-    sortBulkRowsByOrder(programRows.value.filter((row) => row.type === 'program' && Boolean(row.id))).map((programRow) => {
+    programFolderSources.value.map(({ programRow, sasaranName }) => {
         const kegiatan = sortBulkRowsByOrder(
             kegiatanRows.value.filter((row) => row.type === 'kegiatan' && Number(row.parent_id) === Number(programRow.id) && Boolean(row.id)),
         ).map((kegiatanRow) => {
@@ -3032,6 +3065,7 @@ const subKegiatanProgramFolders = computed<SubKegiatanProgramFolder[]>(() =>
             key: `sub-kegiatan-folder-program-${programRow.id}`,
             programId: Number(programRow.id),
             programName: bulkRowPrimaryText(programRow),
+            sasaranName,
             kegiatanCount: kegiatan.length,
             subKegiatanCount: kegiatan.reduce((total, item) => total + item.subKegiatanCount, 0),
             indicatorCount: kegiatan.reduce((total, item) => total + item.indicatorCount, 0),
@@ -3049,14 +3083,14 @@ const filteredSubKegiatanFocusItems = computed(() => {
 
     return subKegiatanProgramFolders.value
         .map((program) => {
-            const programMatches = program.programName.toLowerCase().includes(keyword);
+            const programMatches = `${program.programName} ${program.sasaranName ?? ''}`.toLowerCase().includes(keyword);
 
             return {
                 ...program,
                 kegiatan: programMatches
                     ? program.kegiatan
                     : program.kegiatan.filter((item) =>
-                          `${program.programName} ${item.kegiatanName}`.toLowerCase().includes(keyword),
+                          `${program.programName} ${program.sasaranName ?? ''} ${item.kegiatanName}`.toLowerCase().includes(keyword),
                       ),
             };
         })
@@ -3066,7 +3100,9 @@ const filteredSubKegiatanFocusItems = computed(() => {
 const activeSubKegiatanFocus = computed(
     () =>
         subKegiatanProgramFolders.value
-            .flatMap((program) => program.kegiatan.map((kegiatan) => ({ ...kegiatan, programName: program.programName })))
+            .flatMap((program) =>
+                program.kegiatan.map((kegiatan) => ({ ...kegiatan, programName: program.programName, sasaranName: program.sasaranName })),
+            )
             .find((item) => item.kegiatanId === selectedSubKegiatanKegiatanId.value) ?? null,
 );
 
@@ -4485,6 +4521,9 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                     <span class="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
                                                         {{ program.programName }}
                                                     </span>
+                                                    <span v-if="program.sasaranName" class="mt-0.5 block line-clamp-1 text-[11px] font-medium text-slate-500">
+                                                        Sasaran OPD: {{ program.sasaranName }}
+                                                    </span>
                                                     <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
                                                         <span>{{ program.kegiatanCount }} kegiatan</span>
                                                         <span class="text-slate-300">/</span>
@@ -4606,6 +4645,9 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                 <span class="min-w-0 flex-1">
                                                     <span class="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
                                                         {{ program.programName }}
+                                                    </span>
+                                                    <span v-if="program.sasaranName" class="mt-0.5 block line-clamp-1 text-[11px] font-medium text-slate-500">
+                                                        Sasaran OPD: {{ program.sasaranName }}
                                                     </span>
                                                     <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
                                                         <span>{{ program.kegiatanCount }} kegiatan</span>
