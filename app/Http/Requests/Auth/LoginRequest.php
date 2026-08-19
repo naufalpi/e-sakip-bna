@@ -14,9 +14,13 @@ class LoginRequest extends FormRequest
 {
     public const FORM_ISSUED_AT_SESSION_KEY = 'auth.login_form_issued_at';
 
+    public const CAPTCHA_SESSION_KEY = 'auth.login_captcha';
+
     private const MINIMUM_SECONDS_BEFORE_SUBMIT = 1;
 
     private const MAXIMUM_SECONDS_BEFORE_SUBMIT = 7200;
+
+    private const CAPTCHA_MAXIMUM_SECONDS_BEFORE_SUBMIT = 900;
 
     /**
      * Determine if the user is authorized to make this request.
@@ -36,6 +40,7 @@ class LoginRequest extends FormRequest
         return [
             'email' => ['required', 'string'],
             'password' => ['required', 'string'],
+            'captcha_answer' => ['required', 'string', 'max:10'],
             'login_website' => ['nullable', 'string', 'max:255'],
         ];
     }
@@ -67,6 +72,7 @@ class LoginRequest extends FormRequest
 
         RateLimiter::clear($this->throttleKey());
         $this->session()->forget(self::FORM_ISSUED_AT_SESSION_KEY);
+        $this->session()->forget(self::CAPTCHA_SESSION_KEY);
     }
 
     /**
@@ -91,6 +97,26 @@ class LoginRequest extends FormRequest
                 'email' => 'Verifikasi keamanan gagal. Muat ulang halaman login, lalu coba lagi.',
             ]);
         }
+
+        $captcha = $this->session()->get(self::CAPTCHA_SESSION_KEY);
+        $captchaIssuedAt = is_array($captcha) ? ($captcha['issued_at'] ?? null) : null;
+        $captchaAnswer = is_array($captcha) ? ($captcha['answer'] ?? null) : null;
+        $captchaElapsedSeconds = is_numeric($captchaIssuedAt) ? now()->timestamp - (int) $captchaIssuedAt : null;
+        $submittedAnswer = trim($this->string('captcha_answer')->toString());
+
+        if (
+            ! is_string($captchaAnswer)
+            || $captchaElapsedSeconds === null
+            || $captchaElapsedSeconds < 0
+            || $captchaElapsedSeconds > self::CAPTCHA_MAXIMUM_SECONDS_BEFORE_SUBMIT
+            || ! hash_equals($captchaAnswer, $submittedAnswer)
+        ) {
+            RateLimiter::hit($this->throttleKey(), 300);
+
+            throw ValidationException::withMessages([
+                'captcha_answer' => 'Jawaban verifikasi keamanan tidak sesuai. Silakan coba lagi.',
+            ]);
+        }
     }
 
     /**
@@ -109,10 +135,7 @@ class LoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
-                'seconds' => $seconds,
-                'minutes' => ceil($seconds / 60),
-            ]),
+            'email' => "Terlalu banyak percobaan login. Silakan tunggu {$seconds} detik, lalu coba kembali.",
         ]);
     }
 

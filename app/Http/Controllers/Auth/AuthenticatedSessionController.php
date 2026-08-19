@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,20 +22,39 @@ class AuthenticatedSessionController extends Controller
 
         return Inertia::render('auth/Login', [
             'status' => $request->session()->get('status'),
+            'captchaQuestion' => $this->issueCaptcha($request),
+        ]);
+    }
+
+    /**
+     * Issue a new CAPTCHA without reloading the login form.
+     */
+    public function captcha(Request $request): JsonResponse
+    {
+        return response()->json([
+            'captchaQuestion' => $this->issueCaptcha($request),
         ]);
     }
 
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request): JsonResponse|RedirectResponse
     {
         $request->authenticate();
 
         $request->session()->regenerate();
         $request->user()->forceFill(['last_login_at' => now()])->save();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $redirect = redirect()->intended(route('dashboard', absolute: false));
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'redirect' => $redirect->getTargetUrl(),
+            ]);
+        }
+
+        return $redirect;
     }
 
     /**
@@ -48,5 +68,18 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    private function issueCaptcha(Request $request): string
+    {
+        $firstNumber = random_int(3, 12);
+        $secondNumber = random_int(2, 9);
+
+        $request->session()->put(LoginRequest::CAPTCHA_SESSION_KEY, [
+            'answer' => (string) ($firstNumber + $secondNumber),
+            'issued_at' => now()->timestamp,
+        ]);
+
+        return "{$firstNumber} + {$secondNumber} = ?";
     }
 }

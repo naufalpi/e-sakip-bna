@@ -2,7 +2,7 @@
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDocumentDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowRight, FileText, Plus, Search, Trash2 } from 'lucide-vue-next';
+import { ArrowRight, Building2, CalendarDays, FileText, GitBranch, ListTree, Pencil, Plus, Search, Trash2 } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
 
 type Option = { id: number; label: string; tahun?: number };
@@ -92,25 +92,28 @@ const statusClass = (status: string) =>
 <template>
     <Head title="Renja OPD" />
 
-    <div class="flex flex-col gap-5 p-4">
-        <section class="overflow-hidden rounded-xl border bg-card shadow-sm">
-            <div class="border-b bg-[linear-gradient(135deg,#f8fbff,#eef7ff)] px-5 py-5">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                        <div class="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-semibold uppercase text-[#00336C]">
-                            <FileText class="size-3.5" />
-                            Rencana Kerja OPD
+    <div class="flex flex-col gap-5 p-4 sm:p-5">
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
+            <div class="relative overflow-hidden border-b border-slate-200 bg-[linear-gradient(118deg,#ffffff_0%,#f5f9ff_58%,#edf6ff_100%)] px-5 py-5 dark:border-slate-800 dark:bg-slate-950 sm:px-6 sm:py-6">
+                <div class="absolute -right-16 -top-20 size-56 rounded-full bg-blue-200/25 blur-3xl dark:bg-blue-500/10"></div>
+                <div class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="flex min-w-0 items-start gap-3.5">
+                        <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#00336C] text-white shadow-sm">
+                            <FileText class="size-5" />
                         </div>
-                        <h1 class="mt-3 text-2xl font-semibold tracking-normal">Renja OPD</h1>
-                        <p class="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                            Input rencana kerja tahunan OPD sampai sub kegiatan. Renja yang sudah diverifikasi dapat ditarik menjadi matriks RKPD.
-                        </p>
+                        <div class="min-w-0">
+                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5276a0] dark:text-blue-300">Perencanaan tahunan</p>
+                            <h1 class="mt-1 text-xl font-bold tracking-tight text-slate-950 dark:text-slate-50 sm:text-2xl">Renja OPD</h1>
+                            <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+                                Rencana kerja OPD yang disusun hingga level sub kegiatan dan dapat diselaraskan dengan RKPD.
+                            </p>
+                        </div>
                     </div>
 
                     <Link
                         v-if="can.manage"
                         :href="route('renja-opd.create')"
-                        class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#00336C] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#002855]"
+                        class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#00336C] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#002855] focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2 dark:focus:ring-offset-slate-950"
                     >
                         <Plus class="size-4" />
                         Tambah Renja
@@ -118,28 +121,46 @@ const statusClass = (status: string) =>
                 </div>
             </div>
 
-            <div class="grid gap-3 p-4 md:grid-cols-3">
-                <article class="rounded-lg border bg-white p-4">
-                    <p class="text-xs font-semibold uppercase text-muted-foreground">Total Renja</p>
-                    <p class="mt-2 text-3xl font-semibold">{{ items.total }}</p>
+            <div class="grid divide-y divide-slate-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0 dark:divide-slate-800">
+                <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
+                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        <FileText class="size-4" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Dokumen Renja</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{{ items.total }}</p>
+                    </div>
                 </article>
-                <article class="rounded-lg border bg-emerald-50 p-4 text-emerald-950">
-                    <p class="text-xs font-semibold uppercase opacity-70">Siap Ditarik RKPD</p>
-                    <p class="mt-2 text-3xl font-semibold">{{ approvedRows }}</p>
+                <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
+                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                        <CalendarDays class="size-4" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Siap ditarik ke RKPD</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ approvedRows }}</p>
+                    </div>
                 </article>
-                <article class="rounded-lg border bg-sky-50 p-4 text-[#00336C]">
-                    <p class="text-xs font-semibold uppercase opacity-70">Baris Renja</p>
-                    <p class="mt-2 text-3xl font-semibold">{{ totalRows }}</p>
+                <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
+                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#00336C] dark:bg-blue-950/50 dark:text-blue-300">
+                        <ListTree class="size-4" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Sub kegiatan</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-[#00336C] dark:text-blue-300">{{ totalRows }}</p>
+                    </div>
                 </article>
             </div>
         </section>
 
-        <section class="rounded-xl border bg-card p-4 shadow-sm">
-            <div class="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <h2 class="text-base font-semibold">Filter Renja</h2>
-                <button type="button" class="h-9 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">Reset</button>
+        <section class="rounded-2xl border border-slate-200 bg-card p-4 shadow-sm dark:border-slate-800 sm:p-5">
+            <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Temukan dokumen</h2>
+                    <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Saring berdasarkan OPD, tahun, periode, atau status dokumen.</p>
+                </div>
+                <button type="button" class="h-9 self-start rounded-lg px-3 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 sm:self-auto dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100" @click="resetFilters">Reset filter</button>
             </div>
-            <form class="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_160px_minmax(14rem,1fr)_180px_140px]" @submit.prevent="applyFiltersNow">
+            <form class="grid gap-3 xl:grid-cols-[minmax(15rem,1.35fr)_150px_minmax(13rem,1fr)_170px_120px]" @submit.prevent="applyFiltersNow">
                 <label class="relative">
                     <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <input
@@ -174,64 +195,99 @@ const statusClass = (status: string) =>
             </form>
         </section>
 
-        <section class="overflow-hidden rounded-xl border bg-card shadow-sm">
-            <div class="border-b px-4 py-3">
-                <h2 class="text-base font-semibold">Daftar Renja OPD</h2>
-                <p class="mt-1 text-xs text-muted-foreground">Menampilkan {{ items.from ?? 0 }}-{{ items.to ?? 0 }} dari {{ items.total }} data.</p>
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
+            <div class="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-6 dark:border-slate-800">
+                <div>
+                    <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Daftar Renja OPD</h2>
+                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Menampilkan {{ items.from ?? 0 }}–{{ items.to ?? 0 }} dari {{ items.total }} dokumen.</p>
+                </div>
+                <span class="inline-flex w-fit items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    <Building2 class="size-3.5" />
+                    Dokumen per OPD
+                </span>
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
-                        <tr>
-                            <th class="px-4 py-3">OPD</th>
-                            <th class="px-4 py-3">Dokumen Renja</th>
-                            <th class="px-4 py-3">RKPD</th>
-                            <th class="px-4 py-3">Item</th>
-                            <th class="px-4 py-3">Status</th>
-                            <th class="px-4 py-3 text-right">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="row in items.data" :key="row.id" class="border-b align-top last:border-0 hover:bg-muted/40">
-                            <td class="min-w-72 px-4 py-4">
-                                <div class="font-semibold">{{ row.opd?.singkatan || row.opd?.nama || '-' }}</div>
-                                <div class="mt-1 text-xs text-muted-foreground">{{ row.opd_unit?.nama || row.opd?.kode || '-' }}</div>
-                            </td>
-                            <td class="min-w-80 px-4 py-4">
-                                <div class="font-semibold">{{ row.judul }}</div>
-                                <div class="mt-1 text-xs text-muted-foreground">{{ row.tahun }} · {{ row.nomor_dokumen || 'Nomor dokumen belum diisi' }}</div>
-                            </td>
-                            <td class="min-w-72 px-4 py-4 text-muted-foreground">
-                                <span v-if="row.rkpd">{{ row.rkpd.tahun }} - {{ row.rkpd.judul }}</span>
-                                <span v-else>Belum dihubungkan</span>
-                            </td>
-                            <td class="px-4 py-4">
-                                <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{{ row.items_count }} baris</span>
-                            </td>
-                            <td class="px-4 py-4">
-                                <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
-                            </td>
-                            <td class="px-4 py-4 text-right">
-                                <div class="inline-flex overflow-hidden rounded-lg border bg-background">
-                                    <Link :href="route('renja-opd.show', row.id)" class="inline-flex h-10 items-center gap-2 px-3 text-sm font-medium hover:bg-muted">
-                                        Buka
-                                        <ArrowRight class="size-4" />
-                                    </Link>
-                                    <Link v-if="can.manage" :href="route('renja-opd.edit', row.id)" class="inline-flex h-10 items-center px-3 text-sm hover:bg-muted">
-                                        Edit
-                                    </Link>
-                                    <button v-if="can.manage" type="button" class="inline-flex h-10 items-center px-3 text-red-600 hover:bg-red-50" @click="destroy(row)">
-                                        <Trash2 class="size-4" />
-                                    </button>
+            <div role="list">
+                <div class="hidden border-b border-slate-100 px-5 py-3 xl:grid xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center xl:gap-6 sm:px-6 dark:border-slate-800">
+                    <div class="grid max-w-[58rem] grid-cols-[minmax(12rem,0.8fr)_minmax(17rem,1.2fr)_auto_auto] items-center gap-x-6">
+                        <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500">OPD</p>
+                        <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500">Dokumen Renja</p>
+                        <p class="text-center text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500">Sub kegiatan</p>
+                        <p class="text-center text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500">Status</p>
+                    </div>
+                    <p class="text-right text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500">Aksi</p>
+                </div>
+
+                <div class="divide-y divide-slate-200 dark:divide-slate-800">
+                    <article
+                        v-for="row in items.data"
+                        :key="row.id"
+                        role="listitem"
+                        class="grid gap-4 px-5 py-5 transition-colors hover:bg-slate-50/80 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center xl:gap-6 sm:px-6 dark:hover:bg-slate-900/45"
+                    >
+                        <div class="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-[minmax(12rem,0.8fr)_minmax(16rem,1.2fr)_auto_auto] sm:items-center xl:max-w-[58rem]">
+                            <div class="min-w-0">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 xl:hidden dark:text-slate-500">OPD</p>
+                                <p class="mt-1.5 font-bold text-slate-900 xl:mt-0 dark:text-slate-100">{{ row.opd?.singkatan || row.opd?.nama || '-' }}</p>
+                                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ row.opd_unit?.nama || row.opd?.kode || '-' }}</p>
+                                <div v-if="row.rkpd" class="mt-2.5 flex min-w-0 items-start gap-2 text-slate-500 dark:text-slate-400">
+                                    <GitBranch class="mt-0.5 size-3.5 shrink-0 text-[#00336C] dark:text-blue-300" />
+                                    <span class="text-xs leading-5">{{ row.rkpd.tahun }} · {{ row.rkpd.judul }}</span>
                                 </div>
-                            </td>
-                        </tr>
-                        <tr v-if="items.data.length === 0">
-                            <td colspan="6" class="px-4 py-12 text-center text-sm text-muted-foreground">Belum ada Renja OPD.</td>
-                        </tr>
-                    </tbody>
-                </table>
+                            </div>
+
+                            <div class="min-w-0">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 xl:hidden dark:text-slate-500">Dokumen Renja</p>
+                                <p class="mt-1.5 text-sm font-bold leading-5 text-slate-900 xl:mt-0 dark:text-slate-100">{{ row.judul }}</p>
+                                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ row.tahun }} · {{ row.nomor_dokumen || 'Nomor dokumen belum diisi' }}</p>
+                            </div>
+
+                            <div class="flex flex-col items-start xl:items-center">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 xl:hidden dark:text-slate-500">Sub kegiatan</p>
+                                <span class="mt-1.5 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-[#00336C] xl:mt-0 dark:bg-blue-950/50 dark:text-blue-300">{{ row.items_count }} sub kegiatan</span>
+                            </div>
+
+                            <div class="flex flex-col items-start xl:items-center">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 xl:hidden dark:text-slate-500">Status</p>
+                                <span class="mt-1.5 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 xl:mt-0" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col items-start xl:items-end">
+                            <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 xl:hidden dark:text-slate-500">Aksi</p>
+                            <div class="mt-1.5 inline-flex gap-2 xl:mt-0">
+                                <Link :href="route('renja-opd.show', row.id)" class="inline-flex h-9 items-center gap-2 rounded-md bg-[#00336C] px-3 text-xs font-semibold text-white transition-colors hover:bg-[#0a4485]">
+                                    Buka
+                                    <ArrowRight class="size-3.5" />
+                                </Link>
+                                <Link
+                                    v-if="can.manage"
+                                    :href="route('renja-opd.edit', row.id)"
+                                    class="inline-flex h-9 items-center justify-center rounded-md border px-2 text-muted-foreground transition-colors hover:bg-muted"
+                                    aria-label="Edit Renja"
+                                    title="Edit Renja"
+                                >
+                                    <Pencil class="size-4" />
+                                </Link>
+                                <button
+                                    v-if="can.manage"
+                                    type="button"
+                                    class="inline-flex h-9 items-center justify-center rounded-md border border-red-200 px-2 text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/80 dark:text-red-400 dark:hover:bg-red-950/35"
+                                    aria-label="Hapus Renja"
+                                    title="Hapus Renja"
+                                    @click="destroy(row)"
+                                >
+                                    <Trash2 class="size-4" />
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                    <div v-if="items.data.length === 0" class="px-5 py-14 text-center sm:px-6">
+                        <FileText class="mx-auto size-8 text-slate-300 dark:text-slate-600" />
+                        <p class="mt-3 text-sm font-medium text-slate-600 dark:text-slate-300">Belum ada Renja OPD.</p>
+                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Buat dokumen Renja untuk mulai menyusun sub kegiatan.</p>
+                    </div>
+                </div>
             </div>
 
             <div class="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
