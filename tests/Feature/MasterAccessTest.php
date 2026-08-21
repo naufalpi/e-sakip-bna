@@ -77,10 +77,17 @@ class MasterAccessTest extends TestCase
         $this->seed();
 
         $response = $this
-            ->withSession([LoginRequest::FORM_ISSUED_AT_SESSION_KEY => now()->subSeconds(2)->timestamp])
+            ->withSession([
+                LoginRequest::FORM_ISSUED_AT_SESSION_KEY => now()->subSeconds(2)->timestamp,
+                LoginRequest::CAPTCHA_SESSION_KEY => [
+                    'answer' => '11',
+                    'issued_at' => now()->timestamp,
+                ],
+            ])
             ->post(route('login'), [
                 'email' => 'admin@example.test',
                 'password' => 'password',
+                'captcha_answer' => '11',
             ]);
 
         $response->assertRedirect(route('dashboard', absolute: false));

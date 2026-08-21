@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\IndikatorSasaranOpd;
 use App\Models\Opd;
+use App\Models\Pegawai;
+use App\Models\PenugasanPengampuKinerja;
 use App\Models\PeriodeTahun;
 use App\Models\PerjanjianKinerja;
 use App\Models\PerjanjianKinerjaItem;
@@ -31,10 +33,13 @@ class KinerjaWorkflowTest extends TestCase
         $this->seed();
 
         [$opd, $otherOpd, $periode, $adminOpd] = $this->basicActors();
+        $pegawai = $this->pegawai($opd, 'Pegawai Dinas Kesehatan');
 
         $this->actingAs($adminOpd)
             ->post(route('perjanjian-kinerja.store'), [
                 'opd_id' => $opd->id,
+                'pegawai_id' => $pegawai->id,
+                'tipe_pk' => 'individual',
                 'periode_tahun_id' => $periode->id,
                 'tahun' => $periode->tahun,
                 'judul' => 'PK Dinas Kesehatan',
@@ -48,6 +53,8 @@ class KinerjaWorkflowTest extends TestCase
         $this->actingAs($adminOpd)
             ->post(route('perjanjian-kinerja.store'), [
                 'opd_id' => $otherOpd->id,
+                'pegawai_id' => $pegawai->id,
+                'tipe_pk' => 'individual',
                 'periode_tahun_id' => $periode->id,
                 'tahun' => $periode->tahun,
                 'judul' => 'PK OPD Lain',
@@ -149,6 +156,18 @@ class KinerjaWorkflowTest extends TestCase
         $this->seed();
 
         [$opd, , $periode, $adminOpd] = $this->basicActors();
+        $pegawai = $this->pegawai($opd, 'Pegawai Pemilik PK');
+        PenugasanPengampuKinerja::create([
+            'pegawai_id' => $pegawai->id,
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'sumber_kinerja_type' => 'sasaran',
+            'sumber_kinerja_id' => 999999,
+            'sumber_kinerja_label' => 'Sasaran pengujian',
+            'peran' => 'penanggung_jawab',
+            'status' => 'active',
+        ]);
 
         $rpjmd = Rpjmd::create([
             'periode_tahun_id' => $periode->id,
@@ -170,6 +189,8 @@ class KinerjaWorkflowTest extends TestCase
 
         $payload = [
             'opd_id' => $opd->id,
+            'pegawai_id' => $pegawai->id,
+            'tipe_pk' => 'cascading',
             'renstra_opd_id' => $renstra->id,
             'periode_tahun_id' => $periode->id,
             'tahun' => $periode->tahun,
@@ -516,5 +537,15 @@ class KinerjaWorkflowTest extends TestCase
         ]);
 
         return [$sasaran, $indikator, $renstra];
+    }
+
+    private function pegawai(Opd $opd, string $nama): Pegawai
+    {
+        return Pegawai::create([
+            'opd_id' => $opd->id,
+            'nama' => $nama,
+            'jenis_pegawai' => 'pns',
+            'status' => 'active',
+        ]);
     }
 }

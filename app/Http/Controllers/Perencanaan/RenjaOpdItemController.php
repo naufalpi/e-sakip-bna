@@ -28,7 +28,7 @@ class RenjaOpdItemController extends Controller
             'urutan' => $request->validated('urutan') ?: ((int) $renjaOpd->items()->max('urutan')) + 1,
         ]));
 
-        return back()->with('success', 'Baris Renja OPD berhasil disimpan.');
+        return back()->with('success', 'Sub kegiatan RENJA berhasil disimpan.');
     }
 
     public function update(UpdateRenjaOpdItemRequest $request, RenjaOpd $renjaOpd, RenjaOpdItem $item): RedirectResponse
@@ -44,7 +44,7 @@ class RenjaOpdItemController extends Controller
             'urutan' => $request->validated('urutan') ?: $item->urutan,
         ]));
 
-        return back()->with('success', 'Baris Renja OPD berhasil diperbarui.');
+        return back()->with('success', 'Sub kegiatan RENJA berhasil diperbarui.');
     }
 
     public function destroy(Request $request, RenjaOpd $renjaOpd, RenjaOpdItem $item): RedirectResponse
@@ -54,7 +54,7 @@ class RenjaOpdItemController extends Controller
 
         $item->delete();
 
-        return back()->with('success', 'Baris Renja OPD berhasil dihapus.');
+        return back()->with('success', 'Sub kegiatan RENJA berhasil dihapus.');
     }
 
     private function subKegiatan(int $id, RenjaOpd $renjaOpd): SubKegiatanPemerintahan

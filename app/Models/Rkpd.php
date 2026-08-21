@@ -25,13 +25,79 @@ class Rkpd extends Model
         'catatan',
         'submitted_by',
         'submitted_at',
+        'jenis_versi',
+        'nomor_versi',
+        'parent_version_id',
+        'root_version_id',
+        'is_active_version',
+        'alasan_perubahan',
+        'dasar_perubahan',
+        'tanggal_berlaku',
+        'disahkan_oleh',
+        'disahkan_pada',
     ];
 
     protected function casts(): array
     {
         return [
             'submitted_at' => 'datetime',
+            'nomor_versi' => 'integer',
+            'is_active_version' => 'boolean',
+            'tanggal_berlaku' => 'date',
+            'disahkan_pada' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::created(function (self $rkpd): void {
+            if ($rkpd->root_version_id === null) {
+                $rkpd->forceFill(['root_version_id' => $rkpd->id])->saveQuietly();
+            }
+        });
+    }
+
+    public function versionLabel(): string
+    {
+        return match ($this->jenis_versi) {
+            'ditetapkan' => 'RKPD Ditetapkan',
+            'perubahan' => in_array($this->status, ['approved', 'locked'], true)
+                ? 'RKPD Perubahan Ditetapkan'
+                : 'RKPD Perubahan',
+            default => 'RKPD Awal',
+        };
+    }
+
+    public function isArchivedVersion(): bool
+    {
+        return ! $this->is_active_version
+            && in_array($this->status, ['approved', 'locked'], true);
+    }
+
+    public function isOfficialVersion(): bool
+    {
+        return in_array($this->jenis_versi, ['ditetapkan', 'perubahan'], true)
+            && in_array($this->status, ['approved', 'locked'], true);
+    }
+
+    public function parentVersion(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_version_id');
+    }
+
+    public function rootVersion(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'root_version_id');
+    }
+
+    public function changeVersions(): HasMany
+    {
+        return $this->hasMany(self::class, 'root_version_id')->orderBy('nomor_versi');
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'disahkan_oleh');
     }
 
     public function rpjmd(): BelongsTo

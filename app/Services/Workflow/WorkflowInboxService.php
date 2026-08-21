@@ -19,6 +19,8 @@ class WorkflowInboxService
         'rkpd',
         'renstra_opd',
         'renja_opd',
+        'rka_opd',
+        'dpa_opd',
         'perjanjian_kinerja',
         'rencana_aksi',
         'realisasi_kinerja',
@@ -43,6 +45,7 @@ class WorkflowInboxService
         'super_admin',
         'admin_kabupaten_bagian_organisasi',
         'admin_kabupaten_bapperida',
+        'admin_kabupaten_bpkad',
         'admin_kabupaten_inspektorat',
         'admin_opd',
     ];
@@ -51,6 +54,7 @@ class WorkflowInboxService
         'super_admin',
         'admin_kabupaten_bagian_organisasi',
         'admin_kabupaten_bapperida',
+        'admin_kabupaten_bpkad',
         'admin_kabupaten_inspektorat',
     ];
 
@@ -60,6 +64,10 @@ class WorkflowInboxService
         'rkpd.manage',
         'renstra.manage',
         'renja.manage',
+        'rka.manage',
+        'rka.verify',
+        'dpa.manage',
+        'dpa.verify',
         'evaluasi.manage',
         'lkjip.manage',
         'verify_realisasi',
@@ -232,7 +240,7 @@ class WorkflowInboxService
         $modules = collect();
 
         if ($user->hasRole('admin_kabupaten_bapperida') || $user->hasAnyPermission(['rpjmd.manage', 'manage_rpjmd'])) {
-            $modules = $modules->merge(['rpjmd', 'rkpd', 'renstra_opd', 'renja_opd']);
+            $modules = $modules->merge(['rpjmd', 'rkpd', 'renstra_opd', 'renja_opd', 'rka_opd', 'dpa_opd']);
         }
 
         if ($user->hasRole('admin_kabupaten_inspektorat') || $user->hasAnyPermission(['evaluasi.manage', 'manage_evaluasi'])) {
@@ -241,6 +249,14 @@ class WorkflowInboxService
 
         if ($user->hasAnyPermission(['kinerja.manage', 'renstra.manage', 'verify_realisasi', 'manage_renstra_opd', 'lkjip.manage'])) {
             $modules = $modules->merge(['renstra_opd', 'renja_opd', 'perjanjian_kinerja', 'rencana_aksi', 'realisasi_kinerja', 'lkjip']);
+        }
+
+        if ($user->hasAnyPermission(['rka.manage', 'rka.verify'])) {
+            $modules->push('rka_opd');
+        }
+
+        if ($user->hasAnyPermission(['dpa.manage', 'dpa.verify'])) {
+            $modules->push('dpa_opd');
         }
 
         return $modules->intersect(self::MODULES)->unique()->values();
@@ -259,6 +275,14 @@ class WorkflowInboxService
                 }
 
                 if ($module === 'realisasi_kinerja' && $user->hasPermission('verify_realisasi')) {
+                    return true;
+                }
+
+                if ($module === 'rka_opd' && $user->hasPermission('rka.verify')) {
+                    return true;
+                }
+
+                if ($module === 'dpa_opd' && $user->hasPermission('dpa.verify')) {
                     return true;
                 }
 
@@ -410,6 +434,8 @@ class WorkflowInboxService
             'rkpd' => (string) ($model->judul ?? 'RKPD'),
             'renstra_opd' => (string) ($model->judul ?? 'Renstra OPD'),
             'renja_opd' => (string) ($model->judul ?? 'Renja OPD'),
+            'rka_opd' => (string) ($model->judul ?? 'RKA OPD'),
+            'dpa_opd' => (string) ($model->judul ?? 'DPA OPD'),
             'perjanjian_kinerja' => (string) ($model->judul ?? 'Perjanjian Kinerja'),
             'rencana_aksi' => (string) ($model->judul ?? 'Rencana Aksi'),
             'realisasi_kinerja' => 'Realisasi Kinerja '.$this->periodLabel($model),
@@ -424,7 +450,7 @@ class WorkflowInboxService
     {
         return match ($module) {
             'rpjmd', 'renstra_opd' => trim(($model->tahun_awal ?? '').'-'.($model->tahun_akhir ?? ''), '-'),
-            'rkpd', 'renja_opd' => isset($model->tahun) ? 'Tahun '.$model->tahun : null,
+            'rkpd', 'renja_opd', 'rka_opd', 'dpa_opd' => isset($model->tahun) ? 'Tahun '.$model->tahun : null,
             'realisasi_kinerja' => ucfirst((string) ($model->periode_realisasi ?? '')).' '.$this->periodLabel($model),
             'evaluasi_sakip' => $model instanceof EvaluasiSakip && $model->nilai_akhir !== null
                 ? 'Nilai akhir '.$model->nilai_akhir
@@ -464,6 +490,8 @@ class WorkflowInboxService
             'rkpd' => route('rkpd.show', $model),
             'renstra_opd' => route('renstra-opd.show', $model),
             'renja_opd' => route('renja-opd.show', $model),
+            'rka_opd' => route('rka-opd.show', $model),
+            'dpa_opd' => route('dpa-opd.show', $model),
             'perjanjian_kinerja' => route('perjanjian-kinerja.show', $model),
             'rencana_aksi' => route('rencana-aksi.show', $model),
             'realisasi_kinerja' => route('realisasi-kinerja.show', $model),

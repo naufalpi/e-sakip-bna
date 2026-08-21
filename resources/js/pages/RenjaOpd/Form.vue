@@ -3,7 +3,7 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ArrowLeft, Building2, CalendarDays, FileText, Link2, Save } from 'lucide-vue-next';
 import { computed, watch } from 'vue';
 
-type Option = { id: number; label: string; tahun?: number; opd_id?: number };
+type Option = { id: number; label: string; tahun?: number; opd_id?: number; jenis_versi?: 'awal' | 'ditetapkan' | 'perubahan'; is_active_version?: boolean };
 type Renja = {
     id: number;
     rkpd_id?: number | null;
@@ -15,6 +15,8 @@ type Renja = {
     judul: string;
     nomor_dokumen?: string | null;
     status: string;
+    jenis_versi: 'awal' | 'ditetapkan' | 'perubahan';
+    version_label: string;
     catatan?: string | null;
 };
 
@@ -85,10 +87,14 @@ watch(
 
 const filteredUnitOptions = computed(() => props.opdUnitOptions.filter((unit) => String(unit.opd_id ?? '') === String(form.opd_id)));
 const filteredRenstraOptions = computed(() => props.renstraOptions.filter((option) => !option.opd_id || String(option.opd_id) === String(form.opd_id)));
-const filteredRkpdOptions = computed(() => props.rkpdOptions.filter((option) => !option.tahun || Number(option.tahun) === Number(form.tahun)));
+const expectedRkpdVersion = computed(() => (props.renja?.jenis_versi === 'perubahan' ? 'perubahan' : 'awal'));
+const filteredRkpdOptions = computed(() => props.rkpdOptions.filter((option) =>
+    (!option.tahun || Number(option.tahun) === Number(form.tahun))
+    && (!option.jenis_versi || option.jenis_versi === expectedRkpdVersion.value),
+));
 const selectedPeriode = computed(() => props.periodeOptions.find((option) => Number(option.tahun) === Number(form.tahun)));
 const selectedOpd = computed(() => props.opdOptions.find((option) => String(option.id) === String(form.opd_id)));
-const title = computed(() => (props.mode === 'create' ? 'Tambah Renja OPD' : 'Edit Renja OPD'));
+const title = computed(() => (props.mode === 'create' ? 'Tambah RENJA Awal' : `Edit ${props.renja?.version_label || 'RENJA OPD'}`));
 const tahunOptions = computed(() =>
     props.periodeOptions
         .map((option) => ({ id: option.id, tahun: option.tahun, label: option.tahun ? String(option.tahun) : option.label }))
@@ -126,11 +132,11 @@ const submit = () => {
                         Rencana kerja tahunan
                     </div>
                     <h1 class="mt-3 text-2xl font-semibold tracking-normal">{{ title }}</h1>
-                    <p class="mt-1 max-w-2xl text-sm text-muted-foreground">Pilih OPD, tahun Renja, lalu hubungkan ke dokumen perencanaan yang sesuai.</p>
+                    <p class="mt-1 max-w-2xl text-sm text-muted-foreground">Pilih OPD, tahun RENJA, lalu hubungkan dengan RKPD pada tahap yang sama.</p>
                 </div>
                 <div class="rounded-2xl border bg-white px-4 py-3 text-sm shadow-sm">
-                    <div class="text-xs font-semibold uppercase text-muted-foreground">Status awal</div>
-                    <div class="mt-1 font-semibold text-[#00336C]">{{ renja?.status || 'Draft' }}</div>
+                    <div class="text-xs font-semibold uppercase text-muted-foreground">Versi dokumen</div>
+                    <div class="mt-1 font-semibold text-[#00336C]">{{ renja?.version_label || 'RENJA Awal' }}</div>
                 </div>
             </div>
         </section>
@@ -196,11 +202,12 @@ const submit = () => {
 
                     <div class="grid min-w-0 gap-4 xl:grid-cols-2">
                         <label class="grid min-w-0 gap-1.5">
-                            <span class="text-sm font-medium">RKPD Kabupaten</span>
+                            <span class="text-sm font-medium">Acuan RKPD {{ expectedRkpdVersion === 'perubahan' ? 'Perubahan' : 'Awal' }}</span>
                             <select v-model="form.rkpd_id" class="h-11 w-full min-w-0 truncate rounded-xl border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-[#00336C]/25">
                                 <option value="">Belum dihubungkan</option>
                                 <option v-for="option in filteredRkpdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                             </select>
+                            <span v-if="form.errors.rkpd_id" class="text-xs text-red-600">{{ form.errors.rkpd_id }}</span>
                         </label>
 
                         <label class="grid min-w-0 gap-1.5">

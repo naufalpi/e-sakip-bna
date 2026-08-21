@@ -2,6 +2,7 @@
 
 namespace App\Services\Workflow;
 
+use App\Models\DpaOpd;
 use App\Models\EvaluasiSakip;
 use App\Models\Lkjip;
 use App\Models\PerjanjianKinerja;
@@ -9,6 +10,7 @@ use App\Models\RealisasiKinerja;
 use App\Models\RencanaAksi;
 use App\Models\RenjaOpd;
 use App\Models\RenstraOpd;
+use App\Models\RkaOpd;
 use App\Models\Rkpd;
 use App\Models\Rpjmd;
 use App\Models\TindakLanjutRekomendasi;
@@ -26,6 +28,8 @@ class WorkflowModuleRegistry
             'rkpd' => Rkpd::class,
             'renstra_opd' => RenstraOpd::class,
             'renja_opd' => RenjaOpd::class,
+            'rka_opd' => RkaOpd::class,
+            'dpa_opd' => DpaOpd::class,
             'perjanjian_kinerja' => PerjanjianKinerja::class,
             'rencana_aksi' => RencanaAksi::class,
             'realisasi_kinerja' => RealisasiKinerja::class,
@@ -43,6 +47,8 @@ class WorkflowModuleRegistry
             'rkpd' => 'RKPD',
             'renstra_opd' => 'Renstra OPD',
             'renja_opd' => 'Renja OPD',
+            'rka_opd' => 'RKA OPD',
+            'dpa_opd' => 'DPA OPD',
             'perjanjian_kinerja' => 'Perjanjian Kinerja',
             'rencana_aksi' => 'Rencana Aksi',
             'realisasi_kinerja' => 'Realisasi Kinerja',
@@ -63,6 +69,8 @@ class WorkflowModuleRegistry
             'rkpd' => ['super_admin', 'admin_kabupaten_bapperida', 'admin_kabupaten_bagian_organisasi'],
             'renstra_opd', 'perjanjian_kinerja', 'rencana_aksi', 'realisasi_kinerja', 'lkjip' => ['super_admin', 'admin_kabupaten_bagian_organisasi'],
             'renja_opd' => ['super_admin', 'admin_kabupaten_bapperida', 'admin_kabupaten_bagian_organisasi'],
+            'rka_opd' => ['super_admin', 'admin_kabupaten_bapperida'],
+            'dpa_opd' => ['super_admin', 'admin_kabupaten_bpkad'],
             'evaluasi_sakip', 'tindak_lanjut_rekomendasi' => ['super_admin', 'admin_kabupaten_inspektorat'],
             default => ['super_admin'],
         };

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Kinerja;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StorePerjanjianKinerjaItemRequest extends FormRequest
 {
@@ -14,6 +15,10 @@ class StorePerjanjianKinerjaItemRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'sumber_item' => ['nullable', Rule::in(['cascading', 'manual'])],
+            'level_cascading' => ['nullable', Rule::in(['sasaran', 'program', 'kegiatan', 'sub_kegiatan'])],
+            'cascading_source_type' => ['nullable', 'string', 'max:40'],
+            'cascading_source_id' => ['nullable', 'integer', 'min:1'],
             'sasaran_opd_id' => ['nullable', 'integer', 'exists:sasaran_opd,id'],
             'indikator_sasaran_opd_id' => ['nullable', 'integer', 'exists:indikator_sasaran_opd,id'],
             'opd_program_id' => ['nullable', 'integer', 'exists:opd_program,id'],

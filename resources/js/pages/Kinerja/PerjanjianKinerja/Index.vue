@@ -13,6 +13,9 @@ type Row = {
     nomor_dokumen?: string | null;
     tahun: number;
     status: string;
+    tipe_pk: string;
+    tipe_pk_label: string;
+    pegawai?: { id: number; nama: string; nip?: string | null } | null;
     items_count: number;
     opd?: Opd | null;
     periode_tahun?: { id: number; tahun: number; nama: string } | null;
@@ -90,7 +93,9 @@ const statusClass = (status: string) =>
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
                 <h1 class="text-2xl font-semibold tracking-normal">Perjanjian Kinerja</h1>
-                <p class="mt-1 text-sm text-muted-foreground">Komitmen sasaran, indikator, dan target kinerja tahunan OPD.</p>
+                <p class="mt-1 text-sm text-muted-foreground">
+                    PK Cascading untuk akuntabilitas organisasi dan PK Individu untuk hasil kerja manual staf.
+                </p>
             </div>
             <Link
                 v-if="can.manage"
@@ -170,6 +175,10 @@ const statusClass = (status: string) =>
                             <td class="px-4 py-3">
                                 <div class="font-medium">{{ row.judul }}</div>
                                 <div class="text-xs text-muted-foreground">{{ row.nomor_dokumen || 'Nomor dokumen belum diisi' }}</div>
+                                <div class="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                                    <span class="rounded-full border px-2 py-0.5 font-semibold">{{ row.tipe_pk_label }}</span>
+                                    <span class="text-muted-foreground">{{ row.pegawai?.nama || 'PK organisasi lama' }}</span>
+                                </div>
                             </td>
                             <td class="px-4 py-3 text-muted-foreground">{{ row.tahun }}</td>
                             <td class="px-4 py-3">

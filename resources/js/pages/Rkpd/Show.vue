@@ -6,7 +6,7 @@ import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, ClipboardList, FileSpreadsheet, Pencil, Plus, Save, Search, Target, Trash2, X } from 'lucide-vue-next';
+import { ArrowLeft, Check, ClipboardList, FileSpreadsheet, GitBranch, Pencil, Plus, Save, Search, Target, Trash2, X } from 'lucide-vue-next';
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 type Option = {
@@ -41,8 +41,24 @@ type Rkpd = {
     judul: string;
     nomor_dokumen?: string | null;
     status: string;
+    jenis_versi: 'awal' | 'ditetapkan' | 'perubahan';
+    version_label: string;
+    nomor_versi: number;
+    is_active_version: boolean;
+    alasan_perubahan?: string | null;
+    dasar_perubahan?: string | null;
+    tanggal_berlaku?: string | null;
+    disahkan_pada?: string | null;
     rpjmd?: { id: number; judul: string; tahun_awal: number; tahun_akhir: number } | null;
     periode_tahun?: { id: number; tahun: number; nama: string } | null;
+};
+type RkpdVersion = {
+    id: number;
+    jenis_versi: 'awal' | 'ditetapkan' | 'perubahan';
+    version_label: string;
+    status: string;
+    is_active_version: boolean;
+    disahkan_pada?: string | null;
 };
 type Row = {
     id: number;
@@ -168,7 +184,8 @@ const props = defineProps<{
     programRpjmdOptions: Option[];
     syncPreview?: SyncPreview | null;
     workflow: Workflow;
-    can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean };
+    versionHistory: RkpdVersion[];
+    can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean; createRevision: boolean };
 }>();
 
 const filterForm = reactive({
@@ -214,6 +231,22 @@ const ikuForm = useForm({
     target_rkpd: '',
 });
 const editingIkuKey = ref<string | null>(null);
+const isRevisionDialogOpen = ref(false);
+const revisionForm = useForm({
+    alasan_perubahan: '',
+    dasar_perubahan: '',
+    tanggal_berlaku: '',
+});
+
+const submitRevision = () => {
+    revisionForm.post(route('rkpd.revisions.store', props.rkpd.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            isRevisionDialogOpen.value = false;
+            revisionForm.reset();
+        },
+    });
+};
 
 const ikuFilledCount = computed(() => props.ikuRows.filter((row) => row.target_rkpd && row.target_rkpd.trim() !== '').length);
 const ikuTotalCount = computed(() => props.ikuRows.length);
@@ -867,7 +900,13 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         </Link>
                         <div class="mt-3 flex flex-wrap items-center gap-2">
                             <h1 class="text-2xl font-semibold tracking-normal">{{ rkpd.judul }}</h1>
+                            <span class="rounded-full border border-[#00336C]/20 bg-[#00336C]/5 px-2.5 py-1 text-xs font-semibold text-[#00336C]">
+                                {{ rkpd.version_label }}
+                            </span>
                             <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="statusClass(rkpd.status)">{{ statusLabel(rkpd.status) }}</span>
+                            <span v-if="rkpd.is_active_version" class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
+                                <Check class="size-3.5" /> Versi aktif
+                            </span>
                         </div>
                         <p class="mt-1 text-sm text-muted-foreground">
                             {{ rkpd.tahun }} - {{ rkpd.nomor_dokumen || 'Nomor dokumen belum diisi' }}
@@ -878,6 +917,15 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
+                        <button
+                            v-if="can.createRevision"
+                            type="button"
+                            class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100"
+                            @click="isRevisionDialogOpen = true"
+                        >
+                            <GitBranch class="size-4" />
+                            Buat RKPD Perubahan
+                        </button>
                         <Link
                             v-if="can.manage"
                             :href="route('rkpd.edit', rkpd.id)"
@@ -898,6 +946,30 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         />
                     </div>
                 </div>
+            </div>
+
+            <div class="border-b bg-white px-5 py-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="mr-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Riwayat versi</span>
+                    <Link
+                        v-for="version in versionHistory"
+                        :key="version.id"
+                        :href="route('rkpd.show', version.id)"
+                        class="inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition"
+                        :class="version.id === rkpd.id ? 'border-[#00336C] bg-[#00336C] text-white' : 'bg-background text-foreground hover:border-[#00336C]/40 hover:bg-sky-50'"
+                    >
+                        <span>{{ version.version_label }}</span>
+                        <span v-if="version.is_active_version" class="size-1.5 rounded-full bg-emerald-400"></span>
+                    </Link>
+                </div>
+            </div>
+
+            <div v-if="rkpd.jenis_versi === 'perubahan'" class="grid gap-2 border-b bg-amber-50/70 px-5 py-3 text-sm md:grid-cols-[1fr_auto]">
+                <div>
+                    <span class="font-semibold text-amber-950">Alasan perubahan:</span>
+                    <span class="ml-1 text-amber-900">{{ rkpd.alasan_perubahan || '-' }}</span>
+                </div>
+                <div v-if="rkpd.dasar_perubahan" class="text-amber-800">Dasar: {{ rkpd.dasar_perubahan }}</div>
             </div>
 
             <div class="grid gap-3 p-4 md:grid-cols-4">
@@ -1484,5 +1556,45 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                 </div>
             </div>
         </section>
+
+        <div v-if="isRevisionDialogOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm" @click.self="isRevisionDialogOpen = false">
+            <form class="w-full max-w-xl overflow-hidden rounded-2xl border bg-card shadow-2xl" @submit.prevent="submitRevision">
+                <div class="flex items-start justify-between border-b px-5 py-4">
+                    <div>
+                        <div class="flex items-center gap-2 text-sm font-semibold text-amber-700"><GitBranch class="size-4" /> Versi tahunan</div>
+                        <h2 class="mt-1 text-xl font-semibold">Buat RKPD Perubahan</h2>
+                        <p class="mt-1 text-sm text-muted-foreground">Seluruh data RKPD Ditetapkan akan disalin sebagai titik awal perubahan.</p>
+                    </div>
+                    <button type="button" class="inline-flex size-10 items-center justify-center rounded-lg hover:bg-muted" aria-label="Tutup" @click="isRevisionDialogOpen = false">
+                        <X class="size-5" />
+                    </button>
+                </div>
+
+                <div class="grid gap-4 p-5">
+                    <label class="grid gap-1.5">
+                        <span class="text-sm font-semibold">Alasan perubahan <span class="text-red-600">*</span></span>
+                        <textarea v-model="revisionForm.alasan_perubahan" rows="4" class="rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Jelaskan alasan perubahan RKPD"></textarea>
+                        <span v-if="revisionForm.errors.alasan_perubahan" class="text-xs text-red-600">{{ revisionForm.errors.alasan_perubahan }}</span>
+                    </label>
+                    <label class="grid gap-1.5">
+                        <span class="text-sm font-semibold">Dasar perubahan</span>
+                        <input v-model="revisionForm.dasar_perubahan" type="text" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Contoh: Perubahan RKPD Tahun 2027" />
+                        <span v-if="revisionForm.errors.dasar_perubahan" class="text-xs text-red-600">{{ revisionForm.errors.dasar_perubahan }}</span>
+                    </label>
+                    <label class="grid gap-1.5">
+                        <span class="text-sm font-semibold">Tanggal berlaku</span>
+                        <input v-model="revisionForm.tanggal_berlaku" type="date" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                        <span v-if="revisionForm.errors.tanggal_berlaku" class="text-xs text-red-600">{{ revisionForm.errors.tanggal_berlaku }}</span>
+                    </label>
+                </div>
+
+                <div class="flex justify-end gap-2 border-t bg-muted/30 px-5 py-4">
+                    <button type="button" class="inline-flex h-10 items-center rounded-lg border bg-background px-4 text-sm font-semibold hover:bg-muted" @click="isRevisionDialogOpen = false">Batal</button>
+                    <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-lg bg-[#00336C] px-4 text-sm font-semibold text-white hover:bg-[#002855] disabled:opacity-60" :disabled="revisionForm.processing">
+                        <GitBranch class="size-4" /> Buat Perubahan
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </template>

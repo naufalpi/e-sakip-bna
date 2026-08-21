@@ -6,7 +6,7 @@ import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, ClipboardList, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-vue-next';
+import { ArrowLeft, Check, ClipboardList, GitBranch, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-vue-next';
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 type Option = {
@@ -35,11 +35,28 @@ type Renja = {
     judul: string;
     nomor_dokumen?: string | null;
     status: string;
+    jenis_versi: 'awal' | 'ditetapkan' | 'perubahan';
+    version_label: string;
+    nomor_versi: number;
+    is_active_version: boolean;
+    alasan_perubahan?: string | null;
+    dasar_perubahan?: string | null;
+    tanggal_berlaku?: string | null;
+    disahkan_pada?: string | null;
     opd_id?: number | null;
     opd_unit_id?: number | null;
     opd?: { id: number; kode?: string | null; nama: string; singkatan?: string | null } | null;
     opd_unit?: { id: number; kode?: string | null; nama: string } | null;
-    rkpd?: { id: number; judul: string; tahun: number } | null;
+    rkpd?: { id: number; judul: string; tahun: number; jenis_versi: string; version_label: string } | null;
+};
+
+type RenjaVersion = {
+    id: number;
+    jenis_versi: 'awal' | 'ditetapkan' | 'perubahan';
+    version_label: string;
+    status: string;
+    is_active_version: boolean;
+    disahkan_pada?: string | null;
 };
 
 type Row = {
@@ -181,7 +198,8 @@ const props = defineProps<{
     existingSubKegiatanRows: Array<{ id: number; sub_kegiatan_pemerintahan_id: number | null }>;
     syncPreview?: SyncPreview | null;
     workflow: Workflow;
-    can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean };
+    versionHistory: RenjaVersion[];
+    can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean; createRevision: boolean };
 }>();
 
 const renjaItemView = ref<'input' | 'preview'>('input');
@@ -191,6 +209,22 @@ const formSection = ref<HTMLElement | null>(null);
 const selectedProgramId = ref<string | number>('');
 const selectedKegiatanPemerintahanId = ref<string | number>('');
 const isHydratingForm = ref(false);
+const isRevisionDialogOpen = ref(false);
+const revisionForm = useForm({
+    alasan_perubahan: '',
+    dasar_perubahan: '',
+    tanggal_berlaku: '',
+});
+
+const submitRevision = () => {
+    revisionForm.post(route('renja-opd.revisions.store', props.renja.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            isRevisionDialogOpen.value = false;
+            revisionForm.reset();
+        },
+    });
+};
 
 const filterForm = reactive({
     search: props.filters.search ?? '',
@@ -290,9 +324,6 @@ const subKegiatanOptionsForSelectedKegiatan = computed(() =>
 const selectedSubKegiatan = computed(() =>
     props.subKegiatanOptions.find((option) => String(option.id) === String(form.sub_kegiatan_pemerintahan_id)),
 );
-
-const selectedProgram = computed(() => programOptions.value.find((option) => String(option.id) === String(selectedProgramId.value)));
-const selectedKegiatan = computed(() => kegiatanOptions.value.find((option) => String(option.id) === String(selectedKegiatanPemerintahanId.value)));
 
 const applyFilters = () =>
     router.get(route('renja-opd.show', props.renja.id), filterForm, { preserveState: true, preserveScroll: true, replace: true });
@@ -698,15 +729,30 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         </Link>
                         <div class="mt-3 flex flex-wrap items-center gap-2">
                             <h1 class="text-2xl font-semibold tracking-normal">{{ renja.judul }}</h1>
+                            <span class="rounded-full border border-[#00336C]/20 bg-[#00336C]/5 px-2.5 py-1 text-xs font-semibold text-[#00336C] dark:border-blue-700 dark:bg-blue-950/50 dark:text-blue-200">
+                                {{ renja.version_label }}
+                            </span>
                             <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="statusClass(renja.status)">{{ statusLabel(renja.status) }}</span>
+                            <span v-if="renja.is_active_version" class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                                <Check class="size-3.5" /> Versi aktif
+                            </span>
                         </div>
                         <p class="mt-1 text-sm text-muted-foreground">
                             {{ opdLabel }} - Tahun {{ renja.tahun }} - {{ renja.nomor_dokumen || 'Nomor belum diisi' }}
                         </p>
-                        <p v-if="renja.rkpd" class="mt-2 text-sm text-muted-foreground">Acuan RKPD {{ renja.rkpd.tahun }} - {{ renja.rkpd.judul }}</p>
+                        <p v-if="renja.rkpd" class="mt-2 text-sm text-muted-foreground">Acuan {{ renja.rkpd.version_label }} Tahun {{ renja.rkpd.tahun }}</p>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
+                        <button
+                            v-if="can.createRevision"
+                            type="button"
+                            class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200 dark:hover:bg-amber-950"
+                            @click="isRevisionDialogOpen = true"
+                        >
+                            <GitBranch class="size-4" />
+                            Buat RENJA Perubahan
+                        </button>
                         <Link
                             v-if="can.manage"
                             :href="route('renja-opd.edit', renja.id)"
@@ -729,6 +775,30 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                 </div>
             </div>
 
+            <div class="border-b bg-white px-5 py-3 dark:bg-slate-950">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="mr-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Riwayat versi</span>
+                    <Link
+                        v-for="version in versionHistory"
+                        :key="version.id"
+                        :href="route('renja-opd.show', version.id)"
+                        class="inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition"
+                        :class="version.id === renja.id ? 'border-[#00336C] bg-[#00336C] text-white' : 'bg-background text-foreground hover:border-[#00336C]/40 hover:bg-sky-50 dark:hover:bg-slate-900'"
+                    >
+                        <span>{{ version.version_label }}</span>
+                        <span v-if="version.is_active_version" class="size-1.5 rounded-full bg-emerald-400"></span>
+                    </Link>
+                </div>
+            </div>
+
+            <div v-if="renja.jenis_versi === 'perubahan'" class="grid gap-2 border-b bg-amber-50/70 px-5 py-3 text-sm md:grid-cols-[1fr_auto] dark:bg-amber-950/25">
+                <div>
+                    <span class="font-semibold text-amber-950 dark:text-amber-200">Alasan perubahan:</span>
+                    <span class="ml-1 text-amber-900 dark:text-amber-300">{{ renja.alasan_perubahan || '-' }}</span>
+                </div>
+                <div v-if="renja.dasar_perubahan" class="text-amber-800 dark:text-amber-300">Dasar: {{ renja.dasar_perubahan }}</div>
+            </div>
+
             <div class="grid gap-3 p-5 md:grid-cols-3">
                 <div class="rounded-xl border bg-white p-4">
                     <p class="text-xs font-semibold uppercase text-muted-foreground">Perangkat Daerah</p>
@@ -736,7 +806,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                     <p v-if="renja.opd_unit" class="mt-1 text-sm text-muted-foreground">{{ renja.opd_unit.nama }}</p>
                 </div>
                 <div class="rounded-xl border bg-white p-4">
-                    <p class="text-xs font-semibold uppercase text-muted-foreground">Baris Renja</p>
+                    <p class="text-xs font-semibold uppercase text-muted-foreground">Sub Kegiatan</p>
                     <p class="mt-2 text-2xl font-semibold">{{ summary.items_count }}</p>
                     <p class="mt-1 text-sm text-muted-foreground">sub kegiatan final</p>
                 </div>
@@ -758,7 +828,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             <ClipboardList class="size-5" />
                         </div>
                         <div>
-                            <h2 class="text-base font-semibold">Baris Renja OPD</h2>
+                            <h2 class="text-base font-semibold">Sub Kegiatan RENJA OPD</h2>
                             <p class="mt-1 text-sm text-muted-foreground">Input final dan preview format resmi.</p>
                         </div>
                     </div>
@@ -770,7 +840,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                                 :class="renjaItemView === 'input' ? 'bg-white text-[#00336C] shadow-sm' : 'text-slate-600 hover:text-slate-950'"
                                 @click="renjaItemView = 'input'"
                             >
-                                Input Baris
+                                Input Data
                             </button>
                             <button
                                 type="button"
@@ -788,7 +858,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             @click="openManualForm"
                         >
                             <Plus class="size-4" />
-                            Tambah Baris Renja
+                            Tambah Sub Kegiatan
                         </button>
                     </div>
                 </div>
@@ -811,7 +881,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
             <div class="border-b px-5 py-4">
                 <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
-                        <h2 class="text-base font-semibold">{{ editingId ? 'Edit Baris Renja' : 'Tambah Baris Renja' }}</h2>
+                        <h2 class="text-base font-semibold">{{ editingId ? 'Edit Sub Kegiatan' : 'Tambah Sub Kegiatan' }}</h2>
                         <p class="mt-1 text-sm text-muted-foreground">Isi sesuai matriks RENJA final.</p>
                     </div>
                     <button type="button" class="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold hover:bg-slate-50" @click="closeForm">
@@ -1008,7 +1078,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
             <div class="border-b p-4">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                        <h2 class="text-base font-semibold">Daftar Baris Renja</h2>
+                        <h2 class="text-base font-semibold">Daftar Sub Kegiatan RENJA</h2>
                         <p class="mt-1 text-sm text-muted-foreground">Menampilkan {{ items.total }} data.</p>
                     </div>
                     <form class="grid gap-2 lg:grid-cols-[320px_180px_auto]" @submit.prevent="applyFiltersNow">
@@ -1076,7 +1146,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             </td>
                         </tr>
                         <tr v-if="items.data.length === 0">
-                            <td :colspan="can.manage ? 11 : 10" class="px-4 py-12 text-center text-sm text-muted-foreground">Belum ada baris Renja.</td>
+                            <td :colspan="can.manage ? 11 : 10" class="px-4 py-12 text-center text-sm text-muted-foreground">Belum ada sub kegiatan RENJA.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1188,12 +1258,55 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         </tr>
                         <tr v-if="previewItems.length === 0">
                             <td :colspan="can.manage ? 18 : 17" class="border border-slate-700 px-4 py-12 text-center text-sm text-muted-foreground">
-                                Belum ada baris Renja.
+                                Belum ada sub kegiatan RENJA.
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </section>
+
+        <div v-if="isRevisionDialogOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm" @click.self="isRevisionDialogOpen = false">
+            <form class="w-full max-w-xl overflow-hidden rounded-2xl border bg-card shadow-2xl" @submit.prevent="submitRevision">
+                <div class="flex items-start justify-between border-b px-5 py-4">
+                    <div>
+                        <div class="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300"><GitBranch class="size-4" /> Versi tahunan</div>
+                        <h2 class="mt-1 text-xl font-semibold">Buat RENJA Perubahan</h2>
+                        <p class="mt-1 text-sm text-muted-foreground">Data RENJA Ditetapkan akan disalin dan otomatis memakai RKPD Perubahan.</p>
+                    </div>
+                    <button type="button" class="inline-flex size-10 items-center justify-center rounded-lg hover:bg-muted" aria-label="Tutup" @click="isRevisionDialogOpen = false">
+                        <X class="size-5" />
+                    </button>
+                </div>
+
+                <div class="grid gap-4 p-5">
+                    <label class="grid gap-1.5">
+                        <span class="text-sm font-semibold">Alasan perubahan <span class="text-red-600">*</span></span>
+                        <textarea v-model="revisionForm.alasan_perubahan" rows="4" class="rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Jelaskan alasan perubahan RENJA"></textarea>
+                        <span v-if="revisionForm.errors.alasan_perubahan" class="text-xs text-red-600">{{ revisionForm.errors.alasan_perubahan }}</span>
+                    </label>
+                    <label class="grid gap-1.5">
+                        <span class="text-sm font-semibold">Dasar perubahan</span>
+                        <input v-model="revisionForm.dasar_perubahan" type="text" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Contoh: Perubahan RKPD Tahun 2027" />
+                        <span v-if="revisionForm.errors.dasar_perubahan" class="text-xs text-red-600">{{ revisionForm.errors.dasar_perubahan }}</span>
+                    </label>
+                    <label class="grid gap-1.5">
+                        <span class="text-sm font-semibold">Tanggal berlaku</span>
+                        <input v-model="revisionForm.tanggal_berlaku" type="date" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                        <span v-if="revisionForm.errors.tanggal_berlaku" class="text-xs text-red-600">{{ revisionForm.errors.tanggal_berlaku }}</span>
+                    </label>
+                    <p v-if="revisionForm.errors.rkpd_id" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                        {{ revisionForm.errors.rkpd_id }}
+                    </p>
+                </div>
+
+                <div class="flex justify-end gap-2 border-t bg-muted/30 px-5 py-4">
+                    <button type="button" class="inline-flex h-10 items-center rounded-lg border bg-background px-4 text-sm font-semibold hover:bg-muted" @click="isRevisionDialogOpen = false">Batal</button>
+                    <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-lg bg-[#00336C] px-4 text-sm font-semibold text-white hover:bg-[#002855] disabled:opacity-60" :disabled="revisionForm.processing">
+                        <GitBranch class="size-4" /> Buat Perubahan
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </template>

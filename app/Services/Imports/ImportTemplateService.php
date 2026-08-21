@@ -16,6 +16,7 @@ class ImportTemplateService
             'rpjmd' => ['template-import-rpjmd-banjarnegara.xlsx', $this->rpjmdSheets()],
             'renstra_opd' => ['template-import-renstra-opd-banjarnegara.xlsx', $this->renstraSheets()],
             'rkpd' => ['template-import-rkpd-banjarnegara.xlsx', $this->rkpdSheets()],
+            'jabatan_organisasi' => ['template-import-jabatan-organisasi-banjarnegara.xlsx', $this->jabatanOrganisasiSheets()],
             default => throw new RuntimeException('Template import tidak tersedia.'),
         };
 
@@ -77,6 +78,68 @@ class ImportTemplateService
                 ['perangkat_daerah_penanggung_jawab', 'Opsional. Bila dikosongkan, otomatis diisi dari OPD yang cocok dengan opd_kode saat preview.'],
                 ['pagu_indikatif / prakiraan_maju_pagu_indikatif', 'Opsional. Isi angka tanpa Rp; pemisah ribuan diperbolehkan.'],
                 ['urutan', 'Opsional. Bila kosong, sistem menempatkan baris setelah urutan terakhir.'],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, array<int, array<int, string|int|float|null>>>
+     */
+    private function jabatanOrganisasiSheets(): array
+    {
+        return [
+            'Jabatan' => [
+                ['nama_jabatan', 'level_jabatan', 'opd_kode', 'unit_kode', 'atasan_nama_jabatan', 'atasan_opd_kode', 'atasan_unit_kode', 'eselon', 'urutan', 'status'],
+                ['Bupati Banjarnegara', 'kepala_daerah', null, null, null, null, null, null, 1, 'active'],
+                ['Kepala Dinas Contoh', 'jpt_pratama', 'KODE_OPD_CONTOH', null, 'Bupati Banjarnegara', null, null, 'ii_b', 1, 'active'],
+                ['Sekretaris Dinas Contoh', 'administrator', 'KODE_OPD_CONTOH', 'UNIT-SEKRETARIAT', 'Kepala Dinas Contoh', 'KODE_OPD_CONTOH', null, 'iii_a', 1, 'active'],
+                ['Kepala Bidang Pengelolaan Informasi dan Komunikasi Publik', 'administrator', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'Kepala Dinas Contoh', 'KODE_OPD_CONTOH', null, 'iii_b', 2, 'active'],
+                ['Kepala Subbagian Umum dan Kepegawaian', 'pengawas', 'KODE_OPD_CONTOH', 'UNIT-SUBBAG-UMUM', 'Sekretaris Dinas Contoh', 'KODE_OPD_CONTOH', 'UNIT-SEKRETARIAT', 'iv_a', 1, 'active'],
+                ['Kepala Seksi Pengelolaan Informasi Publik', 'pengawas', 'KODE_OPD_CONTOH', 'UNIT-SEKSI-IP', 'Kepala Bidang Pengelolaan Informasi dan Komunikasi Publik', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'iv_a', 1, 'active'],
+                ['Pranata Komputer Ahli Pertama', 'fungsional', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'Kepala Bidang Pengelolaan Informasi dan Komunikasi Publik', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'non_eselon', 1, 'active'],
+                ['Pengadministrasi Umum', 'pelaksana', 'KODE_OPD_CONTOH', 'UNIT-SUBBAG-UMUM', 'Kepala Subbagian Umum dan Kepegawaian', 'KODE_OPD_CONTOH', 'UNIT-SUBBAG-UMUM', 'non_eselon', 1, 'active'],
+            ],
+            'Pegawai' => [
+                ['nama_jabatan', 'opd_kode', 'unit_kode', 'nama_pejabat', 'nip', 'pangkat_golongan', 'jenis_pegawai', 'jenis_penugasan', 'nomor_sk', 'tanggal_sk', 'tmt_jabatan', 'tanggal_selesai', 'akun_pengguna'],
+                ['Bupati Banjarnegara', null, null, 'Nama Bupati', null, null, 'pejabat_negara', 'definitif', 'Nomor keputusan pelantikan', '2025-02-20', '2025-02-20', null, null],
+                ['Kepala Dinas Contoh', 'KODE_OPD_CONTOH', null, 'Nama Kepala Dinas', '197001011995011001', 'Pembina Utama Muda, IV/c', 'pns', 'definitif', '800.1.3.3/001/2026', '2026-01-02', '2026-01-03', null, null],
+                ['Sekretaris Dinas Contoh', 'KODE_OPD_CONTOH', 'UNIT-SEKRETARIAT', 'Nama Sekretaris Dinas', '197501012000031001', 'Pembina Tingkat I, IV/b', 'pns', 'definitif', '800.1.3.3/002/2026', '2026-01-02', '2026-01-03', null, null],
+                ['Kepala Bidang Pengelolaan Informasi dan Komunikasi Publik', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'Nama Kepala Bidang', '198001012005011001', 'Pembina, IV/a', 'pns', 'definitif', null, null, '2026-01-03', null, null],
+                ['Kepala Subbagian Umum dan Kepegawaian', 'KODE_OPD_CONTOH', 'UNIT-SUBBAG-UMUM', 'Nama Kepala Subbagian', '198501012010011001', 'Penata Tingkat I, III/d', 'pns', 'definitif', null, null, '2026-01-03', null, null],
+                ['Kepala Seksi Pengelolaan Informasi Publik', 'KODE_OPD_CONTOH', 'UNIT-SEKSI-IP', 'Nama Pelaksana Tugas', '198701012011011001', 'Penata Tingkat I, III/d', 'pns', 'plt', '800.1.11.1/010/2026', '2026-01-10', '2026-01-10', '2026-04-09', 'nama.pengguna'],
+                ['Pranata Komputer Ahli Pertama', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'Nama Pranata Komputer Satu', '199001012020011001', 'Penata Muda, III/a', 'pns', 'definitif', null, null, '2026-01-03', null, null],
+                ['Pranata Komputer Ahli Pertama', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'Nama Pranata Komputer Dua', '199201012021012001', 'IX', 'pppk', 'definitif', null, null, '2026-01-03', null, null],
+                ['Pengadministrasi Umum', 'KODE_OPD_CONTOH', 'UNIT-SUBBAG-UMUM', 'Nama Pelaksana', null, null, 'non_asn', 'definitif', null, null, '2026-01-03', null, null],
+            ],
+            'Petunjuk' => [
+                ['Bagian', 'Kolom / topik', 'Petunjuk'],
+                ['UMUM', 'Cara menggunakan template', '1) Ganti atau hapus seluruh baris contoh. 2) Pastikan kode OPD/unit sama persis dengan master sistem. 3) Upload file. 4) Periksa preview. 5) Terapkan hanya setelah semua baris valid.'],
+                ['UMUM', 'Keamanan data', 'Upload hanya membuat preview. Data baru disimpan setelah tombol Terapkan Import ditekan. Import tidak menghapus jabatan atau riwayat yang sudah ada.'],
+                ['UMUM', 'Baris contoh', 'Kode KODE_OPD_CONTOH dan UNIT-... hanyalah penanda. Wajib diganti dengan kode yang benar dari Master OPD dan unit organisasi.'],
+                ['JABATAN', 'Fungsi sheet', 'Berisi struktur jabatan permanen, bukan nama orang. Susun Kepala Daerah, Kepala OPD, Sekretaris/Kabid, lalu Kasubbag/Kasi dan jabatan di bawahnya.'],
+                ['JABATAN', 'nama_jabatan', 'Wajib. Nomenklatur jabatan. Sistem mencocokkan data berdasarkan gabungan nama_jabatan + opd_kode + unit_kode; kombinasi yang sudah ada akan diperbarui.'],
+                ['JABATAN', 'level_jabatan', 'Wajib. Gunakan: kepala_daerah, jpt_pratama, administrator, pengawas, fungsional, atau pelaksana. Sekretaris/Kabid umumnya administrator; Kasubbag/Kasi umumnya pengawas.'],
+                ['JABATAN', 'opd_kode', 'Wajib kecuali Kepala Daerah. Salin kode persis dari Master OPD aktif. Jangan memakai singkatan atau nama OPD.'],
+                ['JABATAN', 'unit_kode', 'Opsional. Isi bila jabatan melekat pada unit tertentu. Kode harus tersedia dan aktif pada OPD yang sama. Kepala OPD umumnya tidak memerlukan unit_kode.'],
+                ['JABATAN', 'atasan_nama_jabatan', 'Wajib kecuali Kepala Daerah. Harus menunjuk jabatan pada sheet Jabatan atau jabatan yang sudah ada di sistem.'],
+                ['JABATAN', 'atasan_opd_kode', 'Isi kode OPD tempat jabatan atasan berada. Kosongkan hanya jika atasannya Kepala Daerah.'],
+                ['JABATAN', 'atasan_unit_kode', 'Isi jika jabatan atasan terikat unit. Kosongkan untuk Kepala Daerah atau Kepala OPD yang tidak terikat unit.'],
+                ['JABATAN', 'eselon', 'Opsional sebagai informasi nomenklatur lama. Nilai: ii_a, ii_b, iii_a, iii_b, iv_a, iv_b, atau non_eselon.'],
+                ['JABATAN', 'urutan', 'Opsional. Angka 0 sampai 65535 untuk mengatur urutan tampilan di bawah atasan yang sama. Bila kosong otomatis 0.'],
+                ['JABATAN', 'status', 'Opsional. active/aktif atau inactive/nonaktif. Bila kosong otomatis active.'],
+                ['PEGAWAI', 'Fungsi sheet', 'Berisi pejabat, JF, dan pelaksana yang pernah atau sedang ditempatkan pada jabatan. Jabatan struktural hanya memiliki satu pemegang aktif; JF/Pelaksana dapat diisi banyak pegawai.'],
+                ['PEGAWAI', 'nama_jabatan + opd_kode + unit_kode', 'Wajib untuk mencocokkan pegawai dengan jabatan pada sheet Jabatan atau data sistem. Ketiganya harus sama dengan identitas jabatan.'],
+                ['PEGAWAI', 'nama_pejabat', 'Wajib. Isi nama lengkap pegawai/pejabat. Nama kolom tetap dipertahankan untuk kompatibilitas template lama.'],
+                ['PEGAWAI', 'nip', 'Opsional, tetapi sangat disarankan untuk PNS/PPPK. Isi tanpa mengubah digit NIP.'],
+                ['PEGAWAI', 'pangkat_golongan', 'Opsional. Contoh: Pembina, IV/a.'],
+                ['PEGAWAI', 'jenis_pegawai', 'Opsional; otomatis pns bila kosong. Gunakan: pejabat_negara, pns, pppk, atau non_asn.'],
+                ['PEGAWAI', 'jenis_penugasan', 'Opsional; otomatis definitif bila kosong. Nilai yang didukung: definitif, penjabat/Pj., plt/Plt., atau plh/Plh.'],
+                ['PEGAWAI', 'nomor_sk + tanggal_sk', 'Opsional. Isi nomor dan tanggal SK pengangkatan atau surat perintah bila tersedia. E-SAKIP tidak menjadikannya syarat login maupun penyusunan PK.'],
+                ['PEGAWAI', 'tmt_jabatan', 'Wajib. Tanggal efektif mulai menjalankan jabatan (TMT), bukan sekadar tanggal SK. Format YYYY-MM-DD atau DD/MM/YYYY.'],
+                ['PEGAWAI', 'tanggal_selesai', 'Opsional. Kosongkan untuk penempatan yang masih aktif. Isi saat mutasi, pensiun, diberhentikan, diganti, atau masa Plt./Plh./Pj. berakhir.'],
+                ['PEGAWAI', 'Pergantian pejabat', 'Sebelum menambahkan pejabat struktural baru pada jabatan yang sama, isi tanggal_selesai pejabat lama agar tidak bertumpang tindih dengan TMT pejabat baru.'],
+                ['PEGAWAI', 'akun_pengguna', 'Opsional. Isi username atau email akun aktif hanya bila pegawai perlu login atau menyetujui dokumen sendiri. PK tetap dapat disusun oleh Admin OPD tanpa akun pegawai.'],
+                ['PREVIEW', 'Baris invalid', 'Seluruh baris harus valid sebelum import dapat diterapkan. Perbaiki file sesuai pesan pada preview lalu upload ulang.'],
             ],
         ];
     }

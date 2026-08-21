@@ -38,4 +38,9 @@ class OpdUnit extends Model
     {
         return $this->hasMany(OpdUnit::class, 'parent_id');
     }
+
+    public function jabatanOrganisasi(): HasMany
+    {
+        return $this->hasMany(JabatanOrganisasi::class);
+    }
 }

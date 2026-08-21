@@ -341,8 +341,9 @@ class DokumenController extends Controller
                 ->values()
                 ->all(),
             'rkpd' => Rkpd::query()
+                ->where('is_active_version', true)
                 ->orderByDesc('tahun')
-                ->get(['id', 'judul', 'tahun', 'status'])
+                ->get(['id', 'judul', 'tahun', 'status', 'jenis_versi'])
                 ->filter(fn (Rkpd $rkpd) => $user->can('view', $rkpd))
                 ->map(fn (Rkpd $rkpd) => ['id' => $rkpd->id, 'label' => $this->relatedLabel($rkpd)])
                 ->values()

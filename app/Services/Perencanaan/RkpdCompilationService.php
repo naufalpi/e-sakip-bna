@@ -21,6 +21,7 @@ class RkpdCompilationService
                     'opdUnit:id,opd_id,kode,nama',
                     'items.subKegiatanPemerintahan.kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan',
                 ])
+                ->where('jenis_versi', $rkpd->jenis_versi)
                 ->where(function ($query) use ($rkpd) {
                     $query->where('rkpd_id', $rkpd->id)
                         ->orWhere(function ($query) use ($rkpd) {

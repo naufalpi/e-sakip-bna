@@ -2,12 +2,20 @@
 
 namespace App\Services\Workflow;
 
+use App\Models\DpaOpd;
+use App\Models\RenjaOpd;
 use App\Models\RenstraOpd;
+use App\Models\RkaOpd;
+use App\Models\Rkpd;
 use App\Models\Rpjmd;
 use App\Models\User;
 use App\Models\WorkflowHistory;
 use App\Models\WorkflowSubmission;
+use App\Services\Penganggaran\DpaReadinessService;
+use App\Services\Penganggaran\RkaReadinessService;
 use App\Services\Perencanaan\DocumentVersionActivationService;
+use App\Services\Perencanaan\RenjaVersionService;
+use App\Services\Perencanaan\RkpdVersionService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +27,10 @@ class WorkflowTransitionService
         private readonly WorkflowNotificationService $notificationService,
         private readonly WorkflowModuleRegistry $registry,
         private readonly DocumentVersionActivationService $documentVersionActivationService,
+        private readonly RkpdVersionService $rkpdVersionService,
+        private readonly RenjaVersionService $renjaVersionService,
+        private readonly RkaReadinessService $rkaReadinessService,
+        private readonly DpaReadinessService $dpaReadinessService,
     ) {}
 
     /**
@@ -31,6 +43,19 @@ class WorkflowTransitionService
         $newStatus = $this->statusForAction($action);
         $oldStatus = (string) ($model->getAttribute('status') ?? 'draft');
         $this->ensureValidTransition($action, $oldStatus);
+
+        if ($action === 'submit' && $model instanceof RkaOpd) {
+            $this->rkaReadinessService->ensureReady($model);
+        }
+
+        if ($model instanceof DpaOpd) {
+            if ($action === 'submit') {
+                $this->dpaReadinessService->ensureReadyForSubmit($model);
+            }
+            if ($action === 'approve') {
+                $this->dpaReadinessService->ensureReadyForApproval($model);
+            }
+        }
 
         $relatedTable = $model->getTable();
         $relatedId = (int) $model->getKey();
@@ -56,6 +81,14 @@ class WorkflowTransitionService
 
             if ($action === 'approve' && ($model instanceof Rpjmd || $model instanceof RenstraOpd)) {
                 $this->documentVersionActivationService->activateAfterApproval($model, $actor);
+            }
+
+            if ($action === 'approve' && $model instanceof Rkpd) {
+                $this->rkpdVersionService->publishAfterApproval($model, $actor);
+            }
+
+            if ($action === 'approve' && $model instanceof RenjaOpd) {
+                $this->renjaVersionService->publishAfterApproval($model, $actor);
             }
 
             $existingSubmission = WorkflowSubmission::query()
@@ -107,7 +140,7 @@ class WorkflowTransitionService
 
     private function authorizeAction(Model $model, string $module, string $action, User $actor): void
     {
-        if (($model instanceof Rpjmd || $model instanceof RenstraOpd) && $model->isArchivedVersion()) {
+        if (($model instanceof Rpjmd || $model instanceof RenstraOpd || $model instanceof Rkpd || $model instanceof RenjaOpd) && $model->isArchivedVersion()) {
             throw new AuthorizationException('Versi arsip tidak dapat diproses. Buat dokumen Perubahan dari versi aktif.');
         }
 
@@ -163,6 +196,8 @@ class WorkflowTransitionService
 
         $reviewerAllowed = $actor->hasAnyRole($this->registry->reviewerRoles($module))
             || ($module === 'realisasi_kinerja' && $actor->hasPermission('verify_realisasi'))
+            || ($module === 'rka_opd' && $actor->hasPermission('rka.verify'))
+            || ($module === 'dpa_opd' && $actor->hasPermission('dpa.verify'))
             || (in_array($module, ['evaluasi_sakip', 'tindak_lanjut_rekomendasi'], true)
                 && $actor->hasAnyPermission(['manage_evaluasi', 'evaluasi.manage']));
 

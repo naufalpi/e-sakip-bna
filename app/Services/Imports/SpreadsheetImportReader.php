@@ -27,6 +27,53 @@ class SpreadsheetImportReader
     }
 
     /**
+     * Membaca seluruh worksheet dari file .xlsx dalam urutan workbook.
+     *
+     * @return array<int, array<int, array<int, string|null>>>
+     */
+    public function readWorksheets(UploadedFile $file, int $maxRowsPerSheet = 1000): array
+    {
+        if (strtolower($file->getClientOriginalExtension()) !== 'xlsx') {
+            throw new RuntimeException('Import jabatan hanya mendukung file Excel .xlsx.');
+        }
+
+        if (! class_exists(ZipArchive::class)) {
+            throw new RuntimeException('Ekstensi PHP ZipArchive belum aktif, file .xlsx tidak bisa dibaca.');
+        }
+
+        $zip = new ZipArchive;
+
+        if ($zip->open($file->getRealPath()) !== true) {
+            throw new RuntimeException('File .xlsx tidak bisa dibuka.');
+        }
+
+        try {
+            $sharedStrings = $this->readSharedStrings($zip);
+            $worksheetPaths = [];
+
+            for ($index = 0; $index < $zip->numFiles; $index++) {
+                $name = $zip->getNameIndex($index);
+
+                if (is_string($name) && preg_match('#^xl/worksheets/sheet\d+\.xml$#', $name) === 1) {
+                    $worksheetPaths[] = $name;
+                }
+            }
+
+            natsort($worksheetPaths);
+
+            return collect($worksheetPaths)
+                ->map(fn (string $path) => $this->withoutEmptyRows(
+                    $this->readWorksheet($zip, $path, $sharedStrings, $maxRowsPerSheet)
+                ))
+                ->filter()
+                ->values()
+                ->all();
+        } finally {
+            $zip->close();
+        }
+    }
+
+    /**
      * @param  array<int, array<int, string|null>>  $rows
      * @return array<int, string>
      */
@@ -99,19 +146,28 @@ class SpreadsheetImportReader
 
         $sharedStrings = $this->readSharedStrings($zip);
         $worksheetPath = $this->firstWorksheetPath($zip);
-        $worksheet = $zip->getFromName($worksheetPath);
+        $rows = $this->readWorksheet($zip, $worksheetPath, $sharedStrings, $maxRows);
+
+        $zip->close();
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<int, string>  $sharedStrings
+     * @return array<int, array<int, string|null>>
+     */
+    private function readWorksheet(ZipArchive $zip, string $path, array $sharedStrings, int $maxRows): array
+    {
+        $worksheet = $zip->getFromName($path);
 
         if (! is_string($worksheet)) {
-            $zip->close();
-
-            throw new RuntimeException('Worksheet pertama tidak ditemukan di file .xlsx.');
+            throw new RuntimeException('Worksheet tidak ditemukan di file .xlsx.');
         }
 
         $xml = simplexml_load_string($worksheet);
 
         if (! $xml instanceof SimpleXMLElement) {
-            $zip->close();
-
             throw new RuntimeException('Worksheet .xlsx tidak bisa dibaca.');
         }
 
@@ -134,8 +190,6 @@ class SpreadsheetImportReader
                 $rows[] = $this->fillMissingCells($cells);
             }
         }
-
-        $zip->close();
 
         return $rows;
     }

@@ -17,9 +17,16 @@ class PerjanjianKinerja extends Model
 
     protected $fillable = [
         'opd_id',
+        'pegawai_id',
+        'penempatan_pegawai_id',
+        'atasan_pegawai_id',
         'renstra_opd_id',
         'periode_tahun_id',
         'tahun',
+        'tipe_pk',
+        'nama_pegawai_snapshot',
+        'nip_snapshot',
+        'jabatan_snapshot',
         'judul',
         'nomor_dokumen',
         'status',
@@ -44,6 +51,21 @@ class PerjanjianKinerja extends Model
     public function renstraOpd(): BelongsTo
     {
         return $this->belongsTo(RenstraOpd::class);
+    }
+
+    public function pegawai(): BelongsTo
+    {
+        return $this->belongsTo(Pegawai::class);
+    }
+
+    public function penempatanPegawai(): BelongsTo
+    {
+        return $this->belongsTo(RiwayatPejabatJabatan::class, 'penempatan_pegawai_id');
+    }
+
+    public function atasanPegawai(): BelongsTo
+    {
+        return $this->belongsTo(Pegawai::class, 'atasan_pegawai_id');
     }
 
     public function periodeTahun(): BelongsTo

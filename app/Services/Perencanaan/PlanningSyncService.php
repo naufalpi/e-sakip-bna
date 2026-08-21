@@ -100,6 +100,7 @@ class PlanningSyncService
                     'items.subKegiatanPemerintahan.kegiatanPemerintahan.programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
                     'items.subKegiatanPemerintahan.kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
                 ])
+                ->where('jenis_versi', $rkpd->jenis_versi)
                 ->where(function ($query) use ($rkpd) {
                     $query->where('rkpd_id', $rkpd->id)
                         ->orWhere(function ($query) use ($rkpd) {
@@ -170,6 +171,8 @@ class PlanningSyncService
             $rkpd = $renja->rkpd ?: Rkpd::query()
                 ->where('periode_tahun_id', $renja->periode_tahun_id)
                 ->where('tahun', $renja->tahun)
+                ->where('is_active_version', true)
+                ->orderByDesc('nomor_versi')
                 ->latest('id')
                 ->first();
 
@@ -795,10 +798,10 @@ class PlanningSyncService
 
         if ($target) {
             $target->update($data);
-            $row->update(['target_id' => $target->id, 'status' => 'applied', 'message' => 'Baris Renja diperbarui.']);
+            $row->update(['target_id' => $target->id, 'status' => 'applied', 'message' => 'Sub kegiatan RENJA diperbarui.']);
         } else {
             $target = RenjaOpdItem::create([...$data, 'status' => 'draft']);
-            $row->update(['target_id' => $target->id, 'status' => 'applied', 'message' => 'Baris Renja dibuat.']);
+            $row->update(['target_id' => $target->id, 'status' => 'applied', 'message' => 'Sub kegiatan RENJA dibuat.']);
         }
 
         return true;

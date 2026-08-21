@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Perencanaan;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Perencanaan\StoreDocumentRevisionRequest;
 use App\Http\Requests\Perencanaan\StoreRenjaOpdRequest;
 use App\Http\Requests\Perencanaan\UpdateRenjaOpdRequest;
 use App\Models\Opd;
@@ -17,6 +18,7 @@ use App\Models\SubKegiatanPemerintahan;
 use App\Models\User;
 use App\Services\Perencanaan\PlanningSyncService;
 use App\Services\Perencanaan\RenjaProgramScopeService;
+use App\Services\Perencanaan\RenjaVersionService;
 use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -32,11 +34,11 @@ class RenjaOpdController extends Controller
     {
         $this->authorize('viewAny', RenjaOpd::class);
 
-        $filters = $request->only(['search', 'status', 'opd_id', 'periode_tahun_id', 'tahun']);
+        $filters = $request->only(['search', 'status', 'opd_id', 'periode_tahun_id', 'tahun', 'jenis_versi']);
         $user = $request->user();
 
         $items = RenjaOpd::query()
-            ->with(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'rkpd:id,judul,tahun,status', 'periodeTahun:id,tahun,nama'])
+            ->with(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'rkpd:id,judul,tahun,status,jenis_versi', 'periodeTahun:id,tahun,nama'])
             ->withCount('items')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($user->hasOpdUnitScope(), fn (Builder $query) => $query->where('opd_unit_id', $user->opd_unit_id))
@@ -51,7 +53,9 @@ class RenjaOpdController extends Controller
             ->when($filters['opd_id'] ?? null, fn (Builder $query, string $opdId) => $query->where('opd_id', $opdId))
             ->when($filters['periode_tahun_id'] ?? null, fn (Builder $query, string $periodeId) => $query->where('periode_tahun_id', $periodeId))
             ->when($filters['tahun'] ?? null, fn (Builder $query, string $tahun) => $query->where('tahun', $tahun))
+            ->when($filters['jenis_versi'] ?? null, fn (Builder $query, string $jenisVersi) => $query->where('jenis_versi', $jenisVersi))
             ->orderByDesc('tahun')
+            ->orderByDesc('nomor_versi')
             ->latest('id')
             ->paginate(10)
             ->withQueryString()
@@ -61,6 +65,12 @@ class RenjaOpdController extends Controller
                 'nomor_dokumen' => $renja->nomor_dokumen,
                 'tahun' => $renja->tahun,
                 'status' => $renja->status,
+                'jenis_versi' => $renja->jenis_versi,
+                'version_label' => $renja->versionLabel(),
+                'nomor_versi' => $renja->nomor_versi,
+                'is_active_version' => $renja->is_active_version,
+                'can_update' => $user->can('update', $renja),
+                'can_delete' => $user->can('delete', $renja),
                 'items_count' => $renja->items_count,
                 'opd' => $renja->opd ? [
                     'id' => $renja->opd->id,
@@ -77,6 +87,8 @@ class RenjaOpdController extends Controller
                     'id' => $renja->rkpd->id,
                     'judul' => $renja->rkpd->judul,
                     'tahun' => $renja->rkpd->tahun,
+                    'jenis_versi' => $renja->rkpd->jenis_versi,
+                    'version_label' => $renja->rkpd->versionLabel(),
                 ] : null,
                 'periode_tahun' => $renja->periodeTahun ? [
                     'id' => $renja->periodeTahun->id,
@@ -115,7 +127,10 @@ class RenjaOpdController extends Controller
     {
         $renja = RenjaOpd::create([
             ...$request->validated(),
-            'status' => $request->validated('status') ?: 'draft',
+            'status' => 'draft',
+            'jenis_versi' => 'awal',
+            'nomor_versi' => 1,
+            'is_active_version' => true,
         ]);
 
         return redirect()->route('renja-opd.show', $renja)->with('success', 'Renja OPD berhasil dibuat.');
@@ -128,7 +143,22 @@ class RenjaOpdController extends Controller
         $filters = $request->only(['search', 'status']);
         $canManage = $request->user()->can('update', $renjaOpd);
 
-        $renjaOpd->load(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'rkpd:id,judul,tahun,status', 'periodeTahun:id,tahun,nama']);
+        $renjaOpd->load(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'rkpd:id,judul,tahun,status,jenis_versi,nomor_versi', 'periodeTahun:id,tahun,nama']);
+
+        $versionHistory = RenjaOpd::query()
+            ->where('root_version_id', $renjaOpd->root_version_id ?: $renjaOpd->id)
+            ->orderBy('nomor_versi')
+            ->get()
+            ->map(fn (RenjaOpd $version) => [
+                'id' => $version->id,
+                'jenis_versi' => $version->jenis_versi,
+                'version_label' => $version->versionLabel(),
+                'status' => $version->status,
+                'is_active_version' => $version->is_active_version,
+                'disahkan_pada' => $version->disahkan_pada?->toISOString(),
+            ])
+            ->values()
+            ->all();
 
         $itemsQuery = $renjaOpd->items()
             ->with([
@@ -192,13 +222,15 @@ class RenjaOpdController extends Controller
                 'sub_kegiatan_pemerintahan_id' => $item->sub_kegiatan_pemerintahan_id,
             ])->all() : [],
             'syncPreview' => app(PlanningSyncService::class)->serializePreview($syncBatch),
+            'workflow' => $workflowDataService->forModel($renjaOpd, 'renja_opd'),
+            'versionHistory' => $versionHistory,
             'can' => [
                 'manage' => $canManage,
-                'review' => $this->canReviewWorkflow($request->user()),
-                'lock' => $this->canLockWorkflow($request->user()),
-                'unlock' => $this->canUnlockWorkflow($request->user()),
+                'review' => ! $renjaOpd->isArchivedVersion() && $this->canReviewWorkflow($request->user()),
+                'lock' => $renjaOpd->is_active_version && $this->canLockWorkflow($request->user()),
+                'unlock' => $renjaOpd->is_active_version && $this->canUnlockWorkflow($request->user()),
+                'createRevision' => $request->user()->can('createRevision', $renjaOpd),
             ],
-            'workflow' => $workflowDataService->forModel($renjaOpd, 'renja_opd'),
         ]);
     }
 
@@ -219,7 +251,10 @@ class RenjaOpdController extends Controller
 
     public function update(UpdateRenjaOpdRequest $request, RenjaOpd $renjaOpd): RedirectResponse
     {
-        $renjaOpd->update($request->validated());
+        $renjaOpd->update([
+            ...$request->validated(),
+            'status' => $renjaOpd->status,
+        ]);
 
         return redirect()->route('renja-opd.show', $renjaOpd)->with('success', 'Renja OPD berhasil diperbarui.');
     }
@@ -231,6 +266,19 @@ class RenjaOpdController extends Controller
         $renjaOpd->delete();
 
         return redirect()->route('renja-opd.index')->with('success', 'Renja OPD berhasil dihapus.');
+    }
+
+    public function createRevision(
+        StoreDocumentRevisionRequest $request,
+        RenjaOpd $renjaOpd,
+        RenjaVersionService $versionService,
+    ): RedirectResponse {
+        $this->authorize('createRevision', $renjaOpd);
+
+        $revision = $versionService->createChange($renjaOpd, $request->validated());
+
+        return redirect()->route('renja-opd.show', $revision)
+            ->with('success', 'RENJA Perubahan berhasil dibuat dari RENJA Ditetapkan.');
     }
 
     private function shouldLimitToUserOpd(User $user): bool
@@ -261,11 +309,14 @@ class RenjaOpdController extends Controller
     {
         return Rkpd::query()
             ->orderByDesc('tahun')
-            ->get(['id', 'judul', 'tahun', 'status'])
+            ->orderBy('nomor_versi')
+            ->get(['id', 'judul', 'tahun', 'status', 'jenis_versi', 'nomor_versi', 'is_active_version'])
             ->map(fn (Rkpd $rkpd) => [
                 'id' => $rkpd->id,
                 'tahun' => $rkpd->tahun,
-                'label' => "{$rkpd->tahun} - {$rkpd->judul}",
+                'label' => "{$rkpd->tahun} - {$rkpd->versionLabel()} - {$rkpd->judul}",
+                'jenis_versi' => $rkpd->jenis_versi,
+                'is_active_version' => $rkpd->is_active_version,
             ])
             ->all();
     }
@@ -277,6 +328,7 @@ class RenjaOpdController extends Controller
     {
         return RenstraOpd::query()
             ->with('opd:id,nama,singkatan')
+            ->where('is_active_version', true)
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->orderByDesc('tahun_awal')
             ->get(['id', 'opd_id', 'judul', 'tahun_awal', 'tahun_akhir'])
@@ -421,6 +473,16 @@ class RenjaOpdController extends Controller
             'nomor_dokumen' => $renja->nomor_dokumen,
             'status' => $renja->status,
             'catatan' => $renja->catatan,
+            'jenis_versi' => $renja->jenis_versi,
+            'version_label' => $renja->versionLabel(),
+            'nomor_versi' => $renja->nomor_versi,
+            'parent_version_id' => $renja->parent_version_id,
+            'root_version_id' => $renja->root_version_id,
+            'is_active_version' => $renja->is_active_version,
+            'alasan_perubahan' => $renja->alasan_perubahan,
+            'dasar_perubahan' => $renja->dasar_perubahan,
+            'tanggal_berlaku' => $renja->tanggal_berlaku?->toDateString(),
+            'disahkan_pada' => $renja->disahkan_pada?->toISOString(),
             'opd' => $renja->opd ? [
                 'id' => $renja->opd->id,
                 'kode' => $renja->opd->kode,
@@ -436,6 +498,8 @@ class RenjaOpdController extends Controller
                 'id' => $renja->rkpd->id,
                 'judul' => $renja->rkpd->judul,
                 'tahun' => $renja->rkpd->tahun,
+                'jenis_versi' => $renja->rkpd->jenis_versi,
+                'version_label' => $renja->rkpd->versionLabel(),
             ] : null,
             'periode_tahun' => $renja->periodeTahun ? [
                 'id' => $renja->periodeTahun->id,

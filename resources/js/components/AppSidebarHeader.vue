@@ -28,6 +28,8 @@ const breadcrumbTitleByPrefix: Array<[string, string]> = [
     ['/workflow/inbox', 'Pengajuan Masuk'],
     ['/notifications', 'Notifikasi'],
     ['/master/opd', 'Master OPD'],
+    ['/master/jabatan-organisasi', 'Struktur Jabatan'],
+    ['/master/pegawai', 'Pegawai OPD'],
     ['/master/periode-tahun', 'Periode Tahun'],
     ['/master/satuan-indikator', 'Satuan Indikator'],
     ['/master/strategi-daerah', 'Strategi Daerah'],
@@ -62,9 +64,7 @@ const activeBreadcrumbs = computed(() => (props.breadcrumbs.length > 0 ? props.b
 </script>
 
 <template>
-    <header
-        class="flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border/70 px-6 md:px-4"
-    >
+    <header class="flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border/70 px-6 md:px-4">
         <div class="flex min-w-0 flex-1 items-center gap-2">
             <SidebarTrigger class="-ml-1" />
             <template v-if="activeBreadcrumbs.length > 0">

@@ -24,8 +24,11 @@ class PerjanjianKinerjaItemController extends Controller
         $this->authorize('update', $perjanjianKinerja);
 
         $data = $request->validated();
+        $data = $this->normalizeItemSource($perjanjianKinerja, $data);
         $this->assertRelationsBelongToOpd($data, (int) $perjanjianKinerja->opd_id);
-        $data = $hierarchyValidation->applyApprovedPerjanjianKinerjaTarget($perjanjianKinerja, $data);
+        if ($perjanjianKinerja->tipe_pk === 'cascading') {
+            $data = $hierarchyValidation->applyApprovedPerjanjianKinerjaTarget($perjanjianKinerja, $data);
+        }
 
         $perjanjianKinerja->items()->create($data);
 
@@ -42,8 +45,11 @@ class PerjanjianKinerjaItemController extends Controller
         abort_unless((int) $item->perjanjian_kinerja_id === (int) $perjanjianKinerja->id, 404);
 
         $data = $request->validated();
+        $data = $this->normalizeItemSource($perjanjianKinerja, $data);
         $this->assertRelationsBelongToOpd($data, (int) $perjanjianKinerja->opd_id);
-        $data = $hierarchyValidation->applyApprovedPerjanjianKinerjaTarget($perjanjianKinerja, $data);
+        if ($perjanjianKinerja->tipe_pk === 'cascading') {
+            $data = $hierarchyValidation->applyApprovedPerjanjianKinerjaTarget($perjanjianKinerja, $data);
+        }
 
         $item->update($data);
 
@@ -88,5 +94,23 @@ class PerjanjianKinerjaItemController extends Controller
                 ->exists()) {
             throw ValidationException::withMessages(['opd_program_id' => 'Program OPD tidak sesuai OPD Perjanjian Kinerja.']);
         }
+    }
+
+    private function normalizeItemSource(PerjanjianKinerja $pk, array $data): array
+    {
+        if ($pk->tipe_pk === 'individual') {
+            return [
+                ...$data,
+                'sumber_item' => 'manual',
+                'level_cascading' => null,
+                'cascading_source_type' => null,
+                'cascading_source_id' => null,
+                'sasaran_opd_id' => null,
+                'indikator_sasaran_opd_id' => null,
+                'opd_program_id' => null,
+            ];
+        }
+
+        return [...$data, 'sumber_item' => 'cascading'];
     }
 }

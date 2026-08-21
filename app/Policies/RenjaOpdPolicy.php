@@ -39,6 +39,10 @@ class RenjaOpdPolicy
 
     public function update(User $user, RenjaOpd $renjaOpd): bool
     {
+        if ($renjaOpd->isArchivedVersion() || $renjaOpd->isOfficialVersion()) {
+            return false;
+        }
+
         if (! $this->canChangeLocked($user, $renjaOpd)) {
             return false;
         }
@@ -56,5 +60,23 @@ class RenjaOpdPolicy
     public function delete(User $user, RenjaOpd $renjaOpd): bool
     {
         return $this->update($user, $renjaOpd);
+    }
+
+    public function createRevision(User $user, RenjaOpd $renjaOpd): bool
+    {
+        if ($renjaOpd->jenis_versi !== 'ditetapkan'
+            || ! $renjaOpd->is_active_version
+            || ! in_array($renjaOpd->status, ['approved', 'locked'], true)
+            || ! $user->hasPermission('renja.manage')) {
+            return false;
+        }
+
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        return $user->hasRole('admin_opd')
+            && $user->canAccessOpd($renjaOpd->opd_id)
+            && $user->canAccessOpdUnit($renjaOpd->opd_unit_id);
     }
 }

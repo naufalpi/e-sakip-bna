@@ -7,9 +7,12 @@ use App\Http\Controllers\Kinerja\Concerns\BuildsKinerjaOptions;
 use App\Http\Requests\Kinerja\StorePerjanjianKinerjaRequest;
 use App\Http\Requests\Kinerja\UpdatePerjanjianKinerjaRequest;
 use App\Jobs\ExportKinerjaReportDocumentJob;
+use App\Models\Pegawai;
+use App\Models\PenugasanPengampuKinerja;
 use App\Models\PerjanjianKinerja;
 use App\Models\PerjanjianKinerjaItem;
 use App\Models\RenstraOpd;
+use App\Models\RiwayatPejabatJabatan;
 use App\Models\User;
 use App\Models\WorkflowSubmission;
 use Illuminate\Database\Eloquent\Builder;
@@ -32,7 +35,7 @@ class PerjanjianKinerjaController extends Controller
         $user = $request->user();
 
         $items = PerjanjianKinerja::query()
-            ->with(['opd:id,kode,nama,singkatan', 'periodeTahun:id,tahun,nama'])
+            ->with(['opd:id,kode,nama,singkatan', 'periodeTahun:id,tahun,nama', 'pegawai:id,nama,nip'])
             ->withCount('items')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
@@ -56,6 +59,9 @@ class PerjanjianKinerjaController extends Controller
                 'nomor_dokumen' => $pk->nomor_dokumen,
                 'tahun' => $pk->tahun,
                 'status' => $pk->status,
+                'tipe_pk' => $pk->tipe_pk,
+                'tipe_pk_label' => $pk->tipe_pk === 'individual' ? 'PK Individu' : 'PK Cascading',
+                'pegawai' => $pk->pegawai ? ['id' => $pk->pegawai->id, 'nama' => $pk->pegawai->nama, 'nip' => $pk->pegawai->nip] : null,
                 'items_count' => $pk->items_count,
                 'opd' => $pk->opd ? [
                     'id' => $pk->opd->id,
@@ -91,6 +97,7 @@ class PerjanjianKinerjaController extends Controller
             'opdOptions' => $this->opdOptions($request->user()),
             'periodeOptions' => $this->periodeOptions(),
             'renstraOptions' => $this->renstraOptions($request->user()),
+            ...$this->subjectOptions($request->user()),
         ]);
     }
 
@@ -98,6 +105,7 @@ class PerjanjianKinerjaController extends Controller
     {
         $data = $request->validated();
         $this->assertRenstraBelongsToOpd($data['renstra_opd_id'] ?? null, (int) $data['opd_id']);
+        $data = $this->prepareSubjectData($data);
 
         $pk = PerjanjianKinerja::create($data);
 
@@ -112,6 +120,9 @@ class PerjanjianKinerjaController extends Controller
             'opd:id,kode,nama,singkatan',
             'periodeTahun:id,tahun,nama',
             'renstraOpd:id,judul,tahun_awal,tahun_akhir',
+            'pegawai:id,nama,nip,pangkat_golongan',
+            'penempatanPegawai.jabatanOrganisasi:id,nama,level_jabatan',
+            'atasanPegawai:id,nama,nip',
             'items.satuanIndikator:id,nama,simbol',
             'items.sasaranOpd:id,kode,sasaran',
             'items.indikatorSasaranOpd:id,kode,indikator',
@@ -157,6 +168,10 @@ class PerjanjianKinerjaController extends Controller
             'item' => [
                 'id' => $perjanjianKinerja->id,
                 'opd_id' => $perjanjianKinerja->opd_id,
+                'pegawai_id' => $perjanjianKinerja->pegawai_id,
+                'penempatan_pegawai_id' => $perjanjianKinerja->penempatan_pegawai_id,
+                'atasan_pegawai_id' => $perjanjianKinerja->atasan_pegawai_id,
+                'tipe_pk' => $perjanjianKinerja->tipe_pk,
                 'renstra_opd_id' => $perjanjianKinerja->renstra_opd_id,
                 'periode_tahun_id' => $perjanjianKinerja->periode_tahun_id,
                 'tahun' => $perjanjianKinerja->tahun,
@@ -168,6 +183,7 @@ class PerjanjianKinerjaController extends Controller
             'opdOptions' => $this->opdOptions($request->user()),
             'periodeOptions' => $this->periodeOptions(),
             'renstraOptions' => $this->renstraOptions($request->user()),
+            ...$this->subjectOptions($request->user()),
         ]);
     }
 
@@ -175,6 +191,7 @@ class PerjanjianKinerjaController extends Controller
     {
         $data = $request->validated();
         $this->assertRenstraBelongsToOpd($data['renstra_opd_id'] ?? null, (int) $data['opd_id']);
+        $data = $this->prepareSubjectData($data);
 
         $perjanjianKinerja->update($data);
 
@@ -199,6 +216,17 @@ class PerjanjianKinerjaController extends Controller
             'tahun' => $pk->tahun,
             'status' => $pk->status,
             'catatan' => $pk->catatan,
+            'tipe_pk' => $pk->tipe_pk,
+            'tipe_pk_label' => $pk->tipe_pk === 'individual' ? 'PK Individu' : 'PK Cascading',
+            'pegawai' => $pk->pegawai,
+            'penempatan_pegawai' => $pk->penempatanPegawai ? [
+                'id' => $pk->penempatanPegawai->id,
+                'jabatan' => $pk->penempatanPegawai->jabatanOrganisasi,
+            ] : null,
+            'atasan_pegawai' => $pk->atasanPegawai,
+            'nama_pegawai_snapshot' => $pk->nama_pegawai_snapshot,
+            'nip_snapshot' => $pk->nip_snapshot,
+            'jabatan_snapshot' => $pk->jabatan_snapshot,
             'opd' => $pk->opd,
             'periode_tahun' => $pk->periodeTahun,
             'renstra_opd' => $pk->renstraOpd,
@@ -249,6 +277,76 @@ class PerjanjianKinerjaController extends Controller
                 'renstra_opd_id' => 'Renstra yang dipilih harus sesuai OPD dan sudah disetujui atau terkunci.',
             ]);
         }
+    }
+
+    private function subjectOptions(User $user): array
+    {
+        $employees = Pegawai::query()
+            ->where('status', 'active')
+            ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
+            ->with(['penempatan.jabatanOrganisasi:id,nama,level_jabatan'])
+            ->orderBy('nama')
+            ->get(['id', 'opd_id', 'nama', 'nip']);
+
+        return [
+            'pegawaiOptions' => $employees->map(fn (Pegawai $pegawai) => [
+                'id' => $pegawai->id,
+                'opd_id' => $pegawai->opd_id,
+                'label' => $pegawai->nama.($pegawai->nip ? " · NIP {$pegawai->nip}" : ''),
+            ])->all(),
+            'placementOptions' => $employees->flatMap(fn (Pegawai $pegawai) => $pegawai->penempatan->map(fn (RiwayatPejabatJabatan $placement) => [
+                'id' => $placement->id,
+                'pegawai_id' => $pegawai->id,
+                'label' => ($placement->jabatanOrganisasi?->nama ?? 'Jabatan tidak tersedia')." · TMT {$placement->tanggal_mulai?->format('Y-m-d')}",
+            ]))->values()->all(),
+        ];
+    }
+
+    private function prepareSubjectData(array $data): array
+    {
+        $pegawai = Pegawai::query()->findOrFail($data['pegawai_id']);
+
+        if ((int) $pegawai->opd_id !== (int) $data['opd_id']) {
+            throw ValidationException::withMessages(['pegawai_id' => 'Pegawai harus berada pada OPD Perjanjian Kinerja.']);
+        }
+
+        $placement = null;
+        if ($data['penempatan_pegawai_id'] ?? null) {
+            $placement = RiwayatPejabatJabatan::query()
+                ->with('jabatanOrganisasi:id,nama')
+                ->whereKey($data['penempatan_pegawai_id'])
+                ->where('pegawai_id', $pegawai->id)
+                ->first();
+
+            if (! $placement) {
+                throw ValidationException::withMessages(['penempatan_pegawai_id' => 'Penempatan tidak sesuai dengan pegawai yang dipilih.']);
+            }
+        }
+
+        if (($data['atasan_pegawai_id'] ?? null)
+            && ! Pegawai::query()->whereKey($data['atasan_pegawai_id'])->where('opd_id', $data['opd_id'])->exists()) {
+            throw ValidationException::withMessages(['atasan_pegawai_id' => 'Atasan PK harus berada pada OPD yang sama.']);
+        }
+
+        if ($data['tipe_pk'] === 'cascading'
+            && ! PenugasanPengampuKinerja::query()
+                ->where('pegawai_id', $pegawai->id)
+                ->where('periode_tahun_id', $data['periode_tahun_id'])
+                ->where('status', 'active')
+                ->exists()) {
+            throw ValidationException::withMessages(['pegawai_id' => 'Pegawai belum memiliki penugasan pengampu kinerja pada periode tersebut. Tambahkan penugasan melalui Master Pegawai.']);
+        }
+
+        if ($data['tipe_pk'] === 'individual') {
+            $data['renstra_opd_id'] = null;
+        }
+
+        return [
+            ...$data,
+            'nama_pegawai_snapshot' => $pegawai->nama,
+            'nip_snapshot' => $pegawai->nip,
+            'jabatan_snapshot' => $placement?->jabatanOrganisasi?->nama,
+        ];
     }
 
     private function canReviewWorkflow(User $user): bool

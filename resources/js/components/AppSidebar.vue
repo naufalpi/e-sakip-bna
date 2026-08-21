@@ -13,20 +13,19 @@ import { type NavGroup, type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import Bell from 'lucide-vue-next/dist/esm/icons/bell.js';
 import BookOpenCheck from 'lucide-vue-next/dist/esm/icons/book-open-check.js';
+import BriefcaseBusiness from 'lucide-vue-next/dist/esm/icons/briefcase-business.js';
 import Building2 from 'lucide-vue-next/dist/esm/icons/building-2.js';
 import CalendarDays from 'lucide-vue-next/dist/esm/icons/calendar-days.js';
 import BarChart3 from 'lucide-vue-next/dist/esm/icons/chart-column.js';
-import ClipboardCheck from 'lucide-vue-next/dist/esm/icons/clipboard-check.js';
 import ClipboardList from 'lucide-vue-next/dist/esm/icons/clipboard-list.js';
 import FileCheck2 from 'lucide-vue-next/dist/esm/icons/file-check-2.js';
+import FileSpreadsheet from 'lucide-vue-next/dist/esm/icons/file-spreadsheet.js';
 import FileText from 'lucide-vue-next/dist/esm/icons/file-text.js';
 import GitBranch from 'lucide-vue-next/dist/esm/icons/git-branch.js';
-import History from 'lucide-vue-next/dist/esm/icons/history.js';
 import Inbox from 'lucide-vue-next/dist/esm/icons/inbox.js';
 import Landmark from 'lucide-vue-next/dist/esm/icons/landmark.js';
 import Layers3 from 'lucide-vue-next/dist/esm/icons/layers.js';
 import LayoutDashboard from 'lucide-vue-next/dist/esm/icons/layout-dashboard.js';
-import ListChecks from 'lucide-vue-next/dist/esm/icons/list-checks.js';
 import Network from 'lucide-vue-next/dist/esm/icons/network.js';
 import Ruler from 'lucide-vue-next/dist/esm/icons/ruler.js';
 import ScrollText from 'lucide-vue-next/dist/esm/icons/scroll-text.js';
@@ -42,7 +41,6 @@ const NavUser = defineAsyncComponent(() => import('@/components/NavUser.vue'));
 const hasPermission = (permission: string) => page.props.auth.user?.permissions?.includes(permission) ?? false;
 const hasAnyPermission = (permissions: string[]) => permissions.some((permission) => hasPermission(permission));
 const hasRole = (role: string) => page.props.auth.user?.roles?.some((item) => item.name === role) ?? false;
-const hasAnyRole = (roles: string[]) => roles.some((role) => hasRole(role));
 const visibleItems = (items: Array<NavItem | false>) => items.filter(Boolean) as NavItem[];
 const notificationUnreadCount = computed(() => page.props.notifications?.unread_count ?? 0);
 const notificationBadge = computed(() => (notificationUnreadCount.value > 99 ? '99+' : notificationUnreadCount.value || undefined));
@@ -65,6 +63,10 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     'kinerja.manage',
                     'rpjmd.manage',
                     'renstra.manage',
+                    'rka.manage',
+                    'rka.verify',
+                    'dpa.manage',
+                    'dpa.verify',
                     'evaluasi.manage',
                     'lkjip.manage',
                     'verify_realisasi',
@@ -96,6 +98,18 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     href: '/master/opd',
                     pageComponent: 'Master/Opd/Index',
                     icon: Building2,
+                },
+                hasPermission('jabatan_organisasi.view') && !hasRole('admin_opd') && {
+                    title: 'Struktur Organisasi',
+                    href: '/master/jabatan-organisasi',
+                    pageComponent: 'Master/JabatanOrganisasi/Index',
+                    icon: BriefcaseBusiness,
+                },
+                hasPermission('pegawai.view') && {
+                    title: 'Pegawai OPD',
+                    href: '/master/pegawai',
+                    pageComponent: 'Master/Pegawai/Index',
+                    icon: Users,
                 },
                 hasPermission('periode.view') && {
                     title: 'Periode Tahun',
@@ -156,38 +170,22 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     pageComponent: 'RenjaOpd/Index',
                     icon: FileText,
                 },
-                hasAnyPermission(['rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd']) && {
-                    title: 'Pohon Kinerja',
-                    href: '/pohon-kinerja',
-                    pageComponent: 'Perencanaan/PohonKinerja',
-                    icon: Network,
+            ]),
+        },
+        {
+            label: 'Penganggaran Kinerja',
+            items: visibleItems([
+                hasAnyPermission(['rka.view', 'rka.manage', 'rka.verify']) && {
+                    title: 'RKA OPD',
+                    href: '/rka-opd',
+                    pageComponent: 'RkaOpd/Index',
+                    icon: FileSpreadsheet,
                 },
-                hasAnyPermission(['kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja']) && {
-                    title: 'Perjanjian Kinerja',
-                    href: '/perjanjian-kinerja',
-                    pageComponent: 'Kinerja/PerjanjianKinerja/Index',
-                    icon: ClipboardCheck,
-                },
-                hasAnyPermission(['kinerja.view', 'kinerja.manage', 'manage_rencana_aksi']) && {
-                    title: 'Rencana Aksi',
-                    href: '/rencana-aksi',
-                    pageComponent: 'Kinerja/RencanaAksi/Index',
-                    icon: ListChecks,
-                },
-                hasAnyPermission([
-                    'rpjmd.view',
-                    'view_rpjmd',
-                    'rpjmd.manage',
-                    'manage_rpjmd',
-                    'renstra.view',
-                    'view_renstra_opd',
-                    'renstra.manage',
-                    'manage_renstra_opd',
-                ]) && {
-                    title: 'Revisi Target',
-                    href: '/target-revisions',
-                    pageComponent: 'Perencanaan/TargetRevision/Index',
-                    icon: History,
+                hasAnyPermission(['dpa.view', 'dpa.manage', 'dpa.verify']) && {
+                    title: 'DPA OPD',
+                    href: '/dpa-opd',
+                    pageComponent: 'DpaOpd/Index',
+                    icon: FileCheck2,
                 },
             ]),
         },

@@ -44,7 +44,6 @@ class StoreRkpdRequest extends FormRequest
             'tahun' => ['required', 'integer', 'between:2000,2100'],
             'judul' => ['required', 'string', 'max:255'],
             'nomor_dokumen' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', 'string', Rule::in(['draft', 'submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'])],
             'catatan' => ['nullable', 'string'],
         ];
     }

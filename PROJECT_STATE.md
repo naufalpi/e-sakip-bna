@@ -52,6 +52,28 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 
 - Master OPD dan unit OPD digabung dalam menu `Master OPD`.
 - User sudah bisa dikaitkan ke `opd_id` dan `opd_unit_id`.
+- Referensi organisasi dipisahkan menjadi `Struktur Jabatan` dan `Pegawai & Penempatan` agar nomenklatur organisasi tidak tercampur dengan identitas orang.
+    - UI operasional disederhanakan menjadi menu `Pegawai OPD`: saat menambah pegawai, jabatan, status jabatan, TMT, dan SK dapat disimpan sekaligus dalam satu formulir. Istilah penempatan tetap dipakai pada struktur data internal untuk menjaga histori.
+    - Menu struktur ditampilkan sebagai `Struktur Organisasi` untuk pengelola pusat dan disembunyikan dari sidebar Admin OPD; Admin OPD cukup bekerja dari `Pegawai OPD`.
+    - `Struktur Jabatan` memuat hierarki permanen: Kepala Daerah, JPT Pratama, Administrator, Pengawas, Fungsional, dan Pelaksana.
+    - Jabatan tidak memakai kode khusus; identitas teknis menggunakan ID database dan pengguna cukup mengisi nomenklatur jabatan.
+    - Setiap jabatan selain Kepala Daerah wajib memiliki OPD dan atasan langsung yang valid; unit organisasi bersifat opsional.
+    - `Pegawai & Penempatan` memuat PNS, PPPK, dan Non-ASN; akun aplikasi bersifat opsional dan tidak identik dengan pegawai.
+    - Penempatan mencatat jabatan, jenis penugasan definitif/Pj./Plt./Plh., TMT Jabatan wajib, tanggal selesai opsional, serta dasar SK.
+    - Pejabat definitif tidak diberi tanggal selesai sampai benar-benar diganti/mutasi/pensiun/diberhentikan; sebelum pejabat pengganti dicatat, riwayat lama harus ditutup agar masa tugas tidak bertumpang tindih.
+    - Jabatan struktural hanya boleh memiliki satu pemegang pada rentang aktif yang sama. Jabatan Fungsional dan Pelaksana dapat diisi banyak pegawai, tetapi penempatan pegawai yang sama tidak boleh bertumpang tindih.
+    - Akun pejabat tidak wajib untuk penyusunan PK karena Admin OPD dapat bertindak sebagai operator. Akun hanya perlu dihubungkan bila pejabat akan login atau melakukan persetujuan sendiri; identitas pihak PK tetap berasal dari pejabat aktif sesuai TMT/periode dokumen.
+    - Import Excel tersedia melalui alur template -> upload/validasi -> preview -> terapkan. Workbook terbaru memakai sheet `Jabatan` dan `Pegawai`; pencocokan jabatan menggunakan kombinasi nama jabatan + OPD + unit.
+    - Template memberi contoh hierarki sampai Sekretaris/Kabid, Kasubbag/Kasi, JF, dan Pelaksana; memakai kolom `jenis_pegawai` serta `tmt_jabatan`. Importer tetap menerima template lama tanpa `jenis_pegawai`, sheet bernama `Pejabat`, dan kolom lama `tanggal_mulai` untuk kompatibilitas.
+    - Validasi import menolak OPD/unit/atasan/akun yang tidak ditemukan, jabatan ganda, hierarki tidak valid atau bersiklus, format tanggal salah, serta masa tugas pejabat yang bertumpang tindih. Seluruh baris harus valid sebelum import dapat diterapkan.
+    - Data lama pada riwayat pejabat otomatis dibentuk menjadi master pegawai saat migrasi; relasi lama tetap dipertahankan agar data production tidak hilang.
+    - Jabatan dengan turunan atau riwayat tidak dapat dihapus dan harus dinonaktifkan agar histori dokumen aman.
+    - Struktur/nomenklatur jabatan dikelola terpusat oleh Super Admin, Bagian Organisasi, dan Dinkominfo.
+    - Admin OPD dapat menambah/memperbarui pegawai, mencatat/mengakhiri penempatan, dan menentukan pengampu kinerja tahunan hanya untuk OPD sendiri melalui permission `pegawai.manage`. Admin OPD tidak dapat mengubah struktur jabatan atau menghapus histori penempatan.
+    - Pengelola pusat dapat mengelola seluruh pegawai, perpindahan lintas OPD, serta penghapusan data kosong. Data yang sudah memiliki histori penempatan/PK harus dinonaktifkan, bukan dihapus.
+    - Penugasan pengampu kinerja disimpan per pegawai, periode, dan level cascading (sasaran/program/kegiatan/sub kegiatan). Penugasan ini menjadi syarat pembuatan PK Cascading.
+    - Pimpinan memperoleh akses lihat sesuai cakupan OPD.
+    - Struktur level mengikuti rantai akuntabilitas Perbup Banjarnegara Nomor 41 Tahun 2024 sebagai fondasi penyusunan PK bertingkat.
 - Master periode tahun.
 - Master satuan indikator.
 - Master strategi daerah.
@@ -143,7 +165,12 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 
 ### RKPD Kabupaten
 
-- RKPD tahunan, berisi data final yang diinput Bapperida/admin kabupaten.
+- RKPD tahunan, diinput dan dikelola oleh Bapperida/admin kabupaten.
+- RKPD sekarang memiliki versioning tahunan:
+    - `RKPD Awal`,
+    - `RKPD Ditetapkan` yang otomatis menjadi snapshot saat RKPD Awal disetujui,
+    - `RKPD Perubahan` yang disalin dari RKPD Ditetapkan dan menjadi versi aktif setelah disetujui.
+- Versi lama tetap tersimpan sebagai arsip; ID serta relasi data RKPD/RENJA production dipertahankan oleh migrasi aditif.
 - RKPD bukan proses usulan OPD untuk tahap sekarang.
 - RKPD punya tab:
     - IKU Kabupaten,
@@ -179,11 +206,73 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 ### Renja OPD
 
 - Renja tahunan.
+- RENJA sekarang memiliki versioning tahunan per OPD/unit:
+    - `RENJA Awal` yang memakai acuan RKPD Awal,
+    - `RENJA Ditetapkan` yang otomatis dibuat sebagai snapshot saat RENJA Awal disetujui dan memakai RKPD Ditetapkan,
+    - `RENJA Perubahan` yang hanya dapat dibuat setelah RKPD Perubahan ditetapkan dan menjadi versi aktif setelah disetujui.
+- Snapshot menyalin seluruh `renja_opd_items`; versi lama tetap menjadi arsip dan data production lama tidak diganti ID-nya.
+- Migrasi lama memetakan status `approved/locked` sebagai RENJA Ditetapkan dan status lainnya sebagai RENJA Awal.
 - Tahun Renja menjadi input utama; periode tahun mengikuti otomatis.
 - Judul dan nomor dokumen dibuat uppercase.
 - Status awal otomatis draft.
 - Form dan preview Renja disesuaikan agar mirip RKPD.
 - Program yang muncul harus sesuai Renja OPD terkait, termasuk program penunjang khusus OPD.
+
+### RKA OPD
+
+- Modul RKA OPD tersedia pada grup menu `Penganggaran Kinerja`.
+- RKA hanya dapat dibuat dari `RENJA Ditetapkan` atau `RENJA Perubahan` yang sudah disetujui/terkunci.
+- Satu versi RENJA hanya dapat memiliki satu RKA aktif; pembuatan RKA menyalin seluruh sub kegiatan sebagai snapshot sehingga perubahan RKA tidak mengubah RENJA sumber.
+- Jenis dokumen mengikuti sumbernya:
+    - `RKA APBD` dari RENJA Ditetapkan,
+    - `RKA Perubahan APBD` dari RENJA Perubahan Ditetapkan.
+- Struktur isian memakai lingkup inti `RKA-BELANJA SKPD` berdasarkan PP 12/2019 dan Permendagri 77/2020:
+    - organisasi dan unit organisasi,
+    - urusan/program/kegiatan/sub kegiatan,
+    - indikator dan tolok ukur kinerja,
+    - target kinerja,
+    - sumber pendanaan,
+    - lokasi, waktu pelaksanaan, dan kelompok sasaran,
+    - alokasi T-1, pagu RENJA, pagu usulan T, hasil verifikasi T, dan alokasi T+1.
+- Detail rekening, koefisien/volume, harga satuan, PPN, transaksi, dan penatausahaan tetap berada di SIPD/aplikasi keuangan utama.
+- Alur workflow RKA: Draft -> Diajukan -> Terverifikasi -> Disetujui -> Terkunci; pemeriksa dengan permission `rka.verify` dapat mengubah pagu hasil verifikasi dan wajib memberi alasan bila berbeda dari usulan.
+- Permission baru: `rka.view`, `rka.manage`, dan `rka.verify`.
+
+### DPA OPD
+
+- Modul DPA OPD tersedia pada grup menu `Penganggaran Kinerja` setelah RKA.
+- DPA hanya dapat dibuat dari RKA yang sudah disetujui/terkunci; satu RKA hanya dapat memiliki satu DPA aktif.
+- Pembuatan DPA menyalin struktur kinerja dan pagu hasil verifikasi RKA sebagai snapshot, sehingga perubahan DPA tidak mengubah RKA sumber.
+- Jenis dokumen mengikuti RKA:
+    - `DPA-SKPD` dari RKA APBD,
+    - `DPPA-SKPD` dari RKA Perubahan APBD.
+- Lingkup inti `DPA-BELANJA SKPD` mengikuti PP 12/2019 dan Permendagri 77/2020:
+    - identitas OPD/unit, tahun anggaran, dan acuan RKA,
+    - dasar Perda APBD dan Perkada Penjabaran APBD,
+    - program/kegiatan/sub kegiatan, indikator/tolok ukur, target, sumber pendanaan, lokasi, kelompok sasaran, dan waktu pelaksanaan,
+    - pagu RKA dan pagu DPA,
+    - rencana penarikan dana Januari-Desember per sub kegiatan,
+    - Pengguna Anggaran, pengesahan PPKD, dan persetujuan Sekretaris Daerah.
+- Pagu DPA awal otomatis sama dengan pagu hasil verifikasi RKA. Penyesuaian oleh pemeriksa wajib memiliki alasan.
+- DPA tidak dapat diajukan jika identitas dasar APBD belum lengkap atau total penarikan bulanan tidak sama dengan pagu DPA.
+- DPA tidak dapat disahkan sebelum nomor/tanggal DPA serta identitas PPKD dan Sekretaris Daerah dilengkapi.
+- Workflow DPA: Draft -> Diajukan -> Terverifikasi -> Disahkan -> Terkunci.
+- Detail rekening, koefisien/volume, harga satuan, PPN, SPP/SPM/SP2D, transaksi, dan akuntansi tetap berada di SIPD/aplikasi keuangan utama.
+- Permission: `dpa.view`, `dpa.manage`, dan `dpa.verify`; penyusun berada pada Admin OPD, sedangkan verifikasi/pengesahan diberikan kepada role `admin_kabupaten_bpkad` sebagai fungsi PPKD/TAPD. Bapperida hanya memperoleh akses lihat DPA.
+
+### Struktur Navigasi Kinerja
+
+- Grup `Perencanaan Kinerja` saat ini hanya menampilkan RPJMD, RKPD, Renstra OPD, dan Renja OPD.
+- Menu Pohon Kinerja, Perjanjian Kinerja, Rencana Aksi, dan Revisi Target sementara disembunyikan dari sidebar tanpa menghapus route atau datanya.
+- Saat dilanjutkan, Perjanjian Kinerja dan Rencana Aksi direncanakan masuk ke grup baru `Penetapan Kinerja`, berurutan PK lalu Rencana Aksi.
+- Revisi Target direncanakan menjadi aksi kontekstual di detail dokumen terkait, bukan menu utama sidebar.
+
+### Fondasi Perjanjian Kinerja Bertingkat
+
+- PK sekarang memiliki subjek pegawai, snapshot nama/NIP/jabatan, atasan, penempatan yang digunakan, dan tipe `PK Cascading` atau `PK Individu`.
+- PK Cascading hanya dapat dibuat bila pegawai memiliki penugasan pengampu pada periode yang sama; jalur ini dapat diteruskan ke Rencana Aksi dan realisasi/pengukuran organisasi.
+- PK Individu dapat dibuat untuk staf/JF/Pelaksana tanpa sumber cascading; item diisi manual dan sengaja tidak tersedia sebagai sumber Rencana Aksi maupun realisasi organisasi.
+- Data PK lama tetap bertipe cascading secara default dan tidak dihapus oleh migrasi; identitas pegawainya dapat dilengkapi saat dokumen diedit.
 
 ### Dokumen Publik
 
@@ -374,14 +463,10 @@ Prioritas dekat:
     - OPD muncul sekali lalu seluruh baris di bawahnya,
     - export Excel format resmi.
 
-5. Lanjut desain perubahan dokumen tahunan:
+5. Lanjut desain/versioning dokumen tahunan berikutnya (versioning RKPD dan RENJA serta modul RKA dan DPA sudah selesai):
 
-    - RKPD Awal/Final,
-    - Renja Awal/Final,
-    - RKA,
-    - DPA,
-    - PK,
-    - Rencana Aksi.
+    - finalisasi matriks item PK bertingkat untuk indikator kegiatan/sub kegiatan,
+    - penyempurnaan Rencana Aksi berdasarkan penugasan PK Cascading.
 
 6. Kuatkan sinkronisasi RKPD <-> Renja:
     - tarik Renja ke RKPD,

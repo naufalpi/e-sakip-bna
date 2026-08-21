@@ -42,13 +42,14 @@ class UpdateRkpdRequest extends FormRequest
                 'exists:periode_tahun,id',
                 Rule::unique('rkpd', 'periode_tahun_id')
                     ->ignore($rkpd?->id)
-                    ->where(fn ($query) => $query->where('tahun', $this->input('tahun')))
+                    ->where(fn ($query) => $query
+                        ->where('tahun', $this->input('tahun'))
+                        ->where('jenis_versi', $rkpd?->jenis_versi ?? 'awal'))
                     ->whereNull('deleted_at'),
             ],
             'tahun' => ['required', 'integer', 'between:2000,2100'],
             'judul' => ['required', 'string', 'max:255'],
             'nomor_dokumen' => ['nullable', 'string', 'max:255'],
-            'status' => ['required', 'string', Rule::in(['draft', 'submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'])],
             'catatan' => ['nullable', 'string'],
         ];
     }

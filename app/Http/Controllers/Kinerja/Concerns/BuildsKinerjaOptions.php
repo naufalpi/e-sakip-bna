@@ -95,6 +95,7 @@ trait BuildsKinerjaOptions
             ->with('opd:id,nama,singkatan')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($opdId, fn (Builder $query) => $query->where('opd_id', $opdId))
+            ->where('tipe_pk', 'cascading')
             ->whereIn('status', ['approved', 'locked'])
             ->whereHas('items')
             ->orderByDesc('tahun')
@@ -213,7 +214,9 @@ trait BuildsKinerjaOptions
     private function perjanjianKinerjaItemOptions(int $opdId): array
     {
         return PerjanjianKinerjaItem::query()
-            ->whereHas('perjanjianKinerja', fn (Builder $query) => $query->where('opd_id', $opdId))
+            ->whereHas('perjanjianKinerja', fn (Builder $query) => $query
+                ->where('opd_id', $opdId)
+                ->where('tipe_pk', 'cascading'))
             ->orderBy('urutan')
             ->get(['id', 'kode', 'indikator'])
             ->map(fn (PerjanjianKinerjaItem $item) => [

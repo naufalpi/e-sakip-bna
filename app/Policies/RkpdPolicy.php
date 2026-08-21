@@ -27,6 +27,10 @@ class RkpdPolicy
 
     public function update(User $user, Rkpd $rkpd): bool
     {
+        if ($rkpd->isArchivedVersion() || $rkpd->isOfficialVersion()) {
+            return false;
+        }
+
         if (! $this->canChangeLocked($user, $rkpd)) {
             return false;
         }
@@ -37,5 +41,13 @@ class RkpdPolicy
     public function delete(User $user, Rkpd $rkpd): bool
     {
         return $this->update($user, $rkpd);
+    }
+
+    public function createRevision(User $user, Rkpd $rkpd): bool
+    {
+        return $rkpd->jenis_versi === 'ditetapkan'
+            && $rkpd->is_active_version
+            && in_array($rkpd->status, ['approved', 'locked'], true)
+            && $user->hasPermission('rkpd.manage');
     }
 }

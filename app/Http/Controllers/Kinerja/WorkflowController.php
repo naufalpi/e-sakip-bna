@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Kinerja;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Kinerja\WorkflowTransitionRequest;
+use App\Models\RenjaOpd;
+use App\Models\Rkpd;
 use App\Services\Kinerja\WorkflowService;
 use App\Services\Workflow\WorkflowModuleRegistry;
 use Illuminate\Database\Eloquent\Model;
@@ -17,15 +19,49 @@ class WorkflowController extends Controller
         /** @var Model $model */
         $model = $modelClass::query()->findOrFail($id);
 
+        $action = (string) $request->validated('action');
+
         $workflowService->transition(
             $model,
             $module,
-            (string) $request->validated('action'),
+            $action,
             $request->user(),
             $request->validated('note'),
             $request->validated('current_reviewer_id'),
             ['ip' => $request->ip()]
         );
+
+        if ($model instanceof Rkpd && $action === 'approve') {
+            $successMessage = $model->jenis_versi === 'perubahan'
+                ? 'RKPD Perubahan berhasil disetujui dan menjadi versi aktif.'
+                : 'RKPD berhasil disetujui dan versi ditetapkan telah dibuat.';
+            $destination = Rkpd::query()
+                ->where('root_version_id', $model->root_version_id ?: $model->id)
+                ->where('is_active_version', true)
+                ->orderByDesc('nomor_versi')
+                ->first();
+
+            if ($destination) {
+                return redirect()->route('rkpd.show', $destination)
+                    ->with('success', $successMessage);
+            }
+        }
+
+        if ($model instanceof RenjaOpd && $action === 'approve') {
+            $successMessage = $model->jenis_versi === 'perubahan'
+                ? 'RENJA Perubahan berhasil disetujui dan menjadi versi aktif.'
+                : 'RENJA berhasil disetujui dan versi ditetapkan telah dibuat.';
+            $destination = RenjaOpd::query()
+                ->where('root_version_id', $model->root_version_id ?: $model->id)
+                ->where('is_active_version', true)
+                ->orderByDesc('nomor_versi')
+                ->first();
+
+            if ($destination) {
+                return redirect()->route('renja-opd.show', $destination)
+                    ->with('success', $successMessage);
+            }
+        }
 
         return back()->with('success', 'Status pengajuan berhasil diperbarui.');
     }

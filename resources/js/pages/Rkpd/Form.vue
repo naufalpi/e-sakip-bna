@@ -10,7 +10,6 @@ type RkpdForm = {
     tahun: number | string;
     judul: string;
     nomor_dokumen: string;
-    status: string;
     catatan: string;
 };
 type Rkpd = {
@@ -20,7 +19,7 @@ type Rkpd = {
     tahun: number;
     judul: string;
     nomor_dokumen?: string | null;
-    status: string;
+    version_label?: string;
     catatan?: string | null;
 };
 
@@ -37,7 +36,6 @@ const form = useForm<RkpdForm>({
     tahun: props.rkpd?.tahun ?? new Date().getFullYear(),
     judul: props.rkpd?.judul ?? '',
     nomor_dokumen: props.rkpd?.nomor_dokumen ?? '',
-    status: props.rkpd?.status ?? 'draft',
     catatan: props.rkpd?.catatan ?? '',
 });
 
@@ -89,7 +87,9 @@ const submit = () => {
                     Kembali ke RKPD
                 </Link>
                 <h1 class="mt-3 text-2xl font-semibold tracking-normal">{{ title }}</h1>
-                <p class="mt-1 text-sm text-muted-foreground">Identitas dokumen RKPD tahunan yang sudah final dan disahkan.</p>
+                <p class="mt-1 text-sm text-muted-foreground">
+                    {{ props.rkpd?.version_label || 'Identitas RKPD Awal sebelum melalui proses persetujuan.' }}
+                </p>
             </div>
         </div>
 
@@ -138,20 +138,6 @@ const submit = () => {
                         placeholder="RKPD KABUPATEN BANJARNEGARA TAHUN ..."
                     />
                     <span v-if="form.errors.judul" class="text-xs text-red-600">{{ form.errors.judul }}</span>
-                </label>
-
-                <label class="grid gap-1.5">
-                    <span class="text-sm font-medium">Status</span>
-                    <select v-model="form.status" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
-                        <option value="draft">Draft</option>
-                        <option value="submitted">Diajukan</option>
-                        <option value="revision">Perlu Perbaikan</option>
-                        <option value="verified">Terverifikasi</option>
-                        <option value="approved">Disetujui</option>
-                        <option value="rejected">Ditolak</option>
-                        <option value="locked">Terkunci</option>
-                    </select>
-                    <span v-if="form.errors.status" class="text-xs text-red-600">{{ form.errors.status }}</span>
                 </label>
 
                 <label class="grid gap-1.5 lg:col-span-2">

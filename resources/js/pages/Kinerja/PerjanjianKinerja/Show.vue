@@ -42,6 +42,11 @@ const props = defineProps<{
         nomor_dokumen?: string | null;
         tahun: number;
         status: string;
+        tipe_pk: string;
+        tipe_pk_label: string;
+        pegawai?: { nama: string; nip?: string | null; pangkat_golongan?: string | null } | null;
+        penempatan_pegawai?: { jabatan?: { nama: string } | null } | null;
+        atasan_pegawai?: { nama: string; nip?: string | null } | null;
         catatan?: string | null;
         opd?: { nama: string; singkatan?: string | null } | null;
         periode_tahun?: { tahun: number; nama: string } | null;
@@ -151,6 +156,7 @@ const statusClass = (status: string) =>
                     <span>-</span>
                     <span>{{ item.tahun }}</span>
                     <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="statusClass(item.status)">{{ statusLabel(item.status) }}</span>
+                    <span class="rounded-full border px-2 py-0.5 text-xs font-semibold">{{ item.tipe_pk_label }}</span>
                 </div>
             </div>
             <div class="flex flex-wrap gap-2">
@@ -174,7 +180,12 @@ const statusClass = (status: string) =>
             </div>
         </div>
 
-        <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
+        <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-4">
+            <div>
+                <div class="text-xs uppercase text-muted-foreground">Pemilik PK</div>
+                <div class="mt-1 font-medium">{{ item.pegawai?.nama || 'PK organisasi lama' }}</div>
+                <div class="text-xs text-muted-foreground">{{ item.penempatan_pegawai?.jabatan?.nama || item.pegawai?.nip || '-' }}</div>
+            </div>
             <div>
                 <div class="text-xs uppercase text-muted-foreground">Nomor Dokumen</div>
                 <div class="mt-1 font-medium">{{ item.nomor_dokumen || '-' }}</div>
@@ -184,34 +195,44 @@ const statusClass = (status: string) =>
                 <div class="mt-1 font-medium">{{ item.periode_tahun?.nama || item.tahun }}</div>
             </div>
             <div>
-                <div class="text-xs uppercase text-muted-foreground">Renstra</div>
-                <div class="mt-1 font-medium">{{ item.renstra_opd?.judul || '-' }}</div>
+                <div class="text-xs uppercase text-muted-foreground">{{ item.tipe_pk === 'individual' ? 'Atasan PK' : 'Renstra' }}</div>
+                <div class="mt-1 font-medium">
+                    {{ item.tipe_pk === 'individual' ? item.atasan_pegawai?.nama || '-' : item.renstra_opd?.judul || '-' }}
+                </div>
             </div>
         </section>
 
         <section v-if="can.manage" class="rounded-lg border bg-card p-4">
             <div class="flex items-center justify-between gap-3">
-                <h2 class="text-sm font-semibold">{{ editingItemId ? 'Edit Item Sasaran dan Indikator' : 'Tambah Item Sasaran dan Indikator' }}</h2>
+                <h2 class="text-sm font-semibold">
+                    {{
+                        editingItemId
+                            ? 'Edit Item Sasaran dan Indikator'
+                            : item.tipe_pk === 'individual'
+                              ? 'Tambah Hasil Kerja Individu'
+                              : 'Tambah Item Cascading'
+                    }}
+                </h2>
                 <button v-if="editingItemId" type="button" class="rounded-md border px-3 py-1.5 text-xs hover:bg-muted" @click="resetItemForm">
                     Batal edit
                 </button>
             </div>
             <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitItem">
-                <div class="grid gap-1">
+                <div v-if="item.tipe_pk === 'cascading'" class="grid gap-1">
                     <select v-model="form.sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
                         <option value="">Referensi sasaran OPD</option>
                         <option v-for="option in nodeOptions.sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
                     </select>
                     <InputError :message="form.errors.sasaran_opd_id" />
                 </div>
-                <div class="grid gap-1">
+                <div v-if="item.tipe_pk === 'cascading'" class="grid gap-1">
                     <select v-model="form.indikator_sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
                         <option value="">Referensi indikator sasaran</option>
                         <option v-for="option in nodeOptions.indikator_sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
                     </select>
                     <InputError :message="form.errors.indikator_sasaran_opd_id" />
                 </div>
-                <div class="grid gap-1">
+                <div v-if="item.tipe_pk === 'cascading'" class="grid gap-1">
                     <select v-model="form.opd_program_id" class="h-9 rounded-md border bg-background px-3 text-sm">
                         <option value="">Referensi program OPD</option>
                         <option v-for="option in nodeOptions.opd_program" :key="option.id" :value="option.id">{{ option.label }}</option>

@@ -113,6 +113,12 @@ class PerencanaanHierarchyValidationService
             ]);
         }
 
+        if ($perjanjianKinerja->tipe_pk === 'individual') {
+            throw ValidationException::withMessages([
+                'perjanjian_kinerja_id' => 'Rencana Aksi hanya berlaku untuk PK Cascading. PK Individu tidak masuk ke pengukuran kinerja organisasi.',
+            ]);
+        }
+
         if (! in_array($perjanjianKinerja->status, self::APPROVED_STATUSES, true)) {
             throw ValidationException::withMessages([
                 'perjanjian_kinerja_id' => 'Rencana Aksi hanya dapat dibuat dari Perjanjian Kinerja yang sudah disetujui atau terkunci.',
@@ -128,6 +134,12 @@ class PerencanaanHierarchyValidationService
 
     public function ensureRealisasiCanBeCreated(?PerjanjianKinerja $perjanjianKinerja, ?RencanaAksi $rencanaAksi = null): void
     {
+        if ($perjanjianKinerja?->tipe_pk === 'individual') {
+            throw ValidationException::withMessages([
+                'perjanjian_kinerja_id' => 'Realisasi kinerja organisasi hanya dapat dibuat dari PK Cascading.',
+            ]);
+        }
+
         if (! $perjanjianKinerja || ! in_array($perjanjianKinerja->status, self::APPROVED_STATUSES, true)) {
             throw ValidationException::withMessages([
                 'perjanjian_kinerja_id' => 'Realisasi tidak dapat dibuat sebelum target Perjanjian Kinerja disetujui.',

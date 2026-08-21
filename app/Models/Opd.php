@@ -49,4 +49,9 @@ class Opd extends Model
     {
         return $this->hasMany(User::class);
     }
+
+    public function jabatanOrganisasi(): HasMany
+    {
+        return $this->hasMany(JabatanOrganisasi::class);
+    }
 }

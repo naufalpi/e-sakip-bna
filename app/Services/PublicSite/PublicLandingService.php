@@ -170,6 +170,9 @@ class PublicLandingService
 
         $rkpd = Rkpd::query()
             ->where('tahun', $tahun)
+            ->where('is_active_version', true)
+            ->whereIn('status', ['approved', 'locked'])
+            ->orderByDesc('nomor_versi')
             ->orderByDesc('id')
             ->first();
 

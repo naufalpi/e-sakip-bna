@@ -16,6 +16,10 @@ class PerjanjianKinerjaItem extends Model
 
     protected $fillable = [
         'perjanjian_kinerja_id',
+        'sumber_item',
+        'level_cascading',
+        'cascading_source_type',
+        'cascading_source_id',
         'sasaran_opd_id',
         'indikator_sasaran_opd_id',
         'opd_program_id',

@@ -20,10 +20,16 @@ use App\Http\Controllers\Kinerja\WorkflowController;
 use App\Http\Controllers\Kinerja\WorkflowInboxController;
 use App\Http\Controllers\Lkjip\LkjipBabController;
 use App\Http\Controllers\Lkjip\LkjipController;
+use App\Http\Controllers\Master\JabatanOrganisasiController;
+use App\Http\Controllers\Master\JabatanOrganisasiImportController;
 use App\Http\Controllers\Master\OpdController;
 use App\Http\Controllers\Master\OpdUnitController;
+use App\Http\Controllers\Master\PegawaiController;
+use App\Http\Controllers\Master\PenempatanPegawaiController;
+use App\Http\Controllers\Master\PenugasanPengampuKinerjaController;
 use App\Http\Controllers\Master\PeriodeTahunController;
 use App\Http\Controllers\Master\ProgramPemerintahanController;
+use App\Http\Controllers\Master\RiwayatPejabatJabatanController;
 use App\Http\Controllers\Master\RolePermissionController;
 use App\Http\Controllers\Master\SatuanIndikatorController;
 use App\Http\Controllers\Master\StrategiDaerahController;
@@ -31,6 +37,10 @@ use App\Http\Controllers\Master\SystemSettingController;
 use App\Http\Controllers\Master\UrusanPemerintahanController;
 use App\Http\Controllers\Master\UserController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Penganggaran\DpaOpdController;
+use App\Http\Controllers\Penganggaran\DpaOpdItemController;
+use App\Http\Controllers\Penganggaran\RkaOpdController;
+use App\Http\Controllers\Penganggaran\RkaOpdItemController;
 use App\Http\Controllers\Perencanaan\PlanningSyncController;
 use App\Http\Controllers\Perencanaan\PohonKinerjaController;
 use App\Http\Controllers\Perencanaan\RenjaOpdController;
@@ -110,6 +120,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::delete('target-triwulan-indikator/{target}', [TargetTriwulanIndikatorController::class, 'destroy'])->name('target-triwulan-indikator.destroy');
 
     Route::resource('rkpd', RkpdController::class);
+    Route::post('rkpd/{rkpd}/perubahan', [RkpdController::class, 'createRevision'])->name('rkpd.revisions.store');
     Route::post('rkpd/{rkpd}/iku-targets', [RkpdIkuTargetController::class, 'store'])->name('rkpd.iku-targets.store');
     Route::put('rkpd/{rkpd}/iku-targets/{target}', [RkpdIkuTargetController::class, 'update'])->name('rkpd.iku-targets.update');
     Route::delete('rkpd/{rkpd}/iku-targets/{target}', [RkpdIkuTargetController::class, 'destroy'])->name('rkpd.iku-targets.destroy');
@@ -125,11 +136,18 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('rkpd/{rkpd}/sync-renja/{batch}/apply', [PlanningSyncController::class, 'applyRenjaToRkpd'])->name('rkpd.sync-renja.apply');
 
     Route::resource('renja-opd', RenjaOpdController::class)->parameters(['renja-opd' => 'renja_opd']);
+    Route::post('renja-opd/{renja_opd}/perubahan', [RenjaOpdController::class, 'createRevision'])->name('renja-opd.revisions.store');
     Route::post('renja-opd/{renja_opd}/items', [RenjaOpdItemController::class, 'store'])->name('renja-opd.items.store');
     Route::put('renja-opd/{renja_opd}/items/{item}', [RenjaOpdItemController::class, 'update'])->name('renja-opd.items.update');
     Route::delete('renja-opd/{renja_opd}/items/{item}', [RenjaOpdItemController::class, 'destroy'])->name('renja-opd.items.destroy');
     Route::post('renja-opd/{renja_opd}/sync-rkpd/preview', [PlanningSyncController::class, 'previewRkpdToRenja'])->name('renja-opd.sync-rkpd.preview');
     Route::post('renja-opd/{renja_opd}/sync-rkpd/{batch}/apply', [PlanningSyncController::class, 'applyRkpdToRenja'])->name('renja-opd.sync-rkpd.apply');
+
+    Route::resource('rka-opd', RkaOpdController::class)->parameters(['rka-opd' => 'rka_opd']);
+    Route::put('rka-opd/{rka_opd}/items/{item}', [RkaOpdItemController::class, 'update'])->name('rka-opd.items.update');
+
+    Route::resource('dpa-opd', DpaOpdController::class)->parameters(['dpa-opd' => 'dpa_opd']);
+    Route::put('dpa-opd/{dpa_opd}/items/{item}', [DpaOpdItemController::class, 'update'])->name('dpa-opd.items.update');
 
     Route::resource('perjanjian-kinerja', PerjanjianKinerjaController::class);
     Route::post('perjanjian-kinerja/{perjanjian_kinerja}/export', [PerjanjianKinerjaController::class, 'export'])->name('perjanjian-kinerja.export');
@@ -179,6 +197,35 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
 
     Route::prefix('master')->name('master.')->group(function () {
         Route::resource('opd', OpdController::class)->except(['show']);
+        Route::get('jabatan-organisasi/import', [JabatanOrganisasiImportController::class, 'create'])
+            ->name('jabatan-organisasi.import.create');
+        Route::get('jabatan-organisasi/import/template', [JabatanOrganisasiImportController::class, 'template'])
+            ->name('jabatan-organisasi.import.template');
+        Route::post('jabatan-organisasi/import', [JabatanOrganisasiImportController::class, 'store'])
+            ->name('jabatan-organisasi.import.store');
+        Route::get('jabatan-organisasi/import/{importBatch}', [JabatanOrganisasiImportController::class, 'show'])
+            ->name('jabatan-organisasi.import.show');
+        Route::post('jabatan-organisasi/import/{importBatch}/apply', [JabatanOrganisasiImportController::class, 'apply'])
+            ->name('jabatan-organisasi.import.apply');
+        Route::resource('jabatan-organisasi', JabatanOrganisasiController::class)
+            ->parameters(['jabatan-organisasi' => 'jabatanOrganisasi']);
+        Route::post('jabatan-organisasi/{jabatanOrganisasi}/pejabat', [RiwayatPejabatJabatanController::class, 'store'])
+            ->name('jabatan-organisasi.pejabat.store');
+        Route::put('jabatan-organisasi/{jabatanOrganisasi}/pejabat/{riwayatPejabat}', [RiwayatPejabatJabatanController::class, 'update'])
+            ->name('jabatan-organisasi.pejabat.update');
+        Route::delete('jabatan-organisasi/{jabatanOrganisasi}/pejabat/{riwayatPejabat}', [RiwayatPejabatJabatanController::class, 'destroy'])
+            ->name('jabatan-organisasi.pejabat.destroy');
+        Route::post('pegawai/{pegawai}/penempatan', [PenempatanPegawaiController::class, 'store'])
+            ->name('pegawai.penempatan.store');
+        Route::put('pegawai/{pegawai}/penempatan/{penempatan}', [PenempatanPegawaiController::class, 'update'])
+            ->name('pegawai.penempatan.update');
+        Route::delete('pegawai/{pegawai}/penempatan/{penempatan}', [PenempatanPegawaiController::class, 'destroy'])
+            ->name('pegawai.penempatan.destroy');
+        Route::post('pegawai/{pegawai}/pengampu-kinerja', [PenugasanPengampuKinerjaController::class, 'store'])
+            ->name('pegawai.pengampu-kinerja.store');
+        Route::delete('pegawai/{pegawai}/pengampu-kinerja/{penugasan}', [PenugasanPengampuKinerjaController::class, 'destroy'])
+            ->name('pegawai.pengampu-kinerja.destroy');
+        Route::resource('pegawai', PegawaiController::class);
         Route::get('opd-units', [OpdUnitController::class, 'redirectToOpd'])->name('opd-units.index');
         Route::get('opd-units/create', [OpdUnitController::class, 'redirectToOpd'])->name('opd-units.create');
         Route::get('opd-units/{opdUnit}/edit', [OpdUnitController::class, 'redirectToOpd'])->name('opd-units.edit');

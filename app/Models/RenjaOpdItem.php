@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class RenjaOpdItem extends Model
@@ -70,5 +71,10 @@ class RenjaOpdItem extends Model
     public function indikatorSubKegiatan(): BelongsTo
     {
         return $this->belongsTo(IndikatorSubKegiatan::class);
+    }
+
+    public function rkaItems(): HasMany
+    {
+        return $this->hasMany(RkaOpdItem::class);
     }
 }

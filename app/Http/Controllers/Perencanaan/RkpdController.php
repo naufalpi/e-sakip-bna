@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Perencanaan;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Perencanaan\StoreDocumentRevisionRequest;
 use App\Http\Requests\Perencanaan\StoreRkpdRequest;
 use App\Http\Requests\Perencanaan\UpdateRkpdRequest;
 use App\Models\IndikatorSasaranDaerah;
@@ -20,6 +21,7 @@ use App\Models\TargetIndikatorSasaranDaerah;
 use App\Models\TargetIndikatorTujuanDaerah;
 use App\Models\User;
 use App\Services\Perencanaan\PlanningSyncService;
+use App\Services\Perencanaan\RkpdVersionService;
 use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -34,7 +36,7 @@ class RkpdController extends Controller
     {
         $this->authorize('viewAny', Rkpd::class);
 
-        $filters = $request->only(['search', 'status', 'tahun', 'rpjmd_id']);
+        $filters = $request->only(['search', 'status', 'tahun', 'rpjmd_id', 'jenis_versi']);
 
         $rkpd = Rkpd::query()
             ->with(['rpjmd:id,judul,tahun_awal,tahun_akhir,status', 'periodeTahun:id,tahun,nama,status'])
@@ -48,7 +50,9 @@ class RkpdController extends Controller
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($filters['tahun'] ?? null, fn (Builder $query, string $tahun) => $query->where('tahun', $tahun))
             ->when($filters['rpjmd_id'] ?? null, fn (Builder $query, string $rpjmdId) => $query->where('rpjmd_id', $rpjmdId))
+            ->when($filters['jenis_versi'] ?? null, fn (Builder $query, string $jenisVersi) => $query->where('jenis_versi', $jenisVersi))
             ->orderByDesc('tahun')
+            ->orderByDesc('nomor_versi')
             ->latest('id')
             ->paginate(10)
             ->withQueryString()
@@ -58,6 +62,12 @@ class RkpdController extends Controller
                 'nomor_dokumen' => $rkpd->nomor_dokumen,
                 'tahun' => $rkpd->tahun,
                 'status' => $rkpd->status,
+                'jenis_versi' => $rkpd->jenis_versi,
+                'version_label' => $rkpd->versionLabel(),
+                'nomor_versi' => $rkpd->nomor_versi,
+                'is_active_version' => $rkpd->is_active_version,
+                'can_update' => $request->user()->can('update', $rkpd),
+                'can_delete' => $request->user()->can('delete', $rkpd),
                 'items_count' => $rkpd->items_count,
                 'rpjmd' => $rkpd->rpjmd ? [
                     'id' => $rkpd->rpjmd->id,
@@ -100,7 +110,10 @@ class RkpdController extends Controller
         try {
             $rkpd = Rkpd::create([
                 ...$request->validated(),
-                'status' => $request->validated('status') ?: 'draft',
+                'status' => 'draft',
+                'jenis_versi' => 'awal',
+                'nomor_versi' => 1,
+                'is_active_version' => true,
             ]);
         } catch (UniqueConstraintViolationException) {
             return $this->duplicateYearRedirect();
@@ -118,6 +131,21 @@ class RkpdController extends Controller
         $canManage = $user->can('update', $rkpd);
 
         $rkpd->load(['rpjmd:id,judul,tahun_awal,tahun_akhir,status', 'periodeTahun:id,tahun,nama,status']);
+
+        $versionHistory = Rkpd::query()
+            ->where('root_version_id', $rkpd->root_version_id ?: $rkpd->id)
+            ->orderBy('nomor_versi')
+            ->get()
+            ->map(fn (Rkpd $version) => [
+                'id' => $version->id,
+                'jenis_versi' => $version->jenis_versi,
+                'version_label' => $version->versionLabel(),
+                'status' => $version->status,
+                'is_active_version' => $version->is_active_version,
+                'disahkan_pada' => $version->disahkan_pada?->toISOString(),
+            ])
+            ->values()
+            ->all();
 
         $itemsQuery = $rkpd->items()
             ->with([
@@ -197,13 +225,15 @@ class RkpdController extends Controller
             'existingSubKegiatanRows' => $canManage ? $existingSubKegiatanRows : [],
             'programRpjmdOptions' => $canManage ? $this->programRpjmdOptions($rkpd->rpjmd_id) : [],
             'syncPreview' => app(PlanningSyncService::class)->serializePreview($syncBatch),
+            'workflow' => $workflowDataService->forModel($rkpd, 'rkpd'),
+            'versionHistory' => $versionHistory,
             'can' => [
                 'manage' => $canManage,
-                'review' => $this->canReviewWorkflow($user),
-                'lock' => $this->canLockWorkflow($user),
-                'unlock' => $this->canUnlockWorkflow($user),
+                'review' => ! $rkpd->isArchivedVersion() && $this->canReviewWorkflow($user),
+                'lock' => $rkpd->is_active_version && $this->canLockWorkflow($user),
+                'unlock' => $rkpd->is_active_version && $this->canUnlockWorkflow($user),
+                'createRevision' => $user->can('createRevision', $rkpd),
             ],
-            'workflow' => $workflowDataService->forModel($rkpd, 'rkpd'),
         ]);
     }
 
@@ -222,7 +252,10 @@ class RkpdController extends Controller
     public function update(UpdateRkpdRequest $request, Rkpd $rkpd): RedirectResponse
     {
         try {
-            $rkpd->update($request->validated());
+            $rkpd->update([
+                ...$request->validated(),
+                'status' => $rkpd->status,
+            ]);
         } catch (UniqueConstraintViolationException) {
             return $this->duplicateYearRedirect();
         }
@@ -237,6 +270,19 @@ class RkpdController extends Controller
         $rkpd->delete();
 
         return redirect()->route('rkpd.index')->with('success', 'RKPD berhasil dihapus.');
+    }
+
+    public function createRevision(
+        StoreDocumentRevisionRequest $request,
+        Rkpd $rkpd,
+        RkpdVersionService $versionService,
+    ): RedirectResponse {
+        $this->authorize('createRevision', $rkpd);
+
+        $revision = $versionService->createChange($rkpd, $request->validated());
+
+        return redirect()->route('rkpd.show', $revision)
+            ->with('success', 'RKPD Perubahan berhasil dibuat dari RKPD Ditetapkan.');
     }
 
     private function shouldLimitToUserOpd(User $user): bool
@@ -479,6 +525,16 @@ class RkpdController extends Controller
             'nomor_dokumen' => $rkpd->nomor_dokumen,
             'status' => $rkpd->status,
             'catatan' => $rkpd->catatan,
+            'jenis_versi' => $rkpd->jenis_versi,
+            'version_label' => $rkpd->versionLabel(),
+            'nomor_versi' => $rkpd->nomor_versi,
+            'parent_version_id' => $rkpd->parent_version_id,
+            'root_version_id' => $rkpd->root_version_id,
+            'is_active_version' => $rkpd->is_active_version,
+            'alasan_perubahan' => $rkpd->alasan_perubahan,
+            'dasar_perubahan' => $rkpd->dasar_perubahan,
+            'tanggal_berlaku' => $rkpd->tanggal_berlaku?->toDateString(),
+            'disahkan_pada' => $rkpd->disahkan_pada?->toISOString(),
             'rpjmd' => $rkpd->rpjmd ? [
                 'id' => $rkpd->rpjmd->id,
                 'judul' => $rkpd->rpjmd->judul,

@@ -150,7 +150,9 @@ class WorkflowInboxTest extends TestCase
                 ->where('moduleOptions.1.value', 'rkpd')
                 ->where('moduleOptions.2.value', 'renstra_opd')
                 ->where('moduleOptions.3.value', 'renja_opd')
-                ->missing('moduleOptions.4')
+                ->where('moduleOptions.4.value', 'rka_opd')
+                ->where('moduleOptions.5.value', 'dpa_opd')
+                ->missing('moduleOptions.6')
             );
     }
 

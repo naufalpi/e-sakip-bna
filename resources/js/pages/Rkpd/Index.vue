@@ -2,7 +2,7 @@
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDocumentDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowRight, CalendarDays, FileText, Plus, Search, Trash2 } from 'lucide-vue-next';
+import { ArrowRight, CalendarDays, CheckCircle2, FileClock, FileText, Plus, RefreshCcw, Search, Trash2 } from 'lucide-vue-next';
 import { computed, reactive } from 'vue';
 
 type Option = { id: number; label: string; tahun?: number };
@@ -12,6 +12,12 @@ type Row = {
     nomor_dokumen?: string | null;
     tahun: number;
     status: string;
+    jenis_versi: 'awal' | 'ditetapkan' | 'perubahan';
+    version_label: string;
+    nomor_versi: number;
+    is_active_version: boolean;
+    can_update: boolean;
+    can_delete: boolean;
     items_count: number;
     rpjmd?: { id: number; judul: string; tahun_awal: number; tahun_akhir: number } | null;
     periode_tahun?: { id: number; tahun: number; nama: string } | null;
@@ -29,7 +35,7 @@ type Paginator<T> = {
 
 const props = defineProps<{
     items: Paginator<Row>;
-    filters: { search?: string; status?: string; tahun?: string; rpjmd_id?: string };
+    filters: { search?: string; status?: string; tahun?: string; rpjmd_id?: string; jenis_versi?: string };
     rpjmdOptions: Option[];
     periodeOptions: Option[];
     can: { manage: boolean };
@@ -40,6 +46,7 @@ const filterForm = reactive({
     status: props.filters.status ?? '',
     tahun: props.filters.tahun ?? '',
     rpjmd_id: props.filters.rpjmd_id ?? '',
+    jenis_versi: props.filters.jenis_versi ?? '',
 });
 
 const applyFilters = () => router.get(route('rkpd.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
@@ -50,6 +57,7 @@ const resetFilters = () => {
     filterForm.status = '';
     filterForm.tahun = '';
     filterForm.rpjmd_id = '';
+    filterForm.jenis_versi = '';
     applyFiltersNow();
 };
 
@@ -59,8 +67,9 @@ const destroy = async (row: Row) => {
     }
 };
 
-const totalRows = computed(() => props.items.data.reduce((total, row) => total + row.items_count, 0));
-const finalCount = computed(() => props.items.data.filter((row) => ['approved', 'locked'].includes(row.status)).length);
+const initialCount = computed(() => props.items.data.filter((row) => row.jenis_versi === 'awal').length);
+const establishedCount = computed(() => props.items.data.filter((row) => row.jenis_versi === 'ditetapkan').length);
+const changeCount = computed(() => props.items.data.filter((row) => row.jenis_versi === 'perubahan').length);
 
 const statusLabel = (status: string) =>
     ({
@@ -83,6 +92,13 @@ const statusClass = (status: string) =>
         rejected: 'bg-red-100 text-red-800 ring-red-200',
         locked: 'bg-zinc-200 text-zinc-800 ring-zinc-300',
     })[status] ?? 'bg-slate-100 text-slate-700 ring-slate-200';
+
+const versionClass = (version: Row['jenis_versi']) =>
+    ({
+        awal: 'border-sky-200 bg-sky-50 text-sky-800',
+        ditetapkan: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+        perubahan: 'border-amber-200 bg-amber-50 text-amber-800',
+    })[version];
 </script>
 
 <template>
@@ -99,8 +115,7 @@ const statusClass = (status: string) =>
                         </div>
                         <h1 class="mt-3 text-2xl font-semibold tracking-normal">RKPD Kabupaten</h1>
                         <p class="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                            Dokumen RKPD tahunan yang sudah final dan disahkan, diturunkan sampai program, kegiatan, sub kegiatan, indikator,
-                            target, pagu, lokasi, sumber dana, prioritas, dan prakiraan maju.
+                            Kelola RKPD Awal, dokumen yang telah ditetapkan, dan RKPD Perubahan dalam satu riwayat tahunan yang aman.
                         </p>
                     </div>
 
@@ -110,26 +125,26 @@ const statusClass = (status: string) =>
                         class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#00336C] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#002855]"
                     >
                         <Plus class="size-4" />
-                        Tambah RKPD
+                        Tambah RKPD Awal
                     </Link>
                 </div>
             </div>
 
             <div class="grid gap-3 p-4 md:grid-cols-3">
-                <article class="rounded-lg border bg-white p-4">
-                    <p class="text-xs font-semibold uppercase text-muted-foreground">Total RKPD</p>
-                    <p class="mt-2 text-3xl font-semibold">{{ items.total }}</p>
-                    <p class="mt-1 text-sm text-muted-foreground">dokumen tahunan</p>
+                <article class="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sky-950">
+                    <div class="flex items-center gap-2 text-xs font-semibold uppercase text-sky-700"><FileClock class="size-4" /> RKPD Awal</div>
+                    <p class="mt-2 text-3xl font-semibold">{{ initialCount }}</p>
+                    <p class="mt-1 text-sm text-sky-700">dokumen kerja pada halaman ini</p>
                 </article>
-                <article class="rounded-lg border bg-sky-50 p-4 text-[#00336C]">
-                    <p class="text-xs font-semibold uppercase opacity-70">Baris Matriks</p>
-                    <p class="mt-2 text-3xl font-semibold">{{ totalRows }}</p>
-                    <p class="mt-1 text-sm opacity-75">item program sampai sub kegiatan</p>
+                <article class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+                    <div class="flex items-center gap-2 text-xs font-semibold uppercase text-emerald-700"><CheckCircle2 class="size-4" /> RKPD Ditetapkan</div>
+                    <p class="mt-2 text-3xl font-semibold">{{ establishedCount }}</p>
+                    <p class="mt-1 text-sm text-emerald-700">dokumen resmi pada halaman ini</p>
                 </article>
-                <article class="rounded-lg border bg-emerald-50 p-4 text-emerald-950">
-                    <p class="text-xs font-semibold uppercase opacity-70">RKPD Final</p>
-                    <p class="mt-2 text-3xl font-semibold">{{ finalCount }}</p>
-                    <p class="mt-1 text-sm opacity-75">approved atau terkunci</p>
+                <article class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950">
+                    <div class="flex items-center gap-2 text-xs font-semibold uppercase text-amber-700"><RefreshCcw class="size-4" /> RKPD Perubahan</div>
+                    <p class="mt-2 text-3xl font-semibold">{{ changeCount }}</p>
+                    <p class="mt-1 text-sm text-amber-700">dokumen perubahan pada halaman ini</p>
                 </article>
             </div>
         </section>
@@ -143,7 +158,7 @@ const statusClass = (status: string) =>
                 <button type="button" class="h-9 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">Reset</button>
             </div>
 
-            <form class="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_170px_150px_minmax(14rem,1fr)]" @submit.prevent="applyFiltersNow">
+            <form class="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_170px_190px_140px_minmax(14rem,1fr)]" @submit.prevent="applyFiltersNow">
                 <label class="relative">
                     <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <input
@@ -162,6 +177,12 @@ const statusClass = (status: string) =>
                     <option value="approved">Disetujui</option>
                     <option value="rejected">Ditolak</option>
                     <option value="locked">Terkunci</option>
+                </select>
+                <select v-model="filterForm.jenis_versi" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
+                    <option value="">Semua versi</option>
+                    <option value="awal">RKPD Awal</option>
+                    <option value="ditetapkan">RKPD Ditetapkan</option>
+                    <option value="perubahan">RKPD Perubahan</option>
                 </select>
                 <input
                     v-model="filterForm.tahun"
@@ -203,6 +224,12 @@ const statusClass = (status: string) =>
                                 <div class="text-xs text-muted-foreground">{{ row.periode_tahun?.nama || '-' }}</div>
                             </td>
                             <td class="min-w-80 px-4 py-4">
+                                <div class="mb-2 flex flex-wrap items-center gap-2">
+                                    <span class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold" :class="versionClass(row.jenis_versi)">
+                                        {{ row.version_label }}
+                                    </span>
+                                    <span v-if="row.is_active_version" class="text-[11px] font-semibold text-emerald-700">Versi aktif</span>
+                                </div>
                                 <div class="font-semibold">{{ row.judul }}</div>
                                 <div class="mt-1 text-xs text-muted-foreground">{{ row.nomor_dokumen || 'Nomor dokumen belum diisi' }}</div>
                             </td>
@@ -226,10 +253,10 @@ const statusClass = (status: string) =>
                                         Buka
                                         <ArrowRight class="size-4" />
                                     </Link>
-                                    <Link v-if="can.manage" :href="route('rkpd.edit', row.id)" class="inline-flex h-10 items-center px-3 text-sm hover:bg-muted">
+                                    <Link v-if="row.can_update" :href="route('rkpd.edit', row.id)" class="inline-flex h-10 items-center px-3 text-sm hover:bg-muted">
                                         Edit
                                     </Link>
-                                    <button v-if="can.manage" type="button" class="inline-flex h-10 items-center px-3 text-red-600 hover:bg-red-50" @click="destroy(row)">
+                                    <button v-if="row.can_delete" type="button" class="inline-flex h-10 items-center px-3 text-red-600 hover:bg-red-50" @click="destroy(row)">
                                         <Trash2 class="size-4" />
                                     </button>
                                 </div>

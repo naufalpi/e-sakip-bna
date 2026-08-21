@@ -38,6 +38,30 @@ const actionLabel = (action: string) =>
         lock: 'Penguncian',
         unlock: 'Pembukaan kunci',
     })[action] ?? action;
+
+const wibDateTimeFormatter = new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Jakarta',
+});
+
+const formatWibDateTime = (value?: string | null) => {
+    if (!value) {
+        return '-';
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return '-';
+    }
+
+    return `${wibDateTimeFormatter.format(date).replace(' pukul ', ', ')} WIB`;
+};
 </script>
 
 <template>
@@ -54,7 +78,7 @@ const actionLabel = (action: string) =>
                     </div>
                     <div class="text-xs text-muted-foreground md:text-right">
                         <div>{{ history.actor?.name || '-' }}</div>
-                        <div>{{ history.created_at }}</div>
+                        <time :datetime="history.created_at">{{ formatWibDateTime(history.created_at) }}</time>
                     </div>
                 </div>
                 <div v-if="history.notes" class="mt-3 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">

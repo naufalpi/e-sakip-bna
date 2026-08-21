@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests\Perencanaan;
 
-use App\Models\RenjaOpd;
 use App\Models\PeriodeTahun;
+use App\Models\RenjaOpd;
+use App\Models\Rkpd;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreRenjaOpdRequest extends FormRequest
 {
@@ -58,5 +60,35 @@ class StoreRenjaOpdRequest extends FormRequest
             'status' => ['nullable', 'string', 'in:draft'],
             'catatan' => ['nullable', 'string'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $duplicate = RenjaOpd::query()
+                ->where('opd_id', $this->integer('opd_id'))
+                ->where('periode_tahun_id', $this->integer('periode_tahun_id'))
+                ->where('tahun', $this->integer('tahun'))
+                ->where('jenis_versi', 'awal')
+                ->when($this->filled('opd_unit_id'),
+                    fn ($query) => $query->where('opd_unit_id', $this->integer('opd_unit_id')),
+                    fn ($query) => $query->whereNull('opd_unit_id'))
+                ->exists();
+
+            if ($duplicate) {
+                $validator->errors()->add('tahun', 'RENJA Awal untuk OPD, unit, dan tahun tersebut sudah tersedia.');
+            }
+
+            if ($this->filled('rkpd_id')) {
+                $rkpd = Rkpd::query()->find($this->integer('rkpd_id'));
+                if ($rkpd && ($rkpd->jenis_versi !== 'awal' || (int) $rkpd->tahun !== $this->integer('tahun'))) {
+                    $validator->errors()->add('rkpd_id', 'RENJA Awal harus menggunakan RKPD Awal pada tahun yang sama.');
+                }
+            }
+        });
     }
 }
