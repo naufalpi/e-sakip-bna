@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class SubKegiatanPemerintahan extends Model
@@ -39,5 +40,13 @@ class SubKegiatanPemerintahan extends Model
     public function satuanIndikator(): BelongsTo
     {
         return $this->belongsTo(SatuanIndikator::class);
+    }
+
+    public function indikatorReferensi(): HasMany
+    {
+        return $this->hasMany(IndikatorSubKegiatanPemerintahan::class)
+            ->orderByDesc('is_utama')
+            ->orderBy('urutan')
+            ->orderBy('id');
     }
 }

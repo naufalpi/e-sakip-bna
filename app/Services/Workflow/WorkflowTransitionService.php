@@ -31,6 +31,7 @@ class WorkflowTransitionService
         private readonly RenjaVersionService $renjaVersionService,
         private readonly RkaReadinessService $rkaReadinessService,
         private readonly DpaReadinessService $dpaReadinessService,
+        private readonly DocumentCorrectionService $documentCorrectionService,
     ) {}
 
     /**
@@ -43,6 +44,10 @@ class WorkflowTransitionService
         $newStatus = $this->statusForAction($action);
         $oldStatus = (string) ($model->getAttribute('status') ?? 'draft');
         $this->ensureValidTransition($action, $oldStatus);
+
+        if ($action === 'submit') {
+            $this->documentCorrectionService->ensureCorrectedSourceIsOfficial($model, $module);
+        }
 
         if ($action === 'submit' && $model instanceof RkaOpd) {
             $this->rkaReadinessService->ensureReady($model);
@@ -61,6 +66,17 @@ class WorkflowTransitionService
         $relatedId = (int) $model->getKey();
 
         return DB::transaction(function () use ($model, $module, $action, $actor, $note, $reviewerId, $metadata, $newStatus, $oldStatus, $relatedTable, $relatedId) {
+            if ($action === 'correct') {
+                $correctionMetadata = $this->documentCorrectionService->prepare(
+                    $model,
+                    $module,
+                    $actor,
+                    (string) $note,
+                    (string) ($metadata['correction_reference'] ?? '')
+                );
+                $metadata = array_merge($metadata, $correctionMetadata, ['correction_type' => 'data_entry']);
+            }
+
             $model->forceFill(['status' => $newStatus]);
 
             if ($action === 'submit' && $model->isFillable('submitted_by')) {
@@ -75,6 +91,19 @@ class WorkflowTransitionService
                     'submitted_by' => null,
                     'submitted_at' => null,
                 ]);
+            }
+
+            if ($action === 'correct') {
+                if ($model->isFillable('submitted_by')) {
+                    $model->forceFill(['submitted_by' => null, 'submitted_at' => null]);
+                }
+                if ($model->isFillable('disahkan_oleh')) {
+                    $model->forceFill(['disahkan_oleh' => null, 'disahkan_pada' => null]);
+                }
+            }
+
+            if ($action === 'approve' && $model->isFillable('disahkan_oleh')) {
+                $model->forceFill(['disahkan_oleh' => $actor->id, 'disahkan_pada' => now()]);
             }
 
             $model->save();
@@ -142,6 +171,18 @@ class WorkflowTransitionService
     {
         if (($model instanceof Rpjmd || $model instanceof RenstraOpd || $model instanceof Rkpd || $model instanceof RenjaOpd) && $model->isArchivedVersion()) {
             throw new AuthorizationException('Versi arsip tidak dapat diproses. Buat dokumen Perubahan dari versi aktif.');
+        }
+
+        if ($action === 'correct') {
+            if (! $this->registry->supportsDataCorrection($module)) {
+                throw new AuthorizationException('Modul ini tidak mendukung koreksi data dokumen.');
+            }
+
+            if ($actor->isSuperAdmin()) {
+                return;
+            }
+
+            throw new AuthorizationException('Hanya Super Admin yang dapat membatalkan persetujuan untuk koreksi data.');
         }
 
         if ($action === 'unlock') {
@@ -221,6 +262,7 @@ class WorkflowTransitionService
             'reject', 'revision' => ['submitted', 'verified'],
             'lock' => ['approved'],
             'unlock' => ['locked'],
+            'correct' => ['approved', 'locked'],
             default => [],
         };
 
@@ -242,6 +284,7 @@ class WorkflowTransitionService
             'revision' => 'revision',
             'lock' => 'locked',
             'unlock' => 'revision',
+            'correct' => 'revision',
             default => throw new AuthorizationException('Aksi persetujuan tidak valid.'),
         };
     }

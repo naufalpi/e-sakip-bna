@@ -35,8 +35,10 @@ class WorkflowService
             'reject' => $this->rejectWorkflowService->handle($model, $module, $actor, $note, $reviewerId, $metadata),
             'revision' => $this->requestRevisionWorkflowService->handle($model, $module, $actor, $note, $reviewerId, $metadata),
             'lock' => $this->lockDataService->handle($model, $module, $actor, $note, $reviewerId, $metadata),
+            'withdraw' => $this->workflowTransitionService->transition($model, $module, 'withdraw', $actor, $note, $reviewerId, $metadata),
             'verify' => $this->workflowTransitionService->transition($model, $module, 'verify', $actor, $note, $reviewerId, $metadata),
             'unlock' => $this->workflowTransitionService->transition($model, $module, 'unlock', $actor, $note, $reviewerId, $metadata),
+            'correct' => $this->workflowTransitionService->transition($model, $module, 'correct', $actor, $note, $reviewerId, $metadata),
             default => throw new AuthorizationException('Aksi persetujuan tidak valid.'),
         };
     }

@@ -102,7 +102,10 @@ class CopyProgramKegiatanReferenceService
                     }
 
                     KegiatanPemerintahan::query()
-                        ->with(['subKegiatan' => fn ($query) => $query->where('periode_tahun_id', $sourcePeriodeTahunId)->orderBy('kode')])
+                        ->with(['subKegiatan' => fn ($query) => $query
+                            ->with('indikatorReferensi')
+                            ->where('periode_tahun_id', $sourcePeriodeTahunId)
+                            ->orderBy('kode')])
                         ->where('program_pemerintahan_id', $sourceProgram->id)
                         ->where('periode_tahun_id', $sourcePeriodeTahunId)
                         ->orderBy('kode')
@@ -123,7 +126,7 @@ class CopyProgramKegiatanReferenceService
                             $result[$created ? 'kegiatan_created' : 'kegiatan_existing']++;
 
                             $sourceKegiatan->subKegiatan->each(function (SubKegiatanPemerintahan $sourceSubKegiatan) use ($targetKegiatan, $targetPeriodeTahunId, &$result): void {
-                                [, $created] = $this->upsertSubKegiatan(
+                                [$targetSubKegiatan, $created] = $this->upsertSubKegiatan(
                                     [
                                         'periode_tahun_id' => $targetPeriodeTahunId,
                                         'kegiatan_pemerintahan_id' => $targetKegiatan->id,
@@ -131,6 +134,7 @@ class CopyProgramKegiatanReferenceService
                                     ],
                                     $this->subKegiatanPayload($sourceSubKegiatan),
                                 );
+                                $this->syncSubKegiatanIndicators($sourceSubKegiatan, $targetSubKegiatan);
 
                                 $result[$created ? 'sub_kegiatan_created' : 'sub_kegiatan_existing']++;
                             });
@@ -213,7 +217,7 @@ class CopyProgramKegiatanReferenceService
             ];
 
             KegiatanPemerintahan::query()
-                ->with('subKegiatan')
+                ->with('subKegiatan.indikatorReferensi')
                 ->where('program_pemerintahan_id', $programPemerintahanId)
                 ->where('periode_tahun_id', $sourcePeriodeTahunId)
                 ->orderBy('kode')
@@ -242,6 +246,10 @@ class CopyProgramKegiatanReferenceService
                             ],
                             $this->subKegiatanPayload($sourceSubKegiatan),
                         );
+
+                        if ($targetSubKegiatan->wasRecentlyCreated) {
+                            $this->syncSubKegiatanIndicators($sourceSubKegiatan, $targetSubKegiatan);
+                        }
 
                         $result[$targetSubKegiatan->wasRecentlyCreated ? 'sub_kegiatan_created' : 'sub_kegiatan_existing']++;
                     });
@@ -290,7 +298,10 @@ class CopyProgramKegiatanReferenceService
                     $result['program_scanned']++;
 
                     KegiatanPemerintahan::query()
-                        ->with(['subKegiatan' => fn ($query) => $query->where('periode_tahun_id', $sourcePeriodeTahunId)->orderBy('kode')])
+                        ->with(['subKegiatan' => fn ($query) => $query
+                            ->with('indikatorReferensi')
+                            ->where('periode_tahun_id', $sourcePeriodeTahunId)
+                            ->orderBy('kode')])
                         ->where('program_pemerintahan_id', $program->id)
                         ->where('periode_tahun_id', $sourcePeriodeTahunId)
                         ->orderBy('kode')
@@ -321,6 +332,10 @@ class CopyProgramKegiatanReferenceService
                                         $this->subKegiatanPayload($sourceSubKegiatan),
                                     );
 
+                                    if ($targetSubKegiatan->wasRecentlyCreated) {
+                                        $this->syncSubKegiatanIndicators($sourceSubKegiatan, $targetSubKegiatan);
+                                    }
+
                                     $result[$targetSubKegiatan->wasRecentlyCreated ? 'sub_kegiatan_created' : 'sub_kegiatan_existing']++;
                                 });
                             }
@@ -344,6 +359,37 @@ class CopyProgramKegiatanReferenceService
             'definisi_operasional' => $subKegiatan->definisi_operasional,
             'status' => $subKegiatan->status,
         ];
+    }
+
+    private function syncSubKegiatanIndicators(
+        SubKegiatanPemerintahan $source,
+        SubKegiatanPemerintahan $target,
+    ): void {
+        $source->loadMissing('indikatorReferensi');
+
+        $indicators = $source->indikatorReferensi
+            ->map(fn ($indicator) => [
+                'indikator' => trim((string) $indicator->indikator),
+                'satuan_indikator_id' => $indicator->satuan_indikator_id,
+            ])
+            ->filter(fn (array $indicator) => $indicator['indikator'] !== '')
+            ->values();
+
+        if ($indicators->isEmpty() && filled($source->indikator_sub_kegiatan)) {
+            $indicators->push([
+                'indikator' => trim((string) $source->indikator_sub_kegiatan),
+                'satuan_indikator_id' => $source->satuan_indikator_id,
+            ]);
+        }
+
+        $target->indikatorReferensi()->delete();
+        $indicators->each(function (array $indicator, int $index) use ($target): void {
+            $target->indikatorReferensi()->create([
+                ...$indicator,
+                'is_utama' => $index === 0,
+                'urutan' => $index + 1,
+            ]);
+        });
     }
 
     /**

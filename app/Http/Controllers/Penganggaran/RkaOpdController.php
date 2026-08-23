@@ -11,6 +11,8 @@ use App\Models\RkaOpd;
 use App\Models\RkaOpdItem;
 use App\Models\User;
 use App\Services\Penganggaran\RkaCreationService;
+use App\Services\Penganggaran\RkaPreviewExcelExportService;
+use App\Services\Penganggaran\RkaPreviewTableService;
 use App\Services\Penganggaran\RkaReadinessService;
 use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
@@ -19,6 +21,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class RkaOpdController extends Controller
 {
@@ -95,8 +98,13 @@ class RkaOpdController extends Controller
             ->with('success', 'RKA berhasil dibuat dan rincian sub kegiatan telah disalin dari RENJA.');
     }
 
-    public function show(Request $request, RkaOpd $rkaOpd, WorkflowDataService $workflowDataService, RkaReadinessService $readinessService): Response
-    {
+    public function show(
+        Request $request,
+        RkaOpd $rkaOpd,
+        WorkflowDataService $workflowDataService,
+        RkaReadinessService $readinessService,
+        RkaPreviewTableService $previewTableService,
+    ): Response {
         $this->authorize('view', $rkaOpd);
 
         $rkaOpd->load([
@@ -108,6 +116,8 @@ class RkaOpdController extends Controller
         ]);
 
         $items = $rkaOpd->items()
+            ->orderBy('kode_urusan')
+            ->orderBy('kode_bidang')
             ->orderBy('kode_program')
             ->orderBy('kode_kegiatan')
             ->orderBy('kode_sub_kegiatan')
@@ -130,6 +140,7 @@ class RkaOpdController extends Controller
                 'pagu_hasil_verifikasi' => collect($items)->sum(fn (array $item) => (float) $item['pagu_hasil_verifikasi']),
             ],
             'readiness' => $readinessService->inspect($rkaOpd),
+            'preview' => $previewTableService->build($rkaOpd),
             'workflow' => $workflow,
             'can' => [
                 'manage' => $user->can('update', $rkaOpd),
@@ -139,6 +150,21 @@ class RkaOpdController extends Controller
                 'unlock' => $user->isSuperAdmin(),
                 'withdraw' => $workflow && (int) ($workflow['submitted_by'] ?? 0) === (int) $user->id,
             ],
+        ]);
+    }
+
+    public function exportPreview(
+        RkaOpd $rkaOpd,
+        RkaPreviewExcelExportService $exportService,
+    ): SymfonyResponse {
+        $this->authorize('view', $rkaOpd);
+
+        $export = $exportService->make($rkaOpd);
+
+        return response($export['content'], 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$export['filename'].'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
     }
 
@@ -289,6 +315,10 @@ class RkaOpdController extends Controller
             'nama_sub_kegiatan', 'tolok_ukur_kinerja', 'target_kinerja', 'satuan_kinerja', 'sumber_pendanaan',
             'lokasi', 'kelompok_sasaran', 'bulan_mulai', 'bulan_selesai', 'jenis_belanja',
             'alokasi_tahun_sebelumnya', 'pagu_renja', 'pagu_usulan', 'pagu_hasil_verifikasi',
+            'pagu_belanja_operasi_usulan', 'pagu_belanja_modal_usulan',
+            'pagu_belanja_tidak_terduga_usulan', 'pagu_belanja_transfer_usulan',
+            'pagu_belanja_operasi_hasil_verifikasi', 'pagu_belanja_modal_hasil_verifikasi',
+            'pagu_belanja_tidak_terduga_hasil_verifikasi', 'pagu_belanja_transfer_hasil_verifikasi',
             'alokasi_tahun_berikutnya', 'alasan_penyesuaian', 'catatan', 'urutan',
         ]);
     }

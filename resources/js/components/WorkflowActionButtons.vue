@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
-type WorkflowAction = 'submit' | 'withdraw' | 'verify' | 'approve' | 'revision' | 'reject' | 'lock' | 'unlock';
+type WorkflowAction = 'submit' | 'withdraw' | 'verify' | 'approve' | 'revision' | 'reject' | 'lock' | 'unlock' | 'correct';
 type WorkflowActionItem = {
     action: WorkflowAction;
     label: string;
@@ -14,6 +14,7 @@ type WorkflowActionItem = {
     noteLabel: string;
     notePlaceholder: string;
     noteRequired: boolean;
+    referenceRequired?: boolean;
     confirmClassName: string;
 };
 
@@ -46,10 +47,12 @@ const localNoteError = ref<string | null>(null);
 const form = useForm<{
     action: WorkflowAction;
     note: string;
+    correction_reference: string;
     current_reviewer_id: number | null;
 }>({
     action: 'submit',
     note: '',
+    correction_reference: '',
     current_reviewer_id: null,
 });
 
@@ -59,6 +62,7 @@ const openTransitionDialog = (item: WorkflowActionItem) => {
     form.clearErrors();
     form.action = item.action;
     form.note = '';
+    form.correction_reference = '';
     form.current_reviewer_id = null;
     isDialogOpen.value = true;
 };
@@ -69,9 +73,15 @@ const submitTransition = () => {
     }
 
     localNoteError.value = null;
+    form.clearErrors('note', 'correction_reference', 'action');
 
     if (selectedAction.value.noteRequired && !form.note.trim()) {
         localNoteError.value = 'Catatan wajib diisi untuk aksi ini.';
+        return;
+    }
+
+    if (selectedAction.value.referenceRequired && !form.correction_reference.trim()) {
+        form.setError('correction_reference', 'Acuan dokumen resmi wajib diisi.');
         return;
     }
 
@@ -88,6 +98,8 @@ const submitTransition = () => {
 
 const actions = computed(() => {
     const items: WorkflowActionItem[] = [];
+    const correctionModules = ['rpjmd', 'rkpd', 'renstra_opd', 'renja_opd', 'rka_opd', 'dpa_opd'];
+    const supportsCorrection = correctionModules.includes(props.module);
 
     if (props.canManage && ['draft', 'revision', 'rejected'].includes(props.status)) {
         items.push({
@@ -186,7 +198,22 @@ const actions = computed(() => {
         });
     }
 
-    if (props.canUnlock && props.status === 'locked') {
+    if (props.canUnlock && supportsCorrection && ['approved', 'locked'].includes(props.status)) {
+        items.push({
+            action: 'correct',
+            label: 'Koreksi Data',
+            className: 'border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/65',
+            title: 'Batalkan persetujuan untuk koreksi?',
+            description: 'Gunakan hanya untuk menyamakan kesalahan input aplikasi dengan dokumen resmi. Aksi ini tidak membuat versi Perubahan.',
+            noteLabel: 'Alasan koreksi',
+            notePlaceholder: 'Contoh: Target salah input 25, seharusnya 20 sesuai dokumen resmi.',
+            noteRequired: true,
+            referenceRequired: true,
+            confirmClassName: 'bg-amber-600 text-white hover:bg-amber-700',
+        });
+    }
+
+    if (props.canUnlock && !supportsCorrection && props.status === 'locked') {
         items.push({
             action: 'unlock',
             label: 'Buka Kunci',
@@ -217,13 +244,20 @@ const actions = computed(() => {
     </button>
 
     <Dialog v-model:open="isDialogOpen">
-        <DialogContent>
+        <DialogContent class="sm:max-w-xl">
             <DialogHeader>
                 <DialogTitle>{{ selectedAction?.title }}</DialogTitle>
                 <DialogDescription>{{ selectedAction?.description }}</DialogDescription>
             </DialogHeader>
 
             <form class="space-y-3" @submit.prevent="submitTransition">
+                <div
+                    v-if="selectedAction?.action === 'correct'"
+                    class="border-l-2 border-amber-400 bg-amber-50/70 px-3.5 py-3 text-xs leading-5 text-amber-950 dark:border-amber-600 dark:bg-amber-950/30 dark:text-amber-100"
+                >
+                    Dokumen akan kembali ke status Perlu Perbaikan. Turunan yang masih Draft tetap disimpan dan ikut ditandai perlu disesuaikan; turunan yang sudah diajukan atau disetujui akan memblokir koreksi.
+                </div>
+
                 <div class="space-y-1.5">
                     <label class="text-sm font-medium" for="workflow-note">
                         {{ selectedAction?.noteLabel }}
@@ -238,6 +272,24 @@ const actions = computed(() => {
                     />
                     <p v-if="localNoteError || form.errors.note" class="text-sm text-red-700">{{ localNoteError || form.errors.note }}</p>
                 </div>
+
+                <div v-if="selectedAction?.referenceRequired" class="space-y-1.5">
+                    <label class="text-sm font-medium" for="workflow-correction-reference">
+                        Acuan dokumen resmi <span class="text-red-700">*</span>
+                    </label>
+                    <input
+                        id="workflow-correction-reference"
+                        v-model="form.correction_reference"
+                        type="text"
+                        class="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-amber-600"
+                        placeholder="Contoh: RENSTRA 2025–2029 halaman 47"
+                    />
+                    <p v-if="form.errors.correction_reference" class="text-sm text-red-700">{{ form.errors.correction_reference }}</p>
+                </div>
+
+                <p v-if="form.errors.action" class="rounded-md bg-red-50 px-3 py-2 text-sm leading-5 text-red-700 dark:bg-red-950/35 dark:text-red-200">
+                    {{ form.errors.action }}
+                </p>
 
                 <DialogFooter class="gap-2">
                     <Button type="button" variant="outline" :disabled="form.processing" @click="isDialogOpen = false">Batal</Button>

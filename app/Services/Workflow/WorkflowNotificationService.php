@@ -50,7 +50,7 @@ class WorkflowNotificationService
      */
     private function recipients(Model $model, string $module, string $action, WorkflowSubmission $submission, ?int $reviewerId)
     {
-        if ($action === 'submit') {
+        if ($action === 'submit' || $action === 'correct') {
             if ($reviewerId) {
                 return User::query()->whereKey($reviewerId)->get();
             }
@@ -88,6 +88,7 @@ class WorkflowNotificationService
             'revision' => $this->registry->label($module).' perlu perbaikan',
             'lock' => $this->registry->label($module).' dikunci',
             'unlock' => $this->registry->label($module).' dibuka untuk perbaikan',
+            'correct' => $this->registry->label($module).' dibuka untuk koreksi data',
             default => $this->registry->label($module).' diperbarui',
         };
     }
@@ -103,12 +104,17 @@ class WorkflowNotificationService
             'revision' => 'workflow_revision',
             'lock' => 'workflow_locked',
             'unlock' => 'workflow_unlocked',
+            'correct' => 'workflow_correction',
             default => 'workflow_updated',
         };
     }
 
     private function message(string $module, string $action, User $actor): string
     {
+        if ($action === 'correct') {
+            return $actor->name.' membatalkan persetujuan '.$this->registry->label($module).' untuk koreksi data sesuai dokumen resmi.';
+        }
+
         return $actor->name.' memproses pengajuan '.$this->registry->label($module).'.';
     }
 

@@ -15,9 +15,10 @@ class WorkflowTransitionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'note' => ['required_if:action,reject,revision,unlock,withdraw', 'nullable', 'string'],
+            'note' => ['required_if:action,reject,revision,unlock,withdraw,correct', 'nullable', 'string', 'max:5000'],
+            'correction_reference' => ['required_if:action,correct', 'nullable', 'string', 'max:1000'],
             'current_reviewer_id' => ['nullable', 'integer', 'exists:users,id'],
-            'action' => ['required', Rule::in(['submit', 'withdraw', 'verify', 'approve', 'reject', 'revision', 'lock', 'unlock'])],
+            'action' => ['required', Rule::in(['submit', 'withdraw', 'verify', 'approve', 'reject', 'revision', 'lock', 'unlock', 'correct'])],
         ];
     }
 }

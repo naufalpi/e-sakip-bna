@@ -102,30 +102,32 @@ class ProgramPemerintahanController extends Controller
     {
         $data = $request->validated();
 
-        match ($data['type']) {
-            'program' => ProgramPemerintahan::create([
-                'bidang_urusan_id' => $data['bidang_urusan_id'],
-                'tahun_awal' => $data['tahun_awal'],
-                'tahun_akhir' => $data['tahun_akhir'],
-                'kode' => $data['kode'],
-                'nama' => $data['nama'],
-                'status' => $data['status'],
-            ]),
-            'kegiatan' => KegiatanPemerintahan::create([
-                'periode_tahun_id' => $data['periode_tahun_id'],
-                'program_pemerintahan_id' => $data['program_pemerintahan_id'],
-                'kode' => $data['kode'],
-                'nama' => $data['nama'],
-                'status' => $data['status'],
-            ]),
-            'sub_kegiatan' => SubKegiatanPemerintahan::create([
-                'periode_tahun_id' => $data['periode_tahun_id'],
-                'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
-                'kode' => $data['kode'],
-                'nama' => $data['nama'],
-                ...$this->subKegiatanPayload($data),
-            ]),
-        };
+        DB::transaction(function () use ($data): void {
+            match ($data['type']) {
+                'program' => ProgramPemerintahan::create([
+                    'bidang_urusan_id' => $data['bidang_urusan_id'],
+                    'tahun_awal' => $data['tahun_awal'],
+                    'tahun_akhir' => $data['tahun_akhir'],
+                    'kode' => $data['kode'],
+                    'nama' => $data['nama'],
+                    'status' => $data['status'],
+                ]),
+                'kegiatan' => KegiatanPemerintahan::create([
+                    'periode_tahun_id' => $data['periode_tahun_id'],
+                    'program_pemerintahan_id' => $data['program_pemerintahan_id'],
+                    'kode' => $data['kode'],
+                    'nama' => $data['nama'],
+                    'status' => $data['status'],
+                ]),
+                'sub_kegiatan' => tap(SubKegiatanPemerintahan::create([
+                    'periode_tahun_id' => $data['periode_tahun_id'],
+                    'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
+                    'kode' => $data['kode'],
+                    'nama' => $data['nama'],
+                    ...$this->subKegiatanPayload($data),
+                ]), fn (SubKegiatanPemerintahan $subKegiatan) => $this->syncSubKegiatanIndicators($subKegiatan, $data)),
+            };
+        });
 
         return $this->redirectToContext($request)->with('success', 'Referensi program/kegiatan berhasil disimpan.');
     }
@@ -360,31 +362,36 @@ class ProgramPemerintahanController extends Controller
         $data = $request->validated();
         $model = $this->findReference($type, $id);
 
-        match ($type) {
-            'program' => $model->update([
-                'bidang_urusan_id' => $data['bidang_urusan_id'],
-                'tahun_awal' => $data['tahun_awal'],
-                'tahun_akhir' => $data['tahun_akhir'],
-                'kode' => $data['kode'],
-                'nama' => $data['nama'],
-                'status' => $data['status'],
-            ]),
-            'kegiatan' => $model->update([
-                'periode_tahun_id' => $data['periode_tahun_id'],
-                'program_pemerintahan_id' => $data['program_pemerintahan_id'],
-                'kode' => $data['kode'],
-                'nama' => $data['nama'],
-                'status' => $data['status'],
-            ]),
-            'sub_kegiatan' => $model->update([
-                'periode_tahun_id' => $data['periode_tahun_id'],
-                'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
-                'kode' => $data['kode'],
-                'nama' => $data['nama'],
-                ...$this->subKegiatanPayload($data),
-            ]),
-            default => abort(404),
-        };
+        DB::transaction(function () use ($data, $model, $type): void {
+            match ($type) {
+                'program' => $model->update([
+                    'bidang_urusan_id' => $data['bidang_urusan_id'],
+                    'tahun_awal' => $data['tahun_awal'],
+                    'tahun_akhir' => $data['tahun_akhir'],
+                    'kode' => $data['kode'],
+                    'nama' => $data['nama'],
+                    'status' => $data['status'],
+                ]),
+                'kegiatan' => $model->update([
+                    'periode_tahun_id' => $data['periode_tahun_id'],
+                    'program_pemerintahan_id' => $data['program_pemerintahan_id'],
+                    'kode' => $data['kode'],
+                    'nama' => $data['nama'],
+                    'status' => $data['status'],
+                ]),
+                'sub_kegiatan' => tap($model, function (SubKegiatanPemerintahan $subKegiatan) use ($data): void {
+                    $subKegiatan->update([
+                        'periode_tahun_id' => $data['periode_tahun_id'],
+                        'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
+                        'kode' => $data['kode'],
+                        'nama' => $data['nama'],
+                        ...$this->subKegiatanPayload($data),
+                    ]);
+                    $this->syncSubKegiatanIndicators($subKegiatan, $data);
+                }),
+                default => abort(404),
+            };
+        });
 
         return $this->redirectToContext($request)->with('success', 'Referensi program/kegiatan berhasil diperbarui.');
     }
@@ -574,54 +581,60 @@ class ProgramPemerintahanController extends Controller
             ->with([
                 'periodeTahun:id,tahun,nama',
                 'satuanIndikator:id,nama,simbol',
+                'indikatorReferensi.satuanIndikator:id,nama,simbol',
                 'kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
             ])
             ->where('periode_tahun_id', $periodeTahunId)
             ->when($kegiatanId, fn ($query) => $query->where('kegiatan_pemerintahan_id', $kegiatanId))
             ->orderBy('kode')
             ->get()
-            ->map(fn (SubKegiatanPemerintahan $subKegiatan) => [
-                'id' => $subKegiatan->id,
-                'type' => 'sub_kegiatan',
-                'level' => 'Sub Kegiatan',
-                'periode_tahun_id' => $subKegiatan->periode_tahun_id,
-                'periode_label' => $this->label((string) $subKegiatan->periodeTahun?->tahun, $subKegiatan->periodeTahun?->nama),
-                'kode' => $subKegiatan->kode,
-                'nama' => $subKegiatan->nama,
-                'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
-                'indikator_sub_kegiatan' => $subKegiatan->indikator_sub_kegiatan,
-                'satuan_indikator_id' => $subKegiatan->satuan_indikator_id,
-                'satuan_label' => $subKegiatan->satuanIndikator?->simbol ?: $subKegiatan->satuanIndikator?->nama,
-                'definisi_operasional' => $subKegiatan->definisi_operasional,
-                'status' => $subKegiatan->status,
-                'parent_id' => $subKegiatan->kegiatan_pemerintahan_id,
-                'parent_label' => $this->label($subKegiatan->kegiatanPemerintahan?->kode, $subKegiatan->kegiatanPemerintahan?->nama),
-                'bidang_label' => $this->label(
-                    $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->bidangUrusan?->kode,
-                    $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->bidangUrusan?->nama,
-                ),
-                'urusan_label' => $this->label(
-                    $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->bidangUrusan?->urusanPemerintahan?->kode,
-                    $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->bidangUrusan?->urusanPemerintahan?->nama,
-                ),
-                'children_count' => 0,
-                'children_label' => '-',
-                'drilldown_url' => null,
-                'sort_key' => $this->sortKey(
-                    $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->kode,
-                    $subKegiatan->kegiatanPemerintahan?->kode,
-                    $subKegiatan->kode,
-                ),
-                'search_text' => $this->searchText(
-                    $subKegiatan->kode,
-                    $subKegiatan->nama,
-                    $subKegiatan->sasaran_sub_kegiatan,
-                    $subKegiatan->indikator_sub_kegiatan,
-                    $subKegiatan->satuanIndikator?->nama,
-                    $subKegiatan->kegiatanPemerintahan?->nama,
-                    $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->nama,
-                ),
-            ]);
+            ->map(function (SubKegiatanPemerintahan $subKegiatan): array {
+                $indicators = $this->subKegiatanIndicatorRows($subKegiatan);
+
+                return [
+                    'id' => $subKegiatan->id,
+                    'type' => 'sub_kegiatan',
+                    'level' => 'Sub Kegiatan',
+                    'periode_tahun_id' => $subKegiatan->periode_tahun_id,
+                    'periode_label' => $this->label((string) $subKegiatan->periodeTahun?->tahun, $subKegiatan->periodeTahun?->nama),
+                    'kode' => $subKegiatan->kode,
+                    'nama' => $subKegiatan->nama,
+                    'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
+                    'indikator_sub_kegiatan' => $subKegiatan->indikator_sub_kegiatan,
+                    'satuan_indikator_id' => $subKegiatan->satuan_indikator_id,
+                    'satuan_label' => $subKegiatan->satuanIndikator?->simbol ?: $subKegiatan->satuanIndikator?->nama,
+                    'indicators' => $indicators,
+                    'definisi_operasional' => $subKegiatan->definisi_operasional,
+                    'status' => $subKegiatan->status,
+                    'parent_id' => $subKegiatan->kegiatan_pemerintahan_id,
+                    'parent_label' => $this->label($subKegiatan->kegiatanPemerintahan?->kode, $subKegiatan->kegiatanPemerintahan?->nama),
+                    'bidang_label' => $this->label(
+                        $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->bidangUrusan?->kode,
+                        $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->bidangUrusan?->nama,
+                    ),
+                    'urusan_label' => $this->label(
+                        $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->bidangUrusan?->urusanPemerintahan?->kode,
+                        $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->bidangUrusan?->urusanPemerintahan?->nama,
+                    ),
+                    'children_count' => 0,
+                    'children_label' => '-',
+                    'drilldown_url' => null,
+                    'sort_key' => $this->sortKey(
+                        $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->kode,
+                        $subKegiatan->kegiatanPemerintahan?->kode,
+                        $subKegiatan->kode,
+                    ),
+                    'search_text' => $this->searchText(
+                        $subKegiatan->kode,
+                        $subKegiatan->nama,
+                        $subKegiatan->sasaran_sub_kegiatan,
+                        collect($indicators)->pluck('indikator')->implode(' '),
+                        collect($indicators)->pluck('satuan_label')->implode(' '),
+                        $subKegiatan->kegiatanPemerintahan?->nama,
+                        $subKegiatan->kegiatanPemerintahan?->programPemerintahan?->nama,
+                    ),
+                ];
+            });
     }
 
     private function findReference(string $type, int $id): Model
@@ -901,21 +914,94 @@ class ProgramPemerintahanController extends Controller
      */
     private function subKegiatanPayload(array $data): array
     {
+        $primaryIndicator = $this->normalizedSubKegiatanIndicators($data)->first();
+
         return [
             'sasaran_sub_kegiatan' => filled($data['sasaran_sub_kegiatan'] ?? null)
                 ? trim((string) $data['sasaran_sub_kegiatan'])
                 : null,
-            'indikator_sub_kegiatan' => filled($data['indikator_sub_kegiatan'] ?? null)
-                ? trim((string) $data['indikator_sub_kegiatan'])
-                : null,
-            'satuan_indikator_id' => filled($data['satuan_indikator_id'] ?? null)
-                ? (int) $data['satuan_indikator_id']
-                : null,
+            'indikator_sub_kegiatan' => $primaryIndicator['indikator'] ?? null,
+            'satuan_indikator_id' => $primaryIndicator['satuan_indikator_id'] ?? null,
             'definisi_operasional' => filled($data['definisi_operasional'] ?? null)
                 ? trim((string) $data['definisi_operasional'])
                 : null,
             'status' => $data['status'],
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return Collection<int, array{indikator: string, satuan_indikator_id: int|null}>
+     */
+    private function normalizedSubKegiatanIndicators(array $data): Collection
+    {
+        $indicators = collect($data['indicators'] ?? [])
+            ->map(fn (array $indicator) => [
+                'indikator' => trim((string) ($indicator['indikator'] ?? '')),
+                'satuan_indikator_id' => filled($indicator['satuan_indikator_id'] ?? null)
+                    ? (int) $indicator['satuan_indikator_id']
+                    : null,
+            ])
+            ->filter(fn (array $indicator) => $indicator['indikator'] !== '')
+            ->values();
+
+        if ($indicators->isEmpty() && filled($data['indikator_sub_kegiatan'] ?? null)) {
+            $indicators->push([
+                'indikator' => trim((string) $data['indikator_sub_kegiatan']),
+                'satuan_indikator_id' => filled($data['satuan_indikator_id'] ?? null)
+                    ? (int) $data['satuan_indikator_id']
+                    : null,
+            ]);
+        }
+
+        return $indicators;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function syncSubKegiatanIndicators(SubKegiatanPemerintahan $subKegiatan, array $data): void
+    {
+        $subKegiatan->indikatorReferensi()->delete();
+
+        $this->normalizedSubKegiatanIndicators($data)
+            ->each(function (array $indicator, int $index) use ($subKegiatan): void {
+                $subKegiatan->indikatorReferensi()->create([
+                    ...$indicator,
+                    'is_utama' => $index === 0,
+                    'urutan' => $index + 1,
+                ]);
+            });
+    }
+
+    /**
+     * @return array<int, array{id: int|null, indikator: string, satuan_indikator_id: int|null, satuan_label: string|null, is_utama: bool, urutan: int}>
+     */
+    private function subKegiatanIndicatorRows(SubKegiatanPemerintahan $subKegiatan): array
+    {
+        $rows = $subKegiatan->indikatorReferensi
+            ->map(fn ($indicator) => [
+                'id' => $indicator->id,
+                'indikator' => $indicator->indikator,
+                'satuan_indikator_id' => $indicator->satuan_indikator_id,
+                'satuan_label' => $indicator->satuanIndikator?->simbol ?: $indicator->satuanIndikator?->nama,
+                'is_utama' => (bool) $indicator->is_utama,
+                'urutan' => (int) $indicator->urutan,
+            ])
+            ->values();
+
+        if ($rows->isEmpty() && filled($subKegiatan->indikator_sub_kegiatan)) {
+            $rows->push([
+                'id' => null,
+                'indikator' => $subKegiatan->indikator_sub_kegiatan,
+                'satuan_indikator_id' => $subKegiatan->satuan_indikator_id,
+                'satuan_label' => $subKegiatan->satuanIndikator?->simbol ?: $subKegiatan->satuanIndikator?->nama,
+                'is_utama' => true,
+                'urutan' => 1,
+            ]);
+        }
+
+        return $rows->all();
     }
 
     /**

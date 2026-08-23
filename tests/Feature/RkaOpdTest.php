@@ -15,6 +15,7 @@ use App\Models\SubKegiatanPemerintahan;
 use App\Models\UrusanPemerintahan;
 use App\Models\User;
 use App\Services\Penganggaran\RkaCreationService;
+use App\Services\Penganggaran\RkaPreviewTableService;
 use App\Services\Workflow\WorkflowTransitionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -47,6 +48,10 @@ class RkaOpdTest extends TestCase
             'pagu_renja' => '2500000.00',
             'pagu_usulan' => '2500000.00',
             'pagu_hasil_verifikasi' => '2500000.00',
+            'pagu_belanja_operasi_usulan' => '0.00',
+            'pagu_belanja_modal_usulan' => '0.00',
+            'pagu_belanja_operasi_hasil_verifikasi' => '0.00',
+            'pagu_belanja_modal_hasil_verifikasi' => '0.00',
         ]);
     }
 
@@ -96,7 +101,102 @@ class RkaOpdTest extends TestCase
         $this->actingAs($admin)
             ->get(route('rka-opd.show', $rka))
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('RkaOpd/Show')->where('rka.id', $rka->id)->has('items', 1));
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('RkaOpd/Show')
+                ->where('rka.id', $rka->id)
+                ->has('items', 1)
+                ->has('preview.rows', 6));
+    }
+
+    public function test_super_admin_can_export_rka_preview_to_excel(): void
+    {
+        [$renja] = $this->renja('ditetapkan', 'approved');
+        $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA DINAS PENGUJIAN 2027']);
+        $rka->items()->update([
+            'jenis_belanja' => 'operasi',
+            'pagu_belanja_operasi_usulan' => 2500000,
+            'pagu_belanja_operasi_hasil_verifikasi' => 2500000,
+            'sumber_pendanaan' => 'Dana Alokasi Umum',
+            'lokasi' => 'Kabupaten Banjarnegara',
+        ]);
+
+        $admin = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
+        $role = Role::create(['name' => 'super_admin', 'label' => 'Super Admin', 'is_system' => true]);
+        $admin->roles()->attach($role);
+
+        $response = $this->actingAs($admin)
+            ->get(route('rka-opd.preview.export', $rka))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $content = $response->getContent();
+        $this->assertIsString($content);
+        $this->assertStringStartsWith('PK', $content);
+
+        $path = tempnam(sys_get_temp_dir(), 'rka-preview-test-');
+        $this->assertNotFalse($path);
+        file_put_contents($path, $content);
+
+        $zip = new \ZipArchive;
+        $this->assertTrue($zip->open($path) === true);
+        $worksheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+        @unlink($path);
+
+        $this->assertIsString($worksheet);
+        $this->assertStringContainsString('BELANJA OPERASI', $worksheet);
+        $this->assertStringContainsString('Urusan Pengujian', $worksheet);
+        $this->assertStringContainsString('Sub Kegiatan Pengujian', $worksheet);
+    }
+
+    public function test_rka_item_can_split_proposal_and_verification_into_multiple_budget_types(): void
+    {
+        [$renja] = $this->renja('ditetapkan', 'approved');
+        $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA DINAS PENGUJIAN 2027']);
+        $item = $rka->items()->firstOrFail();
+        $admin = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
+        $role = Role::create(['name' => 'super_admin', 'label' => 'Super Admin', 'is_system' => true]);
+        $admin->roles()->attach($role);
+
+        $this->actingAs($admin)
+            ->put(route('rka-opd.items.update', [$rka, $item]), [
+                'tolok_ukur_kinerja' => $item->tolok_ukur_kinerja,
+                'target_kinerja' => $item->target_kinerja,
+                'satuan_kinerja' => $item->satuan_kinerja,
+                'sumber_pendanaan' => $item->sumber_pendanaan,
+                'lokasi' => $item->lokasi,
+                'kelompok_sasaran' => $item->kelompok_sasaran,
+                'bulan_mulai' => 1,
+                'bulan_selesai' => 12,
+                'alokasi_tahun_sebelumnya' => 0,
+                'pagu_belanja_operasi_usulan' => 2000000,
+                'pagu_belanja_modal_usulan' => 500000,
+                'pagu_belanja_tidak_terduga_usulan' => 0,
+                'pagu_belanja_transfer_usulan' => 0,
+                'pagu_belanja_operasi_hasil_verifikasi' => 2000000,
+                'pagu_belanja_modal_hasil_verifikasi' => 500000,
+                'pagu_belanja_tidak_terduga_hasil_verifikasi' => 0,
+                'pagu_belanja_transfer_hasil_verifikasi' => 0,
+                'alokasi_tahun_berikutnya' => 2750000,
+                'alasan_penyesuaian' => null,
+                'catatan' => null,
+            ])
+            ->assertRedirect();
+
+        $item->refresh();
+        $this->assertSame('2500000.00', $item->pagu_usulan);
+        $this->assertSame('2500000.00', $item->pagu_hasil_verifikasi);
+        $this->assertSame('2000000.00', $item->pagu_belanja_operasi_usulan);
+        $this->assertSame('500000.00', $item->pagu_belanja_modal_usulan);
+        $this->assertSame('2000000.00', $item->pagu_belanja_operasi_hasil_verifikasi);
+        $this->assertSame('500000.00', $item->pagu_belanja_modal_hasil_verifikasi);
+        $this->assertNull($item->jenis_belanja);
+
+        $preview = app(RkaPreviewTableService::class)->build($rka->fresh());
+        $subActivity = collect($preview['rows'])->firstWhere('level', 'sub_kegiatan');
+        $this->assertSame(2000000.0, $subActivity['budget']['operational']);
+        $this->assertSame(500000.0, $subActivity['budget']['capital']);
+        $this->assertSame(2500000.0, $subActivity['budget']['total']);
     }
 
     public function test_rka_uses_submit_verify_and_approve_workflow(): void
@@ -109,7 +209,11 @@ class RkaOpdTest extends TestCase
             'nomor_ppas' => 'PPAS/2027/01',
             'tanggal_ppas' => '2026-11-15',
         ]);
-        $rka->items()->update(['jenis_belanja' => 'operasi']);
+        $rka->items()->update([
+            'jenis_belanja' => 'operasi',
+            'pagu_belanja_operasi_usulan' => 2500000,
+            'pagu_belanja_operasi_hasil_verifikasi' => 2500000,
+        ]);
         $rka = $rka->fresh();
         $admin = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
         $role = Role::create(['name' => 'super_admin', 'label' => 'Super Admin', 'is_system' => true]);
@@ -122,6 +226,55 @@ class RkaOpdTest extends TestCase
 
         $this->assertSame('approved', $rka->fresh()->status);
         $this->assertDatabaseCount('workflow_histories', 3);
+    }
+
+    public function test_verifier_must_explain_a_changed_budget_type_distribution(): void
+    {
+        [$renja] = $this->renja('ditetapkan', 'approved');
+        $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA DINAS PENGUJIAN 2027']);
+        $item = $rka->items()->firstOrFail();
+        $item->update([
+            'pagu_belanja_operasi_usulan' => 2000000,
+            'pagu_belanja_modal_usulan' => 500000,
+            'pagu_belanja_operasi_hasil_verifikasi' => 2000000,
+            'pagu_belanja_modal_hasil_verifikasi' => 500000,
+        ]);
+        $rka->update(['status' => 'submitted']);
+
+        $admin = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
+        $role = Role::create(['name' => 'super_admin', 'label' => 'Super Admin', 'is_system' => true]);
+        $admin->roles()->attach($role);
+        $payload = [
+            'bulan_mulai' => 1,
+            'bulan_selesai' => 12,
+            'alokasi_tahun_sebelumnya' => 0,
+            'pagu_belanja_operasi_usulan' => 2000000,
+            'pagu_belanja_modal_usulan' => 500000,
+            'pagu_belanja_tidak_terduga_usulan' => 0,
+            'pagu_belanja_transfer_usulan' => 0,
+            'pagu_belanja_operasi_hasil_verifikasi' => 1800000,
+            'pagu_belanja_modal_hasil_verifikasi' => 700000,
+            'pagu_belanja_tidak_terduga_hasil_verifikasi' => 0,
+            'pagu_belanja_transfer_hasil_verifikasi' => 0,
+            'alokasi_tahun_berikutnya' => 2750000,
+        ];
+
+        $this->actingAs($admin)
+            ->put(route('rka-opd.items.update', [$rka, $item]), $payload)
+            ->assertSessionHasErrors('alasan_penyesuaian');
+
+        $this->actingAs($admin)
+            ->put(route('rka-opd.items.update', [$rka, $item]), [
+                ...$payload,
+                'alasan_penyesuaian' => 'Komposisi belanja disesuaikan berdasarkan hasil verifikasi.',
+            ])
+            ->assertRedirect();
+
+        $item->refresh();
+        $this->assertSame('2000000.00', $item->pagu_belanja_operasi_usulan);
+        $this->assertSame('1800000.00', $item->pagu_belanja_operasi_hasil_verifikasi);
+        $this->assertSame('700000.00', $item->pagu_belanja_modal_hasil_verifikasi);
+        $this->assertSame('2500000.00', $item->pagu_hasil_verifikasi);
     }
 
     public function test_incomplete_rka_cannot_be_submitted(): void

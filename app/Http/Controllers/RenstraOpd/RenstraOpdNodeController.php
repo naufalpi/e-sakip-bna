@@ -403,28 +403,45 @@ class RenstraOpdNodeController extends Controller
 
     private function ensureSubKegiatanIndicatorSnapshot(OpdSubKegiatan $subKegiatan): void
     {
-        $subKegiatan->loadMissing('subKegiatanPemerintahan');
+        $subKegiatan->loadMissing('subKegiatanPemerintahan.indikatorReferensi');
 
         $reference = $subKegiatan->subKegiatanPemerintahan;
 
-        if (! $reference || blank($reference->indikator_sub_kegiatan) || $subKegiatan->indikator()->exists()) {
+        if (! $reference || $subKegiatan->indikator()->exists()) {
             return;
         }
 
-        $subKegiatan->indikator()->create([
-            'satuan_indikator_id' => $reference->satuan_indikator_id,
-            'kode' => null,
-            'indikator' => $reference->indikator_sub_kegiatan,
-            'tipe_indikator' => 'positif',
-            'definisi_operasional' => $reference->definisi_operasional,
-            'formula' => null,
-            'formulasi_pengukuran' => null,
-            'tipe_perhitungan' => 'non_kumulatif',
-            'opd_penanggung_jawab_id' => null,
-            'pd_penanggung_jawab' => null,
-            'sumber_data' => null,
-            'urutan' => 1,
-        ]);
+        $indicators = $reference->indikatorReferensi
+            ->map(fn ($indicator) => [
+                'indikator' => trim((string) $indicator->indikator),
+                'satuan_indikator_id' => $indicator->satuan_indikator_id,
+            ])
+            ->filter(fn (array $indicator) => $indicator['indikator'] !== '')
+            ->values();
+
+        if ($indicators->isEmpty() && filled($reference->indikator_sub_kegiatan)) {
+            $indicators->push([
+                'indikator' => trim((string) $reference->indikator_sub_kegiatan),
+                'satuan_indikator_id' => $reference->satuan_indikator_id,
+            ]);
+        }
+
+        $indicators->each(function (array $indicator, int $index) use ($reference, $subKegiatan): void {
+            $subKegiatan->indikator()->create([
+                'satuan_indikator_id' => $indicator['satuan_indikator_id'],
+                'kode' => null,
+                'indikator' => $indicator['indikator'],
+                'tipe_indikator' => 'positif',
+                'definisi_operasional' => $reference->definisi_operasional,
+                'formula' => null,
+                'formulasi_pengukuran' => null,
+                'tipe_perhitungan' => 'non_kumulatif',
+                'opd_penanggung_jawab_id' => null,
+                'pd_penanggung_jawab' => null,
+                'sumber_data' => null,
+                'urutan' => $index + 1,
+            ]);
+        });
     }
 
     private function syncRpjmdProgramSnapshot(OpdProgram $program): void

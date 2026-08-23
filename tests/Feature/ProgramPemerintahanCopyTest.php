@@ -63,7 +63,7 @@ class ProgramPemerintahanCopyTest extends TestCase
             'nama' => 'Pengelolaan Nama Domain',
             'status' => 'active',
         ]);
-        SubKegiatanPemerintahan::create([
+        $sourceSubKegiatan = SubKegiatanPemerintahan::create([
             'periode_tahun_id' => $periodeIds[2025],
             'kegiatan_pemerintahan_id' => $kegiatan->id,
             'kode' => '2.16.03.2.01.0001',
@@ -73,6 +73,20 @@ class ProgramPemerintahanCopyTest extends TestCase
             'satuan_indikator_id' => $satuan->id,
             'definisi_operasional' => 'Dokumen pengelolaan nama domain yang disusun.',
             'status' => 'active',
+        ]);
+        $sourceSubKegiatan->indikatorReferensi()->createMany([
+            [
+                'indikator' => 'Jumlah dokumen pengelolaan nama domain',
+                'satuan_indikator_id' => $satuan->id,
+                'is_utama' => true,
+                'urutan' => 1,
+            ],
+            [
+                'indikator' => 'Persentase layanan domain yang aktif',
+                'satuan_indikator_id' => $satuan->id,
+                'is_utama' => false,
+                'urutan' => 2,
+            ],
         ]);
 
         $result = app(CopyProgramKegiatanReferenceService::class)
@@ -102,6 +116,15 @@ class ProgramPemerintahanCopyTest extends TestCase
             'satuan_indikator_id' => $satuan->id,
             'definisi_operasional' => 'Dokumen pengelolaan nama domain yang disusun.',
         ]);
+        $targetSubKegiatan = SubKegiatanPemerintahan::query()
+            ->where('periode_tahun_id', $periodeIds[2030])
+            ->where('kegiatan_pemerintahan_id', $targetKegiatan->id)
+            ->where('kode', '2.16.03.2.01.0001')
+            ->firstOrFail();
+        $this->assertSame([
+            'Jumlah dokumen pengelolaan nama domain',
+            'Persentase layanan domain yang aktif',
+        ], $targetSubKegiatan->indikatorReferensi()->pluck('indikator')->all());
     }
 
     public function test_copy_program_period_uses_first_populated_source_year_when_source_start_is_empty(): void

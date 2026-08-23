@@ -21,6 +21,11 @@ class WorkflowController extends Controller
 
         $action = (string) $request->validated('action');
 
+        $metadata = ['ip' => $request->ip()];
+        if ($action === 'correct') {
+            $metadata['correction_reference'] = $request->validated('correction_reference');
+        }
+
         $workflowService->transition(
             $model,
             $module,
@@ -28,8 +33,12 @@ class WorkflowController extends Controller
             $request->user(),
             $request->validated('note'),
             $request->validated('current_reviewer_id'),
-            ['ip' => $request->ip()]
+            $metadata
         );
+
+        if ($action === 'correct') {
+            return back()->with('success', 'Persetujuan dibatalkan untuk koreksi data. Dokumen kini berstatus Perlu Perbaikan.');
+        }
 
         if ($model instanceof Rkpd && $action === 'approve') {
             $successMessage = $model->jenis_versi === 'perubahan'

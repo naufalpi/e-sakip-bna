@@ -17,6 +17,15 @@ type Option = {
 
 type ReferenceType = 'program' | 'kegiatan' | 'sub_kegiatan';
 
+type ReferenceIndicator = {
+    id?: number | null;
+    indikator: string;
+    satuan_indikator_id: number | string;
+    satuan_label?: string | null;
+    is_utama?: boolean;
+    urutan?: number;
+};
+
 type ReferenceItem = {
     id: number;
     type: ReferenceType;
@@ -31,6 +40,7 @@ type ReferenceItem = {
     indikator_sub_kegiatan?: string | null;
     satuan_indikator_id?: number | null;
     satuan_label?: string | null;
+    indicators?: ReferenceIndicator[];
     definisi_operasional?: string | null;
     status: string;
     parent_id: number;
@@ -81,6 +91,7 @@ type ReferenceForm = {
     sasaran_sub_kegiatan: string;
     indikator_sub_kegiatan: string;
     satuan_indikator_id: number | string;
+    indicators: ReferenceIndicator[];
     definisi_operasional: string;
     status: string;
     redirect_to: string;
@@ -189,6 +200,11 @@ const filterForm = reactive({
     bidang_urusan_id: props.filters.bidang_urusan_id ?? '',
 });
 
+const emptyIndicator = (): ReferenceIndicator => ({
+    indikator: '',
+    satuan_indikator_id: '',
+});
+
 const singleForm = useForm<ReferenceForm>({
     type: props.level,
     periode_tahun_id: props.selectedPeriodeId,
@@ -202,6 +218,7 @@ const singleForm = useForm<ReferenceForm>({
     sasaran_sub_kegiatan: '',
     indikator_sub_kegiatan: '',
     satuan_indikator_id: '',
+    indicators: [emptyIndicator()],
     definisi_operasional: '',
     status: 'active',
     redirect_to: '',
@@ -379,6 +396,7 @@ const resetSingleForm = () => {
     editing.id = null;
     singleForm.reset();
     singleForm.status = 'active';
+    singleForm.indicators = [emptyIndicator()];
     syncContextToForm(singleForm);
     singleForm.clearErrors();
 };
@@ -483,6 +501,39 @@ const canSubmitSingle = computed(() => {
 
     return props.can.manage && hasScope && hasParent && singleForm.kode.trim().length > 0 && singleForm.nama.trim().length > 0;
 });
+
+const addSubKegiatanIndicator = () => {
+    if (singleForm.indicators.length < 20) {
+        singleForm.indicators.push(emptyIndicator());
+    }
+};
+
+const removeSubKegiatanIndicator = (index: number) => {
+    if (index > 0) {
+        singleForm.indicators.splice(index, 1);
+    }
+};
+
+const indicatorFieldError = (index: number, field: 'indikator' | 'satuan_indikator_id') =>
+    (singleForm.errors as Record<string, string>)[`indicators.${index}.${field}`];
+
+const itemIndicators = (item: ReferenceItem): ReferenceIndicator[] => {
+    if (item.indicators?.length) {
+        return item.indicators;
+    }
+
+    return item.indikator_sub_kegiatan
+        ? [
+              {
+                  indikator: item.indikator_sub_kegiatan,
+                  satuan_indikator_id: item.satuan_indikator_id ?? '',
+                  satuan_label: item.satuan_label,
+                  is_utama: true,
+                  urutan: 1,
+              },
+          ]
+        : [];
+};
 const bulkValidRows = computed(() => bulkForm.rows.split(/\r\n|\r|\n/).filter((line) => line.trim().includes('|')).length);
 const canSubmitBulk = computed(() => {
     const hasParent =
@@ -568,6 +619,9 @@ const submitSingle = () => {
     }
     if (props.level === 'sub_kegiatan' && props.context.kegiatan?.id) {
         singleForm.kegiatan_pemerintahan_id = props.context.kegiatan.id;
+        const primaryIndicator = singleForm.indicators.find((indicator) => indicator.indikator.trim().length > 0);
+        singleForm.indikator_sub_kegiatan = primaryIndicator?.indikator.trim() ?? '';
+        singleForm.satuan_indikator_id = primaryIndicator?.satuan_indikator_id ?? '';
     }
 
     if (editing.type && editing.id) {
@@ -664,6 +718,17 @@ const editItem = (item: ReferenceItem) => {
     singleForm.sasaran_sub_kegiatan = item.sasaran_sub_kegiatan ?? '';
     singleForm.indikator_sub_kegiatan = item.indikator_sub_kegiatan ?? '';
     singleForm.satuan_indikator_id = item.satuan_indikator_id ?? '';
+    singleForm.indicators = itemIndicators(item).map((indicator) => ({
+        id: indicator.id,
+        indikator: indicator.indikator,
+        satuan_indikator_id: indicator.satuan_indikator_id ?? '',
+        satuan_label: indicator.satuan_label,
+        is_utama: indicator.is_utama,
+        urutan: indicator.urutan,
+    }));
+    if (singleForm.indicators.length === 0) {
+        singleForm.indicators = [emptyIndicator()];
+    }
     singleForm.definisi_operasional = item.definisi_operasional ?? '';
     singleForm.status = item.status;
     singleForm.redirect_to = redirectTo.value;
@@ -953,39 +1018,85 @@ const destroyProgramPeriod = async () => {
                                     <div class="text-sm font-semibold text-foreground">Metadata Sub Kegiatan</div>
                                     <div class="text-xs text-muted-foreground">Data baku Permendagri, boleh kosong jika belum tersedia.</div>
                                 </div>
-                                <div class="grid gap-4 lg:grid-cols-2">
-                                    <div class="grid gap-2">
-                                        <label class="text-sm font-medium" for="single-sasaran-sub">Sasaran Sub Kegiatan</label>
-                                        <textarea
-                                            id="single-sasaran-sub"
-                                            v-model="singleForm.sasaran_sub_kegiatan"
-                                            rows="3"
-                                            class="rounded-xl border bg-background px-3 py-2 text-sm"
-                                        />
-                                        <InputError :message="singleForm.errors.sasaran_sub_kegiatan" />
-                                    </div>
-                                    <div class="grid gap-2">
-                                        <label class="text-sm font-medium" for="single-indikator-sub">Indikator Sub Kegiatan</label>
-                                        <textarea
-                                            id="single-indikator-sub"
-                                            v-model="singleForm.indikator_sub_kegiatan"
-                                            rows="3"
-                                            class="rounded-xl border bg-background px-3 py-2 text-sm"
-                                        />
-                                        <InputError :message="singleForm.errors.indikator_sub_kegiatan" />
-                                    </div>
-                                </div>
                                 <div class="grid gap-2">
-                                    <label class="text-sm font-medium">Satuan</label>
-                                    <RpjmdRichSelect
-                                        v-model="singleForm.satuan_indikator_id"
-                                        :options="options.satuan"
-                                        placeholder="Pilih satuan"
-                                        empty-text="Satuan belum tersedia"
-                                        placement="top"
+                                    <label class="text-sm font-medium" for="single-sasaran-sub">Sasaran Sub Kegiatan</label>
+                                    <textarea
+                                        id="single-sasaran-sub"
+                                        v-model="singleForm.sasaran_sub_kegiatan"
+                                        rows="3"
+                                        class="rounded-xl border bg-background px-3 py-2 text-sm"
                                     />
-                                    <InputError :message="singleForm.errors.satuan_indikator_id" />
+                                    <InputError :message="singleForm.errors.sasaran_sub_kegiatan" />
                                 </div>
+
+                                <div class="overflow-hidden rounded-xl border bg-background">
+                                    <div class="flex flex-col gap-3 border-b bg-muted/35 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <div class="text-sm font-semibold text-foreground">Indikator Sub Kegiatan</div>
+                                            <p class="mt-0.5 text-xs leading-5 text-muted-foreground">
+                                                Indikator utama tetap menjadi acuan RKA/DPA. Seluruh indikator akan disalin ke RENSTRA.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            :disabled="singleForm.indicators.length >= 20"
+                                            class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border bg-background px-3 text-xs font-semibold text-[#00336C] transition hover:border-[#00336C]/30 hover:bg-[#00336C]/5 disabled:cursor-not-allowed disabled:opacity-50 dark:text-sky-300"
+                                            @click="addSubKegiatanIndicator"
+                                        >
+                                            <Plus class="size-3.5" />
+                                            Tambah indikator
+                                        </button>
+                                    </div>
+
+                                    <div
+                                        v-for="(indicator, index) in singleForm.indicators"
+                                        :key="indicator.id ?? `new-indicator-${index}`"
+                                        class="grid gap-3 border-b px-4 py-4 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.42fr)]"
+                                    >
+                                        <div class="grid gap-2">
+                                            <div class="flex min-h-7 items-center justify-between gap-3">
+                                                <label class="text-sm font-medium" :for="`single-indikator-sub-${index}`">
+                                                    {{ index === 0 ? 'Indikator utama' : `Indikator tambahan ${index}` }}
+                                                </label>
+                                                <span
+                                                    v-if="index === 0"
+                                                    class="rounded-full bg-[#00336C]/8 px-2.5 py-1 text-[11px] font-semibold text-[#00336C] dark:bg-sky-400/10 dark:text-sky-300"
+                                                >
+                                                    Standar Kemendagri
+                                                </span>
+                                                <button
+                                                    v-else
+                                                    type="button"
+                                                    class="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
+                                                    :aria-label="`Hapus indikator tambahan ${index}`"
+                                                    @click="removeSubKegiatanIndicator(index)"
+                                                >
+                                                    <Trash2 class="size-3.5" />
+                                                </button>
+                                            </div>
+                                            <textarea
+                                                :id="`single-indikator-sub-${index}`"
+                                                v-model="indicator.indikator"
+                                                rows="3"
+                                                class="rounded-xl border bg-background px-3 py-2 text-sm"
+                                                :placeholder="index === 0 ? 'Indikator baku sub kegiatan' : 'Indikator tambahan RENSTRA'"
+                                            />
+                                            <InputError :message="indicatorFieldError(index, 'indikator')" />
+                                        </div>
+                                        <div class="grid content-start gap-2">
+                                            <label class="min-h-7 text-sm font-medium">Satuan</label>
+                                            <RpjmdRichSelect
+                                                v-model="indicator.satuan_indikator_id"
+                                                :options="options.satuan"
+                                                placeholder="Pilih satuan"
+                                                empty-text="Satuan belum tersedia"
+                                                placement="top"
+                                            />
+                                            <InputError :message="indicatorFieldError(index, 'satuan_indikator_id')" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <InputError :message="singleForm.errors.indicators" />
                                 <div class="grid gap-2">
                                     <label class="text-sm font-medium" for="single-definisi-sub">Definisi Operasional</label>
                                     <textarea
@@ -1272,14 +1383,31 @@ const destroyProgramPeriod = async () => {
                                         <span class="font-semibold uppercase text-[#00336C]">Sasaran</span>
                                         <p class="mt-0.5 text-muted-foreground">{{ item.sasaran_sub_kegiatan }}</p>
                                     </div>
-                                    <div v-if="item.indikator_sub_kegiatan">
-                                        <span class="font-semibold uppercase text-[#00336C]">Indikator</span>
-                                        <p class="mt-0.5 text-muted-foreground">{{ item.indikator_sub_kegiatan }}</p>
+                                    <div v-if="itemIndicators(item).length" class="grid gap-2">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <span class="font-semibold uppercase text-[#00336C] dark:text-sky-300">Indikator</span>
+                                            <span class="text-[11px] font-medium text-muted-foreground">{{ itemIndicators(item).length }} indikator</span>
+                                        </div>
+                                        <ol class="grid gap-2">
+                                            <li
+                                                v-for="(indicator, indicatorIndex) in itemIndicators(item)"
+                                                :key="indicator.id ?? `${item.id}-indicator-${indicatorIndex}`"
+                                                class="border-l-2 pl-2.5"
+                                                :class="indicatorIndex === 0 ? 'border-[#00336C]/45' : 'border-border'"
+                                            >
+                                                <div class="flex flex-wrap items-center gap-1.5">
+                                                    <span v-if="indicatorIndex === 0" class="text-[10px] font-semibold uppercase tracking-wide text-[#00336C] dark:text-sky-300">
+                                                        Utama
+                                                    </span>
+                                                    <span v-if="indicator.satuan_label" class="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                                        {{ indicator.satuan_label }}
+                                                    </span>
+                                                </div>
+                                                <p class="mt-0.5 text-muted-foreground">{{ indicator.indikator }}</p>
+                                            </li>
+                                        </ol>
                                     </div>
                                     <div class="flex flex-wrap gap-2">
-                                        <span v-if="item.satuan_label" class="rounded-full bg-[#00336C]/10 px-2.5 py-1 font-medium text-[#00336C]">
-                                            {{ item.satuan_label }}
-                                        </span>
                                         <span
                                             class="rounded-full px-2.5 py-1 font-medium"
                                             :class="

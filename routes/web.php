@@ -143,6 +143,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('renja-opd/{renja_opd}/sync-rkpd/preview', [PlanningSyncController::class, 'previewRkpdToRenja'])->name('renja-opd.sync-rkpd.preview');
     Route::post('renja-opd/{renja_opd}/sync-rkpd/{batch}/apply', [PlanningSyncController::class, 'applyRkpdToRenja'])->name('renja-opd.sync-rkpd.apply');
 
+    Route::get('rka-opd/{rka_opd}/preview/export', [RkaOpdController::class, 'exportPreview'])->name('rka-opd.preview.export');
     Route::resource('rka-opd', RkaOpdController::class)->parameters(['rka-opd' => 'rka_opd']);
     Route::put('rka-opd/{rka_opd}/items/{item}', [RkaOpdItemController::class, 'update'])->name('rka-opd.items.update');
 

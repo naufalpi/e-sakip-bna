@@ -3,7 +3,7 @@ import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { AlertTriangle, ArrowLeft, Banknote, Landmark, Pencil, Rows3, Save, ShieldCheck } from 'lucide-vue-next';
+import { AlertTriangle, ArrowLeft, Banknote, Download, Landmark, Pencil, Rows3, Save, ShieldCheck } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 type Rka = {
@@ -38,16 +38,39 @@ type Row = {
     bulan_mulai: number; bulan_selesai: number; jenis_belanja?: string | null;
     alokasi_tahun_sebelumnya: string | number; pagu_renja: string | number; pagu_usulan: string | number;
     pagu_hasil_verifikasi: string | number; alokasi_tahun_berikutnya: string | number;
+    pagu_belanja_operasi_usulan?: string | number | null; pagu_belanja_modal_usulan?: string | number | null;
+    pagu_belanja_tidak_terduga_usulan?: string | number | null; pagu_belanja_transfer_usulan?: string | number | null;
+    pagu_belanja_operasi_hasil_verifikasi?: string | number | null; pagu_belanja_modal_hasil_verifikasi?: string | number | null;
+    pagu_belanja_tidak_terduga_hasil_verifikasi?: string | number | null; pagu_belanja_transfer_hasil_verifikasi?: string | number | null;
     alasan_penyesuaian?: string | null; catatan?: string | null; urutan: number;
 };
 type WorkflowHistory = { id: number; action: string; from_status?: string | null; to_status: string; notes?: string | null; created_at: string; actor?: { name: string } | null };
 type Workflow = { submitted_by?: number | null; histories?: WorkflowHistory[] } | null;
+type BudgetColumns = {
+    previous: number;
+    operational: number;
+    capital: number;
+    unexpected: number;
+    transfer: number;
+    total: number;
+    next: number;
+};
+type PreviewRow = {
+    key: string;
+    level: 'opd' | 'urusan' | 'bidang' | 'program' | 'kegiatan' | 'sub_kegiatan';
+    code: string;
+    description: string;
+    source: string;
+    location: string;
+    budget: BudgetColumns;
+};
 
 const props = defineProps<{
     rka: Rka;
     items: Row[];
     summary: { items_count: number; pagu_renja: number; pagu_usulan: number; pagu_hasil_verifikasi: number };
     readiness: { ready: boolean; issues: string[]; incomplete_items: number };
+    preview: { rows: PreviewRow[]; total: BudgetColumns; uses_verified_budget: boolean };
     workflow: Workflow;
     can: { manage: boolean; verifyBudget: boolean; review: boolean; lock: boolean; unlock: boolean; withdraw: boolean };
 }>();
@@ -59,9 +82,17 @@ const verificationOnly = computed(() => props.can.verifyBudget && !props.can.man
 
 const itemForm = useForm({
     tolok_ukur_kinerja: '', target_kinerja: '', satuan_kinerja: '', sumber_pendanaan: '', lokasi: '', kelompok_sasaran: '',
-    bulan_mulai: 1, bulan_selesai: 12, jenis_belanja: '' as string,
-    alokasi_tahun_sebelumnya: 0 as string | number, pagu_usulan: 0 as string | number,
-    pagu_hasil_verifikasi: 0 as string | number, alokasi_tahun_berikutnya: 0 as string | number,
+    bulan_mulai: 1, bulan_selesai: 12,
+    alokasi_tahun_sebelumnya: 0 as string | number,
+    pagu_belanja_operasi_usulan: 0 as string | number,
+    pagu_belanja_modal_usulan: 0 as string | number,
+    pagu_belanja_tidak_terduga_usulan: 0 as string | number,
+    pagu_belanja_transfer_usulan: 0 as string | number,
+    pagu_belanja_operasi_hasil_verifikasi: 0 as string | number,
+    pagu_belanja_modal_hasil_verifikasi: 0 as string | number,
+    pagu_belanja_tidak_terduga_hasil_verifikasi: 0 as string | number,
+    pagu_belanja_transfer_hasil_verifikasi: 0 as string | number,
+    alokasi_tahun_berikutnya: 0 as string | number,
     alasan_penyesuaian: '', catatan: '',
 });
 
@@ -76,11 +107,16 @@ const openEditor = (item: Row) => {
     itemForm.kelompok_sasaran = item.kelompok_sasaran ?? '';
     itemForm.bulan_mulai = item.bulan_mulai;
     itemForm.bulan_selesai = item.bulan_selesai;
-    itemForm.jenis_belanja = item.jenis_belanja ?? '';
-    itemForm.alokasi_tahun_sebelumnya = item.alokasi_tahun_sebelumnya;
-    itemForm.pagu_usulan = item.pagu_usulan;
-    itemForm.pagu_hasil_verifikasi = item.pagu_hasil_verifikasi;
-    itemForm.alokasi_tahun_berikutnya = item.alokasi_tahun_berikutnya;
+    itemForm.alokasi_tahun_sebelumnya = formatMoneyInput(item.alokasi_tahun_sebelumnya);
+    itemForm.pagu_belanja_operasi_usulan = formatMoneyInput(item.pagu_belanja_operasi_usulan);
+    itemForm.pagu_belanja_modal_usulan = formatMoneyInput(item.pagu_belanja_modal_usulan);
+    itemForm.pagu_belanja_tidak_terduga_usulan = formatMoneyInput(item.pagu_belanja_tidak_terduga_usulan);
+    itemForm.pagu_belanja_transfer_usulan = formatMoneyInput(item.pagu_belanja_transfer_usulan);
+    itemForm.pagu_belanja_operasi_hasil_verifikasi = formatMoneyInput(item.pagu_belanja_operasi_hasil_verifikasi);
+    itemForm.pagu_belanja_modal_hasil_verifikasi = formatMoneyInput(item.pagu_belanja_modal_hasil_verifikasi);
+    itemForm.pagu_belanja_tidak_terduga_hasil_verifikasi = formatMoneyInput(item.pagu_belanja_tidak_terduga_hasil_verifikasi);
+    itemForm.pagu_belanja_transfer_hasil_verifikasi = formatMoneyInput(item.pagu_belanja_transfer_hasil_verifikasi);
+    itemForm.alokasi_tahun_berikutnya = formatMoneyInput(item.alokasi_tahun_berikutnya);
     itemForm.alasan_penyesuaian = item.alasan_penyesuaian ?? '';
     itemForm.catatan = item.catatan ?? '';
     editOpen.value = true;
@@ -107,12 +143,68 @@ const groupedPrograms = computed(() => {
     return [...programs.values()].map((program) => ({ ...program, kegiatan: [...program.kegiatan.values()] }));
 });
 
+const previewRows = computed(() => props.preview.rows);
+const previewTotal = computed(() => props.preview.total);
+const isVerifiedBudget = computed(() => props.preview.uses_verified_budget);
+const previewRowClass = (level: PreviewRow['level']) => ({
+    opd: 'bg-slate-200/90 font-bold dark:bg-slate-800',
+    urusan: 'bg-blue-100/80 font-bold dark:bg-blue-950/60',
+    bidang: 'bg-cyan-50 font-bold dark:bg-cyan-950/40',
+    program: 'bg-amber-50 font-semibold dark:bg-amber-950/35',
+    kegiatan: 'bg-emerald-50 font-semibold dark:bg-emerald-950/30',
+    sub_kegiatan: 'bg-white dark:bg-slate-950',
+})[level];
+const previewDescriptionClass = (level: PreviewRow['level']) => ({
+    opd: 'uppercase tracking-[.04em]',
+    urusan: 'pl-2 uppercase tracking-[.03em]',
+    bidang: 'pl-5 uppercase tracking-[.02em]',
+    program: 'pl-8 uppercase',
+    kegiatan: 'pl-11',
+    sub_kegiatan: 'pl-14',
+})[level];
+
+const budgetTypes = [
+    { key: 'operasi', label: 'Belanja Operasi', marker: 'bg-blue-500', tint: 'bg-blue-50/55 dark:bg-blue-950/15' },
+    { key: 'modal', label: 'Belanja Modal', marker: 'bg-emerald-500', tint: 'bg-emerald-50/55 dark:bg-emerald-950/15' },
+    { key: 'tidak_terduga', label: 'Belanja Tidak Terduga', marker: 'bg-amber-500', tint: 'bg-amber-50/55 dark:bg-amber-950/15' },
+    { key: 'transfer', label: 'Belanja Transfer', marker: 'bg-violet-500', tint: 'bg-violet-50/55 dark:bg-violet-950/15' },
+] as const;
+const moneyNumber = (value?: string | number | null) => {
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    const raw = value.trim();
+    if (/^\d+(\.\d+)?$/.test(raw)) return Number(raw);
+    return Number(raw.replace(/[^\d]/g, '')) || 0;
+};
+type MoneyFormField =
+    | 'alokasi_tahun_sebelumnya'
+    | 'alokasi_tahun_berikutnya'
+    | `pagu_belanja_${(typeof budgetTypes)[number]['key']}_usulan`
+    | `pagu_belanja_${(typeof budgetTypes)[number]['key']}_hasil_verifikasi`;
+const formatMoneyInput = (value?: string | number | null) => {
+    if (value === null || value === undefined || value === '') return '0';
+    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(moneyNumber(value));
+};
+const updateMoneyInput = (field: MoneyFormField, event: Event) => {
+    itemForm[field] = formatMoneyInput((event.target as HTMLInputElement).value);
+};
+const proposalTotal = computed(() => budgetTypes.reduce((total, type) => total + moneyNumber(itemForm[`pagu_belanja_${type.key}_usulan`]), 0));
+const verificationTotal = computed(() => budgetTypes.reduce((total, type) => total + moneyNumber(itemForm[`pagu_belanja_${type.key}_hasil_verifikasi`]), 0));
+const displayedVerificationTotal = computed(() => props.can.verifyBudget ? verificationTotal.value : proposalTotal.value);
+const budgetTypeSummary = (item: Row) => {
+    const active = budgetTypes
+        .filter((type) => moneyNumber(item[`pagu_belanja_${type.key}_usulan`]) > 0)
+        .map((type) => type.label.replace('Belanja ', ''));
+
+    return active.length ? active.join(' + ') : 'Belanja belum dirinci';
+};
+
 const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const monthRange = (start: number, end: number) => start === end ? months[start - 1] : `${months[start - 1]}–${months[end - 1]}`;
 const rupiah = (value?: string | number | null) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0));
+const rupiahTable = (value?: string | number | null) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value || 0));
 const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(new Date(`${value}T00:00:00+07:00`)) : '-';
 const statusLabel = (status: string) => ({ draft: 'Draft', submitted: 'Diajukan', revision: 'Perlu Perbaikan', verified: 'Terverifikasi', approved: 'Disetujui', rejected: 'Ditolak', locked: 'Terkunci' })[status] ?? status;
-const jenisBelanjaLabel = (value?: string | null) => ({ operasi: 'Belanja Operasi', modal: 'Belanja Modal', tidak_terduga: 'Belanja Tidak Terduga', transfer: 'Belanja Transfer' })[value || ''] || 'Belum dipilih';
 const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.summary.pagu_usulan);
 </script>
 
@@ -161,7 +253,17 @@ const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.su
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
             <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div><h2 class="font-bold text-slate-900 dark:text-white">Rincian RKA-BELANJA SKPD</h2><p class="text-xs text-slate-500 dark:text-slate-400">Struktur kinerja dan kerangka anggaran per sub kegiatan.</p></div>
-                <div class="inline-flex self-start rounded-lg bg-slate-100 p-1 dark:bg-slate-800"><button type="button" class="rounded-md px-3 py-1.5 text-xs font-semibold transition" :class="activeTab === 'rincian' ? 'bg-white text-[#00336C] shadow-sm dark:bg-slate-950 dark:text-blue-300' : 'text-slate-500'" @click="activeTab = 'rincian'">Rincian</button><button type="button" class="rounded-md px-3 py-1.5 text-xs font-semibold transition" :class="activeTab === 'preview' ? 'bg-white text-[#00336C] shadow-sm dark:bg-slate-950 dark:text-blue-300' : 'text-slate-500'" @click="activeTab = 'preview'">Preview tabel</button></div>
+                <div class="flex self-start items-center gap-2">
+                    <a
+                        v-if="activeTab === 'preview'"
+                        :href="route('rka-opd.preview.export', rka.id)"
+                        class="inline-flex h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 transition hover:border-emerald-300 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200 dark:hover:bg-emerald-900/60"
+                    >
+                        <Download class="size-4" />
+                        Export Excel
+                    </a>
+                    <div class="inline-flex rounded-lg bg-slate-100 p-1 dark:bg-slate-800"><button type="button" class="rounded-md px-3 py-1.5 text-xs font-semibold transition" :class="activeTab === 'rincian' ? 'bg-white text-[#00336C] shadow-sm dark:bg-slate-950 dark:text-blue-300' : 'text-slate-500'" @click="activeTab = 'rincian'">Rincian</button><button type="button" class="rounded-md px-3 py-1.5 text-xs font-semibold transition" :class="activeTab === 'preview' ? 'bg-white text-[#00336C] shadow-sm dark:bg-slate-950 dark:text-blue-300' : 'text-slate-500'" @click="activeTab = 'preview'">Preview tabel</button></div>
+                </div>
             </div>
 
             <div v-if="activeTab === 'rincian'" class="divide-y divide-slate-200 dark:divide-slate-800">
@@ -171,7 +273,7 @@ const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.su
                         <div class="flex items-start gap-2"><span class="font-mono text-xs font-bold text-blue-700 dark:text-blue-300">{{ kegiatan.kode }}</span><p class="text-sm font-semibold text-slate-800 dark:text-slate-200">{{ kegiatan.nama }}</p></div>
                         <div class="mt-3 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
                             <article v-for="item in kegiatan.items" :key="item.id" class="grid gap-4 bg-card px-4 py-4 lg:grid-cols-[minmax(13rem,1.35fr)_minmax(11rem,.9fr)_minmax(9rem,.65fr)_minmax(10rem,.7fr)_auto] lg:items-center">
-                                <div class="min-w-0"><p class="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">{{ item.kode_sub_kegiatan }}</p><p class="mt-1 text-sm font-semibold leading-5 text-slate-900 dark:text-white">{{ item.nama_sub_kegiatan }}</p><p class="mt-1 text-xs text-slate-500">{{ jenisBelanjaLabel(item.jenis_belanja) }} · {{ monthRange(item.bulan_mulai, item.bulan_selesai) }}</p></div>
+                                <div class="min-w-0"><p class="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">{{ item.kode_sub_kegiatan }}</p><p class="mt-1 text-sm font-semibold leading-5 text-slate-900 dark:text-white">{{ item.nama_sub_kegiatan }}</p><p class="mt-1 text-xs text-slate-500">{{ budgetTypeSummary(item) }} · {{ monthRange(item.bulan_mulai, item.bulan_selesai) }}</p></div>
                                 <div><p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Tolok ukur kinerja</p><p class="mt-1 line-clamp-2 text-sm text-slate-700 dark:text-slate-200">{{ item.tolok_ukur_kinerja || '-' }}</p><p class="mt-1 text-xs font-semibold text-[#00336C] dark:text-blue-300">{{ item.target_kinerja || '-' }} {{ item.satuan_kinerja || '' }}</p></div>
                                 <div><p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pagu RENJA</p><p class="mt-1 text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ rupiah(item.pagu_renja) }}</p></div>
                                 <div><p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Hasil verifikasi</p><p class="mt-1 text-sm font-bold tabular-nums text-slate-950 dark:text-white">{{ rupiah(item.pagu_hasil_verifikasi) }}</p><p v-if="Number(item.pagu_hasil_verifikasi) !== Number(item.pagu_usulan)" class="mt-1 text-[10px] text-amber-600">Usulan {{ rupiah(item.pagu_usulan) }}</p></div>
@@ -183,15 +285,123 @@ const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.su
                 <div v-if="!items.length" class="px-6 py-16 text-center text-sm text-slate-500">Tidak ada rincian sub kegiatan.</div>
             </div>
 
-            <div v-else class="p-4 sm:p-6">
-                <div class="mb-5 text-center"><p class="text-sm font-bold uppercase tracking-[.12em] text-slate-900 dark:text-white">Rencana Kerja dan Anggaran</p><p class="text-sm font-bold uppercase tracking-[.12em] text-slate-900 dark:text-white">Satuan Kerja Perangkat Daerah</p><div class="mt-2 flex justify-center"><span class="rounded-md border border-slate-300 px-3 py-1 text-xs font-bold dark:border-slate-700">Formulir RKA-BELANJA SKPD</span></div><p class="mt-2 text-xs text-slate-500">Pemerintah Kabupaten Banjarnegara · Tahun Anggaran {{ rka.tahun }}</p></div>
-                <div class="overflow-x-auto rounded-xl border border-slate-300 dark:border-slate-700">
-                    <table class="min-w-[1500px] border-collapse text-xs">
-                        <thead class="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-600 dark:bg-slate-900 dark:text-slate-300"><tr><th class="border-b border-r p-3 text-left">Kode</th><th class="min-w-72 border-b border-r p-3 text-left">Urusan / Program / Kegiatan / Sub Kegiatan</th><th class="min-w-64 border-b border-r p-3 text-left">Indikator dan Tolok Ukur Kinerja</th><th class="border-b border-r p-3">Target Kinerja</th><th class="min-w-44 border-b border-r p-3 text-left">Sumber Pendanaan</th><th class="min-w-40 border-b border-r p-3 text-left">Lokasi / Kelompok Sasaran</th><th class="border-b border-r p-3 text-right">Alokasi T−1</th><th class="border-b border-r p-3 text-right">Pagu Usulan T</th><th class="border-b border-r p-3 text-right">Hasil Verifikasi T</th><th class="border-b p-3 text-right">Alokasi T+1</th></tr></thead>
-                        <tbody class="divide-y divide-slate-200 dark:divide-slate-800"><tr v-for="item in items" :key="item.id" class="align-top"><td class="border-r p-3 font-mono font-bold text-[#00336C] dark:text-blue-300">{{ item.kode_sub_kegiatan }}</td><td class="border-r p-3"><p class="font-semibold text-slate-900 dark:text-white">{{ item.nama_sub_kegiatan }}</p><p class="mt-1 text-[10px] text-slate-500">{{ item.kode_program }} · {{ item.nama_program }}</p><p class="text-[10px] text-slate-500">{{ item.kode_kegiatan }} · {{ item.nama_kegiatan }}</p></td><td class="border-r p-3 leading-5 text-slate-700 dark:text-slate-200">{{ item.tolok_ukur_kinerja || '-' }}</td><td class="border-r p-3 text-center font-semibold">{{ item.target_kinerja || '-' }} {{ item.satuan_kinerja || '' }}</td><td class="border-r p-3 leading-5">{{ item.sumber_pendanaan || '-' }}</td><td class="border-r p-3 leading-5"><p>{{ item.lokasi || '-' }}</p><p class="mt-1 text-[10px] text-slate-500">Sasaran: {{ item.kelompok_sasaran || '-' }}</p><p class="mt-1 text-[10px] text-slate-500">{{ monthRange(item.bulan_mulai, item.bulan_selesai) }}</p></td><td class="border-r p-3 text-right tabular-nums">{{ rupiah(item.alokasi_tahun_sebelumnya) }}</td><td class="border-r p-3 text-right font-semibold tabular-nums">{{ rupiah(item.pagu_usulan) }}</td><td class="border-r p-3 text-right font-bold tabular-nums">{{ rupiah(item.pagu_hasil_verifikasi) }}</td><td class="p-3 text-right tabular-nums">{{ rupiah(item.alokasi_tahun_berikutnya) }}</td></tr></tbody>
-                        <tfoot class="bg-slate-50 font-bold dark:bg-slate-900"><tr><td colspan="7" class="border-t border-r p-3 text-right">Jumlah Anggaran Belanja</td><td class="border-t border-r p-3 text-right tabular-nums">{{ rupiah(summary.pagu_usulan) }}</td><td class="border-t border-r p-3 text-right tabular-nums">{{ rupiah(summary.pagu_hasil_verifikasi) }}</td><td class="border-t p-3"></td></tr></tfoot>
-                    </table>
+            <div v-else class="bg-slate-50/60 p-3 dark:bg-slate-950/30 sm:p-5">
+                <div class="overflow-x-auto rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950">
+                    <div class="min-w-[1400px] text-slate-950 dark:text-slate-100">
+                        <div class="grid grid-cols-[1fr_200px] border-b border-slate-400/70 text-center dark:border-slate-600">
+                            <div class="border-r border-slate-400/70 px-6 py-4 dark:border-slate-600">
+                                <p class="text-sm font-extrabold uppercase leading-5 tracking-[.05em]">Rencana Kerja dan Anggaran</p>
+                                <p class="text-sm font-extrabold uppercase leading-5 tracking-[.05em]">Satuan Kerja Perangkat Daerah</p>
+                                <p class="mt-2 border-t border-slate-300 pt-2 text-[11px] font-semibold dark:border-slate-700">
+                                    Pemerintah Kabupaten Banjarnegara Tahun Anggaran {{ rka.tahun }}
+                                </p>
+                            </div>
+                            <div class="flex items-center justify-center px-4 py-3 text-[11px] font-extrabold uppercase leading-4">
+                                Rekapitulasi<br />RKA-Belanja<br />SKPD
+                            </div>
+                        </div>
+
+                        <dl class="grid grid-cols-[110px_16px_1fr] items-start gap-y-1 border-b border-slate-400/70 px-4 py-3 text-[11px] dark:border-slate-600">
+                            <dt class="font-bold">Organisasi</dt><dd>:</dd>
+                            <dd class="font-semibold">{{ rka.opd?.kode ? `${rka.opd.kode} · ` : '' }}{{ rka.opd?.nama || '-' }}</dd>
+                            <template v-if="rka.opd_unit">
+                                <dt class="font-bold">Unit Organisasi</dt><dd>:</dd>
+                                <dd>{{ rka.opd_unit.kode ? `${rka.opd_unit.kode} · ` : '' }}{{ rka.opd_unit.nama }}</dd>
+                            </template>
+                        </dl>
+
+                        <div class="border-b border-slate-400/70 px-6 py-3 text-center dark:border-slate-600">
+                            <p class="text-xs font-extrabold">Rincian Anggaran Belanja</p>
+                            <p class="text-xs font-extrabold">Berdasarkan Program dan Kegiatan</p>
+                        </div>
+
+                        <table class="w-full table-fixed border-collapse text-[10px] leading-[1.35]">
+                            <colgroup>
+                                <col class="w-[145px]" />
+                                <col class="w-[330px]" />
+                                <col class="w-[95px]" />
+                                <col class="w-[115px]" />
+                                <col class="w-[100px]" />
+                                <col class="w-[100px]" />
+                                <col class="w-[100px]" />
+                                <col class="w-[100px]" />
+                                <col class="w-[100px]" />
+                                <col class="w-[100px]" />
+                                <col class="w-[100px]" />
+                            </colgroup>
+                            <thead class="bg-slate-100 text-center font-extrabold dark:bg-slate-900">
+                                <tr>
+                                    <th rowspan="3" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Kode</th>
+                                    <th rowspan="3" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Uraian</th>
+                                    <th rowspan="3" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Sumber Dana</th>
+                                    <th rowspan="3" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Lokasi</th>
+                                    <th colspan="7" class="border-b border-slate-400/70 px-2 py-2 dark:border-slate-600">Jumlah</th>
+                                </tr>
+                                <tr>
+                                    <th rowspan="2" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Tahun {{ rka.tahun - 1 }}</th>
+                                    <th colspan="5" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Tahun {{ rka.tahun }}</th>
+                                    <th rowspan="2" class="border-b border-slate-400/70 px-2 py-2 dark:border-slate-600">Tahun {{ rka.tahun + 1 }}</th>
+                                </tr>
+                                <tr>
+                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Belanja Operasi</th>
+                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Belanja Modal</th>
+                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Belanja Tidak Terduga</th>
+                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Belanja Transfer</th>
+                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Jumlah (Rp)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr
+                                    v-for="row in previewRows"
+                                    :key="row.key"
+                                    class="align-top transition-colors"
+                                    :class="previewRowClass(row.level)"
+                                >
+                                    <td class="border-b border-r border-slate-300 px-2.5 py-2 font-mono font-semibold tabular-nums dark:border-slate-700">
+                                        {{ row.code }}
+                                    </td>
+                                    <td
+                                        class="border-b border-r border-slate-300 px-2.5 py-2 dark:border-slate-700"
+                                        :class="previewDescriptionClass(row.level)"
+                                    >
+                                        {{ row.description }}
+                                    </td>
+                                    <td class="break-words whitespace-pre-line border-b border-r border-slate-300 px-2 py-2 dark:border-slate-700">
+                                        {{ row.source }}
+                                    </td>
+                                    <td class="break-words whitespace-pre-line border-b border-r border-slate-300 px-2 py-2 dark:border-slate-700">
+                                        {{ row.location }}
+                                    </td>
+                                    <td class="border-b border-r border-slate-300 px-2 py-2 text-right tabular-nums dark:border-slate-700">{{ rupiahTable(row.budget.previous) }}</td>
+                                    <td class="border-b border-r border-slate-300 px-2 py-2 text-right tabular-nums dark:border-slate-700">{{ rupiahTable(row.budget.operational) }}</td>
+                                    <td class="border-b border-r border-slate-300 px-2 py-2 text-right tabular-nums dark:border-slate-700">{{ rupiahTable(row.budget.capital) }}</td>
+                                    <td class="border-b border-r border-slate-300 px-2 py-2 text-right tabular-nums dark:border-slate-700">{{ rupiahTable(row.budget.unexpected) }}</td>
+                                    <td class="border-b border-r border-slate-300 px-2 py-2 text-right tabular-nums dark:border-slate-700">{{ rupiahTable(row.budget.transfer) }}</td>
+                                    <td class="border-b border-r border-slate-300 px-2 py-2 text-right font-semibold tabular-nums dark:border-slate-700">{{ rupiahTable(row.budget.total) }}</td>
+                                    <td class="border-b border-slate-300 px-2 py-2 text-right tabular-nums dark:border-slate-700">{{ rupiahTable(row.budget.next) }}</td>
+                                </tr>
+                                <tr v-if="!previewRows.length">
+                                    <td colspan="11" class="px-6 py-14 text-center text-sm text-slate-500">Belum ada rincian sub kegiatan.</td>
+                                </tr>
+                            </tbody>
+                            <tfoot class="bg-slate-200 font-extrabold dark:bg-slate-800">
+                                <tr>
+                                    <td colspan="4" class="border-r border-slate-400/70 px-3 py-3 text-right dark:border-slate-600">Jumlah Anggaran Belanja</td>
+                                    <td class="border-r border-slate-400/70 px-2 py-3 text-right tabular-nums dark:border-slate-600">{{ rupiahTable(previewTotal.previous) }}</td>
+                                    <td class="border-r border-slate-400/70 px-2 py-3 text-right tabular-nums dark:border-slate-600">{{ rupiahTable(previewTotal.operational) }}</td>
+                                    <td class="border-r border-slate-400/70 px-2 py-3 text-right tabular-nums dark:border-slate-600">{{ rupiahTable(previewTotal.capital) }}</td>
+                                    <td class="border-r border-slate-400/70 px-2 py-3 text-right tabular-nums dark:border-slate-600">{{ rupiahTable(previewTotal.unexpected) }}</td>
+                                    <td class="border-r border-slate-400/70 px-2 py-3 text-right tabular-nums dark:border-slate-600">{{ rupiahTable(previewTotal.transfer) }}</td>
+                                    <td class="border-r border-slate-400/70 px-2 py-3 text-right tabular-nums dark:border-slate-600">{{ rupiahTable(previewTotal.total) }}</td>
+                                    <td class="px-2 py-3 text-right tabular-nums">{{ rupiahTable(previewTotal.next) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </div>
+                <p class="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
+                    Nilai Tahun {{ rka.tahun }} menggunakan {{ isVerifiedBudget ? 'pagu hasil verifikasi' : 'pagu usulan' }} dan dikelompokkan berdasarkan jenis belanja setiap sub kegiatan.
+                </p>
             </div>
         </section>
 
@@ -199,7 +409,7 @@ const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.su
     </div>
 
     <Dialog v-model:open="editOpen">
-        <DialogContent class="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
+        <DialogContent class="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
             <DialogHeader><DialogTitle>{{ verificationOnly ? 'Verifikasi Pagu Sub Kegiatan' : 'Edit Rincian RKA' }}</DialogTitle><DialogDescription>{{ editing?.kode_sub_kegiatan }} · {{ editing?.nama_sub_kegiatan }}</DialogDescription></DialogHeader>
             <form class="mt-2 grid gap-5" @submit.prevent="saveItem">
                 <fieldset :disabled="verificationOnly" class="grid gap-4 disabled:opacity-60 sm:grid-cols-2">
@@ -211,14 +421,45 @@ const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.su
                     <label><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Kelompok Sasaran</span><textarea v-model="itemForm.kelompok_sasaran" rows="2" class="mt-1.5 w-full rounded-xl border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"></textarea></label>
                     <label><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Mulai Pelaksanaan</span><select v-model="itemForm.bulan_mulai" class="mt-1.5 h-10 w-full rounded-xl border bg-background px-3 text-sm"><option v-for="(month, index) in months" :key="month" :value="index + 1">{{ month }}</option></select></label>
                     <label><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Selesai Pelaksanaan</span><select v-model="itemForm.bulan_selesai" class="mt-1.5 h-10 w-full rounded-xl border bg-background px-3 text-sm"><option v-for="(month, index) in months" :key="month" :value="index + 1">{{ month }}</option></select><span v-if="itemForm.errors.bulan_selesai" class="mt-1 block text-xs text-red-600">{{ itemForm.errors.bulan_selesai }}</span></label>
-                    <label class="sm:col-span-2"><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Jenis Belanja (ringkas)</span><select v-model="itemForm.jenis_belanja" class="mt-1.5 h-10 w-full rounded-xl border bg-background px-3 text-sm"><option value="">Pilih jenis belanja</option><option value="operasi">Belanja Operasi</option><option value="modal">Belanja Modal</option><option value="tidak_terduga">Belanja Tidak Terduga</option><option value="transfer">Belanja Transfer</option></select></label>
                 </fieldset>
 
-                <div class="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60 sm:grid-cols-2 lg:grid-cols-4">
-                    <label><span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Alokasi Tahun T−1</span><input v-model="itemForm.alokasi_tahun_sebelumnya" :disabled="verificationOnly" inputmode="numeric" class="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-sm tabular-nums disabled:opacity-60" /></label>
-                    <label><span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Pagu Usulan Tahun T</span><input v-model="itemForm.pagu_usulan" :disabled="verificationOnly" inputmode="numeric" class="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-sm tabular-nums disabled:opacity-60" /></label>
-                    <label><span class="text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Pagu Hasil Verifikasi</span><input v-model="itemForm.pagu_hasil_verifikasi" :disabled="!can.verifyBudget" inputmode="numeric" class="mt-1.5 h-10 w-full rounded-lg border border-emerald-300 bg-background px-3 text-sm font-semibold tabular-nums disabled:border-slate-200 disabled:opacity-60 dark:border-emerald-800" /></label>
-                    <label><span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Alokasi Tahun T+1</span><input v-model="itemForm.alokasi_tahun_berikutnya" :disabled="verificationOnly" inputmode="numeric" class="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-sm tabular-nums disabled:opacity-60" /></label>
+                <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950">
+                    <header class="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3.5 dark:border-slate-700 dark:bg-slate-900/70 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Rincian Belanja Tahun {{ rka.tahun }}</h3>
+                            <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Isi hanya jenis belanja yang digunakan pada sub kegiatan ini.</p>
+                        </div>
+                        <div class="flex items-center gap-5 text-right">
+                            <div><p class="text-[9px] font-bold uppercase tracking-[.12em] text-slate-400">Total usulan</p><p class="mt-0.5 text-sm font-extrabold tabular-nums text-slate-900 dark:text-white">{{ rupiah(proposalTotal) }}</p></div>
+                            <div><p class="text-[9px] font-bold uppercase tracking-[.12em] text-emerald-600 dark:text-emerald-400">Total verifikasi</p><p class="mt-0.5 text-sm font-extrabold tabular-nums text-emerald-700 dark:text-emerald-300">{{ rupiah(displayedVerificationTotal) }}</p></div>
+                        </div>
+                    </header>
+                    <div class="hidden grid-cols-[minmax(0,1fr)_minmax(145px,.62fr)_minmax(145px,.62fr)] border-b border-slate-200 bg-slate-50 px-4 py-2 text-[9px] font-bold uppercase tracking-[.13em] text-slate-400 dark:border-slate-800 dark:bg-slate-900/40 sm:grid">
+                        <span>Jenis belanja</span><span class="text-right">Pagu usulan</span><span class="text-right">Hasil verifikasi</span>
+                    </div>
+                    <div
+                        v-for="type in budgetTypes"
+                        :key="type.key"
+                        class="grid gap-2 border-b border-slate-200 px-4 py-3 last:border-b-0 dark:border-slate-800 sm:grid-cols-[minmax(0,1fr)_minmax(145px,.62fr)_minmax(145px,.62fr)] sm:items-center"
+                        :class="type.tint"
+                    >
+                        <div class="flex items-center gap-2.5"><span class="size-2.5 shrink-0 rounded-full" :class="type.marker"></span><span class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ type.label }}</span></div>
+                        <label>
+                            <span class="mb-1 block text-[9px] font-bold uppercase tracking-wide text-slate-400 sm:hidden">Pagu usulan</span>
+                            <input :value="itemForm[`pagu_belanja_${type.key}_usulan`]" :disabled="verificationOnly" inputmode="numeric" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-right text-sm font-semibold tabular-nums outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-blue-950" @input="updateMoneyInput(`pagu_belanja_${type.key}_usulan`, $event)" />
+                        </label>
+                        <label>
+                            <span class="mb-1 block text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 sm:hidden">Hasil verifikasi</span>
+                            <input v-if="can.verifyBudget" :value="itemForm[`pagu_belanja_${type.key}_hasil_verifikasi`]" inputmode="numeric" class="h-10 w-full rounded-lg border border-emerald-200 bg-white px-3 text-right text-sm font-bold tabular-nums text-emerald-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-emerald-800 dark:bg-slate-950 dark:text-emerald-300 dark:focus:ring-emerald-950" @input="updateMoneyInput(`pagu_belanja_${type.key}_hasil_verifikasi`, $event)" />
+                            <span v-else class="flex h-10 w-full items-center justify-end rounded-lg border border-slate-200 bg-slate-100 px-3 text-sm font-semibold tabular-nums text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">{{ rupiah(itemForm[`pagu_belanja_${type.key}_usulan`]) }}</span>
+                        </label>
+                    </div>
+                </section>
+
+                <div class="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60 sm:grid-cols-3">
+                    <label><span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Alokasi Tahun T−1</span><input :value="itemForm.alokasi_tahun_sebelumnya" :disabled="verificationOnly" inputmode="numeric" class="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-right text-sm tabular-nums disabled:opacity-60" @input="updateMoneyInput('alokasi_tahun_sebelumnya', $event)" /></label>
+                    <div><span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Pagu Acuan RENJA</span><span class="mt-1.5 flex h-10 items-center justify-end rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold tabular-nums text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ rupiah(editing?.pagu_renja) }}</span></div>
+                    <label><span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Alokasi Tahun T+1</span><input :value="itemForm.alokasi_tahun_berikutnya" :disabled="verificationOnly" inputmode="numeric" class="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-right text-sm tabular-nums disabled:opacity-60" @input="updateMoneyInput('alokasi_tahun_berikutnya', $event)" /></label>
                 </div>
                 <div class="grid gap-4 sm:grid-cols-2"><label><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Alasan Penyesuaian</span><textarea v-model="itemForm.alasan_penyesuaian" rows="3" class="mt-1.5 w-full rounded-xl border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Wajib jika pagu berubah dari acuan."></textarea><span v-if="itemForm.errors.alasan_penyesuaian" class="mt-1 block text-xs text-red-600">{{ itemForm.errors.alasan_penyesuaian }}</span></label><label><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Keterangan</span><textarea v-model="itemForm.catatan" rows="3" class="mt-1.5 w-full rounded-xl border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"></textarea></label></div>
                 <div class="flex justify-end gap-2 border-t pt-4"><button type="button" class="h-10 rounded-lg border px-4 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800" @click="editOpen = false">Batal</button><button type="submit" :disabled="itemForm.processing" class="inline-flex h-10 items-center gap-2 rounded-lg bg-[#00336C] px-4 text-sm font-semibold text-white hover:bg-[#002855] disabled:opacity-50"><Save class="size-4" />{{ itemForm.processing ? 'Menyimpan...' : 'Simpan Rincian' }}</button></div>

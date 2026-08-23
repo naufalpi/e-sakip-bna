@@ -181,7 +181,7 @@ class RpjmdController extends Controller
                 'withdraw' => $this->canWithdrawWorkflow($request->user(), $rpjmd, 'rpjmd'),
                 'review' => $this->canReviewWorkflow($request->user()),
                 'lock' => $this->canLockWorkflow($request->user()),
-                'unlock' => $this->canUnlockWorkflow($request->user()),
+                'unlock' => $rpjmd->is_active_version && $this->canUnlockWorkflow($request->user()),
             ],
             'workflow' => $workflowDataService->forModel($rpjmd, 'rpjmd'),
         ]);

@@ -81,9 +81,10 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 - Master program/kegiatan/sub kegiatan.
 - Sub kegiatan sudah ditambah metadata:
     - sasaran sub kegiatan,
-    - indikator sub kegiatan,
+    - daftar indikator sub kegiatan (indikator utama baku Kemendagri + indikator tambahan),
     - satuan,
     - definisi operasional.
+- Indikator utama tetap disinkronkan ke kolom lama `indikator_sub_kegiatan`/`satuan_indikator_id` agar RKPD, Renja, RKA, DPA, seeder, dan integrasi lama tetap kompatibel. Daftar multi-indikator disimpan di `indikator_sub_kegiatan_pemerintahan`.
 
 ### RPJMD Kabupaten
 
@@ -140,7 +141,7 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 - Program penunjang dipetakan ke kode program master sesuai OPD, bukan selalu kode pertama.
 - Ketika memilih program RPJMD, indikator program dan targetnya disalin menjadi snapshot Renstra.
 - Kegiatan dan sub kegiatan wajib dari master, tidak boleh input manual oleh admin OPD.
-- Sub kegiatan saat dipilih akan membawa metadata master sebagai snapshot dan masih bisa diedit.
+- Sub kegiatan saat dipilih akan membawa seluruh indikator master sebagai snapshot Renstra dan masih bisa diedit; perubahan master berikutnya tidak menimpa indikator yang sudah disesuaikan pada dokumen Renstra.
 - Anggaran hanya diinput pada level sub kegiatan.
 - Anggaran kegiatan dan program seharusnya menjadi hasil agregasi dari bawah.
 - Preview tabel Renstra dibuat seperti format resmi:
@@ -234,6 +235,13 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
     - sumber pendanaan,
     - lokasi, waktu pelaksanaan, dan kelompok sasaran,
     - alokasi T-1, pagu RENJA, pagu usulan T, hasil verifikasi T, dan alokasi T+1.
+- Preview RKA memakai format rekap resmi dengan header tabel bertingkat: Kode, Uraian, Sumber Dana, Lokasi, Tahun T-1, rincian Belanja Operasi/Modal/Tidak Terduga/Transfer dan jumlah Tahun T, serta Tahun T+1.
+- Baris preview dikelompokkan dan diurutkan natural berdasarkan kode Urusan -> Bidang Urusan -> Program -> Kegiatan -> Sub Kegiatan. Setiap baris induk mengagregasi anggaran turunannya dan memakai warna level yang berbeda; sub kegiatan tetap berlatar putih.
+- Preview RKA dapat diekspor ke Excel (`.xlsx`) dengan struktur header, urutan hierarki, warna level, rincian pagu, dan total yang sama dengan tabel di aplikasi.
+- Lebar preview dan export RKA dibuat ringkas: kolom sumber dana, lokasi, kode, dan nominal dipadatkan dengan pembungkusan teks agar kebutuhan scroll horizontal berkurang.
+- Pagu Tahun T pada setiap sub kegiatan RKA dirinci menjadi Belanja Operasi, Modal, Tidak Terduga, dan Transfer, masing-masing untuk usulan serta hasil verifikasi; total `pagu_usulan`/`pagu_hasil_verifikasi` dihitung server-side dari empat rincian tersebut.
+- Seluruh input nominal pada modal rincian RKA menggunakan pemisah ribuan Indonesia saat ditampilkan dan diketik (contoh `223.716.000`), lalu dinormalisasi kembali di backend saat disimpan.
+- Migrasi `2026_08_23_000013_add_belanja_breakdown_to_rka_opd_items.php` mempertahankan kolom total dan `jenis_belanja` lama, lalu melakukan backfill pagu production ke rincian yang sesuai sehingga data lama tidak hilang.
 - Detail rekening, koefisien/volume, harga satuan, PPN, transaksi, dan penatausahaan tetap berada di SIPD/aplikasi keuangan utama.
 - Alur workflow RKA: Draft -> Diajukan -> Terverifikasi -> Disetujui -> Terkunci; pemeriksa dengan permission `rka.verify` dapat mengubah pagu hasil verifikasi dan wajib memberi alasan bila berbeda dari usulan.
 - Permission baru: `rka.view`, `rka.manage`, dan `rka.verify`.
@@ -306,6 +314,13 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
     - `RequestRevisionWorkflowService`
     - `LockDataService`
     - `ActivityLogService`
+- Dokumen RPJMD, RKPD, Renstra, Renja, RKA, dan DPA yang sudah disetujui/terkunci dapat dibuka oleh Super Admin melalui aksi `Koreksi Data` tanpa membuat versi Perubahan:
+    - alasan koreksi dan acuan dokumen resmi wajib diisi,
+    - status kembali menjadi `revision`/Perlu Perbaikan dan metadata pengesahan aktif dikosongkan,
+    - riwayat menyimpan alasan, acuan resmi, pelaksana, status asal, dan dokumen turunan terdampak,
+    - turunan Draft/Revisi/Ditolak dipertahankan lalu ditandai Perlu Perbaikan,
+    - turunan Diajukan/Terverifikasi/Disetujui/Terkunci memblokir koreksi sehingga koreksi berantai wajib dimulai dari dokumen paling bawah,
+    - turunan tidak dapat diajukan kembali sebelum dokumen acuannya selesai dikoreksi dan disetujui kembali.
 - Workflow berlaku/direncanakan untuk:
     - RPJMD,
     - RKPD,

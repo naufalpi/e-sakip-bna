@@ -493,6 +493,7 @@ class MasterUmumTest extends TestCase
             ->assertRedirect(route('master.program-pemerintahan.index'));
 
         $kegiatan = $program->kegiatan()->where('kode', '8.01.01.2.01.0001')->firstOrFail();
+        $satuan = SatuanIndikator::query()->firstOrFail();
 
         $this->actingAs($admin)
             ->post(route('master.program-pemerintahan.store'), [
@@ -501,6 +502,16 @@ class MasterUmumTest extends TestCase
                 'kegiatan_pemerintahan_id' => $kegiatan->id,
                 'kode' => '8.01.01.2.01.0001.01',
                 'nama' => 'Sub Kegiatan Referensi Test',
+                'indicators' => [
+                    [
+                        'indikator' => 'Jumlah keluaran baku sub kegiatan',
+                        'satuan_indikator_id' => $satuan->id,
+                    ],
+                    [
+                        'indikator' => 'Persentase kualitas keluaran sub kegiatan',
+                        'satuan_indikator_id' => $satuan->id,
+                    ],
+                ],
                 'status' => 'active',
             ])
             ->assertRedirect(route('master.program-pemerintahan.index'));
@@ -508,6 +519,26 @@ class MasterUmumTest extends TestCase
         $this->assertDatabaseHas('sub_kegiatan_pemerintahan', [
             'kegiatan_pemerintahan_id' => $kegiatan->id,
             'kode' => '8.01.01.2.01.0001.01',
+            'indikator_sub_kegiatan' => 'Jumlah keluaran baku sub kegiatan',
+            'satuan_indikator_id' => $satuan->id,
+        ]);
+
+        $subKegiatan = SubKegiatanPemerintahan::query()
+            ->where('kegiatan_pemerintahan_id', $kegiatan->id)
+            ->where('kode', '8.01.01.2.01.0001.01')
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('indikator_sub_kegiatan_pemerintahan', [
+            'sub_kegiatan_pemerintahan_id' => $subKegiatan->id,
+            'indikator' => 'Jumlah keluaran baku sub kegiatan',
+            'is_utama' => true,
+            'urutan' => 1,
+        ]);
+        $this->assertDatabaseHas('indikator_sub_kegiatan_pemerintahan', [
+            'sub_kegiatan_pemerintahan_id' => $subKegiatan->id,
+            'indikator' => 'Persentase kualitas keluaran sub kegiatan',
+            'is_utama' => false,
+            'urutan' => 2,
         ]);
 
         $this->actingAs($admin)
@@ -528,6 +559,8 @@ class MasterUmumTest extends TestCase
                 ->where('level', 'sub_kegiatan')
                 ->where('context.kegiatan.id', $kegiatan->id)
                 ->has('items.data', 1)
+                ->has('items.data.0.indicators', 2)
+                ->where('items.data.0.indicators.0.is_utama', true)
             );
 
         $this->actingAs($admin)

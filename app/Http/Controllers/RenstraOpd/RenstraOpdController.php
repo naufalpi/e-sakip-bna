@@ -239,6 +239,7 @@ class RenstraOpdController extends Controller
                 'withdraw' => $this->canWithdrawWorkflow($request->user(), $renstraOpd, 'renstra_opd'),
                 'review' => $this->canReviewWorkflow($request->user()),
                 'lock' => $this->canLockWorkflow($request->user()),
+                'unlock' => $renstraOpd->is_active_version && $request->user()->isSuperAdmin(),
             ],
             'workflow' => $workflowDataService->forModel($renstraOpd, 'renstra_opd'),
             'activeSection' => $activeSection,

@@ -18,6 +18,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class WorkflowModuleRegistry
 {
+    public function supportsDataCorrection(string $module): bool
+    {
+        return in_array($module, ['rpjmd', 'rkpd', 'renstra_opd', 'renja_opd', 'rka_opd', 'dpa_opd'], true);
+    }
+
     /**
      * @return class-string<Model>
      */

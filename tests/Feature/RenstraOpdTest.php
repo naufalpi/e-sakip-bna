@@ -726,6 +726,7 @@ class RenstraOpdTest extends TestCase
         ]);
         $tree = $this->createRpjmdTree();
         $periode = PeriodeTahun::orderBy('tahun')->firstOrFail();
+        $satuan = SatuanIndikator::firstOrFail();
         $renstra = RenstraOpd::create([
             'opd_id' => $opd->id,
             'rpjmd_id' => $tree['rpjmd']->id,
@@ -750,7 +751,24 @@ class RenstraOpdTest extends TestCase
             'kegiatan_pemerintahan_id' => $kegiatanMaster->id,
             'kode' => '9.99.01.2.01.0001',
             'nama' => 'Sub Kegiatan Master Renstra',
+            'indikator_sub_kegiatan' => 'Jumlah keluaran baku sub kegiatan',
+            'satuan_indikator_id' => $satuan->id,
+            'definisi_operasional' => 'Keluaran yang diselesaikan sesuai standar.',
             'status' => 'active',
+        ]);
+        $subKegiatanMaster->indikatorReferensi()->createMany([
+            [
+                'indikator' => 'Jumlah keluaran baku sub kegiatan',
+                'satuan_indikator_id' => $satuan->id,
+                'is_utama' => true,
+                'urutan' => 1,
+            ],
+            [
+                'indikator' => 'Persentase keluaran yang tepat waktu',
+                'satuan_indikator_id' => $satuan->id,
+                'is_utama' => false,
+                'urutan' => 2,
+            ],
         ]);
         $otherProgramMaster = ProgramPemerintahan::create([
             'bidang_urusan_id' => $bidang->id,
@@ -853,6 +871,12 @@ class RenstraOpdTest extends TestCase
             ->where('sub_kegiatan_pemerintahan_id', $subKegiatanMaster->id)
             ->firstOrFail();
 
+        $this->assertSame([
+            'Jumlah keluaran baku sub kegiatan',
+            'Persentase keluaran yang tepat waktu',
+        ], $subKegiatanOpd->indikator()->orderBy('urutan')->pluck('indikator')->all());
+        $this->assertSame(2, $subKegiatanOpd->indikator()->count());
+
         $this->actingAs($user)
             ->from(route('renstra-opd.show', $renstra))
             ->post(route('renstra-opd.nodes.store', $renstra), [
@@ -875,6 +899,8 @@ class RenstraOpdTest extends TestCase
             ])
             ->assertRedirect(route('renstra-opd.show', $renstra))
             ->assertSessionHasNoErrors();
+
+        $this->assertSame(2, $subKegiatanOpd->indikator()->count());
     }
 
     public function test_renstra_node_autosave_updates_existing_cascading_data(): void

@@ -7,6 +7,10 @@ type WorkflowHistory = {
     notes?: string | null;
     created_at: string;
     actor?: { name: string } | null;
+    metadata?: {
+        correction_reference?: string;
+        source_correction?: { reference?: string };
+    } | null;
 };
 
 type Workflow = {
@@ -37,6 +41,8 @@ const actionLabel = (action: string) =>
         reject: 'Penolakan',
         lock: 'Penguncian',
         unlock: 'Pembukaan kunci',
+        correct: 'Koreksi data',
+        source_correction: 'Penyesuaian acuan',
     })[action] ?? action;
 
 const wibDateTimeFormatter = new Intl.DateTimeFormat('id-ID', {
@@ -62,6 +68,9 @@ const formatWibDateTime = (value?: string | null) => {
 
     return `${wibDateTimeFormatter.format(date).replace(' pukul ', ', ')} WIB`;
 };
+
+const correctionReference = (history: WorkflowHistory) =>
+    history.metadata?.correction_reference || history.metadata?.source_correction?.reference || null;
 </script>
 
 <template>
@@ -83,6 +92,9 @@ const formatWibDateTime = (value?: string | null) => {
                 </div>
                 <div v-if="history.notes" class="mt-3 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
                     {{ history.notes }}
+                </div>
+                <div v-if="correctionReference(history)" class="mt-2 text-xs text-muted-foreground">
+                    <span class="font-medium text-foreground">Acuan resmi:</span> {{ correctionReference(history) }}
                 </div>
             </div>
         </div>

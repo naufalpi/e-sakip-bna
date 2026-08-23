@@ -343,6 +343,7 @@ const props = defineProps<{
         manage: boolean;
         review: boolean;
         lock: boolean;
+        unlock: boolean;
         createRevision: boolean;
         cancelRevision?: boolean;
         withdraw?: boolean;
@@ -4095,6 +4096,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                     :can-manage="can.manage"
                     :can-review="can.review"
                     :can-lock="can.lock"
+                    :can-unlock="can.unlock"
                     :can-withdraw="can.withdraw"
                     :show-verify="false"
                     button-class="document-action document-action--workflow"

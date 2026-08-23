@@ -36,7 +36,6 @@ class RkaReadinessService
             'sumber_pendanaan' => 'sumber pendanaan',
             'lokasi' => 'lokasi',
             'kelompok_sasaran' => 'kelompok sasaran',
-            'jenis_belanja' => 'jenis belanja',
         ];
 
         $incompleteItems = $rka->items->filter(function (RkaOpdItem $item) use ($requiredItemFields): bool {
@@ -46,15 +45,17 @@ class RkaReadinessService
                 }
             }
 
-            return false;
+            return ! $this->hasConsistentBudgetBreakdown($item);
         });
 
         if ($incompleteItems->isNotEmpty()) {
             $missingLabels = collect($requiredItemFields)
                 ->filter(fn (string $label, string $field) => $incompleteItems->contains(fn (RkaOpdItem $item) => blank($item->getAttribute($field))))
-                ->values()
-                ->implode(', ');
-            $issues[] = "{$incompleteItems->count()} sub kegiatan belum lengkap ({$missingLabels})";
+                ->values();
+            if ($incompleteItems->contains(fn (RkaOpdItem $item) => ! $this->hasConsistentBudgetBreakdown($item))) {
+                $missingLabels->push('rincian jenis belanja');
+            }
+            $issues[] = "{$incompleteItems->count()} sub kegiatan belum lengkap ({$missingLabels->implode(', ')})";
         }
 
         return [
@@ -72,5 +73,16 @@ class RkaReadinessService
                 'action' => 'RKA belum dapat diajukan. '.implode('; ', $readiness['issues']).'.',
             ]);
         }
+    }
+
+    private function hasConsistentBudgetBreakdown(RkaOpdItem $item): bool
+    {
+        $proposal = collect(['operasi', 'modal', 'tidak_terduga', 'transfer'])
+            ->sum(fn (string $type) => (float) $item->getAttribute("pagu_belanja_{$type}_usulan"));
+        $verified = collect(['operasi', 'modal', 'tidak_terduga', 'transfer'])
+            ->sum(fn (string $type) => (float) $item->getAttribute("pagu_belanja_{$type}_hasil_verifikasi"));
+
+        return abs($proposal - (float) $item->pagu_usulan) <= 0.01
+            && abs($verified - (float) $item->pagu_hasil_verifikasi) <= 0.01;
     }
 }
