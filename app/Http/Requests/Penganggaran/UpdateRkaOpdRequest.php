@@ -12,7 +12,7 @@ class UpdateRkaOpdRequest extends FormRequest
         $rka = $this->route('rka_opd');
 
         return $rka instanceof RkaOpd
-            && (($this->user()?->can('update', $rka) ?? false) || ($this->user()?->can('verifyBudget', $rka) ?? false));
+            && ($this->user()?->can('update', $rka) ?? false);
     }
 
     protected function prepareForValidation(): void
@@ -37,7 +37,6 @@ class UpdateRkaOpdRequest extends FormRequest
             'nomor_ppas' => ['nullable', 'string', 'max:255'],
             'tanggal_ppas' => ['nullable', 'date'],
             'catatan' => ['nullable', 'string', 'max:5000'],
-            'catatan_verifikasi' => ['nullable', 'string', 'max:5000'],
         ];
     }
 

@@ -141,6 +141,7 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 - Program penunjang dipetakan ke kode program master sesuai OPD, bukan selalu kode pertama.
 - Ketika memilih program RPJMD, indikator program dan targetnya disalin menjadi snapshot Renstra.
 - Kegiatan dan sub kegiatan wajib dari master, tidak boleh input manual oleh admin OPD.
+- Daftar program pada kelola kegiatan dan sub kegiatan menampilkan Sasaran OPD sebagai label kontras berkode warna; sasaran yang sama memakai warna konsisten agar program lintas sasaran mudah dibedakan.
 - Sub kegiatan saat dipilih akan membawa seluruh indikator master sebagai snapshot Renstra dan masih bisa diedit; perubahan master berikutnya tidak menimpa indikator yang sudah disesuaikan pada dokumen Renstra.
 - Anggaran hanya diinput pada level sub kegiatan.
 - Anggaran kegiatan dan program seharusnya menjadi hasil agregasi dari bawah.
@@ -234,23 +235,25 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
     - target kinerja,
     - sumber pendanaan,
     - lokasi, waktu pelaksanaan, dan kelompok sasaran,
-    - alokasi T-1, pagu RENJA, pagu usulan T, hasil verifikasi T, dan alokasi T+1.
+    - alokasi T-1, pagu RENJA, pagu RKA Tahun T, dan alokasi T+1.
 - Preview RKA memakai format rekap resmi dengan header tabel bertingkat: Kode, Uraian, Sumber Dana, Lokasi, Tahun T-1, rincian Belanja Operasi/Modal/Tidak Terduga/Transfer dan jumlah Tahun T, serta Tahun T+1.
 - Baris preview dikelompokkan dan diurutkan natural berdasarkan kode Urusan -> Bidang Urusan -> Program -> Kegiatan -> Sub Kegiatan. Setiap baris induk mengagregasi anggaran turunannya dan memakai warna level yang berbeda; sub kegiatan tetap berlatar putih.
 - Preview RKA dapat diekspor ke Excel (`.xlsx`) dengan struktur header, urutan hierarki, warna level, rincian pagu, dan total yang sama dengan tabel di aplikasi.
 - Lebar preview dan export RKA dibuat ringkas: kolom sumber dana, lokasi, kode, dan nominal dipadatkan dengan pembungkusan teks agar kebutuhan scroll horizontal berkurang.
-- Pagu Tahun T pada setiap sub kegiatan RKA dirinci menjadi Belanja Operasi, Modal, Tidak Terduga, dan Transfer, masing-masing untuk usulan serta hasil verifikasi; total `pagu_usulan`/`pagu_hasil_verifikasi` dihitung server-side dari empat rincian tersebut.
+- RKA di E-SAKIP mencatat hasil akhir penyusunan RKA, bukan proses usulan dan verifikasi anggaran. Setiap sub kegiatan hanya memiliki satu `Pagu RKA` yang dirinci menjadi Belanja Operasi, Modal, Tidak Terduga, dan Transfer; total dihitung server-side dari empat rincian tersebut.
+- Pagu RENJA tetap ditampilkan sebagai acuan. Jika Pagu RKA berbeda dari Pagu RENJA, penyusun wajib mengisi catatan perbedaan.
+- Preview, export Excel, ringkasan, dan sumber pembuatan DPA selalu memakai `pagu_rka`, tidak bergantung pada status workflow.
 - Seluruh input nominal pada modal rincian RKA menggunakan pemisah ribuan Indonesia saat ditampilkan dan diketik (contoh `223.716.000`), lalu dinormalisasi kembali di backend saat disimpan.
-- Migrasi `2026_08_23_000013_add_belanja_breakdown_to_rka_opd_items.php` mempertahankan kolom total dan `jenis_belanja` lama, lalu melakukan backfill pagu production ke rincian yang sesuai sehingga data lama tidak hilang.
+- Migrasi `2026_08_24_000015_simplify_rka_final_budget.php` menambahkan kolom final tanpa menghapus kolom lama. Backfill mempertahankan nilai efektif sebelumnya: dokumen `verified`/`approved`/`locked` memakai hasil verifikasi lama, sedangkan status lain memakai pagu usulan lama. Kolom lama tetap disinkronkan sementara untuk keamanan rollback dan kompatibilitas data production.
 - Detail rekening, koefisien/volume, harga satuan, PPN, transaksi, dan penatausahaan tetap berada di SIPD/aplikasi keuangan utama.
-- Alur workflow RKA: Draft -> Diajukan -> Terverifikasi -> Disetujui -> Terkunci; pemeriksa dengan permission `rka.verify` dapat mengubah pagu hasil verifikasi dan wajib memberi alasan bila berbeda dari usulan.
-- Permission baru: `rka.view`, `rka.manage`, dan `rka.verify`.
+- Alur workflow RKA: Draft -> Diajukan -> Disetujui -> Terkunci. Pemeriksa menilai kesesuaian dokumen final dan dapat menyetujui atau mengembalikannya untuk diperbaiki; pemeriksa tidak mengubah nominal RKA.
+- Permission: `rka.view`, `rka.manage`, dan `rka.verify`. Kode `rka.verify` dipertahankan untuk kompatibilitas sebagai hak pemeriksa/persetujuan RKA.
 
 ### DPA OPD
 
 - Modul DPA OPD tersedia pada grup menu `Penganggaran Kinerja` setelah RKA.
 - DPA hanya dapat dibuat dari RKA yang sudah disetujui/terkunci; satu RKA hanya dapat memiliki satu DPA aktif.
-- Pembuatan DPA menyalin struktur kinerja dan pagu hasil verifikasi RKA sebagai snapshot, sehingga perubahan DPA tidak mengubah RKA sumber.
+- Pembuatan DPA menyalin struktur kinerja dan Pagu RKA final sebagai snapshot, sehingga perubahan DPA tidak mengubah RKA sumber.
 - Jenis dokumen mengikuti RKA:
     - `DPA-SKPD` dari RKA APBD,
     - `DPPA-SKPD` dari RKA Perubahan APBD.
@@ -261,7 +264,7 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
     - pagu RKA dan pagu DPA,
     - rencana penarikan dana Januari-Desember per sub kegiatan,
     - Pengguna Anggaran, pengesahan PPKD, dan persetujuan Sekretaris Daerah.
-- Pagu DPA awal otomatis sama dengan pagu hasil verifikasi RKA. Penyesuaian oleh pemeriksa wajib memiliki alasan.
+- Pagu DPA awal otomatis sama dengan Pagu RKA final. Penyesuaian oleh pemeriksa wajib memiliki alasan.
 - DPA tidak dapat diajukan jika identitas dasar APBD belum lengkap atau total penarikan bulanan tidak sama dengan pagu DPA.
 - DPA tidak dapat disahkan sebelum nomor/tanggal DPA serta identitas PPKD dan Sekretaris Daerah dilengkapi.
 - Workflow DPA: Draft -> Diajukan -> Terverifikasi -> Disahkan -> Terkunci.

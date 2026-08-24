@@ -26,6 +26,10 @@ const authState = ref<AuthState>('idle');
 const authMotionStyle = 'gooey-liquid';
 let authStateTimer: number | null = null;
 
+type LoginField = 'email' | 'password' | 'remember' | 'captcha_answer' | 'login_website';
+const loginFields = new Set<LoginField>(['email', 'password', 'remember', 'captcha_answer', 'login_website']);
+const isLoginField = (field: string): field is LoginField => loginFields.has(field as LoginField);
+
 const form = useForm({
     email: '',
     password: '',
@@ -75,7 +79,13 @@ const submit = async () => {
 
             if (response.status === 422 && payload?.errors) {
                 Object.entries(payload.errors).forEach(([field, message]) => {
-                    form.setError(field, Array.isArray(message) ? (message[0] ?? '') : message);
+                    const normalizedMessage = Array.isArray(message) ? (message[0] ?? '') : message;
+
+                    if (isLoginField(field)) {
+                        form.setError(field, normalizedMessage);
+                    } else {
+                        form.setError('email', normalizedMessage);
+                    }
                 });
             } else {
                 form.setError('email', 'Login belum dapat diproses. Silakan coba lagi.');

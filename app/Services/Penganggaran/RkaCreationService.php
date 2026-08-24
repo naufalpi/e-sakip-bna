@@ -133,6 +133,12 @@ class RkaCreationService
             'jenis_belanja' => null,
             'alokasi_tahun_sebelumnya' => 0,
             'pagu_renja' => $pagu,
+            'pagu_rka' => $pagu,
+            'pagu_belanja_operasi' => 0,
+            'pagu_belanja_modal' => 0,
+            'pagu_belanja_tidak_terduga' => 0,
+            'pagu_belanja_transfer' => 0,
+            // Kolom lama dipertahankan dan disinkronkan untuk rollback aman.
             'pagu_usulan' => $pagu,
             'pagu_belanja_operasi_usulan' => 0,
             'pagu_belanja_modal_usulan' => 0,

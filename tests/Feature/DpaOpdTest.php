@@ -176,7 +176,7 @@ class DpaOpdTest extends TestCase
             'tolok_ukur_kinerja' => 'Jumlah dokumen pengujian', 'target_kinerja' => '12', 'satuan_kinerja' => 'Dokumen',
             'sumber_pendanaan' => 'Dana Alokasi Umum', 'lokasi' => 'Kabupaten Banjarnegara',
             'kelompok_sasaran' => 'Perangkat Daerah', 'bulan_mulai' => 3, 'bulan_selesai' => 11,
-            'jenis_belanja' => 'operasi', 'pagu_hasil_verifikasi' => 2500000, 'urutan' => 1,
+            'jenis_belanja' => 'operasi', 'pagu_rka' => 2500000, 'urutan' => 1,
         ]);
 
         return $rka;

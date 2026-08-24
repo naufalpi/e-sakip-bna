@@ -46,6 +46,9 @@ class RkaOpdTest extends TestCase
             'kode_kegiatan' => '1.01.01.2.01',
             'kode_sub_kegiatan' => '1.01.01.2.01.0001',
             'pagu_renja' => '2500000.00',
+            'pagu_rka' => '2500000.00',
+            'pagu_belanja_operasi' => '0.00',
+            'pagu_belanja_modal' => '0.00',
             'pagu_usulan' => '2500000.00',
             'pagu_hasil_verifikasi' => '2500000.00',
             'pagu_belanja_operasi_usulan' => '0.00',
@@ -114,8 +117,7 @@ class RkaOpdTest extends TestCase
         $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA DINAS PENGUJIAN 2027']);
         $rka->items()->update([
             'jenis_belanja' => 'operasi',
-            'pagu_belanja_operasi_usulan' => 2500000,
-            'pagu_belanja_operasi_hasil_verifikasi' => 2500000,
+            'pagu_belanja_operasi' => 2500000,
             'sumber_pendanaan' => 'Dana Alokasi Umum',
             'lokasi' => 'Kabupaten Banjarnegara',
         ]);
@@ -149,7 +151,7 @@ class RkaOpdTest extends TestCase
         $this->assertStringContainsString('Sub Kegiatan Pengujian', $worksheet);
     }
 
-    public function test_rka_item_can_split_proposal_and_verification_into_multiple_budget_types(): void
+    public function test_rka_item_can_split_final_budget_into_multiple_budget_types(): void
     {
         [$renja] = $this->renja('ditetapkan', 'approved');
         $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA DINAS PENGUJIAN 2027']);
@@ -169,14 +171,10 @@ class RkaOpdTest extends TestCase
                 'bulan_mulai' => 1,
                 'bulan_selesai' => 12,
                 'alokasi_tahun_sebelumnya' => 0,
-                'pagu_belanja_operasi_usulan' => 2000000,
-                'pagu_belanja_modal_usulan' => 500000,
-                'pagu_belanja_tidak_terduga_usulan' => 0,
-                'pagu_belanja_transfer_usulan' => 0,
-                'pagu_belanja_operasi_hasil_verifikasi' => 2000000,
-                'pagu_belanja_modal_hasil_verifikasi' => 500000,
-                'pagu_belanja_tidak_terduga_hasil_verifikasi' => 0,
-                'pagu_belanja_transfer_hasil_verifikasi' => 0,
+                'pagu_belanja_operasi' => 2000000,
+                'pagu_belanja_modal' => 500000,
+                'pagu_belanja_tidak_terduga' => 0,
+                'pagu_belanja_transfer' => 0,
                 'alokasi_tahun_berikutnya' => 2750000,
                 'alasan_penyesuaian' => null,
                 'catatan' => null,
@@ -184,6 +182,10 @@ class RkaOpdTest extends TestCase
             ->assertRedirect();
 
         $item->refresh();
+        $this->assertSame('2500000.00', $item->pagu_rka);
+        $this->assertSame('2000000.00', $item->pagu_belanja_operasi);
+        $this->assertSame('500000.00', $item->pagu_belanja_modal);
+        // Kolom lama tetap sinkron selama masa transisi production.
         $this->assertSame('2500000.00', $item->pagu_usulan);
         $this->assertSame('2500000.00', $item->pagu_hasil_verifikasi);
         $this->assertSame('2000000.00', $item->pagu_belanja_operasi_usulan);
@@ -199,7 +201,7 @@ class RkaOpdTest extends TestCase
         $this->assertSame(2500000.0, $subActivity['budget']['total']);
     }
 
-    public function test_rka_uses_submit_verify_and_approve_workflow(): void
+    public function test_rka_uses_submit_and_approve_workflow_without_verification_stage(): void
     {
         [$renja] = $this->renja('ditetapkan', 'approved');
         $rka = app(RkaCreationService::class)->createFromRenja($renja, [
@@ -211,8 +213,7 @@ class RkaOpdTest extends TestCase
         ]);
         $rka->items()->update([
             'jenis_belanja' => 'operasi',
-            'pagu_belanja_operasi_usulan' => 2500000,
-            'pagu_belanja_operasi_hasil_verifikasi' => 2500000,
+            'pagu_belanja_operasi' => 2500000,
         ]);
         $rka = $rka->fresh();
         $admin = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
@@ -221,25 +222,35 @@ class RkaOpdTest extends TestCase
         $workflow = app(WorkflowTransitionService::class);
 
         $workflow->transition($rka, 'rka_opd', 'submit', $admin);
-        $workflow->transition($rka->fresh(), 'rka_opd', 'verify', $admin);
+
+        try {
+            $workflow->transition($rka->fresh(), 'rka_opd', 'verify', $admin);
+            $this->fail('RKA final seharusnya tidak memiliki tahap verifikasi anggaran.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString(
+                'tidak menggunakan tahap verifikasi anggaran',
+                $exception->errors()['action'][0]
+            );
+        }
+
+        $this->assertSame('submitted', $rka->fresh()->status);
+        $this->assertDatabaseCount('workflow_histories', 1);
+
         $workflow->transition($rka->fresh(), 'rka_opd', 'approve', $admin);
 
         $this->assertSame('approved', $rka->fresh()->status);
-        $this->assertDatabaseCount('workflow_histories', 3);
+        $this->assertDatabaseCount('workflow_histories', 2);
     }
 
-    public function test_verifier_must_explain_a_changed_budget_type_distribution(): void
+    public function test_rka_requires_a_note_when_final_budget_differs_from_renja(): void
     {
         [$renja] = $this->renja('ditetapkan', 'approved');
         $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA DINAS PENGUJIAN 2027']);
         $item = $rka->items()->firstOrFail();
         $item->update([
-            'pagu_belanja_operasi_usulan' => 2000000,
-            'pagu_belanja_modal_usulan' => 500000,
-            'pagu_belanja_operasi_hasil_verifikasi' => 2000000,
-            'pagu_belanja_modal_hasil_verifikasi' => 500000,
+            'pagu_belanja_operasi' => 2000000,
+            'pagu_belanja_modal' => 500000,
         ]);
-        $rka->update(['status' => 'submitted']);
 
         $admin = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
         $role = Role::create(['name' => 'super_admin', 'label' => 'Super Admin', 'is_system' => true]);
@@ -248,14 +259,10 @@ class RkaOpdTest extends TestCase
             'bulan_mulai' => 1,
             'bulan_selesai' => 12,
             'alokasi_tahun_sebelumnya' => 0,
-            'pagu_belanja_operasi_usulan' => 2000000,
-            'pagu_belanja_modal_usulan' => 500000,
-            'pagu_belanja_tidak_terduga_usulan' => 0,
-            'pagu_belanja_transfer_usulan' => 0,
-            'pagu_belanja_operasi_hasil_verifikasi' => 1800000,
-            'pagu_belanja_modal_hasil_verifikasi' => 700000,
-            'pagu_belanja_tidak_terduga_hasil_verifikasi' => 0,
-            'pagu_belanja_transfer_hasil_verifikasi' => 0,
+            'pagu_belanja_operasi' => 1800000,
+            'pagu_belanja_modal' => 600000,
+            'pagu_belanja_tidak_terduga' => 0,
+            'pagu_belanja_transfer' => 0,
             'alokasi_tahun_berikutnya' => 2750000,
         ];
 
@@ -266,15 +273,15 @@ class RkaOpdTest extends TestCase
         $this->actingAs($admin)
             ->put(route('rka-opd.items.update', [$rka, $item]), [
                 ...$payload,
-                'alasan_penyesuaian' => 'Komposisi belanja disesuaikan berdasarkan hasil verifikasi.',
+                'alasan_penyesuaian' => 'Pagu RKA final berbeda dari pagu RENJA sumber.',
             ])
             ->assertRedirect();
 
         $item->refresh();
-        $this->assertSame('2000000.00', $item->pagu_belanja_operasi_usulan);
-        $this->assertSame('1800000.00', $item->pagu_belanja_operasi_hasil_verifikasi);
-        $this->assertSame('700000.00', $item->pagu_belanja_modal_hasil_verifikasi);
-        $this->assertSame('2500000.00', $item->pagu_hasil_verifikasi);
+        $this->assertSame('1800000.00', $item->pagu_belanja_operasi);
+        $this->assertSame('600000.00', $item->pagu_belanja_modal);
+        $this->assertSame('2400000.00', $item->pagu_rka);
+        $this->assertSame('2400000.00', $item->pagu_hasil_verifikasi);
     }
 
     public function test_incomplete_rka_cannot_be_submitted(): void

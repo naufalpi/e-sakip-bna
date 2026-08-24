@@ -2890,15 +2890,17 @@ type ProgramFolderSource = {
 
 const sasaranInfoClass = (sasaranId: number | null) => {
     const palettes = [
-        'text-amber-700 dark:text-amber-300',
-        'text-rose-700 dark:text-rose-300',
-        'text-sky-700 dark:text-sky-300',
-        'text-emerald-700 dark:text-emerald-300',
-        'text-violet-700 dark:text-violet-300',
-        'text-teal-700 dark:text-teal-300',
+        'border-amber-300 bg-amber-100 text-amber-950 ring-amber-200 dark:border-amber-400/50 dark:bg-amber-400/15 dark:text-amber-200 dark:ring-amber-400/20',
+        'border-rose-300 bg-rose-100 text-rose-950 ring-rose-200 dark:border-rose-400/50 dark:bg-rose-400/15 dark:text-rose-200 dark:ring-rose-400/20',
+        'border-cyan-300 bg-cyan-100 text-cyan-950 ring-cyan-200 dark:border-cyan-400/50 dark:bg-cyan-400/15 dark:text-cyan-200 dark:ring-cyan-400/20',
+        'border-emerald-300 bg-emerald-100 text-emerald-950 ring-emerald-200 dark:border-emerald-400/50 dark:bg-emerald-400/15 dark:text-emerald-200 dark:ring-emerald-400/20',
+        'border-violet-300 bg-violet-100 text-violet-950 ring-violet-200 dark:border-violet-400/50 dark:bg-violet-400/15 dark:text-violet-200 dark:ring-violet-400/20',
+        'border-orange-300 bg-orange-100 text-orange-950 ring-orange-200 dark:border-orange-400/50 dark:bg-orange-400/15 dark:text-orange-200 dark:ring-orange-400/20',
     ];
 
-    return sasaranId === null ? 'text-slate-500 dark:text-slate-400' : palettes[Math.abs(sasaranId) % palettes.length];
+    return sasaranId === null
+        ? 'border-slate-300 bg-slate-100 text-slate-700 ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700'
+        : palettes[Math.abs(sasaranId) % palettes.length];
 };
 
 const programSasaranFolders = computed<ProgramSasaranFolder[]>(() =>
@@ -4716,10 +4718,11 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                     </span>
                                                     <span
                                                         v-if="program.sasaranName"
-                                                        class="mt-0.5 block line-clamp-1 text-[11px] font-medium"
+                                                        class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 shadow-sm ring-1 ring-inset"
                                                         :class="sasaranInfoClass(program.sasaranId)"
                                                     >
-                                                        Sasaran OPD: {{ program.sasaranName }}
+                                                        <span class="size-1.5 shrink-0 rounded-full bg-current" />
+                                                        <span class="min-w-0 truncate">Sasaran OPD: {{ program.sasaranName }}</span>
                                                     </span>
                                                     <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
                                                         <span>{{ program.kegiatanCount }} kegiatan</span>
@@ -4845,10 +4848,11 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                     </span>
                                                     <span
                                                         v-if="program.sasaranName"
-                                                        class="mt-0.5 block line-clamp-1 text-[11px] font-medium"
+                                                        class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 shadow-sm ring-1 ring-inset"
                                                         :class="sasaranInfoClass(program.sasaranId)"
                                                     >
-                                                        Sasaran OPD: {{ program.sasaranName }}
+                                                        <span class="size-1.5 shrink-0 rounded-full bg-current" />
+                                                        <span class="min-w-0 truncate">Sasaran OPD: {{ program.sasaranName }}</span>
                                                     </span>
                                                     <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
                                                         <span>{{ program.kegiatanCount }} kegiatan</span>

@@ -77,12 +77,9 @@ class RkaReadinessService
 
     private function hasConsistentBudgetBreakdown(RkaOpdItem $item): bool
     {
-        $proposal = collect(['operasi', 'modal', 'tidak_terduga', 'transfer'])
-            ->sum(fn (string $type) => (float) $item->getAttribute("pagu_belanja_{$type}_usulan"));
-        $verified = collect(['operasi', 'modal', 'tidak_terduga', 'transfer'])
-            ->sum(fn (string $type) => (float) $item->getAttribute("pagu_belanja_{$type}_hasil_verifikasi"));
+        $paguRka = collect(['operasi', 'modal', 'tidak_terduga', 'transfer'])
+            ->sum(fn (string $type) => (float) $item->getAttribute("pagu_belanja_{$type}"));
 
-        return abs($proposal - (float) $item->pagu_usulan) <= 0.01
-            && abs($verified - (float) $item->pagu_hasil_verifikasi) <= 0.01;
+        return abs($paguRka - (float) $item->pagu_rka) <= 0.01;
     }
 }

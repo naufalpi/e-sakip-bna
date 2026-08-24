@@ -30,14 +30,12 @@ type Rka = {
     nomor_ppas?: string | null;
     tanggal_ppas?: string | null;
     catatan?: string | null;
-    catatan_verifikasi?: string | null;
     opd?: { kode?: string | null; nama: string; singkatan?: string | null } | null;
     opd_unit?: { kode?: string | null; nama: string } | null;
     renja?: { judul: string; jenis_versi: string } | null;
 };
 
-const props = defineProps<{ mode: 'create' | 'edit'; rka: Rka | null; renjaOptions: RenjaOption[]; canVerify: boolean }>();
-const verificationOnly = computed(() => props.mode === 'edit' && props.canVerify);
+const props = defineProps<{ mode: 'create' | 'edit'; rka: Rka | null; renjaOptions: RenjaOption[] }>();
 
 const form = useForm({
     renja_opd_id: props.rka?.renja_opd_id ?? ('' as number | string),
@@ -49,7 +47,6 @@ const form = useForm({
     nomor_ppas: props.rka?.nomor_ppas ?? '',
     tanggal_ppas: props.rka?.tanggal_ppas ?? '',
     catatan: props.rka?.catatan ?? '',
-    catatan_verifikasi: props.rka?.catatan_verifikasi ?? '',
 });
 
 const selectedRenja = computed(() => props.renjaOptions.find((option) => option.id === Number(form.renja_opd_id)) ?? null);
@@ -73,7 +70,7 @@ const submit = () => {
         <div class="flex items-center justify-between gap-4">
             <div class="flex items-center gap-3">
                 <Link :href="rka ? route('rka-opd.show', rka.id) : route('rka-opd.index')" class="inline-flex size-10 items-center justify-center rounded-xl border bg-card text-slate-600 shadow-sm hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"><ArrowLeft class="size-4" /></Link>
-                <div><p class="text-[11px] font-bold uppercase tracking-[.14em] text-blue-700 dark:text-blue-300">RKA-BELANJA SKPD</p><h1 class="text-xl font-bold text-slate-950 dark:text-white">{{ verificationOnly ? 'Catatan Verifikasi RKA' : mode === 'create' ? 'Buat RKA dari RENJA' : 'Informasi Dokumen RKA' }}</h1></div>
+                <div><p class="text-[11px] font-bold uppercase tracking-[.14em] text-blue-700 dark:text-blue-300">RKA-BELANJA SKPD</p><h1 class="text-xl font-bold text-slate-950 dark:text-white">{{ mode === 'create' ? 'Buat RKA dari RENJA' : 'Informasi Dokumen RKA' }}</h1></div>
             </div>
         </div>
 
@@ -105,7 +102,7 @@ const submit = () => {
                     </div>
                 </section>
 
-                <fieldset :disabled="verificationOnly" class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm disabled:opacity-70 dark:border-slate-800">
+                <fieldset class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
                     <header class="flex items-start gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800 sm:px-6">
                         <div class="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"><FileSpreadsheet class="size-4" /></div>
                         <div><h2 class="font-bold text-slate-900 dark:text-white">Identitas RKA-SKPD</h2><p class="text-xs leading-5 text-slate-500 dark:text-slate-400">Informasi dokumen dan dasar KUA–PPAS.</p></div>
@@ -122,10 +119,6 @@ const submit = () => {
                     </div>
                 </fieldset>
 
-                <section v-if="mode === 'edit'" class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
-                    <header class="flex items-start gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800 sm:px-6"><div class="flex size-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"><FileCheck2 class="size-4" /></div><div><h2 class="font-bold text-slate-900 dark:text-white">Catatan verifikasi</h2><p class="text-xs text-slate-500 dark:text-slate-400">Diisi oleh pemeriksa RKA.</p></div></header>
-                    <div class="p-5 sm:p-6"><textarea v-model="form.catatan_verifikasi" :disabled="!canVerify" rows="4" class="w-full rounded-xl border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C] disabled:cursor-not-allowed disabled:opacity-60" placeholder="Catatan hasil verifikasi RKA."></textarea></div>
-                </section>
             </div>
 
             <aside class="space-y-4 lg:sticky lg:top-24 lg:self-start">

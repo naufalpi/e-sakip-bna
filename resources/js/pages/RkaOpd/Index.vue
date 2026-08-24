@@ -15,8 +15,7 @@ type Row = {
     type_label: string;
     status: string;
     items_count: number;
-    total_pagu_usulan?: string | number | null;
-    total_pagu_hasil_verifikasi?: string | number | null;
+    total_pagu_rka?: string | number | null;
     can_update: boolean;
     can_delete: boolean;
     opd?: { kode?: string | null; nama: string; singkatan?: string | null } | null;
@@ -129,7 +128,7 @@ const statusClass = (status: string) =>
                 <label class="relative"><Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input v-model="filterForm.search" type="search" class="h-10 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Cari judul, nomor, atau OPD" /></label>
                 <select v-model="filterForm.opd_id" class="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"><option value="">Semua OPD</option><option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option></select>
                 <select v-model="filterForm.jenis_anggaran" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"><option value="">Semua jenis</option><option value="murni">RKA APBD</option><option value="perubahan">RKA Perubahan APBD</option></select>
-                <select v-model="filterForm.status" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"><option value="">Semua status</option><option value="draft">Draft</option><option value="submitted">Diajukan</option><option value="revision">Perlu Perbaikan</option><option value="verified">Terverifikasi</option><option value="approved">Disetujui</option><option value="rejected">Ditolak</option><option value="locked">Terkunci</option></select>
+                <select v-model="filterForm.status" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"><option value="">Semua status</option><option value="draft">Draft</option><option value="submitted">Diajukan</option><option value="revision">Perlu Perbaikan</option><option value="verified">Terverifikasi (data lama)</option><option value="approved">Disetujui</option><option value="rejected">Ditolak</option><option value="locked">Terkunci</option></select>
                 <input v-model="filterForm.tahun" type="number" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Tahun" />
             </form>
         </section>
@@ -148,7 +147,7 @@ const statusClass = (status: string) =>
                         <p class="mt-1 text-xs text-slate-400">{{ row.nomor_dokumen || 'Nomor dokumen belum diisi' }} · {{ row.tahun }}</p>
                     </div>
                     <div class="min-w-0 border-l-2 border-blue-100 pl-3 dark:border-blue-900/60"><p class="text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">Acuan RENJA</p><p class="mt-1 line-clamp-2 text-sm font-medium text-slate-700 dark:text-slate-200">{{ row.renja?.judul || '-' }}</p></div>
-                    <div><p class="text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">Pagu hasil verifikasi</p><p class="mt-1 font-bold tabular-nums text-slate-950 dark:text-white">{{ rupiah(row.total_pagu_hasil_verifikasi) }}</p><p class="mt-1 text-xs text-slate-500">{{ row.items_count }} sub kegiatan</p></div>
+                    <div><p class="text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">Pagu RKA</p><p class="mt-1 font-bold tabular-nums text-slate-950 dark:text-white">{{ rupiah(row.total_pagu_rka) }}</p><p class="mt-1 text-xs text-slate-500">{{ row.items_count }} sub kegiatan</p></div>
                     <div class="xl:text-center"><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span></div>
                     <div class="flex items-center gap-2 xl:justify-end">
                         <Link :href="route('rka-opd.show', row.id)" class="inline-flex h-10 items-center gap-2 rounded-lg bg-[#00336C] px-3.5 text-sm font-semibold text-white hover:bg-[#002855]">Buka <ArrowRight class="size-4" /></Link>

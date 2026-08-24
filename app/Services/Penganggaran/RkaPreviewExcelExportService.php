@@ -22,7 +22,7 @@ class RkaPreviewExcelExportService
         ];
     }
 
-    /** @param array{rows: array<int, array<string, mixed>>, total: array<string, float>, uses_verified_budget: bool} $preview */
+    /** @param array{rows: array<int, array<string, mixed>>, total: array<string, float>} $preview */
     private function buildWorkbook(RkaOpd $rka, array $preview): string
     {
         if (! class_exists(ZipArchive::class)) {
@@ -56,7 +56,7 @@ class RkaPreviewExcelExportService
         return $content;
     }
 
-    /** @param array{rows: array<int, array<string, mixed>>, total: array<string, float>, uses_verified_budget: bool} $preview */
+    /** @param array{rows: array<int, array<string, mixed>>, total: array<string, float>} $preview */
     private function worksheetXml(RkaOpd $rka, array $preview): string
     {
         $dataStart = 14;

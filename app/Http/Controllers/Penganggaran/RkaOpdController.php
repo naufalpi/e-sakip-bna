@@ -42,8 +42,7 @@ class RkaOpdController extends Controller
                 'renjaOpd:id,judul,tahun,jenis_versi,status',
             ])
             ->withCount('items')
-            ->withSum('items as total_pagu_usulan', 'pagu_usulan')
-            ->withSum('items as total_pagu_hasil_verifikasi', 'pagu_hasil_verifikasi')
+            ->withSum('items as total_pagu_rka', 'pagu_rka')
             ->when($filters['search'] ?? null, function (Builder $query, string $search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('judul', 'ilike', "%{$search}%")
@@ -136,15 +135,13 @@ class RkaOpdController extends Controller
             'summary' => [
                 'items_count' => count($items),
                 'pagu_renja' => collect($items)->sum(fn (array $item) => (float) $item['pagu_renja']),
-                'pagu_usulan' => collect($items)->sum(fn (array $item) => (float) $item['pagu_usulan']),
-                'pagu_hasil_verifikasi' => collect($items)->sum(fn (array $item) => (float) $item['pagu_hasil_verifikasi']),
+                'pagu_rka' => collect($items)->sum(fn (array $item) => (float) $item['pagu_rka']),
             ],
             'readiness' => $readinessService->inspect($rkaOpd),
             'preview' => $previewTableService->build($rkaOpd),
             'workflow' => $workflow,
             'can' => [
                 'manage' => $user->can('update', $rkaOpd),
-                'verifyBudget' => $user->can('verifyBudget', $rkaOpd),
                 'review' => $this->canReviewWorkflow($user),
                 'lock' => $user->isSuperAdmin() || $user->hasPermission('lock_period'),
                 'unlock' => $user->isSuperAdmin(),
@@ -170,26 +167,19 @@ class RkaOpdController extends Controller
 
     public function edit(Request $request, RkaOpd $rkaOpd): Response
     {
-        abort_unless($request->user()->can('update', $rkaOpd) || $request->user()->can('verifyBudget', $rkaOpd), 403);
+        $this->authorize('update', $rkaOpd);
         $rkaOpd->load(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'renjaOpd:id,judul,tahun,jenis_versi,status']);
 
         return Inertia::render('RkaOpd/Form', [
             'mode' => 'edit',
             'rka' => $this->serializeRka($rkaOpd),
             'renjaOptions' => [],
-            'canVerify' => $request->user()->can('verifyBudget', $rkaOpd),
         ]);
     }
 
     public function update(UpdateRkaOpdRequest $request, RkaOpd $rkaOpd): RedirectResponse
     {
         $payload = $request->validated();
-
-        if (! $request->user()->can('update', $rkaOpd)) {
-            $payload = Arr::only($payload, ['catatan_verifikasi']);
-        } elseif (! $request->user()->isSuperAdmin()) {
-            unset($payload['catatan_verifikasi']);
-        }
 
         $rkaOpd->update($payload);
 
@@ -269,9 +259,8 @@ class RkaOpdController extends Controller
         return [
             ...$this->serializeRka($rka),
             'items_count' => $rka->items_count,
-            'total_pagu_usulan' => $rka->total_pagu_usulan,
-            'total_pagu_hasil_verifikasi' => $rka->total_pagu_hasil_verifikasi,
-            'can_update' => $user->can('update', $rka) || $user->can('verifyBudget', $rka),
+            'total_pagu_rka' => $rka->total_pagu_rka,
+            'can_update' => $user->can('update', $rka),
             'can_delete' => $user->can('delete', $rka),
         ];
     }
@@ -298,7 +287,6 @@ class RkaOpdController extends Controller
             'tanggal_ppas' => $rka->tanggal_ppas?->toDateString(),
             'status' => $rka->status,
             'catatan' => $rka->catatan,
-            'catatan_verifikasi' => $rka->catatan_verifikasi,
             'opd' => $rka->opd,
             'opd_unit' => $rka->opdUnit,
             'rkpd' => $rka->rkpd,
@@ -314,11 +302,9 @@ class RkaOpdController extends Controller
             'kode_program', 'nama_program', 'kode_kegiatan', 'nama_kegiatan', 'kode_sub_kegiatan',
             'nama_sub_kegiatan', 'tolok_ukur_kinerja', 'target_kinerja', 'satuan_kinerja', 'sumber_pendanaan',
             'lokasi', 'kelompok_sasaran', 'bulan_mulai', 'bulan_selesai', 'jenis_belanja',
-            'alokasi_tahun_sebelumnya', 'pagu_renja', 'pagu_usulan', 'pagu_hasil_verifikasi',
-            'pagu_belanja_operasi_usulan', 'pagu_belanja_modal_usulan',
-            'pagu_belanja_tidak_terduga_usulan', 'pagu_belanja_transfer_usulan',
-            'pagu_belanja_operasi_hasil_verifikasi', 'pagu_belanja_modal_hasil_verifikasi',
-            'pagu_belanja_tidak_terduga_hasil_verifikasi', 'pagu_belanja_transfer_hasil_verifikasi',
+            'alokasi_tahun_sebelumnya', 'pagu_renja', 'pagu_rka',
+            'pagu_belanja_operasi', 'pagu_belanja_modal',
+            'pagu_belanja_tidak_terduga', 'pagu_belanja_transfer',
             'alokasi_tahun_berikutnya', 'alasan_penyesuaian', 'catatan', 'urutan',
         ]);
     }

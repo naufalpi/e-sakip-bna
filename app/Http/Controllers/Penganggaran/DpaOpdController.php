@@ -183,7 +183,7 @@ class DpaOpdController extends Controller
     {
         return RkaOpd::query()
             ->with(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama'])
-            ->withCount('items')->withSum('items as total_pagu', 'pagu_hasil_verifikasi')
+            ->withCount('items')->withSum('items as total_pagu', 'pagu_rka')
             ->whereIn('status', ['approved', 'locked'])->whereDoesntHave('dpaDocuments')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($user->hasOpdUnitScope(), fn (Builder $query) => $query->where('opd_unit_id', $user->opd_unit_id))

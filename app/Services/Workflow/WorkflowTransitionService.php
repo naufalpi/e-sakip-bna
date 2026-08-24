@@ -41,6 +41,12 @@ class WorkflowTransitionService
     {
         $this->authorizeAction($model, $module, $action, $actor);
 
+        if ($module === 'rka_opd' && $action === 'verify') {
+            throw ValidationException::withMessages([
+                'action' => 'RKA mencatat dokumen final dan tidak menggunakan tahap verifikasi anggaran di E-SAKIP.',
+            ]);
+        }
+
         $newStatus = $this->statusForAction($action);
         $oldStatus = (string) ($model->getAttribute('status') ?? 'draft');
         $this->ensureValidTransition($action, $oldStatus);

@@ -9,13 +9,12 @@ use Illuminate\Support\Collection;
 class RkaPreviewTableService
 {
     /**
-     * @return array{rows: array<int, array<string, mixed>>, total: array<string, float>, uses_verified_budget: bool}
+     * @return array{rows: array<int, array<string, mixed>>, total: array<string, float>}
      */
     public function build(RkaOpd $rka): array
     {
         $rka->loadMissing(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama']);
         $items = $rka->items()->get()->sort($this->compareItems(...))->values();
-        $usesVerifiedBudget = in_array($rka->status, ['verified', 'approved', 'locked'], true);
         $rows = [];
 
         if ($items->isNotEmpty()) {
@@ -25,7 +24,6 @@ class RkaPreviewTableService
                 (string) ($rka->opd?->kode ?? ''),
                 (string) ($rka->opd?->nama ?? 'Perangkat Daerah'),
                 $items,
-                $usesVerifiedBudget,
             );
         }
 
@@ -36,12 +34,11 @@ class RkaPreviewTableService
             ['level' => 'kegiatan', 'code' => 'kode_kegiatan', 'name' => 'nama_kegiatan', 'fallback' => 'Kegiatan belum terpetakan'],
         ];
 
-        $this->appendLevelRows($rows, $items, $levels, 0, $usesVerifiedBudget, '');
+        $this->appendLevelRows($rows, $items, $levels, 0, '');
 
         return [
             'rows' => $rows,
-            'total' => $this->budget($items, $usesVerifiedBudget),
-            'uses_verified_budget' => $usesVerifiedBudget,
+            'total' => $this->budget($items),
         ];
     }
 
@@ -55,11 +52,10 @@ class RkaPreviewTableService
         Collection $items,
         array $levels,
         int $index,
-        bool $usesVerifiedBudget,
         string $parentKey,
     ): void {
         if ($index >= count($levels)) {
-            $items->each(function (RkaOpdItem $item) use (&$rows, $usesVerifiedBudget): void {
+            $items->each(function (RkaOpdItem $item) use (&$rows): void {
                 $rows[] = [
                     ...$this->row(
                         'sub_kegiatan',
@@ -67,7 +63,6 @@ class RkaPreviewTableService
                         (string) ($item->kode_sub_kegiatan ?: '-'),
                         (string) ($item->nama_sub_kegiatan ?: 'Sub kegiatan belum terpetakan'),
                         collect([$item]),
-                        $usesVerifiedBudget,
                     ),
                     'source' => (string) ($item->sumber_pendanaan ?: '-'),
                     'location' => (string) ($item->lokasi ?: '-'),
@@ -80,7 +75,7 @@ class RkaPreviewTableService
         $level = $levels[$index];
         $items
             ->groupBy(fn (RkaOpdItem $item) => (string) $item->{$level['code']}.'|'.(string) $item->{$level['name']})
-            ->each(function (Collection $group, string $groupKey) use (&$rows, $levels, $index, $usesVerifiedBudget, $parentKey, $level): void {
+            ->each(function (Collection $group, string $groupKey) use (&$rows, $levels, $index, $parentKey, $level): void {
                 /** @var RkaOpdItem $first */
                 $first = $group->first();
                 $key = trim($parentKey.'-'.$level['level'].'-'.$groupKey, '-');
@@ -90,9 +85,8 @@ class RkaPreviewTableService
                     (string) ($first->{$level['code']} ?: '-'),
                     (string) ($first->{$level['name']} ?: $level['fallback']),
                     $group,
-                    $usesVerifiedBudget,
                 );
-                $this->appendLevelRows($rows, $group, $levels, $index + 1, $usesVerifiedBudget, $key);
+                $this->appendLevelRows($rows, $group, $levels, $index + 1, $key);
             });
     }
 
@@ -106,7 +100,6 @@ class RkaPreviewTableService
         string $code,
         string $description,
         Collection $items,
-        bool $usesVerifiedBudget,
     ): array {
         return [
             'key' => $key,
@@ -115,7 +108,7 @@ class RkaPreviewTableService
             'description' => $description,
             'source' => '',
             'location' => '',
-            'budget' => $this->budget($items, $usesVerifiedBudget),
+            'budget' => $this->budget($items),
         ];
     }
 
@@ -123,7 +116,7 @@ class RkaPreviewTableService
      * @param  Collection<int, RkaOpdItem>  $items
      * @return array{previous: float, operational: float, capital: float, unexpected: float, transfer: float, total: float, next: float}
      */
-    private function budget(Collection $items, bool $usesVerifiedBudget): array
+    private function budget(Collection $items): array
     {
         $budget = [
             'previous' => 0.0,
@@ -135,17 +128,15 @@ class RkaPreviewTableService
             'next' => 0.0,
         ];
 
-        $items->each(function (RkaOpdItem $item) use (&$budget, $usesVerifiedBudget): void {
-            $current = (float) ($usesVerifiedBudget ? $item->pagu_hasil_verifikasi : $item->pagu_usulan);
-            $suffix = $usesVerifiedBudget ? 'hasil_verifikasi' : 'usulan';
+        $items->each(function (RkaOpdItem $item) use (&$budget): void {
             $budget['previous'] += (float) $item->alokasi_tahun_sebelumnya;
-            $budget['total'] += $current;
+            $budget['total'] += (float) $item->pagu_rka;
             $budget['next'] += (float) $item->alokasi_tahun_berikutnya;
 
-            $budget['operational'] += (float) $item->getAttribute("pagu_belanja_operasi_{$suffix}");
-            $budget['capital'] += (float) $item->getAttribute("pagu_belanja_modal_{$suffix}");
-            $budget['unexpected'] += (float) $item->getAttribute("pagu_belanja_tidak_terduga_{$suffix}");
-            $budget['transfer'] += (float) $item->getAttribute("pagu_belanja_transfer_{$suffix}");
+            $budget['operational'] += (float) $item->pagu_belanja_operasi;
+            $budget['capital'] += (float) $item->pagu_belanja_modal;
+            $budget['unexpected'] += (float) $item->pagu_belanja_tidak_terduga;
+            $budget['transfer'] += (float) $item->pagu_belanja_transfer;
         });
 
         return $budget;

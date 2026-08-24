@@ -3,7 +3,7 @@ import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { AlertTriangle, ArrowLeft, Banknote, Download, Landmark, Pencil, Rows3, Save, ShieldCheck } from 'lucide-vue-next';
+import { AlertTriangle, ArrowLeft, Banknote, Download, Landmark, Pencil, Rows3, Save } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 type Rka = {
@@ -20,7 +20,6 @@ type Rka = {
     tanggal_ppas?: string | null;
     status: string;
     catatan?: string | null;
-    catatan_verifikasi?: string | null;
     opd?: { kode?: string | null; nama: string; singkatan?: string | null } | null;
     opd_unit?: { kode?: string | null; nama: string } | null;
     rkpd?: { judul: string; tahun: number; jenis_versi: string } | null;
@@ -36,12 +35,10 @@ type Row = {
     tolok_ukur_kinerja?: string | null; target_kinerja?: string | null; satuan_kinerja?: string | null;
     sumber_pendanaan?: string | null; lokasi?: string | null; kelompok_sasaran?: string | null;
     bulan_mulai: number; bulan_selesai: number; jenis_belanja?: string | null;
-    alokasi_tahun_sebelumnya: string | number; pagu_renja: string | number; pagu_usulan: string | number;
-    pagu_hasil_verifikasi: string | number; alokasi_tahun_berikutnya: string | number;
-    pagu_belanja_operasi_usulan?: string | number | null; pagu_belanja_modal_usulan?: string | number | null;
-    pagu_belanja_tidak_terduga_usulan?: string | number | null; pagu_belanja_transfer_usulan?: string | number | null;
-    pagu_belanja_operasi_hasil_verifikasi?: string | number | null; pagu_belanja_modal_hasil_verifikasi?: string | number | null;
-    pagu_belanja_tidak_terduga_hasil_verifikasi?: string | number | null; pagu_belanja_transfer_hasil_verifikasi?: string | number | null;
+    alokasi_tahun_sebelumnya: string | number; pagu_renja: string | number; pagu_rka: string | number;
+    alokasi_tahun_berikutnya: string | number;
+    pagu_belanja_operasi?: string | number | null; pagu_belanja_modal?: string | number | null;
+    pagu_belanja_tidak_terduga?: string | number | null; pagu_belanja_transfer?: string | number | null;
     alasan_penyesuaian?: string | null; catatan?: string | null; urutan: number;
 };
 type WorkflowHistory = { id: number; action: string; from_status?: string | null; to_status: string; notes?: string | null; created_at: string; actor?: { name: string } | null };
@@ -68,30 +65,24 @@ type PreviewRow = {
 const props = defineProps<{
     rka: Rka;
     items: Row[];
-    summary: { items_count: number; pagu_renja: number; pagu_usulan: number; pagu_hasil_verifikasi: number };
+    summary: { items_count: number; pagu_renja: number; pagu_rka: number };
     readiness: { ready: boolean; issues: string[]; incomplete_items: number };
-    preview: { rows: PreviewRow[]; total: BudgetColumns; uses_verified_budget: boolean };
+    preview: { rows: PreviewRow[]; total: BudgetColumns };
     workflow: Workflow;
-    can: { manage: boolean; verifyBudget: boolean; review: boolean; lock: boolean; unlock: boolean; withdraw: boolean };
+    can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean; withdraw: boolean };
 }>();
 
 const activeTab = ref<'rincian' | 'preview'>('rincian');
 const editOpen = ref(false);
 const editing = ref<Row | null>(null);
-const verificationOnly = computed(() => props.can.verifyBudget && !props.can.manage);
-
 const itemForm = useForm({
     tolok_ukur_kinerja: '', target_kinerja: '', satuan_kinerja: '', sumber_pendanaan: '', lokasi: '', kelompok_sasaran: '',
     bulan_mulai: 1, bulan_selesai: 12,
     alokasi_tahun_sebelumnya: 0 as string | number,
-    pagu_belanja_operasi_usulan: 0 as string | number,
-    pagu_belanja_modal_usulan: 0 as string | number,
-    pagu_belanja_tidak_terduga_usulan: 0 as string | number,
-    pagu_belanja_transfer_usulan: 0 as string | number,
-    pagu_belanja_operasi_hasil_verifikasi: 0 as string | number,
-    pagu_belanja_modal_hasil_verifikasi: 0 as string | number,
-    pagu_belanja_tidak_terduga_hasil_verifikasi: 0 as string | number,
-    pagu_belanja_transfer_hasil_verifikasi: 0 as string | number,
+    pagu_belanja_operasi: 0 as string | number,
+    pagu_belanja_modal: 0 as string | number,
+    pagu_belanja_tidak_terduga: 0 as string | number,
+    pagu_belanja_transfer: 0 as string | number,
     alokasi_tahun_berikutnya: 0 as string | number,
     alasan_penyesuaian: '', catatan: '',
 });
@@ -108,14 +99,10 @@ const openEditor = (item: Row) => {
     itemForm.bulan_mulai = item.bulan_mulai;
     itemForm.bulan_selesai = item.bulan_selesai;
     itemForm.alokasi_tahun_sebelumnya = formatMoneyInput(item.alokasi_tahun_sebelumnya);
-    itemForm.pagu_belanja_operasi_usulan = formatMoneyInput(item.pagu_belanja_operasi_usulan);
-    itemForm.pagu_belanja_modal_usulan = formatMoneyInput(item.pagu_belanja_modal_usulan);
-    itemForm.pagu_belanja_tidak_terduga_usulan = formatMoneyInput(item.pagu_belanja_tidak_terduga_usulan);
-    itemForm.pagu_belanja_transfer_usulan = formatMoneyInput(item.pagu_belanja_transfer_usulan);
-    itemForm.pagu_belanja_operasi_hasil_verifikasi = formatMoneyInput(item.pagu_belanja_operasi_hasil_verifikasi);
-    itemForm.pagu_belanja_modal_hasil_verifikasi = formatMoneyInput(item.pagu_belanja_modal_hasil_verifikasi);
-    itemForm.pagu_belanja_tidak_terduga_hasil_verifikasi = formatMoneyInput(item.pagu_belanja_tidak_terduga_hasil_verifikasi);
-    itemForm.pagu_belanja_transfer_hasil_verifikasi = formatMoneyInput(item.pagu_belanja_transfer_hasil_verifikasi);
+    itemForm.pagu_belanja_operasi = formatMoneyInput(item.pagu_belanja_operasi);
+    itemForm.pagu_belanja_modal = formatMoneyInput(item.pagu_belanja_modal);
+    itemForm.pagu_belanja_tidak_terduga = formatMoneyInput(item.pagu_belanja_tidak_terduga);
+    itemForm.pagu_belanja_transfer = formatMoneyInput(item.pagu_belanja_transfer);
     itemForm.alokasi_tahun_berikutnya = formatMoneyInput(item.alokasi_tahun_berikutnya);
     itemForm.alasan_penyesuaian = item.alasan_penyesuaian ?? '';
     itemForm.catatan = item.catatan ?? '';
@@ -145,7 +132,6 @@ const groupedPrograms = computed(() => {
 
 const previewRows = computed(() => props.preview.rows);
 const previewTotal = computed(() => props.preview.total);
-const isVerifiedBudget = computed(() => props.preview.uses_verified_budget);
 const previewRowClass = (level: PreviewRow['level']) => ({
     opd: 'bg-slate-200/90 font-bold dark:bg-slate-800',
     urusan: 'bg-blue-100/80 font-bold dark:bg-blue-950/60',
@@ -179,8 +165,7 @@ const moneyNumber = (value?: string | number | null) => {
 type MoneyFormField =
     | 'alokasi_tahun_sebelumnya'
     | 'alokasi_tahun_berikutnya'
-    | `pagu_belanja_${(typeof budgetTypes)[number]['key']}_usulan`
-    | `pagu_belanja_${(typeof budgetTypes)[number]['key']}_hasil_verifikasi`;
+    | `pagu_belanja_${(typeof budgetTypes)[number]['key']}`;
 const formatMoneyInput = (value?: string | number | null) => {
     if (value === null || value === undefined || value === '') return '0';
     return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(moneyNumber(value));
@@ -188,12 +173,10 @@ const formatMoneyInput = (value?: string | number | null) => {
 const updateMoneyInput = (field: MoneyFormField, event: Event) => {
     itemForm[field] = formatMoneyInput((event.target as HTMLInputElement).value);
 };
-const proposalTotal = computed(() => budgetTypes.reduce((total, type) => total + moneyNumber(itemForm[`pagu_belanja_${type.key}_usulan`]), 0));
-const verificationTotal = computed(() => budgetTypes.reduce((total, type) => total + moneyNumber(itemForm[`pagu_belanja_${type.key}_hasil_verifikasi`]), 0));
-const displayedVerificationTotal = computed(() => props.can.verifyBudget ? verificationTotal.value : proposalTotal.value);
+const paguRkaTotal = computed(() => budgetTypes.reduce((total, type) => total + moneyNumber(itemForm[`pagu_belanja_${type.key}`]), 0));
 const budgetTypeSummary = (item: Row) => {
     const active = budgetTypes
-        .filter((type) => moneyNumber(item[`pagu_belanja_${type.key}_usulan`]) > 0)
+        .filter((type) => moneyNumber(item[`pagu_belanja_${type.key}`]) > 0)
         .map((type) => type.label.replace('Belanja ', ''));
 
     return active.length ? active.join(' + ') : 'Belanja belum dirinci';
@@ -205,7 +188,6 @@ const rupiah = (value?: string | number | null) => new Intl.NumberFormat('id-ID'
 const rupiahTable = (value?: string | number | null) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value || 0));
 const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(new Date(`${value}T00:00:00+07:00`)) : '-';
 const statusLabel = (status: string) => ({ draft: 'Draft', submitted: 'Diajukan', revision: 'Perlu Perbaikan', verified: 'Terverifikasi', approved: 'Disetujui', rejected: 'Ditolak', locked: 'Terkunci' })[status] ?? status;
-const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.summary.pagu_usulan);
 </script>
 
 <template>
@@ -221,17 +203,16 @@ const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.su
                         <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><span class="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200">{{ rka.type_label }}</span><span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">{{ statusLabel(rka.status) }}</span></div><h1 class="mt-2 max-w-4xl text-xl font-bold leading-tight tracking-tight text-slate-950 dark:text-white sm:text-2xl">{{ rka.judul }}</h1><p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ rka.nomor_dokumen || 'Nomor dokumen belum diisi' }} · Tahun Anggaran {{ rka.tahun }}</p></div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
-                        <Link v-if="can.manage || can.verifyBudget" :href="route('rka-opd.edit', rka.id)" class="inline-flex h-10 items-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><Pencil class="size-4" />{{ can.verifyBudget && !can.manage ? 'Catatan verifikasi' : 'Edit dokumen' }}</Link>
-                        <WorkflowActionButtons module="rka_opd" :model-id="rka.id" :status="rka.status" :can-manage="can.manage" :can-review="can.review" :can-lock="can.lock" :can-unlock="can.unlock" :can-withdraw="can.withdraw" :show-verify="true" button-class="h-10 rounded-lg px-3.5" />
+                        <Link v-if="can.manage" :href="route('rka-opd.edit', rka.id)" class="inline-flex h-10 items-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><Pencil class="size-4" />Edit dokumen</Link>
+                        <WorkflowActionButtons module="rka_opd" :model-id="rka.id" :status="rka.status" :can-manage="can.manage" :can-review="can.review" :can-lock="can.lock" :can-unlock="can.unlock" :can-withdraw="can.withdraw" :show-verify="false" button-class="h-10 rounded-lg px-3.5" />
                     </div>
                 </div>
             </div>
 
-            <div class="grid divide-y divide-slate-200 sm:grid-cols-4 sm:divide-x sm:divide-y-0 dark:divide-slate-800">
+            <div class="grid divide-y divide-slate-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0 dark:divide-slate-800">
                 <div class="flex items-center gap-3 px-5 py-4"><div class="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"><Rows3 class="size-4" /></div><div><p class="text-xs text-slate-500">Sub kegiatan</p><p class="font-bold tabular-nums text-slate-950 dark:text-white">{{ summary.items_count }}</p></div></div>
                 <div class="flex items-center gap-3 px-5 py-4"><div class="flex size-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"><Landmark class="size-4" /></div><div><p class="text-xs text-slate-500">Pagu RENJA</p><p class="font-bold tabular-nums text-slate-950 dark:text-white">{{ rupiah(summary.pagu_renja) }}</p></div></div>
-                <div class="flex items-center gap-3 px-5 py-4"><div class="flex size-9 items-center justify-center rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"><Banknote class="size-4" /></div><div><p class="text-xs text-slate-500">Pagu usulan</p><p class="font-bold tabular-nums text-slate-950 dark:text-white">{{ rupiah(summary.pagu_usulan) }}</p></div></div>
-                <div class="flex items-center gap-3 px-5 py-4"><div class="flex size-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"><ShieldCheck class="size-4" /></div><div><p class="text-xs text-slate-500">Hasil verifikasi</p><p class="font-bold tabular-nums text-slate-950 dark:text-white">{{ rupiah(summary.pagu_hasil_verifikasi) }}</p><p v-if="difference" class="text-[10px]" :class="difference < 0 ? 'text-red-600' : 'text-emerald-600'">{{ difference > 0 ? '+' : '' }}{{ rupiah(difference) }}</p></div></div>
+                <div class="flex items-center gap-3 px-5 py-4"><div class="flex size-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"><Banknote class="size-4" /></div><div><p class="text-xs text-slate-500">Pagu RKA</p><p class="font-bold tabular-nums text-slate-950 dark:text-white">{{ rupiah(summary.pagu_rka) }}</p></div></div>
             </div>
         </section>
 
@@ -247,7 +228,7 @@ const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.su
 
         <section class="grid gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-800 lg:grid-cols-[1.1fr_.9fr]">
             <div class="bg-card p-5 sm:p-6"><div class="flex items-center gap-2"><Landmark class="size-4 text-[#00336C] dark:text-blue-300" /><h2 class="font-bold text-slate-900 dark:text-white">Organisasi</h2></div><p class="mt-3 text-base font-bold text-slate-950 dark:text-white">{{ rka.opd?.kode }} · {{ rka.opd?.nama }}</p><p v-if="rka.opd_unit" class="mt-1 text-sm text-slate-500">Unit Organisasi: {{ rka.opd_unit.kode }} · {{ rka.opd_unit.nama }}</p><div class="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Acuan RENJA</p><p class="mt-1 line-clamp-2 text-slate-700 dark:text-slate-200">{{ rka.renja?.judul || '-' }}</p></div><div><p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Acuan RKPD</p><p class="mt-1 line-clamp-2 text-slate-700 dark:text-slate-200">{{ rka.rkpd?.judul || '-' }}</p></div></div></div>
-            <div class="bg-card p-5 sm:p-6"><h2 class="font-bold text-slate-900 dark:text-white">Dasar KUA–PPAS</h2><dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2"><div><dt class="text-[10px] font-bold uppercase tracking-wide text-slate-400">KUA</dt><dd class="mt-1 font-medium text-slate-800 dark:text-slate-200">{{ rka.nomor_kua || 'Belum diisi' }}</dd><dd class="text-xs text-slate-500">{{ formatDate(rka.tanggal_kua) }}</dd></div><div><dt class="text-[10px] font-bold uppercase tracking-wide text-slate-400">PPAS</dt><dd class="mt-1 font-medium text-slate-800 dark:text-slate-200">{{ rka.nomor_ppas || 'Belum diisi' }}</dd><dd class="text-xs text-slate-500">{{ formatDate(rka.tanggal_ppas) }}</dd></div></dl><p v-if="rka.catatan_verifikasi" class="mt-4 border-l-2 border-emerald-400 pl-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{{ rka.catatan_verifikasi }}</p></div>
+            <div class="bg-card p-5 sm:p-6"><h2 class="font-bold text-slate-900 dark:text-white">Dasar KUA–PPAS</h2><dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2"><div><dt class="text-[10px] font-bold uppercase tracking-wide text-slate-400">KUA</dt><dd class="mt-1 font-medium text-slate-800 dark:text-slate-200">{{ rka.nomor_kua || 'Belum diisi' }}</dd><dd class="text-xs text-slate-500">{{ formatDate(rka.tanggal_kua) }}</dd></div><div><dt class="text-[10px] font-bold uppercase tracking-wide text-slate-400">PPAS</dt><dd class="mt-1 font-medium text-slate-800 dark:text-slate-200">{{ rka.nomor_ppas || 'Belum diisi' }}</dd><dd class="text-xs text-slate-500">{{ formatDate(rka.tanggal_ppas) }}</dd></div></dl></div>
         </section>
 
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
@@ -276,8 +257,8 @@ const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.su
                                 <div class="min-w-0"><p class="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">{{ item.kode_sub_kegiatan }}</p><p class="mt-1 text-sm font-semibold leading-5 text-slate-900 dark:text-white">{{ item.nama_sub_kegiatan }}</p><p class="mt-1 text-xs text-slate-500">{{ budgetTypeSummary(item) }} · {{ monthRange(item.bulan_mulai, item.bulan_selesai) }}</p></div>
                                 <div><p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Tolok ukur kinerja</p><p class="mt-1 line-clamp-2 text-sm text-slate-700 dark:text-slate-200">{{ item.tolok_ukur_kinerja || '-' }}</p><p class="mt-1 text-xs font-semibold text-[#00336C] dark:text-blue-300">{{ item.target_kinerja || '-' }} {{ item.satuan_kinerja || '' }}</p></div>
                                 <div><p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pagu RENJA</p><p class="mt-1 text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ rupiah(item.pagu_renja) }}</p></div>
-                                <div><p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Hasil verifikasi</p><p class="mt-1 text-sm font-bold tabular-nums text-slate-950 dark:text-white">{{ rupiah(item.pagu_hasil_verifikasi) }}</p><p v-if="Number(item.pagu_hasil_verifikasi) !== Number(item.pagu_usulan)" class="mt-1 text-[10px] text-amber-600">Usulan {{ rupiah(item.pagu_usulan) }}</p></div>
-                                <button v-if="can.manage || can.verifyBudget" type="button" class="inline-flex size-9 items-center justify-center rounded-lg border text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" :title="verificationOnly ? 'Verifikasi pagu' : 'Edit rincian'" @click="openEditor(item)"><Pencil class="size-4" /></button>
+                                <div><p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pagu RKA</p><p class="mt-1 text-sm font-bold tabular-nums text-slate-950 dark:text-white">{{ rupiah(item.pagu_rka) }}</p></div>
+                                <button v-if="can.manage" type="button" class="inline-flex size-9 items-center justify-center rounded-lg border text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" title="Edit rincian" @click="openEditor(item)"><Pencil class="size-4" /></button>
                             </article>
                         </div>
                     </div>
@@ -400,7 +381,7 @@ const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.su
                     </div>
                 </div>
                 <p class="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
-                    Nilai Tahun {{ rka.tahun }} menggunakan {{ isVerifiedBudget ? 'pagu hasil verifikasi' : 'pagu usulan' }} dan dikelompokkan berdasarkan jenis belanja setiap sub kegiatan.
+                    Nilai Tahun {{ rka.tahun }} menggunakan Pagu RKA final dan dikelompokkan berdasarkan jenis belanja setiap sub kegiatan.
                 </p>
             </div>
         </section>
@@ -410,9 +391,9 @@ const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.su
 
     <Dialog v-model:open="editOpen">
         <DialogContent class="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
-            <DialogHeader><DialogTitle>{{ verificationOnly ? 'Verifikasi Pagu Sub Kegiatan' : 'Edit Rincian RKA' }}</DialogTitle><DialogDescription>{{ editing?.kode_sub_kegiatan }} · {{ editing?.nama_sub_kegiatan }}</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>Edit Rincian RKA</DialogTitle><DialogDescription>{{ editing?.kode_sub_kegiatan }} · {{ editing?.nama_sub_kegiatan }}</DialogDescription></DialogHeader>
             <form class="mt-2 grid gap-5" @submit.prevent="saveItem">
-                <fieldset :disabled="verificationOnly" class="grid gap-4 disabled:opacity-60 sm:grid-cols-2">
+                <fieldset class="grid gap-4 sm:grid-cols-2">
                     <label class="sm:col-span-2"><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Indikator dan Tolok Ukur Kinerja</span><textarea v-model="itemForm.tolok_ukur_kinerja" rows="2" class="mt-1.5 w-full rounded-xl border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"></textarea></label>
                     <label><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Target Kinerja</span><input v-model="itemForm.target_kinerja" class="mt-1.5 h-10 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" /></label>
                     <label><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Satuan</span><input v-model="itemForm.satuan_kinerja" class="mt-1.5 h-10 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" /></label>
@@ -429,39 +410,31 @@ const difference = computed(() => props.summary.pagu_hasil_verifikasi - props.su
                             <h3 class="text-sm font-bold text-slate-900 dark:text-white">Rincian Belanja Tahun {{ rka.tahun }}</h3>
                             <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Isi hanya jenis belanja yang digunakan pada sub kegiatan ini.</p>
                         </div>
-                        <div class="flex items-center gap-5 text-right">
-                            <div><p class="text-[9px] font-bold uppercase tracking-[.12em] text-slate-400">Total usulan</p><p class="mt-0.5 text-sm font-extrabold tabular-nums text-slate-900 dark:text-white">{{ rupiah(proposalTotal) }}</p></div>
-                            <div><p class="text-[9px] font-bold uppercase tracking-[.12em] text-emerald-600 dark:text-emerald-400">Total verifikasi</p><p class="mt-0.5 text-sm font-extrabold tabular-nums text-emerald-700 dark:text-emerald-300">{{ rupiah(displayedVerificationTotal) }}</p></div>
-                        </div>
+                        <div class="text-right"><p class="text-[9px] font-bold uppercase tracking-[.12em] text-emerald-600 dark:text-emerald-400">Total Pagu RKA</p><p class="mt-0.5 text-sm font-extrabold tabular-nums text-emerald-700 dark:text-emerald-300">{{ rupiah(paguRkaTotal) }}</p></div>
                     </header>
-                    <div class="hidden grid-cols-[minmax(0,1fr)_minmax(145px,.62fr)_minmax(145px,.62fr)] border-b border-slate-200 bg-slate-50 px-4 py-2 text-[9px] font-bold uppercase tracking-[.13em] text-slate-400 dark:border-slate-800 dark:bg-slate-900/40 sm:grid">
-                        <span>Jenis belanja</span><span class="text-right">Pagu usulan</span><span class="text-right">Hasil verifikasi</span>
+                    <div class="hidden grid-cols-[minmax(0,1fr)_minmax(180px,.72fr)] border-b border-slate-200 bg-slate-50 px-4 py-2 text-[9px] font-bold uppercase tracking-[.13em] text-slate-400 dark:border-slate-800 dark:bg-slate-900/40 sm:grid">
+                        <span>Jenis belanja</span><span class="text-right">Pagu RKA</span>
                     </div>
                     <div
                         v-for="type in budgetTypes"
                         :key="type.key"
-                        class="grid gap-2 border-b border-slate-200 px-4 py-3 last:border-b-0 dark:border-slate-800 sm:grid-cols-[minmax(0,1fr)_minmax(145px,.62fr)_minmax(145px,.62fr)] sm:items-center"
+                        class="grid gap-2 border-b border-slate-200 px-4 py-3 last:border-b-0 dark:border-slate-800 sm:grid-cols-[minmax(0,1fr)_minmax(180px,.72fr)] sm:items-center"
                         :class="type.tint"
                     >
                         <div class="flex items-center gap-2.5"><span class="size-2.5 shrink-0 rounded-full" :class="type.marker"></span><span class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ type.label }}</span></div>
                         <label>
-                            <span class="mb-1 block text-[9px] font-bold uppercase tracking-wide text-slate-400 sm:hidden">Pagu usulan</span>
-                            <input :value="itemForm[`pagu_belanja_${type.key}_usulan`]" :disabled="verificationOnly" inputmode="numeric" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-right text-sm font-semibold tabular-nums outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-blue-950" @input="updateMoneyInput(`pagu_belanja_${type.key}_usulan`, $event)" />
-                        </label>
-                        <label>
-                            <span class="mb-1 block text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 sm:hidden">Hasil verifikasi</span>
-                            <input v-if="can.verifyBudget" :value="itemForm[`pagu_belanja_${type.key}_hasil_verifikasi`]" inputmode="numeric" class="h-10 w-full rounded-lg border border-emerald-200 bg-white px-3 text-right text-sm font-bold tabular-nums text-emerald-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-emerald-800 dark:bg-slate-950 dark:text-emerald-300 dark:focus:ring-emerald-950" @input="updateMoneyInput(`pagu_belanja_${type.key}_hasil_verifikasi`, $event)" />
-                            <span v-else class="flex h-10 w-full items-center justify-end rounded-lg border border-slate-200 bg-slate-100 px-3 text-sm font-semibold tabular-nums text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">{{ rupiah(itemForm[`pagu_belanja_${type.key}_usulan`]) }}</span>
+                            <span class="mb-1 block text-[9px] font-bold uppercase tracking-wide text-slate-400 sm:hidden">Pagu RKA</span>
+                            <input :value="itemForm[`pagu_belanja_${type.key}`]" inputmode="numeric" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-right text-sm font-semibold tabular-nums outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-blue-950" @input="updateMoneyInput(`pagu_belanja_${type.key}`, $event)" />
                         </label>
                     </div>
                 </section>
 
                 <div class="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60 sm:grid-cols-3">
-                    <label><span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Alokasi Tahun T−1</span><input :value="itemForm.alokasi_tahun_sebelumnya" :disabled="verificationOnly" inputmode="numeric" class="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-right text-sm tabular-nums disabled:opacity-60" @input="updateMoneyInput('alokasi_tahun_sebelumnya', $event)" /></label>
+                    <label><span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Alokasi Tahun-1</span><input :value="itemForm.alokasi_tahun_sebelumnya" inputmode="numeric" class="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-right text-sm tabular-nums" @input="updateMoneyInput('alokasi_tahun_sebelumnya', $event)" /></label>
                     <div><span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Pagu Acuan RENJA</span><span class="mt-1.5 flex h-10 items-center justify-end rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold tabular-nums text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ rupiah(editing?.pagu_renja) }}</span></div>
-                    <label><span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Alokasi Tahun T+1</span><input :value="itemForm.alokasi_tahun_berikutnya" :disabled="verificationOnly" inputmode="numeric" class="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-right text-sm tabular-nums disabled:opacity-60" @input="updateMoneyInput('alokasi_tahun_berikutnya', $event)" /></label>
+                    <label><span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Alokasi Tahun+1</span><input :value="itemForm.alokasi_tahun_berikutnya" inputmode="numeric" class="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-right text-sm tabular-nums" @input="updateMoneyInput('alokasi_tahun_berikutnya', $event)" /></label>
                 </div>
-                <div class="grid gap-4 sm:grid-cols-2"><label><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Alasan Penyesuaian</span><textarea v-model="itemForm.alasan_penyesuaian" rows="3" class="mt-1.5 w-full rounded-xl border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Wajib jika pagu berubah dari acuan."></textarea><span v-if="itemForm.errors.alasan_penyesuaian" class="mt-1 block text-xs text-red-600">{{ itemForm.errors.alasan_penyesuaian }}</span></label><label><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Keterangan</span><textarea v-model="itemForm.catatan" rows="3" class="mt-1.5 w-full rounded-xl border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"></textarea></label></div>
+                <div class="grid gap-4 sm:grid-cols-2"><label><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Catatan Perbedaan dengan RENJA</span><textarea v-model="itemForm.alasan_penyesuaian" rows="3" class="mt-1.5 w-full rounded-xl border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Wajib jika Pagu RKA berbeda dari Pagu RENJA."></textarea><span v-if="itemForm.errors.alasan_penyesuaian" class="mt-1 block text-xs text-red-600">{{ itemForm.errors.alasan_penyesuaian }}</span></label><label><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Keterangan</span><textarea v-model="itemForm.catatan" rows="3" class="mt-1.5 w-full rounded-xl border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"></textarea></label></div>
                 <div class="flex justify-end gap-2 border-t pt-4"><button type="button" class="h-10 rounded-lg border px-4 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800" @click="editOpen = false">Batal</button><button type="submit" :disabled="itemForm.processing" class="inline-flex h-10 items-center gap-2 rounded-lg bg-[#00336C] px-4 text-sm font-semibold text-white hover:bg-[#002855] disabled:opacity-50"><Save class="size-4" />{{ itemForm.processing ? 'Menyimpan...' : 'Simpan Rincian' }}</button></div>
             </form>
         </DialogContent>
