@@ -298,13 +298,17 @@ class RenstraImportApplyService
         $sasaran = $this->requiredContext('sasaran', 'Program OPD harus berada setelah baris sasaran.');
         $text = $this->requiredText($mapped, ['program', 'nama_program', 'uraian', 'nama'], 'Program OPD');
         $kode = $this->text($mapped, ['kode', 'kode_program']);
-        $identity = $kode ? ['renstra_opd_id' => $sasaran->tujuan->renstra_opd_id, 'kode' => $kode] : ['renstra_opd_id' => $sasaran->tujuan->renstra_opd_id, 'nama' => $text];
+        $sasaranProgram = $this->text($mapped, ['sasaran_program', 'sasaran_level', 'sasaran_program_opd']);
+        $identity = [
+            'renstra_opd_id' => $sasaran->tujuan->renstra_opd_id,
+            'sasaran_opd_id' => $sasaran->id,
+            'sasaran_program' => $sasaranProgram,
+            ...($kode ? ['kode' => $kode] : ['nama' => $text]),
+        ];
 
         $program = OpdProgram::updateOrCreate($identity, [
-            'sasaran_opd_id' => $sasaran->id,
             'program_rpjmd_id' => $this->resolveProgramRpjmd($mapped, $sasaran->tujuan->renstra)?->id,
             'nama' => $text,
-            'sasaran_program' => $this->text($mapped, ['sasaran_program', 'sasaran_level', 'sasaran_program_opd']),
             'status' => 'draft',
             'urutan' => $this->order($mapped),
         ]);
@@ -354,10 +358,14 @@ class RenstraImportApplyService
         $program = $this->requiredContext('program', 'Kegiatan OPD harus berada setelah baris program.');
         $text = $this->requiredText($mapped, ['kegiatan', 'nama_kegiatan', 'uraian', 'nama'], 'Kegiatan OPD');
         $kode = $this->text($mapped, ['kode', 'kode_kegiatan']);
+        $sasaranKegiatan = $this->text($mapped, ['sasaran_kegiatan', 'sasaran_level', 'sasaran_kegiatan_opd']);
 
-        $kegiatan = OpdKegiatan::updateOrCreate($kode ? ['opd_program_id' => $program->id, 'kode' => $kode] : ['opd_program_id' => $program->id, 'nama' => $text], [
+        $kegiatan = OpdKegiatan::updateOrCreate([
+            'opd_program_id' => $program->id,
+            'sasaran_kegiatan' => $sasaranKegiatan,
+            ...($kode ? ['kode' => $kode] : ['nama' => $text]),
+        ], [
             'nama' => $text,
-            'sasaran_kegiatan' => $this->text($mapped, ['sasaran_kegiatan', 'sasaran_level', 'sasaran_kegiatan_opd']),
             'urutan' => $this->order($mapped),
         ]);
 
@@ -404,6 +412,29 @@ class RenstraImportApplyService
         $kegiatan = $this->requiredContext('kegiatan', 'Sub kegiatan OPD harus berada setelah baris kegiatan.');
         $text = $this->requiredText($mapped, ['sub_kegiatan', 'nama_sub_kegiatan', 'uraian', 'nama'], 'Sub kegiatan OPD');
         $kode = $this->text($mapped, ['kode', 'kode_sub_kegiatan']);
+
+        RenstraOpd::query()->whereKey($kegiatan->program->renstra_opd_id)->lockForUpdate()->firstOrFail();
+
+        $duplicate = OpdSubKegiatan::query()
+            ->with('kegiatan:id,nama,sasaran_kegiatan')
+            ->whereHas('kegiatan.program', fn ($query) => $query
+                ->where('renstra_opd_id', $kegiatan->program->renstra_opd_id))
+            ->when($kode, fn ($query) => $query->where('kode', $kode), fn ($query) => $query->where('nama', $text))
+            ->where('opd_kegiatan_id', '!=', $kegiatan->id)
+            ->first();
+
+        if ($duplicate) {
+            $branch = collect([
+                $duplicate->kegiatan?->nama,
+                filled($duplicate->kegiatan?->sasaran_kegiatan)
+                    ? 'Sasaran Kegiatan: '.$duplicate->kegiatan->sasaran_kegiatan
+                    : null,
+            ])->filter()->join(' — ');
+
+            throw ValidationException::withMessages([
+                'sub_kegiatan' => 'Sub kegiatan ini sudah digunakan'.($branch ? " pada {$branch}" : '').' dalam RENSTRA ini.',
+            ]);
+        }
 
         $subKegiatan = OpdSubKegiatan::updateOrCreate($kode ? ['opd_kegiatan_id' => $kegiatan->id, 'kode' => $kode] : ['opd_kegiatan_id' => $kegiatan->id, 'nama' => $text], [
             'nama' => $text,

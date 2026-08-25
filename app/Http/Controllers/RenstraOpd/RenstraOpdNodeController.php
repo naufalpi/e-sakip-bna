@@ -600,16 +600,30 @@ class RenstraOpdNodeController extends Controller
             ]);
         }
 
-        $duplicateQuery = $kegiatan->subKegiatan()
-            ->where('sub_kegiatan_pemerintahan_id', $reference->id);
+        // Serialkan perubahan struktur dalam dokumen yang sama agar dua request
+        // bersamaan tidak dapat memasang sub kegiatan yang sama pada cabang berbeda.
+        RenstraOpd::query()->whereKey($renstra->id)->lockForUpdate()->firstOrFail();
+
+        $duplicateQuery = OpdSubKegiatan::query()
+            ->with('kegiatan.program')
+            ->where('sub_kegiatan_pemerintahan_id', $reference->id)
+            ->whereHas('kegiatan.program', fn (Builder $query) => $query
+                ->where('renstra_opd_id', $renstra->id));
 
         if ($ignoreId !== null) {
             $duplicateQuery->whereKeyNot($ignoreId);
         }
 
-        if ($duplicateQuery->exists()) {
+        if ($duplicate = $duplicateQuery->first()) {
+            $branch = collect([
+                $duplicate->kegiatan?->nama,
+                filled($duplicate->kegiatan?->sasaran_kegiatan)
+                    ? 'Sasaran Kegiatan: '.$duplicate->kegiatan->sasaran_kegiatan
+                    : null,
+            ])->filter()->join(' — ');
+
             throw ValidationException::withMessages([
-                'sub_kegiatan_pemerintahan_id' => 'Sub kegiatan ini sudah dipilih pada kegiatan tersebut.',
+                'sub_kegiatan_pemerintahan_id' => 'Sub kegiatan ini sudah digunakan'.($branch ? " pada {$branch}" : '').' dalam RENSTRA ini.',
             ]);
         }
 

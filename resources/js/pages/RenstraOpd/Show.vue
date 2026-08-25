@@ -925,18 +925,42 @@ const subKegiatanMasterOptions = computed(() => {
 
     return uniqueOptions(filteredOptions, (option) => `${option.kegiatan_pemerintahan_id ?? ''}|${option.kode ?? option.label}`);
 });
-const selectedParentSubKegiatanMasterIds = computed(() => {
-    if (form.type !== 'sub_kegiatan') {
-        return new Set<number>();
-    }
-
+const usedSubKegiatanMasterContexts = computed(() => {
     const editingSubKegiatanId = editingNode.value?.type === 'sub_kegiatan' ? editingNode.value.id : null;
-    const usedIds = (selectedParentKegiatan.value?.sub_kegiatan ?? [])
-        .filter((subKegiatan) => editingSubKegiatanId === null || Number(subKegiatan.id) !== editingSubKegiatanId)
-        .map((subKegiatan) => toNumberOrNull(subKegiatan.sub_kegiatan_pemerintahan_id))
-        .filter((id): id is number => id !== null);
+    const contexts = new Map<number, string>();
 
-    return new Set(usedIds);
+    bulkRows.value
+        .filter(
+            (row) =>
+                row.type === 'sub_kegiatan' &&
+                (editingSubKegiatanId === null || Number(row.id) !== editingSubKegiatanId) &&
+                Boolean(row.sub_kegiatan_pemerintahan_id),
+        )
+        .forEach((subKegiatan) => {
+            const masterId = toNumberOrNull(subKegiatan.sub_kegiatan_pemerintahan_id);
+
+            if (!masterId) {
+                return;
+            }
+
+            const kegiatan = bulkRows.value.find(
+                (row) => row.type === 'kegiatan' && Number(row.id) === Number(subKegiatan.parent_id),
+            );
+            const program = kegiatan
+                ? bulkRows.value.find((row) => row.type === 'program' && Number(row.id) === Number(kegiatan.parent_id))
+                : null;
+            const context = [
+                kegiatan ? plainNodeText(kegiatan.uraian || kegiatan.parent_label) : null,
+                kegiatan?.sasaran_level ? `Sasaran Kegiatan: ${kegiatan.sasaran_level}` : null,
+                program?.sasaran_level ? `Sasaran Program: ${program.sasaran_level}` : null,
+            ]
+                .filter(Boolean)
+                .join(' • ');
+
+            contexts.set(masterId, context);
+        });
+
+    return contexts;
 });
 const programRpjmdSelectOptions = computed(() => withEmptyOption(props.rpjmdReferenceOptions.program_rpjmd ?? [], 'Tidak dihubungkan'));
 const programMasterSelectOptions = computed(() => withEmptyOption(programMasterOptions.value, 'Tidak memakai master'));
@@ -945,17 +969,19 @@ const subKegiatanMasterSelectOptions = computed(() =>
     subKegiatanMasterOptions.value.map((option) => {
         const optionId = toNumberOrNull(option.id);
 
-        if (!optionId || !selectedParentSubKegiatanMasterIds.value.has(optionId)) {
+        if (!optionId || !usedSubKegiatanMasterContexts.value.has(optionId)) {
             return option;
         }
 
-        const description = option.description?.includes('Sudah dipilih di kegiatan ini')
+        const usedContext = usedSubKegiatanMasterContexts.value.get(optionId);
+        const usedMessage = `Sudah digunakan dalam RENSTRA ini${usedContext ? ` pada ${usedContext}` : ''}`;
+        const description = option.description?.includes('Sudah digunakan dalam RENSTRA ini')
             ? option.description
-            : [option.description, 'Sudah dipilih di kegiatan ini'].filter(Boolean).join(' - ');
+            : [option.description, usedMessage].filter(Boolean).join(' • ');
 
         return {
             ...option,
-            badge: 'Sudah dipilih',
+            badge: 'Sudah digunakan',
             description,
             disabled: true,
         };
@@ -2851,6 +2877,7 @@ type ProgramSasaranItem = {
     sasaranId: number;
     programId: number;
     programName: string;
+    sasaranProgram: string | null;
     indicatorCount: number;
 };
 
@@ -2868,6 +2895,7 @@ type KegiatanProgramItem = {
     programId: number;
     kegiatanId: number;
     kegiatanName: string;
+    sasaranKegiatan: string | null;
     indicatorCount: number;
 };
 
@@ -2877,6 +2905,7 @@ type KegiatanProgramFolder = {
     programName: string;
     sasaranId: number | null;
     sasaranName: string | null;
+    sasaranProgram: string | null;
     kegiatanCount: number;
     indicatorCount: number;
     kegiatan: KegiatanProgramItem[];
@@ -2886,6 +2915,7 @@ type ProgramFolderSource = {
     programRow: BulkRow;
     sasaranId: number | null;
     sasaranName: string | null;
+    sasaranProgram: string | null;
 };
 
 const sasaranInfoClass = (sasaranId: number | null) => {
@@ -2903,6 +2933,11 @@ const sasaranInfoClass = (sasaranId: number | null) => {
         : palettes[Math.abs(sasaranId) % palettes.length];
 };
 
+const sasaranProgramInfoClass =
+    'border-indigo-300 bg-indigo-100 text-indigo-950 ring-indigo-200 dark:border-indigo-400/50 dark:bg-indigo-400/15 dark:text-indigo-100 dark:ring-indigo-400/20';
+const sasaranKegiatanInfoClass =
+    'border-fuchsia-300 bg-fuchsia-100 text-fuchsia-950 ring-fuchsia-200 dark:border-fuchsia-400/50 dark:bg-fuchsia-400/15 dark:text-fuchsia-100 dark:ring-fuchsia-400/20';
+
 const programSasaranFolders = computed<ProgramSasaranFolder[]>(() =>
     sortBulkRowsByOrder(sasaranRows.value.filter((row) => row.type === 'sasaran' && Boolean(row.id))).map((sasaranRow) => {
         const programs = sortBulkRowsByOrder(
@@ -2917,6 +2952,7 @@ const programSasaranFolders = computed<ProgramSasaranFolder[]>(() =>
                 sasaranId: Number(sasaranRow.id),
                 programId: Number(programRow.id),
                 programName: bulkRowPrimaryText(programRow),
+                sasaranProgram: valueText(programRow.sasaran_level).trim() || null,
                 indicatorCount,
             };
         });
@@ -2970,19 +3006,31 @@ const programFolderSources = computed<ProgramFolderSource[]>(() => {
         sasaran.programs.flatMap((program) => {
             const programRow = rowsById.get(program.programId);
 
-            return programRow ? [{ programRow, sasaranId: sasaran.sasaranId, sasaranName: sasaran.sasaranName }] : [];
+            return programRow
+                ? [{
+                      programRow,
+                      sasaranId: sasaran.sasaranId,
+                      sasaranName: sasaran.sasaranName,
+                      sasaranProgram: valueText(programRow.sasaran_level).trim() || null,
+                  }]
+                : [];
         }),
     );
     const includedProgramIds = new Set(sources.map(({ programRow }) => Number(programRow.id)));
     const unlinkedPrograms = sortBulkRowsByOrder(
         programRows.value.filter((row) => row.type === 'program' && Boolean(row.id) && !includedProgramIds.has(Number(row.id))),
-    ).map((programRow) => ({ programRow, sasaranId: null, sasaranName: null }));
+    ).map((programRow) => ({
+        programRow,
+        sasaranId: null,
+        sasaranName: null,
+        sasaranProgram: valueText(programRow.sasaran_level).trim() || null,
+    }));
 
     return [...sources, ...unlinkedPrograms];
 });
 
 const kegiatanProgramFolders = computed<KegiatanProgramFolder[]>(() =>
-    programFolderSources.value.map(({ programRow, sasaranId, sasaranName }) => {
+    programFolderSources.value.map(({ programRow, sasaranId, sasaranName, sasaranProgram }) => {
         const kegiatan = sortBulkRowsByOrder(
             kegiatanRows.value.filter((row) => row.type === 'kegiatan' && Number(row.parent_id) === Number(programRow.id) && Boolean(row.id)),
         ).map((kegiatanRow) => {
@@ -2995,6 +3043,7 @@ const kegiatanProgramFolders = computed<KegiatanProgramFolder[]>(() =>
                 programId: Number(programRow.id),
                 kegiatanId: Number(kegiatanRow.id),
                 kegiatanName: bulkRowPrimaryText(kegiatanRow),
+                sasaranKegiatan: valueText(kegiatanRow.sasaran_level).trim() || null,
                 indicatorCount,
             };
         });
@@ -3005,6 +3054,7 @@ const kegiatanProgramFolders = computed<KegiatanProgramFolder[]>(() =>
             programName: bulkRowPrimaryText(programRow),
             sasaranId,
             sasaranName,
+            sasaranProgram,
             kegiatanCount: kegiatan.length,
             indicatorCount: kegiatan.reduce((total, item) => total + item.indicatorCount, 0),
             kegiatan,
@@ -3021,14 +3071,18 @@ const filteredKegiatanFocusItems = computed(() => {
 
     return kegiatanProgramFolders.value
         .map((program) => {
-            const programMatches = `${program.programName} ${program.sasaranName ?? ''}`.toLowerCase().includes(keyword);
+            const programMatches = `${program.programName} ${program.sasaranName ?? ''} ${program.sasaranProgram ?? ''}`
+                .toLowerCase()
+                .includes(keyword);
 
             return {
                 ...program,
                 kegiatan: programMatches
                     ? program.kegiatan
                     : program.kegiatan.filter((item) =>
-                          `${program.programName} ${program.sasaranName ?? ''} ${item.kegiatanName}`.toLowerCase().includes(keyword),
+                          `${program.programName} ${program.sasaranName ?? ''} ${program.sasaranProgram ?? ''} ${item.kegiatanName} ${item.sasaranKegiatan ?? ''}`
+                              .toLowerCase()
+                              .includes(keyword),
                       ),
             };
         })
@@ -3039,7 +3093,12 @@ const activeKegiatanFocus = computed(
     () =>
         kegiatanProgramFolders.value
             .flatMap((program) =>
-                program.kegiatan.map((kegiatan) => ({ ...kegiatan, programName: program.programName, sasaranName: program.sasaranName })),
+                program.kegiatan.map((kegiatan) => ({
+                    ...kegiatan,
+                    programName: program.programName,
+                    sasaranName: program.sasaranName,
+                    sasaranProgram: program.sasaranProgram,
+                })),
             )
             .find((item) => item.kegiatanId === selectedKegiatanFocusId.value) ?? null,
 );
@@ -3049,6 +3108,7 @@ type SubKegiatanKegiatanFolder = {
     programId: number;
     kegiatanId: number;
     kegiatanName: string;
+    sasaranKegiatan: string | null;
     subKegiatanCount: number;
     indicatorCount: number;
 };
@@ -3059,6 +3119,7 @@ type SubKegiatanProgramFolder = {
     programName: string;
     sasaranId: number | null;
     sasaranName: string | null;
+    sasaranProgram: string | null;
     kegiatanCount: number;
     subKegiatanCount: number;
     indicatorCount: number;
@@ -3066,7 +3127,7 @@ type SubKegiatanProgramFolder = {
 };
 
 const subKegiatanProgramFolders = computed<SubKegiatanProgramFolder[]>(() =>
-    programFolderSources.value.map(({ programRow, sasaranId, sasaranName }) => {
+    programFolderSources.value.map(({ programRow, sasaranId, sasaranName, sasaranProgram }) => {
         const kegiatan = sortBulkRowsByOrder(
             kegiatanRows.value.filter((row) => row.type === 'kegiatan' && Number(row.parent_id) === Number(programRow.id) && Boolean(row.id)),
         ).map((kegiatanRow) => {
@@ -3088,6 +3149,7 @@ const subKegiatanProgramFolders = computed<SubKegiatanProgramFolder[]>(() =>
                 programId: Number(programRow.id),
                 kegiatanId: Number(kegiatanRow.id),
                 kegiatanName: bulkRowPrimaryText(kegiatanRow),
+                sasaranKegiatan: valueText(kegiatanRow.sasaran_level).trim() || null,
                 subKegiatanCount: subRows.length,
                 indicatorCount,
             };
@@ -3099,6 +3161,7 @@ const subKegiatanProgramFolders = computed<SubKegiatanProgramFolder[]>(() =>
             programName: bulkRowPrimaryText(programRow),
             sasaranId,
             sasaranName,
+            sasaranProgram,
             kegiatanCount: kegiatan.length,
             subKegiatanCount: kegiatan.reduce((total, item) => total + item.subKegiatanCount, 0),
             indicatorCount: kegiatan.reduce((total, item) => total + item.indicatorCount, 0),
@@ -3116,14 +3179,18 @@ const filteredSubKegiatanFocusItems = computed(() => {
 
     return subKegiatanProgramFolders.value
         .map((program) => {
-            const programMatches = `${program.programName} ${program.sasaranName ?? ''}`.toLowerCase().includes(keyword);
+            const programMatches = `${program.programName} ${program.sasaranName ?? ''} ${program.sasaranProgram ?? ''}`
+                .toLowerCase()
+                .includes(keyword);
 
             return {
                 ...program,
                 kegiatan: programMatches
                     ? program.kegiatan
                     : program.kegiatan.filter((item) =>
-                          `${program.programName} ${program.sasaranName ?? ''} ${item.kegiatanName}`.toLowerCase().includes(keyword),
+                          `${program.programName} ${program.sasaranName ?? ''} ${program.sasaranProgram ?? ''} ${item.kegiatanName} ${item.sasaranKegiatan ?? ''}`
+                              .toLowerCase()
+                              .includes(keyword),
                       ),
             };
         })
@@ -3134,7 +3201,12 @@ const activeSubKegiatanFocus = computed(
     () =>
         subKegiatanProgramFolders.value
             .flatMap((program) =>
-                program.kegiatan.map((kegiatan) => ({ ...kegiatan, programName: program.programName, sasaranName: program.sasaranName })),
+                program.kegiatan.map((kegiatan) => ({
+                    ...kegiatan,
+                    programName: program.programName,
+                    sasaranName: program.sasaranName,
+                    sasaranProgram: program.sasaranProgram,
+                })),
             )
             .find((item) => item.kegiatanId === selectedSubKegiatanKegiatanId.value) ?? null,
 );
@@ -4640,6 +4712,18 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                                 {{ item.programName }}
                                                             </span>
                                                             <span
+                                                                v-if="item.sasaranProgram"
+                                                                class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 ring-1 ring-inset"
+                                                                :class="
+                                                                    activeProgramFocus?.programId === item.programId
+                                                                        ? 'border-white/25 bg-white/15 text-white ring-white/10'
+                                                                        : sasaranProgramInfoClass
+                                                                "
+                                                            >
+                                                                <span class="size-1.5 shrink-0 rounded-full bg-current" />
+                                                                <span class="min-w-0 truncate">Sasaran Program: {{ item.sasaranProgram }}</span>
+                                                            </span>
+                                                            <span
                                                                 class="mt-1 block text-[11px] font-semibold"
                                                                 :class="activeProgramFocus?.programId === item.programId ? 'text-blue-100' : 'text-slate-500'"
                                                             >
@@ -4673,6 +4757,10 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     <p class="mt-1 text-sm font-semibold text-slate-950">{{ activeProgramFocus.sasaranName }}</p>
                                     <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">Program OPD</p>
                                     <p class="mt-1 text-base font-semibold leading-6 text-slate-950">{{ activeProgramFocus.programName }}</p>
+                                    <div v-if="activeProgramFocus.sasaranProgram" class="mt-3 border-t border-blue-100 pt-3">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Sasaran Program</p>
+                                        <p class="mt-1 text-sm font-semibold leading-6 text-slate-900">{{ activeProgramFocus.sasaranProgram }}</p>
+                                    </div>
                                 </div>
                                 <div
                                     v-else
@@ -4724,6 +4812,14 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                         <span class="size-1.5 shrink-0 rounded-full bg-current" />
                                                         <span class="min-w-0 truncate">Sasaran OPD: {{ program.sasaranName }}</span>
                                                     </span>
+                                                    <span
+                                                        v-if="program.sasaranProgram"
+                                                        class="mt-1 ml-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 shadow-sm ring-1 ring-inset"
+                                                        :class="sasaranProgramInfoClass"
+                                                    >
+                                                        <span class="size-1.5 shrink-0 rounded-full bg-current" />
+                                                        <span class="min-w-0 truncate">Sasaran Program: {{ program.sasaranProgram }}</span>
+                                                    </span>
                                                     <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
                                                         <span>{{ program.kegiatanCount }} kegiatan</span>
                                                         <span class="text-slate-300">/</span>
@@ -4768,6 +4864,18 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                                 {{ item.kegiatanName }}
                                                             </span>
                                                             <span
+                                                                v-if="item.sasaranKegiatan"
+                                                                class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 ring-1 ring-inset"
+                                                                :class="
+                                                                    activeKegiatanFocus?.kegiatanId === item.kegiatanId
+                                                                        ? 'border-white/25 bg-white/15 text-white ring-white/10'
+                                                                        : sasaranKegiatanInfoClass
+                                                                "
+                                                            >
+                                                                <span class="size-1.5 shrink-0 rounded-full bg-current" />
+                                                                <span class="min-w-0 truncate">Sasaran Kegiatan: {{ item.sasaranKegiatan }}</span>
+                                                            </span>
+                                                            <span
                                                                 class="mt-1 block text-[11px] font-semibold"
                                                                 :class="activeKegiatanFocus?.kegiatanId === item.kegiatanId ? 'text-blue-100' : 'text-slate-500'"
                                                             >
@@ -4799,8 +4907,16 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 >
                                     <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">Program OPD</p>
                                     <p class="mt-1 text-sm font-semibold text-slate-950">{{ activeKegiatanFocus.programName }}</p>
+                                    <template v-if="activeKegiatanFocus.sasaranProgram">
+                                        <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-indigo-700">Sasaran Program</p>
+                                        <p class="mt-1 text-sm font-semibold leading-6 text-slate-900">{{ activeKegiatanFocus.sasaranProgram }}</p>
+                                    </template>
                                     <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">Kegiatan OPD</p>
                                     <p class="mt-1 text-base font-semibold leading-6 text-slate-950">{{ activeKegiatanFocus.kegiatanName }}</p>
+                                    <template v-if="activeKegiatanFocus.sasaranKegiatan">
+                                        <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-fuchsia-700">Sasaran Kegiatan</p>
+                                        <p class="mt-1 text-sm font-semibold leading-6 text-slate-900">{{ activeKegiatanFocus.sasaranKegiatan }}</p>
+                                    </template>
                                 </div>
                                 <div
                                     v-else
@@ -4854,6 +4970,14 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                         <span class="size-1.5 shrink-0 rounded-full bg-current" />
                                                         <span class="min-w-0 truncate">Sasaran OPD: {{ program.sasaranName }}</span>
                                                     </span>
+                                                    <span
+                                                        v-if="program.sasaranProgram"
+                                                        class="mt-1 ml-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 shadow-sm ring-1 ring-inset"
+                                                        :class="sasaranProgramInfoClass"
+                                                    >
+                                                        <span class="size-1.5 shrink-0 rounded-full bg-current" />
+                                                        <span class="min-w-0 truncate">Sasaran Program: {{ program.sasaranProgram }}</span>
+                                                    </span>
                                                     <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
                                                         <span>{{ program.kegiatanCount }} kegiatan</span>
                                                         <span class="text-slate-300">/</span>
@@ -4900,6 +5024,18 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                                 {{ item.kegiatanName }}
                                                             </span>
                                                             <span
+                                                                v-if="item.sasaranKegiatan"
+                                                                class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 ring-1 ring-inset"
+                                                                :class="
+                                                                    activeSubKegiatanFocus?.kegiatanId === item.kegiatanId
+                                                                        ? 'border-white/25 bg-white/15 text-white ring-white/10'
+                                                                        : sasaranKegiatanInfoClass
+                                                                "
+                                                            >
+                                                                <span class="size-1.5 shrink-0 rounded-full bg-current" />
+                                                                <span class="min-w-0 truncate">Sasaran Kegiatan: {{ item.sasaranKegiatan }}</span>
+                                                            </span>
+                                                            <span
                                                                 class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold"
                                                                 :class="
                                                                     activeSubKegiatanFocus?.kegiatanId === item.kegiatanId
@@ -4939,9 +5075,15 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                         <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">
                                             {{ activeSubKegiatanFocus.programName }}
                                         </p>
+                                        <p v-if="activeSubKegiatanFocus.sasaranProgram" class="mt-1 text-xs font-semibold leading-5 text-indigo-700">
+                                            Sasaran Program: {{ activeSubKegiatanFocus.sasaranProgram }}
+                                        </p>
                                         <h3 class="mt-1 line-clamp-2 text-base font-semibold leading-6 text-slate-950">
                                             {{ activeSubKegiatanFocus.kegiatanName }}
                                         </h3>
+                                        <p v-if="activeSubKegiatanFocus.sasaranKegiatan" class="mt-1 text-xs font-semibold leading-5 text-fuchsia-700">
+                                            Sasaran Kegiatan: {{ activeSubKegiatanFocus.sasaranKegiatan }}
+                                        </p>
                                     </div>
                                     <button
                                         type="button"

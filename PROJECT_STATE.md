@@ -141,7 +141,11 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 - Program penunjang dipetakan ke kode program master sesuai OPD, bukan selalu kode pertama.
 - Ketika memilih program RPJMD, indikator program dan targetnya disalin menjadi snapshot Renstra.
 - Kegiatan dan sub kegiatan wajib dari master, tidak boleh input manual oleh admin OPD.
-- Daftar program pada kelola kegiatan dan sub kegiatan menampilkan Sasaran OPD sebagai label kontras berkode warna; sasaran yang sama memakai warna konsisten agar program lintas sasaran mudah dibedakan.
+- Satu program master dapat dipakai pada beberapa cabang Sasaran OPD/Sasaran Program dan satu kegiatan master dapat dipakai pada beberapa cabang Sasaran Kegiatan. Setiap cabang tetap menyimpan indikator dan targetnya sendiri tanpa saling menimpa.
+- Dropdown induk saat menambah kegiatan menampilkan konteks Sasaran OPD dan Sasaran Program; dropdown induk saat menambah sub kegiatan menampilkan Sasaran Program dan Sasaran Kegiatan.
+- Daftar program pada kelola kegiatan dan sub kegiatan menampilkan Sasaran OPD serta Sasaran Program sebagai label kontras; daftar kegiatan juga menampilkan Sasaran Kegiatan agar cabang bernama sama mudah dibedakan.
+- Satu sub kegiatan master hanya boleh muncul sekali dalam satu versi RENSTRA, termasuk lintas cabang kegiatan. Pilihan yang sudah digunakan tampil pudar/nonaktif beserta lokasi cabangnya, dan backend manual/autosave/import tetap menolak duplikasi.
+- RENJA mengonsolidasikan cabang program RENSTRA berdasarkan ID program master, sehingga program bernama sama dari beberapa sasaran hanya muncul sekali pada dokumen tahunan. RKA dan DPA meneruskan struktur master dari RENJA sehingga tidak menggandakan program/kegiatan tersebut.
 - Sub kegiatan saat dipilih akan membawa seluruh indikator master sebagai snapshot Renstra dan masih bisa diedit; perubahan master berikutnya tidak menimpa indikator yang sudah disesuaikan pada dokumen Renstra.
 - Anggaran hanya diinput pada level sub kegiatan.
 - Anggaran kegiatan dan program seharusnya menjadi hasil agregasi dari bawah.

@@ -16,6 +16,7 @@ use App\Models\OpdUnit;
 use App\Models\PeriodeTahun;
 use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
+use App\Models\RenjaOpd;
 use App\Models\RenstraOpd;
 use App\Models\Role;
 use App\Models\Rpjmd;
@@ -31,6 +32,7 @@ use App\Models\TargetIndikatorProgramRpjmd;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
 use App\Models\User;
+use App\Services\Perencanaan\RenjaProgramScopeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -887,6 +889,75 @@ class RenstraOpdTest extends TestCase
             ])
             ->assertRedirect(route('renstra-opd.show', $renstra))
             ->assertSessionHasErrors('sub_kegiatan_pemerintahan_id');
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'program',
+                'parent_id' => $sasaranOpd->id,
+                'program_rpjmd_id' => $tree['program_rpjmd']->id,
+                'sasaran_level' => 'Sasaran program cabang kedua',
+                'urutan' => 2,
+            ])
+            ->assertRedirect();
+
+        $programCabang = OpdProgram::query()
+            ->where('renstra_opd_id', $renstra->id)
+            ->whereKeyNot($programOpd->id)
+            ->firstOrFail();
+
+        $this->assertSame($programMaster->id, $programCabang->program_pemerintahan_id);
+        $this->assertSame('Sasaran program cabang kedua', $programCabang->sasaran_program);
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'kegiatan',
+                'parent_id' => $programCabang->id,
+                'kegiatan_pemerintahan_id' => $kegiatanMaster->id,
+                'sasaran_level' => 'Sasaran kegiatan cabang kedua',
+            ])
+            ->assertRedirect();
+
+        $kegiatanCabang = $programCabang->kegiatan()->firstOrFail();
+
+        $this->assertSame($kegiatanMaster->id, $kegiatanCabang->kegiatan_pemerintahan_id);
+        $this->assertSame('Sasaran kegiatan cabang kedua', $kegiatanCabang->sasaran_kegiatan);
+
+        $this->actingAs($user)
+            ->from(route('renstra-opd.show', $renstra))
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'sub_kegiatan',
+                'parent_id' => $kegiatanCabang->id,
+                'sub_kegiatan_pemerintahan_id' => $subKegiatanMaster->id,
+                'opd_unit_id' => $unit->id,
+            ])
+            ->assertRedirect(route('renstra-opd.show', $renstra))
+            ->assertSessionHasErrors('sub_kegiatan_pemerintahan_id');
+
+        $this->assertSame(2, OpdProgram::where('renstra_opd_id', $renstra->id)->count());
+        $this->assertSame(1, OpdSubKegiatan::whereHas('kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->count());
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.show', $renstra))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('nodeOptions.program', fn ($options) => collect($options)->contains(
+                    fn (array $option) => str_contains((string) ($option['description'] ?? ''), 'Sasaran Program: Sasaran program cabang kedua'),
+                ))
+                ->where('nodeOptions.kegiatan', fn ($options) => collect($options)->contains(
+                    fn (array $option) => str_contains((string) ($option['description'] ?? ''), 'Sasaran Kegiatan: Sasaran kegiatan cabang kedua'),
+                )));
+
+        $renja = RenjaOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => (int) $periode->tahun,
+            'judul' => 'RENJA Turunan Renstra Bercabang',
+            'status' => 'draft',
+        ]);
+        $programScopeIds = app(RenjaProgramScopeService::class)->programPemerintahanIds($renja);
+
+        $this->assertSame(1, collect($programScopeIds)->filter(fn (int $id) => $id === $programMaster->id)->count());
 
         $this->actingAs($user)
             ->from(route('renstra-opd.show', $renstra))
