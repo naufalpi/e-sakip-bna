@@ -123,41 +123,98 @@ class RenstraPreviewExcelExportService
                                     'values' => $this->blankValues($years),
                                 ];
 
-                                $programGroup->sortBy('urutan')->each(function (OpdProgram $program) use (&$rows, $baselineYear, $years): void {
-                                    $this->appendRowsForNode(
-                                        $rows,
-                                        'program',
-                                        $this->nodeName($program->nama),
-                                        $program->indikator,
-                                        $baselineYear,
-                                        $years,
-                                        fn (int $year) => $this->formatCurrency($this->programBudget($program, $year)),
-                                    );
+                                $programGroup
+                                    ->sortBy('urutan')
+                                    ->groupBy(fn (OpdProgram $program) => $this->sasaranGroupKey($program->sasaran_program))
+                                    ->each(function (Collection $sasaranProgramGroup) use (&$rows, $baselineYear, $years): void {
+                                        /** @var OpdProgram|null $firstProgram */
+                                        $firstProgram = $sasaranProgramGroup->first();
 
-                                    $program->kegiatan->sortBy('urutan')->each(function (OpdKegiatan $kegiatan) use (&$rows, $baselineYear, $years): void {
-                                        $this->appendRowsForNode(
+                                        if (! $firstProgram) {
+                                            return;
+                                        }
+
+                                        $this->appendGroupingRow(
                                             $rows,
-                                            'kegiatan',
-                                            $this->nodeName($kegiatan->nama),
-                                            $kegiatan->indikator,
-                                            $baselineYear,
+                                            'sasaran_program',
+                                            'SASARAN PROGRAM: '.$this->sasaranText($firstProgram->sasaran_program),
                                             $years,
-                                            fn (int $year) => $this->formatCurrency($this->kegiatanBudget($kegiatan, $year)),
                                         );
 
-                                        $kegiatan->subKegiatan->sortBy('urutan')->each(function (OpdSubKegiatan $subKegiatan) use (&$rows, $baselineYear, $years): void {
+                                        $sasaranProgramGroup->each(function (OpdProgram $program) use (&$rows, $baselineYear, $years): void {
                                             $this->appendRowsForNode(
                                                 $rows,
-                                                'sub_kegiatan',
-                                                $this->nodeName($subKegiatan->nama),
-                                                $subKegiatan->indikator,
+                                                'program',
+                                                $this->nodeName($program->nama),
+                                                $program->indikator,
                                                 $baselineYear,
                                                 $years,
-                                                fn (int $year) => $this->formatCurrency($this->subKegiatanBudget($subKegiatan, $year)),
+                                                fn (int $year) => $this->formatCurrency($this->programBudget($program, $year)),
                                             );
+
+                                            $program->kegiatan
+                                                ->sortBy('urutan')
+                                                ->groupBy(fn (OpdKegiatan $kegiatan) => $this->sasaranGroupKey($kegiatan->sasaran_kegiatan))
+                                                ->each(function (Collection $sasaranKegiatanGroup) use (&$rows, $baselineYear, $years): void {
+                                                    /** @var OpdKegiatan|null $firstKegiatan */
+                                                    $firstKegiatan = $sasaranKegiatanGroup->first();
+
+                                                    if (! $firstKegiatan) {
+                                                        return;
+                                                    }
+
+                                                    $this->appendGroupingRow(
+                                                        $rows,
+                                                        'sasaran_kegiatan',
+                                                        'SASARAN KEGIATAN: '.$this->sasaranText($firstKegiatan->sasaran_kegiatan),
+                                                        $years,
+                                                    );
+
+                                                    $sasaranKegiatanGroup->each(function (OpdKegiatan $kegiatan) use (&$rows, $baselineYear, $years): void {
+                                                        $this->appendRowsForNode(
+                                                            $rows,
+                                                            'kegiatan',
+                                                            $this->nodeName($kegiatan->nama),
+                                                            $kegiatan->indikator,
+                                                            $baselineYear,
+                                                            $years,
+                                                            fn (int $year) => $this->formatCurrency($this->kegiatanBudget($kegiatan, $year)),
+                                                        );
+
+                                                        $kegiatan->subKegiatan
+                                                            ->sortBy('urutan')
+                                                            ->groupBy(fn (OpdSubKegiatan $subKegiatan) => $this->sasaranGroupKey($subKegiatan->sasaran_sub_kegiatan))
+                                                            ->each(function (Collection $sasaranSubKegiatanGroup) use (&$rows, $baselineYear, $years): void {
+                                                                /** @var OpdSubKegiatan|null $firstSubKegiatan */
+                                                                $firstSubKegiatan = $sasaranSubKegiatanGroup->first();
+
+                                                                if (! $firstSubKegiatan) {
+                                                                    return;
+                                                                }
+
+                                                                $this->appendGroupingRow(
+                                                                    $rows,
+                                                                    'sasaran_sub_kegiatan',
+                                                                    'SASARAN SUB KEGIATAN: '.$this->sasaranText($firstSubKegiatan->sasaran_sub_kegiatan),
+                                                                    $years,
+                                                                );
+
+                                                                $sasaranSubKegiatanGroup->each(function (OpdSubKegiatan $subKegiatan) use (&$rows, $baselineYear, $years): void {
+                                                                    $this->appendRowsForNode(
+                                                                        $rows,
+                                                                        'sub_kegiatan',
+                                                                        $this->nodeName($subKegiatan->nama),
+                                                                        $subKegiatan->indikator,
+                                                                        $baselineYear,
+                                                                        $years,
+                                                                        fn (int $year) => $this->formatCurrency($this->subKegiatanBudget($subKegiatan, $year)),
+                                                                    );
+                                                                });
+                                                            });
+                                                    });
+                                                });
                                         });
                                     });
-                                });
                             });
                     });
             });
@@ -200,6 +257,33 @@ class RenstraPreviewExcelExportService
                 'values' => $this->yearValues($indicator, $years, $budgetResolver, $index === 0),
             ];
         });
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     * @param  array<int, int>  $years
+     */
+    private function appendGroupingRow(array &$rows, string $level, string $label, array $years): void
+    {
+        $rows[] = [
+            'level' => $level,
+            'label' => $label,
+            'indicator' => '',
+            'baseline' => '',
+            'values' => $this->blankValues($years),
+        ];
+    }
+
+    private function sasaranGroupKey(?string $value): string
+    {
+        $normalized = preg_replace('/\s+/u', ' ', trim((string) $value));
+
+        return mb_strtolower($normalized ?: '__belum_dirumuskan__');
+    }
+
+    private function sasaranText(?string $value): string
+    {
+        return trim((string) $value) ?: 'Belum dirumuskan';
     }
 
     /**
@@ -431,7 +515,7 @@ class RenstraPreviewExcelExportService
     {
         $baselineYear = (int) $renstra->tahun_awal - 1;
         $rowOne = [
-            $this->inlineCell('A1', 'TUJUAN / SASARAN / BIDANG URUSAN / PROGRAM / KEGIATAN / SUB. KEGIATAN OUTPUT', 1),
+            $this->inlineCell('A1', 'TUJUAN / SASARAN OPD / BIDANG URUSAN / SASARAN PROGRAM / PROGRAM / SASARAN KEGIATAN / KEGIATAN / SASARAN SUB KEGIATAN / SUB KEGIATAN', 1),
             $this->inlineCell('B1', 'INDIKATOR OUTCOME / OUTPUT', 1),
             $this->inlineCell('C1', "BASE LINE\n{$baselineYear}", 1),
             $this->inlineCell('D1', 'TARGET DAN PAGU INDIKATIF TAHUN', 1),
@@ -462,8 +546,11 @@ class RenstraPreviewExcelExportService
             'tujuan' => 8,
             'sasaran' => 9,
             'bidang' => 4,
+            'sasaran_program' => 10,
             'program' => 5,
+            'sasaran_kegiatan' => 11,
             'kegiatan' => 6,
+            'sasaran_sub_kegiatan' => 12,
             'sub_kegiatan' => 7,
             default => 2,
         };
@@ -576,7 +663,7 @@ class RenstraPreviewExcelExportService
             .'<font><sz val="10"/><name val="Arial"/></font>'
             .'<font><b/><sz val="10"/><name val="Arial"/></font>'
             .'</fonts>'
-            .'<fills count="9">'
+            .'<fills count="12">'
             .'<fill><patternFill patternType="none"/></fill>'
             .'<fill><patternFill patternType="gray125"/></fill>'
             .'<fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/><bgColor indexed="64"/></patternFill></fill>'
@@ -586,13 +673,16 @@ class RenstraPreviewExcelExportService
             .'<fill><patternFill patternType="solid"><fgColor rgb="FFFCE4D6"/><bgColor indexed="64"/></patternFill></fill>'
             .'<fill><patternFill patternType="solid"><fgColor rgb="FFDCEBFF"/><bgColor indexed="64"/></patternFill></fill>'
             .'<fill><patternFill patternType="solid"><fgColor rgb="FFEAF4FF"/><bgColor indexed="64"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFE7F4F1"/><bgColor indexed="64"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFEEF2FF"/><bgColor indexed="64"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFFFF7E6"/><bgColor indexed="64"/></patternFill></fill>'
             .'</fills>'
             .'<borders count="2">'
             .'<border><left/><right/><top/><bottom/><diagonal/></border>'
             .'<border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border>'
             .'</borders>'
             .'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-            .'<cellXfs count="10">'
+            .'<cellXfs count="13">'
             .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
             .'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
             .'<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
@@ -603,6 +693,9 @@ class RenstraPreviewExcelExportService
             .'<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
             .'<xf numFmtId="0" fontId="1" fillId="7" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
             .'<xf numFmtId="0" fontId="1" fillId="8" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
+            .'<xf numFmtId="0" fontId="1" fillId="9" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
+            .'<xf numFmtId="0" fontId="1" fillId="10" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
+            .'<xf numFmtId="0" fontId="1" fillId="11" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
             .'</cellXfs>'
             .'</styleSheet>';
     }

@@ -44,7 +44,27 @@ class StoreRenstraOpdNodeRequest extends FormRequest
                 'target_sub_kegiatan',
                 'anggaran_sub_kegiatan',
             ])],
-            'parent_id' => ['nullable', 'integer'],
+            'parent_id' => [
+                Rule::requiredIf(fn () => in_array($this->input('type'), [
+                    'indikator_tujuan',
+                    'target_tujuan',
+                    'sasaran',
+                    'indikator_sasaran',
+                    'target_sasaran',
+                    'program',
+                    'indikator_program',
+                    'target_program',
+                    'kegiatan',
+                    'indikator_kegiatan',
+                    'target_kegiatan',
+                    'sub_kegiatan',
+                    'indikator_sub_kegiatan',
+                    'target_sub_kegiatan',
+                    'anggaran_sub_kegiatan',
+                ], true)),
+                'nullable',
+                'integer',
+            ],
             'periode_tahun_id' => ['nullable', 'integer', 'exists:periode_tahun,id'],
             'satuan_indikator_id' => ['nullable', 'integer', 'exists:satuan_indikator,id'],
             'tujuan_daerah_id' => ['nullable', 'integer', 'exists:tujuan_daerah,id'],
@@ -83,6 +103,7 @@ class StoreRenstraOpdNodeRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'parent_id.required' => 'Pilih data induk terlebih dahulu.',
             'kegiatan_pemerintahan_id.required_if' => 'Pilih kegiatan dari master terlebih dahulu.',
             'sub_kegiatan_pemerintahan_id.required_if' => 'Pilih sub kegiatan dari master terlebih dahulu.',
         ];

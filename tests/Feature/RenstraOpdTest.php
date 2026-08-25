@@ -38,6 +38,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
+use ZipArchive;
 
 class RenstraOpdTest extends TestCase
 {
@@ -106,6 +107,72 @@ class RenstraOpdTest extends TestCase
         $this->actingAs($user)
             ->get(route('renstra-opd.show', $otherRenstra))
             ->assertForbidden();
+    }
+
+    public function test_sasaran_opd_requires_and_uses_selected_tujuan_opd_when_multiple_tujuan_exist(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '1.03', 'nama' => 'Dinas Multi Tujuan', 'status' => 'active']);
+        $rpjmd = Rpjmd::create(['judul' => 'RPJMD Multi Tujuan', 'tahun_awal' => 2026, 'tahun_akhir' => 2031, 'status' => 'approved']);
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $rpjmd->id,
+            'judul' => 'Renstra Multi Tujuan',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'draft',
+        ]);
+        $tujuanPertama = TujuanOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'tujuan' => 'Tujuan OPD Pertama',
+            'urutan' => 1,
+        ]);
+        $tujuanKedua = TujuanOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'tujuan' => 'Tujuan OPD Kedua',
+            'urutan' => 2,
+        ]);
+        $user = User::factory()->create(['opd_id' => $opd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.show', $renstra))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('RenstraOpd/Show')
+                ->has('nodeOptions.tujuan', 2)
+                ->where('nodeOptions.tujuan.0.id', $tujuanPertama->id)
+                ->where('nodeOptions.tujuan.1.id', $tujuanKedua->id)
+            );
+
+        $this->actingAs($user)
+            ->from(route('renstra-opd.show', $renstra))
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'sasaran',
+                'uraian' => 'Sasaran tanpa tujuan',
+                'urutan' => 1,
+            ])
+            ->assertRedirect(route('renstra-opd.show', $renstra))
+            ->assertSessionHasErrors('parent_id');
+
+        $this->actingAs($user)
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'sasaran',
+                'parent_id' => $tujuanKedua->id,
+                'uraian' => 'Sasaran Tujuan Kedua',
+                'urutan' => 1,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('sasaran_opd', [
+            'tujuan_opd_id' => $tujuanKedua->id,
+            'sasaran' => 'Sasaran Tujuan Kedua',
+        ]);
+        $this->assertDatabaseMissing('sasaran_opd', [
+            'tujuan_opd_id' => $tujuanPertama->id,
+            'sasaran' => 'Sasaran Tujuan Kedua',
+        ]);
     }
 
     public function test_admin_opd_only_gets_and_saves_relevant_rpjmd_programs_for_renstra(): void
@@ -940,12 +1007,18 @@ class RenstraOpdTest extends TestCase
             ->get(route('renstra-opd.show', $renstra))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->where('nodeOptions.program', fn ($options) => collect($options)->contains(
-                    fn (array $option) => str_contains((string) ($option['description'] ?? ''), 'Sasaran Program: Sasaran program cabang kedua'),
-                ))
-                ->where('nodeOptions.kegiatan', fn ($options) => collect($options)->contains(
-                    fn (array $option) => str_contains((string) ($option['description'] ?? ''), 'Sasaran Kegiatan: Sasaran kegiatan cabang kedua'),
-                )));
+                ->where('nodeOptions.program', fn ($options) => collect($options)->contains(function (array $option): bool {
+                    $context = collect($option['context'] ?? []);
+
+                    return str_contains((string) ($option['description'] ?? ''), 'Sasaran Program: Sasaran program cabang kedua')
+                        && $context->pluck('label')->values()->all() === ['Sasaran OPD', 'Sasaran Program'];
+                }))
+                ->where('nodeOptions.kegiatan', fn ($options) => collect($options)->contains(function (array $option): bool {
+                    $context = collect($option['context'] ?? []);
+
+                    return str_contains((string) ($option['description'] ?? ''), 'Sasaran Kegiatan: Sasaran kegiatan cabang kedua')
+                        && $context->pluck('label')->values()->all() === ['Sasaran Program', 'Sasaran Kegiatan'];
+                })));
 
         $renja = RenjaOpd::create([
             'renstra_opd_id' => $renstra->id,
@@ -1150,12 +1223,64 @@ class RenstraOpdTest extends TestCase
         $user = User::factory()->create(['opd_id' => $opd->id]);
         $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
 
+        $tujuan = TujuanOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'tujuan' => 'Tujuan Preview Bercabang',
+            'urutan' => 1,
+        ]);
+        $sasaran = SasaranOpd::create([
+            'tujuan_opd_id' => $tujuan->id,
+            'sasaran' => 'Sasaran OPD Preview Bercabang',
+            'urutan' => 1,
+        ]);
+
+        foreach ([
+            ['program' => 'Sasaran Program Alfa', 'kegiatan' => 'Sasaran Kegiatan Alfa', 'sub' => 'Sasaran Sub Kegiatan Alfa'],
+            ['program' => 'Sasaran Program Beta', 'kegiatan' => 'Sasaran Kegiatan Beta', 'sub' => 'Sasaran Sub Kegiatan Beta'],
+        ] as $index => $branch) {
+            $program = OpdProgram::create([
+                'renstra_opd_id' => $renstra->id,
+                'sasaran_opd_id' => $sasaran->id,
+                'kode' => '9.99.01',
+                'nama' => 'Program Preview Bernama Sama',
+                'sasaran_program' => $branch['program'],
+                'urutan' => $index + 1,
+            ]);
+            $kegiatan = $program->kegiatan()->create([
+                'kode' => '9.99.01.2.01',
+                'nama' => 'Kegiatan Preview Bernama Sama',
+                'sasaran_kegiatan' => $branch['kegiatan'],
+                'urutan' => 1,
+            ]);
+            $kegiatan->subKegiatan()->create([
+                'kode' => '9.99.01.2.01.'.str_pad((string) ($index + 1), 4, '0', STR_PAD_LEFT),
+                'nama' => 'Sub Kegiatan Preview '.($index + 1),
+                'sasaran_sub_kegiatan' => $branch['sub'],
+                'urutan' => 1,
+            ]);
+        }
+
         $response = $this->actingAs($user)
             ->get(route('renstra-opd.preview.export', $renstra))
             ->assertOk()
             ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
         $this->assertStringStartsWith('PK', $response->getContent());
+
+        $path = tempnam(sys_get_temp_dir(), 'renstra_export_test_');
+        file_put_contents($path, $response->getContent());
+        $zip = new ZipArchive;
+        $zip->open($path);
+        $sheet = $zip->getFromName('xl/worksheets/sheet1.xml') ?: '';
+        $zip->close();
+        @unlink($path);
+
+        $this->assertStringContainsString('SASARAN PROGRAM: Sasaran Program Alfa', $sheet);
+        $this->assertStringContainsString('SASARAN PROGRAM: Sasaran Program Beta', $sheet);
+        $this->assertStringContainsString('SASARAN KEGIATAN: Sasaran Kegiatan Alfa', $sheet);
+        $this->assertStringContainsString('SASARAN SUB KEGIATAN: Sasaran Sub Kegiatan Beta', $sheet);
+        $this->assertSame(2, substr_count($sheet, 'Program Preview Bernama Sama'));
+        $this->assertSame(2, substr_count($sheet, 'Kegiatan Preview Bernama Sama'));
     }
 
     public function test_renstra_import_preview_and_apply_creates_cascading_data(): void

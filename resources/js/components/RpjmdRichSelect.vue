@@ -3,6 +3,11 @@ import { Check, ChevronDown, Search, X } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
 type SelectValue = string | number | boolean | null | undefined;
+type SelectContextItem = {
+    label: string;
+    value: string;
+    tone?: 'opd' | 'program' | 'kegiatan' | 'sub_kegiatan' | null;
+};
 
 type SelectOption = {
     id?: string | number;
@@ -11,6 +16,7 @@ type SelectOption = {
     description?: string | null;
     badge?: string | number | null;
     group?: string | null;
+    context?: SelectContextItem[];
     disabled?: boolean;
 };
 
@@ -56,7 +62,13 @@ const filteredOptions = computed(() => {
     }
 
     return props.options.filter((option) =>
-        [option.label, option.description, option.group, option.badge]
+        [
+            option.label,
+            option.description,
+            option.group,
+            option.badge,
+            ...(option.context ?? []).flatMap((item) => [item.label, item.value]),
+        ]
             .filter((value) => value !== null && value !== undefined)
             .some((value) => String(value).toLocaleLowerCase('id-ID').includes(normalizedSearch.value)),
     );
@@ -73,6 +85,20 @@ const groupedOptions = computed(() => {
 
     return Array.from(groups, ([label, options]) => ({ label, options }));
 });
+const contextToneClass = (tone?: SelectContextItem['tone'], selected = false) => {
+    if (selected) {
+        return 'border-white/15 bg-white/10 text-blue-50';
+    }
+
+    return (
+        {
+            opd: 'border-emerald-200 bg-emerald-50/80 text-emerald-900 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-200',
+            program: 'border-blue-200 bg-blue-50/80 text-blue-950 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200',
+            kegiatan: 'border-amber-200 bg-amber-50/80 text-amber-950 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-200',
+            sub_kegiatan: 'border-violet-200 bg-violet-50/80 text-violet-950 dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-200',
+        }[tone ?? ''] ?? 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+    );
+};
 const close = () => {
     isOpen.value = false;
     searchQuery.value = '';
@@ -193,8 +219,21 @@ onBeforeUnmount(() => {
                 <span class="block truncate font-semibold" :class="selectedOption ? 'text-slate-950' : 'text-slate-500'">
                     {{ selectedOption?.label ?? placeholder }}
                 </span>
-                <span v-if="selectedOption?.description" class="mt-0.5 block truncate text-xs font-medium text-slate-500">
+                <span
+                    v-if="selectedOption?.description && !selectedOption.context?.length"
+                    class="mt-0.5 block truncate text-xs font-medium text-slate-500"
+                >
                     {{ selectedOption.description }}
+                </span>
+                <span v-if="selectedOption?.context?.length" class="mt-1.5 grid gap-1">
+                    <span
+                        v-for="item in selectedOption.context"
+                        :key="`${item.label}-${item.value}`"
+                        class="flex min-w-0 items-baseline gap-1.5 text-xs leading-4 text-slate-600 dark:text-slate-300"
+                    >
+                        <span class="shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{{ item.label }}</span>
+                        <span class="truncate font-medium">{{ item.value }}</span>
+                    </span>
                 </span>
             </span>
             <span class="flex shrink-0 items-center gap-2">
@@ -285,11 +324,24 @@ onBeforeUnmount(() => {
                             <span class="min-w-0">
                                 <span class="block break-words text-sm font-semibold leading-5">{{ option.label }}</span>
                                 <span
-                                    v-if="option.description && option.description !== group.label"
+                                    v-if="option.description && option.description !== group.label && !option.context?.length"
                                     class="mt-0.5 block break-words text-xs font-medium leading-4"
                                     :class="sameValue(optionValue(option), modelValue) ? 'text-blue-100' : 'text-slate-500'"
                                 >
                                     {{ option.description }}
+                                </span>
+                                <span v-if="option.context?.length" class="mt-2 grid gap-1.5">
+                                    <span
+                                        v-for="item in option.context"
+                                        :key="`${item.label}-${item.value}`"
+                                        class="flex min-w-0 items-start gap-2 rounded-md border px-2 py-1.5 text-xs leading-4"
+                                        :class="contextToneClass(item.tone, sameValue(optionValue(option), modelValue))"
+                                    >
+                                        <span class="mt-px shrink-0 text-[9px] font-extrabold uppercase tracking-[0.1em] opacity-70">
+                                            {{ item.label }}
+                                        </span>
+                                        <span class="min-w-0 flex-1 font-semibold">{{ item.value }}</span>
+                                    </span>
                                 </span>
                             </span>
                             <span class="flex shrink-0 items-center gap-2 pt-0.5">

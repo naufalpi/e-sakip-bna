@@ -35,6 +35,11 @@ type Option = {
     description?: string | null;
     badge?: string | number | null;
     group?: string | null;
+    context?: Array<{
+        label: string;
+        value: string;
+        tone?: 'opd' | 'program' | 'kegiatan' | 'sub_kegiatan' | null;
+    }>;
     disabled?: boolean;
     kode?: string | null;
     nama?: string | null;
@@ -240,7 +245,16 @@ type RenstraCascadingRow = {
     pagu: string;
     status_keterhubungan: string;
 };
-type RenstraOutputRowLevel = 'tujuan' | 'sasaran' | 'bidang' | 'program' | 'kegiatan' | 'sub_kegiatan';
+type RenstraOutputRowLevel =
+    | 'tujuan'
+    | 'sasaran'
+    | 'bidang'
+    | 'sasaran_program'
+    | 'program'
+    | 'sasaran_kegiatan'
+    | 'kegiatan'
+    | 'sasaran_sub_kegiatan'
+    | 'sub_kegiatan';
 type RenstraOutputRow = {
     key: string;
     level: RenstraOutputRowLevel;
@@ -695,7 +709,7 @@ const contentRequirementText = computed(() => {
         ? 'Pilih periode, isi target kinerja, lalu isi target keuangan bila ada.'
         : 'Pilih periode dan isi target angka atau target teks.';
 });
-const shownParentSelectorTypes: NodeType[] = ['program', 'kegiatan', 'sub_kegiatan'];
+const shownParentSelectorTypes: NodeType[] = ['sasaran', 'program', 'kegiatan', 'sub_kegiatan'];
 const showParentSelector = computed(() => shownParentSelectorTypes.includes(form.type));
 const parentContextTitle = computed(() => {
     const titleMap: Partial<Record<NodeType, string>> = {
@@ -1469,31 +1483,61 @@ const renstraOutputRows = computed<RenstraOutputRow[]>(() => {
                     values: blankRenstraOutputValues(),
                 });
 
-                group.programs.forEach((program) => {
-                    appendRenstraOutputRows(rows, {
-                        level: 'program',
-                        keyPrefix: `program-${program.id}`,
-                        label: renstraNodeName(program.nama),
-                        indicators: program.indikator,
-                        budgetResolver: (year) => programBudgetByYear(program, year),
-                    });
+                groupBySasaran(group.programs, (program) => program.sasaran_program).forEach((programGroup) => {
+                    appendRenstraGroupingRow(
+                        rows,
+                        'sasaran_program',
+                        `${key}-sasaran-program-${programGroup.key}`,
+                        `Sasaran Program: ${programGroup.label}`,
+                    );
 
-                    program.kegiatan.forEach((kegiatan) => {
+                    programGroup.items.forEach((program) => {
                         appendRenstraOutputRows(rows, {
-                            level: 'kegiatan',
-                            keyPrefix: `kegiatan-${kegiatan.id}`,
-                            label: renstraNodeName(kegiatan.nama),
-                            indicators: kegiatan.indikator,
-                            budgetResolver: (year) => kegiatanBudgetByYear(kegiatan, year),
+                            level: 'program',
+                            keyPrefix: `program-${program.id}`,
+                            label: renstraNodeName(program.nama),
+                            indicators: program.indikator,
+                            budgetResolver: (year) => programBudgetByYear(program, year),
                         });
 
-                        kegiatan.sub_kegiatan.forEach((subKegiatan) => {
-                            appendRenstraOutputRows(rows, {
-                                level: 'sub_kegiatan',
-                                keyPrefix: `sub-${subKegiatan.id}`,
-                                label: renstraNodeName(subKegiatan.nama),
-                                indicators: subKegiatan.indikator,
-                                budgetResolver: (year) => subKegiatanBudgetByYear(subKegiatan, year),
+                        groupBySasaran(program.kegiatan, (kegiatan) => kegiatan.sasaran_kegiatan).forEach((kegiatanGroup) => {
+                            appendRenstraGroupingRow(
+                                rows,
+                                'sasaran_kegiatan',
+                                `program-${program.id}-sasaran-kegiatan-${kegiatanGroup.key}`,
+                                `Sasaran Kegiatan: ${kegiatanGroup.label}`,
+                            );
+
+                            kegiatanGroup.items.forEach((kegiatan) => {
+                                appendRenstraOutputRows(rows, {
+                                    level: 'kegiatan',
+                                    keyPrefix: `kegiatan-${kegiatan.id}`,
+                                    label: renstraNodeName(kegiatan.nama),
+                                    indicators: kegiatan.indikator,
+                                    budgetResolver: (year) => kegiatanBudgetByYear(kegiatan, year),
+                                });
+
+                                groupBySasaran(
+                                    kegiatan.sub_kegiatan,
+                                    (subKegiatan) => subKegiatan.sasaran_sub_kegiatan,
+                                ).forEach((subKegiatanGroup) => {
+                                    appendRenstraGroupingRow(
+                                        rows,
+                                        'sasaran_sub_kegiatan',
+                                        `kegiatan-${kegiatan.id}-sasaran-sub-kegiatan-${subKegiatanGroup.key}`,
+                                        `Sasaran Sub Kegiatan: ${subKegiatanGroup.label}`,
+                                    );
+
+                                    subKegiatanGroup.items.forEach((subKegiatan) => {
+                                        appendRenstraOutputRows(rows, {
+                                            level: 'sub_kegiatan',
+                                            keyPrefix: `sub-${subKegiatan.id}`,
+                                            label: renstraNodeName(subKegiatan.nama),
+                                            indicators: subKegiatan.indikator,
+                                            budgetResolver: (year) => subKegiatanBudgetByYear(subKegiatan, year),
+                                        });
+                                    });
+                                });
                             });
                         });
                     });
@@ -1504,6 +1548,32 @@ const renstraOutputRows = computed<RenstraOutputRow[]>(() => {
 
     return rows;
 });
+
+function groupBySasaran<T>(items: T[], resolver: (item: T) => string | null | undefined) {
+    const groups = new Map<string, { key: string; label: string; items: T[] }>();
+
+    items.forEach((item) => {
+        const value = resolver(item)?.trim() || 'Belum dirumuskan';
+        const key = value.toLocaleLowerCase('id-ID').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'belum-dirumuskan';
+        const group = groups.get(key) ?? { key, label: value, items: [] };
+
+        group.items.push(item);
+        groups.set(key, group);
+    });
+
+    return Array.from(groups.values());
+}
+
+function appendRenstraGroupingRow(rows: RenstraOutputRow[], level: RenstraOutputRowLevel, key: string, label: string) {
+    rows.push({
+        key,
+        level,
+        label,
+        indicator: '',
+        baseline: '',
+        values: blankRenstraOutputValues(),
+    });
+}
 
 function appendRenstraOutputRows(
     rows: RenstraOutputRow[],
@@ -1618,9 +1688,25 @@ const renstraOutputRowClass = (level: RenstraOutputRowLevel) =>
         tujuan: 'bg-[#dcecff] font-semibold text-slate-950',
         sasaran: 'bg-[#eaf4ff] font-semibold text-slate-950',
         bidang: 'bg-[#fff2cc] font-semibold text-slate-950',
+        sasaran_program: 'bg-[#e7f4f1] font-semibold text-emerald-950',
         program: 'bg-[#e2f0d9] text-slate-950',
+        sasaran_kegiatan: 'bg-[#eef2ff] font-semibold text-indigo-950',
         kegiatan: 'bg-[#fce4d6] text-slate-950',
+        sasaran_sub_kegiatan: 'bg-[#fff7e6] font-semibold text-amber-950',
         sub_kegiatan: 'bg-white text-slate-950',
+    })[level];
+
+const renstraOutputLabelClass = (level: RenstraOutputRowLevel) =>
+    ({
+        tujuan: '',
+        sasaran: 'ml-2',
+        bidang: 'ml-4 uppercase',
+        sasaran_program: 'ml-6 border-l-2 border-emerald-500 pl-2',
+        program: 'ml-8',
+        sasaran_kegiatan: 'ml-10 border-l-2 border-indigo-500 pl-2',
+        kegiatan: 'ml-12',
+        sasaran_sub_kegiatan: 'ml-14 border-l-2 border-amber-500 pl-2',
+        sub_kegiatan: 'ml-16',
     })[level];
 
 const renstraOutputYearLabel = (year: number | string) => (Number(year) > props.renstra.tahun_akhir ? `${year} PM` : String(year));
@@ -2025,6 +2111,21 @@ const defaultParentIdForType = (type: NodeType): number | string => {
     return bulkRows.value.find((row) => row.type === key && row.id)?.id ?? '';
 };
 
+const soleParentIdForType = (type: NodeType): number | string => {
+    const key = parentKeyByType[type];
+
+    if (!key) {
+        return '';
+    }
+
+    const parentIds = [
+        ...(props.nodeOptions[key] ?? []).map((option) => Number(option.id)),
+        ...bulkRows.value.filter((row) => row.type === key && row.id).map((row) => Number(row.id)),
+    ].filter((id, index, ids) => Number.isFinite(id) && ids.indexOf(id) === index);
+
+    return parentIds.length === 1 ? parentIds[0] : '';
+};
+
 const orderableBulkRows = (type: NodeType, parentId: number | string = ''): BulkRow[] => {
     if (!orderableNodeTypes.includes(type)) {
         return [];
@@ -2061,7 +2162,13 @@ const selectNodeType = (type: NodeType, parentId: number | string = '') => {
 
     nextTick(() => {
         clearNodeForm();
-        const resolvedParentId = parentId || (shownParentSelectorTypes.includes(type) ? '' : defaultParentIdForType(type));
+        const resolvedParentId =
+            parentId ||
+            (type === 'sasaran'
+                ? soleParentIdForType(type)
+                : shownParentSelectorTypes.includes(type)
+                  ? ''
+                  : defaultParentIdForType(type));
         form.parent_id = resolvedParentId;
         form.urutan = nextOrderForType(type, resolvedParentId);
         applyImplicitReferences(type);
@@ -2920,23 +3027,25 @@ type ProgramFolderSource = {
 
 const sasaranInfoClass = (sasaranId: number | null) => {
     const palettes = [
-        'border-amber-300 bg-amber-100 text-amber-950 ring-amber-200 dark:border-amber-400/50 dark:bg-amber-400/15 dark:text-amber-200 dark:ring-amber-400/20',
-        'border-rose-300 bg-rose-100 text-rose-950 ring-rose-200 dark:border-rose-400/50 dark:bg-rose-400/15 dark:text-rose-200 dark:ring-rose-400/20',
-        'border-cyan-300 bg-cyan-100 text-cyan-950 ring-cyan-200 dark:border-cyan-400/50 dark:bg-cyan-400/15 dark:text-cyan-200 dark:ring-cyan-400/20',
-        'border-emerald-300 bg-emerald-100 text-emerald-950 ring-emerald-200 dark:border-emerald-400/50 dark:bg-emerald-400/15 dark:text-emerald-200 dark:ring-emerald-400/20',
-        'border-violet-300 bg-violet-100 text-violet-950 ring-violet-200 dark:border-violet-400/50 dark:bg-violet-400/15 dark:text-violet-200 dark:ring-violet-400/20',
-        'border-orange-300 bg-orange-100 text-orange-950 ring-orange-200 dark:border-orange-400/50 dark:bg-orange-400/15 dark:text-orange-200 dark:ring-orange-400/20',
+        'border-amber-200 bg-amber-50/80 text-amber-950 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-100',
+        'border-rose-200 bg-rose-50/80 text-rose-950 dark:border-rose-400/25 dark:bg-rose-400/10 dark:text-rose-100',
+        'border-cyan-200 bg-cyan-50/80 text-cyan-950 dark:border-cyan-400/25 dark:bg-cyan-400/10 dark:text-cyan-100',
+        'border-emerald-200 bg-emerald-50/80 text-emerald-950 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-100',
+        'border-teal-200 bg-teal-50/80 text-teal-950 dark:border-teal-400/25 dark:bg-teal-400/10 dark:text-teal-100',
+        'border-orange-200 bg-orange-50/80 text-orange-950 dark:border-orange-400/25 dark:bg-orange-400/10 dark:text-orange-100',
     ];
 
     return sasaranId === null
-        ? 'border-slate-300 bg-slate-100 text-slate-700 ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700'
+        ? 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
         : palettes[Math.abs(sasaranId) % palettes.length];
 };
 
 const sasaranProgramInfoClass =
-    'border-indigo-300 bg-indigo-100 text-indigo-950 ring-indigo-200 dark:border-indigo-400/50 dark:bg-indigo-400/15 dark:text-indigo-100 dark:ring-indigo-400/20';
+    'border-sky-200 bg-sky-50/80 text-sky-950 dark:border-sky-400/25 dark:bg-sky-400/10 dark:text-sky-100';
 const sasaranKegiatanInfoClass =
-    'border-fuchsia-300 bg-fuchsia-100 text-fuchsia-950 ring-fuchsia-200 dark:border-fuchsia-400/50 dark:bg-fuchsia-400/15 dark:text-fuchsia-100 dark:ring-fuchsia-400/20';
+    'border-orange-200 bg-orange-50/80 text-orange-950 dark:border-orange-400/25 dark:bg-orange-400/10 dark:text-orange-100';
+const sasaranBadgeBaseClass =
+    'inline-flex h-6 max-w-full items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left text-[10px] leading-none shadow-[0_1px_1px_rgba(15,23,42,0.03)]';
 
 const programSasaranFolders = computed<ProgramSasaranFolder[]>(() =>
     sortBulkRowsByOrder(sasaranRows.value.filter((row) => row.type === 'sasaran' && Boolean(row.id))).map((sasaranRow) => {
@@ -3596,11 +3705,13 @@ const deleteBulkRow = (row: BulkRow) => {
 
 const addBulkRow = (type: NodeType = 'tujuan') => {
     bulkDraftCounter.value += 1;
+    const defaultParentId = type === 'sasaran' ? soleParentIdForType(type) : '';
     const row = makeBulkRow({
         key: `draft-${bulkDraftCounter.value}`,
         id: null,
         type,
         level: typeOptionMap.value.get(type)?.label ?? 'Data Baru',
+        parent_id: defaultParentId,
         isNew: true,
         saveState: 'dirty',
     });
@@ -4713,15 +4824,17 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                             </span>
                                                             <span
                                                                 v-if="item.sasaranProgram"
-                                                                class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 ring-1 ring-inset"
-                                                                :class="
+                                                                :class="[
+                                                                    sasaranBadgeBaseClass,
                                                                     activeProgramFocus?.programId === item.programId
-                                                                        ? 'border-white/25 bg-white/15 text-white ring-white/10'
-                                                                        : sasaranProgramInfoClass
-                                                                "
+                                                                        ? 'border-white/20 bg-white/10 text-white'
+                                                                        : sasaranProgramInfoClass,
+                                                                ]"
                                                             >
-                                                                <span class="size-1.5 shrink-0 rounded-full bg-current" />
-                                                                <span class="min-w-0 truncate">Sasaran Program: {{ item.sasaranProgram }}</span>
+                                                                <GitBranch class="size-3 shrink-0 opacity-70" />
+                                                                <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Program</span>
+                                                                <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
+                                                                <span class="min-w-0 truncate font-semibold" :title="item.sasaranProgram">{{ item.sasaranProgram }}</span>
                                                             </span>
                                                             <span
                                                                 class="mt-1 block text-[11px] font-semibold"
@@ -4805,22 +4918,29 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                         {{ program.programName }}
                                                     </span>
                                                     <span
-                                                        v-if="program.sasaranName"
-                                                        class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 shadow-sm ring-1 ring-inset"
-                                                        :class="sasaranInfoClass(program.sasaranId)"
+                                                        v-if="program.sasaranName || program.sasaranProgram"
+                                                        class="mt-2 flex flex-wrap gap-2"
                                                     >
-                                                        <span class="size-1.5 shrink-0 rounded-full bg-current" />
-                                                        <span class="min-w-0 truncate">Sasaran OPD: {{ program.sasaranName }}</span>
+                                                        <span
+                                                            v-if="program.sasaranName"
+                                                            :class="[sasaranBadgeBaseClass, sasaranInfoClass(program.sasaranId)]"
+                                                        >
+                                                            <GitBranch class="size-3 shrink-0 opacity-70" />
+                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran OPD</span>
+                                                            <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
+                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranName">{{ program.sasaranName }}</span>
+                                                        </span>
+                                                        <span
+                                                            v-if="program.sasaranProgram"
+                                                            :class="[sasaranBadgeBaseClass, sasaranProgramInfoClass]"
+                                                        >
+                                                            <GitBranch class="size-3 shrink-0 opacity-70" />
+                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Program</span>
+                                                            <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
+                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranProgram">{{ program.sasaranProgram }}</span>
+                                                        </span>
                                                     </span>
-                                                    <span
-                                                        v-if="program.sasaranProgram"
-                                                        class="mt-1 ml-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 shadow-sm ring-1 ring-inset"
-                                                        :class="sasaranProgramInfoClass"
-                                                    >
-                                                        <span class="size-1.5 shrink-0 rounded-full bg-current" />
-                                                        <span class="min-w-0 truncate">Sasaran Program: {{ program.sasaranProgram }}</span>
-                                                    </span>
-                                                    <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
+                                                    <span class="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
                                                         <span>{{ program.kegiatanCount }} kegiatan</span>
                                                         <span class="text-slate-300">/</span>
                                                         <span>{{ program.indicatorCount }} indikator</span>
@@ -4865,15 +4985,17 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                             </span>
                                                             <span
                                                                 v-if="item.sasaranKegiatan"
-                                                                class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 ring-1 ring-inset"
-                                                                :class="
+                                                                :class="[
+                                                                    sasaranBadgeBaseClass,
                                                                     activeKegiatanFocus?.kegiatanId === item.kegiatanId
-                                                                        ? 'border-white/25 bg-white/15 text-white ring-white/10'
-                                                                        : sasaranKegiatanInfoClass
-                                                                "
+                                                                        ? 'border-white/20 bg-white/10 text-white'
+                                                                        : sasaranKegiatanInfoClass,
+                                                                ]"
                                                             >
-                                                                <span class="size-1.5 shrink-0 rounded-full bg-current" />
-                                                                <span class="min-w-0 truncate">Sasaran Kegiatan: {{ item.sasaranKegiatan }}</span>
+                                                                <GitBranch class="size-3 shrink-0 opacity-70" />
+                                                                <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Kegiatan</span>
+                                                                <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
+                                                                <span class="min-w-0 truncate font-semibold" :title="item.sasaranKegiatan">{{ item.sasaranKegiatan }}</span>
                                                             </span>
                                                             <span
                                                                 class="mt-1 block text-[11px] font-semibold"
@@ -4963,22 +5085,29 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                         {{ program.programName }}
                                                     </span>
                                                     <span
-                                                        v-if="program.sasaranName"
-                                                        class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 shadow-sm ring-1 ring-inset"
-                                                        :class="sasaranInfoClass(program.sasaranId)"
+                                                        v-if="program.sasaranName || program.sasaranProgram"
+                                                        class="mt-2 flex flex-wrap gap-2"
                                                     >
-                                                        <span class="size-1.5 shrink-0 rounded-full bg-current" />
-                                                        <span class="min-w-0 truncate">Sasaran OPD: {{ program.sasaranName }}</span>
+                                                        <span
+                                                            v-if="program.sasaranName"
+                                                            :class="[sasaranBadgeBaseClass, sasaranInfoClass(program.sasaranId)]"
+                                                        >
+                                                            <GitBranch class="size-3 shrink-0 opacity-70" />
+                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran OPD</span>
+                                                            <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
+                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranName">{{ program.sasaranName }}</span>
+                                                        </span>
+                                                        <span
+                                                            v-if="program.sasaranProgram"
+                                                            :class="[sasaranBadgeBaseClass, sasaranProgramInfoClass]"
+                                                        >
+                                                            <GitBranch class="size-3 shrink-0 opacity-70" />
+                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Program</span>
+                                                            <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
+                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranProgram">{{ program.sasaranProgram }}</span>
+                                                        </span>
                                                     </span>
-                                                    <span
-                                                        v-if="program.sasaranProgram"
-                                                        class="mt-1 ml-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 shadow-sm ring-1 ring-inset"
-                                                        :class="sasaranProgramInfoClass"
-                                                    >
-                                                        <span class="size-1.5 shrink-0 rounded-full bg-current" />
-                                                        <span class="min-w-0 truncate">Sasaran Program: {{ program.sasaranProgram }}</span>
-                                                    </span>
-                                                    <span class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
+                                                    <span class="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
                                                         <span>{{ program.kegiatanCount }} kegiatan</span>
                                                         <span class="text-slate-300">/</span>
                                                         <span>{{ program.subKegiatanCount }} sub kegiatan</span>
@@ -5025,15 +5154,17 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                             </span>
                                                             <span
                                                                 v-if="item.sasaranKegiatan"
-                                                                class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold leading-4 ring-1 ring-inset"
-                                                                :class="
+                                                                :class="[
+                                                                    sasaranBadgeBaseClass,
                                                                     activeSubKegiatanFocus?.kegiatanId === item.kegiatanId
-                                                                        ? 'border-white/25 bg-white/15 text-white ring-white/10'
-                                                                        : sasaranKegiatanInfoClass
-                                                                "
+                                                                        ? 'border-white/20 bg-white/10 text-white'
+                                                                        : sasaranKegiatanInfoClass,
+                                                                ]"
                                                             >
-                                                                <span class="size-1.5 shrink-0 rounded-full bg-current" />
-                                                                <span class="min-w-0 truncate">Sasaran Kegiatan: {{ item.sasaranKegiatan }}</span>
+                                                                <GitBranch class="size-3 shrink-0 opacity-70" />
+                                                                <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Kegiatan</span>
+                                                                <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
+                                                                <span class="min-w-0 truncate font-semibold" :title="item.sasaranKegiatan">{{ item.sasaranKegiatan }}</span>
                                                             </span>
                                                             <span
                                                                 class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold"
@@ -5685,7 +5816,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         </span>
                         <div>
                             <h2 class="text-base font-semibold">Preview Tabel Renstra OPD</h2>
-                            <p class="text-sm text-muted-foreground">Tujuan, sasaran, bidang urusan, program, kegiatan, sub kegiatan, indikator, target, dan pagu indikatif.</p>
+                            <p class="text-sm text-muted-foreground">Hierarki lengkap sampai sasaran program, sasaran kegiatan, dan sasaran sub kegiatan.</p>
                         </div>
                     </div>
                     <a
@@ -5703,7 +5834,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         <thead class="text-xs uppercase text-slate-950">
                             <tr class="bg-white">
                                 <th rowspan="3" class="w-[290px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
-                                    TUJUAN / SASARAN / BIDANG URUSAN / PROGRAM / KEGIATAN / SUB. KEGIATAN OUTPUT
+                                    TUJUAN / SASARAN OPD / BIDANG URUSAN / SASARAN PROGRAM / PROGRAM / SASARAN KEGIATAN / KEGIATAN / SASARAN SUB KEGIATAN / SUB KEGIATAN
                                 </th>
                                 <th rowspan="3" class="w-[260px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
                                     INDIKATOR OUTCOME / OUTPUT
@@ -5734,8 +5865,8 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         </thead>
                         <tbody>
                             <tr v-for="row in renstraOutputRows" :key="row.key" class="align-top" :class="renstraOutputRowClass(row.level)">
-                                <td class="border border-slate-900 px-3 py-3 align-top" :class="row.level === 'bidang' ? 'uppercase' : ''">
-                                    {{ row.label }}
+                                <td class="border border-slate-900 px-3 py-3 align-top">
+                                    <div :class="renstraOutputLabelClass(row.level)">{{ row.label }}</div>
                                 </td>
                                 <td class="border border-slate-900 px-3 py-3 align-top">{{ row.indicator }}</td>
                                 <td class="border border-slate-900 px-3 py-3 text-center align-top tabular-nums">{{ row.baseline }}</td>
@@ -6423,7 +6554,9 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                             <div v-if="showParentSelector" class="grid gap-2 rounded-xl border bg-background p-3">
                                 <label class="text-sm font-semibold text-foreground" for="parent_id">
                                     {{
-                                        form.type === 'program'
+                                        form.type === 'sasaran'
+                                            ? 'Tujuan OPD'
+                                            : form.type === 'program'
                                             ? 'Sasaran'
                                             : form.type === 'kegiatan'
                                               ? 'Program'
@@ -6436,7 +6569,9 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     v-model="form.parent_id"
                                     :options="parentSelectOptions"
                                     :placeholder="
-                                        form.type === 'program'
+                                        form.type === 'sasaran'
+                                            ? 'Pilih tujuan OPD'
+                                            : form.type === 'program'
                                             ? 'Pilih sasaran'
                                             : form.type === 'kegiatan'
                                               ? 'Pilih program'
