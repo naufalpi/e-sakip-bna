@@ -38,23 +38,13 @@ class RkaReadinessService
             'kelompok_sasaran' => 'kelompok sasaran',
         ];
 
-        $incompleteItems = $rka->items->filter(function (RkaOpdItem $item) use ($requiredItemFields): bool {
-            foreach (array_keys($requiredItemFields) as $field) {
-                if (blank($item->getAttribute($field))) {
-                    return true;
-                }
-            }
-
-            return ! $this->hasConsistentBudgetBreakdown($item);
-        });
+        $incompleteItems = $rka->items->filter(fn (RkaOpdItem $item): bool => collect(array_keys($requiredItemFields))
+            ->contains(fn (string $field): bool => blank($item->getAttribute($field))));
 
         if ($incompleteItems->isNotEmpty()) {
             $missingLabels = collect($requiredItemFields)
                 ->filter(fn (string $label, string $field) => $incompleteItems->contains(fn (RkaOpdItem $item) => blank($item->getAttribute($field))))
                 ->values();
-            if ($incompleteItems->contains(fn (RkaOpdItem $item) => ! $this->hasConsistentBudgetBreakdown($item))) {
-                $missingLabels->push('rincian jenis belanja');
-            }
             $issues[] = "{$incompleteItems->count()} sub kegiatan belum lengkap ({$missingLabels->implode(', ')})";
         }
 
@@ -73,13 +63,5 @@ class RkaReadinessService
                 'action' => 'RKA belum dapat diajukan. '.implode('; ', $readiness['issues']).'.',
             ]);
         }
-    }
-
-    private function hasConsistentBudgetBreakdown(RkaOpdItem $item): bool
-    {
-        $paguRka = collect(['operasi', 'modal', 'tidak_terduga', 'transfer'])
-            ->sum(fn (string $type) => (float) $item->getAttribute("pagu_belanja_{$type}"));
-
-        return abs($paguRka - (float) $item->pagu_rka) <= 0.01;
     }
 }

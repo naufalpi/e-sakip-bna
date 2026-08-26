@@ -21,10 +21,7 @@ class UpdateRkaOpdItemRequest extends FormRequest
     {
         $currencyFields = [
             'alokasi_tahun_sebelumnya',
-            'pagu_belanja_operasi',
-            'pagu_belanja_modal',
-            'pagu_belanja_tidak_terduga',
-            'pagu_belanja_transfer',
+            'pagu_rka',
             'alokasi_tahun_berikutnya',
         ];
         $normalized = [];
@@ -32,13 +29,6 @@ class UpdateRkaOpdItemRequest extends FormRequest
         foreach ($currencyFields as $field) {
             $normalized[$field] = $this->normalizeCurrency($this->input($field));
         }
-
-        $normalized['pagu_rka'] = collect([
-            $normalized['pagu_belanja_operasi'],
-            $normalized['pagu_belanja_modal'],
-            $normalized['pagu_belanja_tidak_terduga'],
-            $normalized['pagu_belanja_transfer'],
-        ])->sum(fn (mixed $value) => (float) $value);
 
         $this->merge($normalized);
     }
@@ -57,10 +47,6 @@ class UpdateRkaOpdItemRequest extends FormRequest
             'bulan_selesai' => ['required', 'integer', 'between:1,12', 'gte:bulan_mulai'],
             'alokasi_tahun_sebelumnya' => ['required', 'numeric', 'min:0'],
             'pagu_rka' => ['required', 'numeric', 'min:0'],
-            'pagu_belanja_operasi' => ['required', 'numeric', 'min:0'],
-            'pagu_belanja_modal' => ['required', 'numeric', 'min:0'],
-            'pagu_belanja_tidak_terduga' => ['required', 'numeric', 'min:0'],
-            'pagu_belanja_transfer' => ['required', 'numeric', 'min:0'],
             'alokasi_tahun_berikutnya' => ['required', 'numeric', 'min:0'],
             'alasan_penyesuaian' => ['nullable', 'string', 'max:5000'],
             'catatan' => ['nullable', 'string', 'max:5000'],

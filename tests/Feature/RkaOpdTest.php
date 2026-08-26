@@ -151,7 +151,7 @@ class RkaOpdTest extends TestCase
         $this->assertStringContainsString('Sub Kegiatan Pengujian', $worksheet);
     }
 
-    public function test_rka_item_can_split_final_budget_into_multiple_budget_types(): void
+    public function test_rka_item_stores_one_final_budget_without_requiring_budget_type_breakdown(): void
     {
         [$renja] = $this->renja('ditetapkan', 'approved');
         $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA DINAS PENGUJIAN 2027']);
@@ -171,10 +171,7 @@ class RkaOpdTest extends TestCase
                 'bulan_mulai' => 1,
                 'bulan_selesai' => 12,
                 'alokasi_tahun_sebelumnya' => 0,
-                'pagu_belanja_operasi' => 2000000,
-                'pagu_belanja_modal' => 500000,
-                'pagu_belanja_tidak_terduga' => 0,
-                'pagu_belanja_transfer' => 0,
+                'pagu_rka' => '2.500.000',
                 'alokasi_tahun_berikutnya' => 2750000,
                 'alasan_penyesuaian' => null,
                 'catatan' => null,
@@ -183,21 +180,17 @@ class RkaOpdTest extends TestCase
 
         $item->refresh();
         $this->assertSame('2500000.00', $item->pagu_rka);
-        $this->assertSame('2000000.00', $item->pagu_belanja_operasi);
-        $this->assertSame('500000.00', $item->pagu_belanja_modal);
         // Kolom lama tetap sinkron selama masa transisi production.
         $this->assertSame('2500000.00', $item->pagu_usulan);
         $this->assertSame('2500000.00', $item->pagu_hasil_verifikasi);
-        $this->assertSame('2000000.00', $item->pagu_belanja_operasi_usulan);
-        $this->assertSame('500000.00', $item->pagu_belanja_modal_usulan);
-        $this->assertSame('2000000.00', $item->pagu_belanja_operasi_hasil_verifikasi);
-        $this->assertSame('500000.00', $item->pagu_belanja_modal_hasil_verifikasi);
+        $this->assertSame('0.00', $item->pagu_belanja_operasi);
+        $this->assertSame('0.00', $item->pagu_belanja_modal);
         $this->assertNull($item->jenis_belanja);
 
         $preview = app(RkaPreviewTableService::class)->build($rka->fresh());
         $subActivity = collect($preview['rows'])->firstWhere('level', 'sub_kegiatan');
-        $this->assertSame(2000000.0, $subActivity['budget']['operational']);
-        $this->assertSame(500000.0, $subActivity['budget']['capital']);
+        $this->assertSame(0.0, $subActivity['budget']['operational']);
+        $this->assertSame(0.0, $subActivity['budget']['capital']);
         $this->assertSame(2500000.0, $subActivity['budget']['total']);
     }
 
@@ -210,10 +203,6 @@ class RkaOpdTest extends TestCase
             'tanggal_kua' => '2026-11-01',
             'nomor_ppas' => 'PPAS/2027/01',
             'tanggal_ppas' => '2026-11-15',
-        ]);
-        $rka->items()->update([
-            'jenis_belanja' => 'operasi',
-            'pagu_belanja_operasi' => 2500000,
         ]);
         $rka = $rka->fresh();
         $admin = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
@@ -247,11 +236,6 @@ class RkaOpdTest extends TestCase
         [$renja] = $this->renja('ditetapkan', 'approved');
         $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA DINAS PENGUJIAN 2027']);
         $item = $rka->items()->firstOrFail();
-        $item->update([
-            'pagu_belanja_operasi' => 2000000,
-            'pagu_belanja_modal' => 500000,
-        ]);
-
         $admin = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
         $role = Role::create(['name' => 'super_admin', 'label' => 'Super Admin', 'is_system' => true]);
         $admin->roles()->attach($role);
@@ -259,10 +243,7 @@ class RkaOpdTest extends TestCase
             'bulan_mulai' => 1,
             'bulan_selesai' => 12,
             'alokasi_tahun_sebelumnya' => 0,
-            'pagu_belanja_operasi' => 1800000,
-            'pagu_belanja_modal' => 600000,
-            'pagu_belanja_tidak_terduga' => 0,
-            'pagu_belanja_transfer' => 0,
+            'pagu_rka' => '2.400.000',
             'alokasi_tahun_berikutnya' => 2750000,
         ];
 
@@ -278,8 +259,6 @@ class RkaOpdTest extends TestCase
             ->assertRedirect();
 
         $item->refresh();
-        $this->assertSame('1800000.00', $item->pagu_belanja_operasi);
-        $this->assertSame('600000.00', $item->pagu_belanja_modal);
         $this->assertSame('2400000.00', $item->pagu_rka);
         $this->assertSame('2400000.00', $item->pagu_hasil_verifikasi);
     }
@@ -297,7 +276,6 @@ class RkaOpdTest extends TestCase
             $this->fail('RKA yang belum lengkap seharusnya tidak dapat diajukan.');
         } catch (ValidationException $exception) {
             $this->assertStringContainsString('Nomor KUA belum diisi', $exception->errors()['action'][0]);
-            $this->assertStringContainsString('jenis belanja', $exception->errors()['action'][0]);
         }
 
         $this->assertSame('draft', $rka->fresh()->status);
