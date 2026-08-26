@@ -72,6 +72,7 @@ const applyForm = useForm({
 
 const selectableRows = computed(() => props.preview?.rows.filter((row) => ['create', 'update'].includes(row.action)) ?? []);
 const selectedCount = computed(() => selectedRows.value.length);
+const syncError = computed(() => previewForm.errors.sync || applyForm.errors.sync || null);
 
 watch(
     () => props.preview,
@@ -168,6 +169,14 @@ const diffOverflow = (row: SyncRow) => Math.max((row.diff_values?.fields?.length
             </div>
         </div>
 
+        <div
+            v-if="syncError"
+            class="flex items-start gap-3 border-b border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+        >
+            <AlertTriangle class="mt-0.5 size-4 shrink-0" />
+            <p class="font-medium leading-5">{{ syncError }}</p>
+        </div>
+
         <div v-if="preview" class="grid gap-4 p-5">
             <div class="grid gap-2 md:grid-cols-4">
                 <article class="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
@@ -197,7 +206,9 @@ const diffOverflow = (row: SyncRow) => Math.max((row.diff_values?.fields?.length
                         @click="toggleAll"
                     >
                         <CheckCircle2 class="size-4 text-[#00336C]" />
-                        {{ selectedRows.length === selectableRows.length && selectableRows.length > 0 ? 'Kosongkan pilihan' : 'Pilih semua perubahan' }}
+                        {{
+                            selectedRows.length === selectableRows.length && selectableRows.length > 0 ? 'Kosongkan pilihan' : 'Pilih semua perubahan'
+                        }}
                     </button>
                     <div class="text-sm text-muted-foreground">
                         <span class="font-semibold text-[#00336C]">{{ selectedCount }}</span> dari {{ selectableRows.length }} perubahan dipilih
@@ -237,20 +248,33 @@ const diffOverflow = (row: SyncRow) => Math.max((row.diff_values?.fields?.length
                                     <p class="mt-1 line-clamp-2 text-xs text-muted-foreground">{{ payloadMeta(row) }}</p>
                                 </td>
                                 <td class="px-4 py-4">
-                                    <div v-if="row.action === 'create'" class="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                                    <div
+                                        v-if="row.action === 'create'"
+                                        class="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800"
+                                    >
                                         <Plus class="size-4" />
                                         Akan dibuat dari sumber
                                     </div>
-                                    <div v-else-if="row.action === 'target_only'" class="inline-flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800">
+                                    <div
+                                        v-else-if="row.action === 'target_only'"
+                                        class="inline-flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800"
+                                    >
                                         <AlertTriangle class="size-4" />
                                         {{ row.message || 'Baris hanya ada di target' }}
                                     </div>
-                                    <div v-else-if="row.action === 'unchanged'" class="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
+                                    <div
+                                        v-else-if="row.action === 'unchanged'"
+                                        class="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"
+                                    >
                                         <CheckCircle2 class="size-4" />
                                         Tidak ada perubahan
                                     </div>
                                     <div v-else class="grid gap-2">
-                                        <div v-for="diff in visibleDiffs(row)" :key="`${row.id}-${diff.field}`" class="rounded-lg border bg-white px-3 py-2">
+                                        <div
+                                            v-for="diff in visibleDiffs(row)"
+                                            :key="`${row.id}-${diff.field}`"
+                                            class="rounded-lg border bg-white px-3 py-2"
+                                        >
                                             <p class="text-xs font-semibold uppercase text-muted-foreground">{{ diff.label }}</p>
                                             <div class="mt-1 grid gap-2 text-xs sm:grid-cols-2">
                                                 <div>

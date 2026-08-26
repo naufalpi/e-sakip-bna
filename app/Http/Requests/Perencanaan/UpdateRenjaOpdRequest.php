@@ -80,10 +80,20 @@ class UpdateRenjaOpdRequest extends FormRequest
             }
 
             if ($this->filled('rkpd_id')) {
-                $expectedVersion = $renja->jenis_versi === 'perubahan' ? 'perubahan' : 'awal';
+                $expectedVersion = $renja->jenis_versi === 'perubahan' ? 'perubahan' : 'ditetapkan';
                 $rkpd = Rkpd::query()->find($this->integer('rkpd_id'));
-                if ($rkpd && ($rkpd->jenis_versi !== $expectedVersion || (int) $rkpd->tahun !== $this->integer('tahun'))) {
-                    $validator->errors()->add('rkpd_id', "Versi RENJA ini harus menggunakan RKPD {$expectedVersion} pada tahun yang sama.");
+                $unchangedLegacyReference = $renja->jenis_versi === 'awal'
+                    && (int) $renja->rkpd_id === $this->integer('rkpd_id')
+                    && $rkpd?->jenis_versi === 'awal';
+                $validOfficialReference = $rkpd
+                    && $rkpd->jenis_versi === $expectedVersion
+                    && in_array($rkpd->status, ['approved', 'locked'], true)
+                    && $rkpd->is_active_version;
+
+                if ($rkpd && ((! $unchangedLegacyReference && ! $validOfficialReference)
+                    || (int) $rkpd->tahun !== $this->integer('tahun'))) {
+                    $label = $expectedVersion === 'perubahan' ? 'RKPD Perubahan Ditetapkan' : 'RKPD Ditetapkan';
+                    $validator->errors()->add('rkpd_id', "Versi RENJA ini harus menggunakan {$label} aktif pada tahun yang sama.");
                 }
             }
         });

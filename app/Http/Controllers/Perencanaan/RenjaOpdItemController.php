@@ -24,6 +24,8 @@ class RenjaOpdItemController extends Controller
         $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), $renjaOpd);
 
         $renjaOpd->items()->create($this->payload($request->validated(), $subKegiatan, [
+            'opd_sub_kegiatan_id' => null,
+            'sumber_item' => 'manual',
             'status' => $request->validated('status') ?: 'draft',
             'urutan' => $request->validated('urutan') ?: ((int) $renjaOpd->items()->max('urutan')) + 1,
         ]));
@@ -35,14 +37,35 @@ class RenjaOpdItemController extends Controller
     {
         abort_unless((int) $item->renja_opd_id === (int) $renjaOpd->id, 404);
 
-        $this->ensureSubKegiatanAvailable($renjaOpd, (int) $request->validated('sub_kegiatan_pemerintahan_id'), $item->id);
+        $requestedSubKegiatanId = (int) $request->validated('sub_kegiatan_pemerintahan_id');
 
-        $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), $renjaOpd);
+        if ($item->isFromRenstra() && $requestedSubKegiatanId !== (int) $item->sub_kegiatan_pemerintahan_id) {
+            throw ValidationException::withMessages([
+                'sub_kegiatan_pemerintahan_id' => 'Struktur Program, Kegiatan, dan Sub Kegiatan hasil salinan RENSTRA tidak dapat diubah. Hapus baris ini jika tidak digunakan pada tahun RENJA.',
+            ]);
+        }
 
-        $item->update($this->payload($request->validated(), $subKegiatan, [
+        $this->ensureSubKegiatanAvailable($renjaOpd, $requestedSubKegiatanId, $item->id);
+
+        $subKegiatan = $item->isFromRenstra()
+            ? $item->subKegiatanPemerintahan()->with('kegiatanPemerintahan.programPemerintahan')->firstOrFail()
+            : $this->subKegiatan($requestedSubKegiatanId, $renjaOpd);
+
+        $overrides = [
             'status' => $request->validated('status') ?: $item->status,
             'urutan' => $request->validated('urutan') ?: $item->urutan,
-        ]));
+        ];
+
+        if ($item->isFromRenstra()) {
+            $overrides = [
+                ...$overrides,
+                'indikator_sub_kegiatan_id' => $item->indikator_sub_kegiatan_id,
+                'indikator' => $item->indikator,
+                'target_akhir_renstra' => $item->target_akhir_renstra,
+            ];
+        }
+
+        $item->update($this->payload($request->validated(), $subKegiatan, $overrides));
 
         return back()->with('success', 'Sub kegiatan RENJA berhasil diperbarui.');
     }

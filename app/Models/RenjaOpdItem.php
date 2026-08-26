@@ -17,6 +17,8 @@ class RenjaOpdItem extends Model
 
     protected $fillable = [
         'renja_opd_id',
+        'opd_sub_kegiatan_id',
+        'sumber_item',
         'program_pemerintahan_id',
         'kegiatan_pemerintahan_id',
         'sub_kegiatan_pemerintahan_id',
@@ -51,6 +53,16 @@ class RenjaOpdItem extends Model
     public function renjaOpd(): BelongsTo
     {
         return $this->belongsTo(RenjaOpd::class);
+    }
+
+    public function subKegiatanRenstra(): BelongsTo
+    {
+        return $this->belongsTo(OpdSubKegiatan::class, 'opd_sub_kegiatan_id');
+    }
+
+    public function isFromRenstra(): bool
+    {
+        return $this->sumber_item === 'renstra';
     }
 
     public function programPemerintahan(): BelongsTo

@@ -74,6 +74,7 @@ const destroy = async (row: Row) => {
 const initialCount = computed(() => props.items.data.filter((row) => row.jenis_versi === 'awal').length);
 const establishedCount = computed(() => props.items.data.filter((row) => row.jenis_versi === 'ditetapkan').length);
 const changeCount = computed(() => props.items.data.filter((row) => row.jenis_versi === 'perubahan').length);
+const versionLabel = (row: Pick<Row, 'jenis_versi' | 'version_label'>) => (row.jenis_versi === 'awal' ? 'RENJA Akhir Draft' : row.version_label);
 
 const statusLabel = (status: string) =>
     ({
@@ -121,7 +122,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                             <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5276a0] dark:text-blue-300">Perencanaan tahunan</p>
                             <h1 class="mt-1 text-xl font-bold tracking-tight text-slate-950 dark:text-slate-50 sm:text-2xl">Renja OPD</h1>
                             <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
-                                Kelola RENJA Awal, dokumen yang telah ditetapkan, dan RENJA Perubahan dalam satu riwayat tahunan per OPD.
+                                Kelola RENJA Akhir Draft, dokumen yang telah ditetapkan, dan RENJA Perubahan dalam satu riwayat tahunan per OPD.
                             </p>
                         </div>
                     </div>
@@ -132,7 +133,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                         class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#00336C] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#002855] focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2 dark:focus:ring-offset-slate-950"
                     >
                         <Plus class="size-4" />
-                        Tambah RENJA Awal
+                        Tambah RENJA Akhir Draft
                     </Link>
                 </div>
             </div>
@@ -143,7 +144,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                         <FileClock class="size-4" />
                     </div>
                     <div>
-                        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">RENJA Awal</p>
+                        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">RENJA Akhir Draft</p>
                         <p class="mt-0.5 text-xl font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ initialCount }}</p>
                     </div>
                 </article>
@@ -198,7 +199,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                 </select>
                 <select v-model="filterForm.jenis_versi" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
                     <option value="">Semua versi</option>
-                    <option value="awal">RENJA Awal</option>
+                    <option value="awal">RENJA Akhir Draft</option>
                     <option value="ditetapkan">RENJA Ditetapkan</option>
                     <option value="perubahan">RENJA Perubahan</option>
                 </select>
@@ -261,7 +262,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                             <div class="min-w-0">
                                 <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 xl:hidden dark:text-slate-500">Dokumen Renja</p>
                                 <div class="mt-1.5 flex flex-wrap items-center gap-2 xl:mt-0">
-                                    <span class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold" :class="versionClass(row.jenis_versi)">{{ row.version_label }}</span>
+                                    <span class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold" :class="versionClass(row.jenis_versi)">{{ versionLabel(row) }}</span>
                                     <span v-if="row.is_active_version" class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">Versi aktif</span>
                                 </div>
                                 <p class="mt-2 text-sm font-bold leading-5 text-slate-900 dark:text-slate-100">{{ row.judul }}</p>

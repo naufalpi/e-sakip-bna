@@ -16,7 +16,9 @@ use Illuminate\Validation\ValidationException;
 
 class PlanningSyncService
 {
-    private const LOCKED_STATUSES = ['approved', 'locked'];
+    private const SOURCE_STATUSES = ['approved', 'locked'];
+
+    private const TARGET_EDITABLE_STATUSES = ['draft', 'revision', 'rejected'];
 
     /**
      * @var array<string, string>
@@ -65,10 +67,11 @@ class PlanningSyncService
      */
     public function previewRenjaToRkpd(Rkpd $rkpd, User $user, array $filters = []): PlanningSyncBatch
     {
-        $this->ensureMutable($rkpd, $user, 'RKPD');
+        $this->ensureMutable($rkpd, 'RKPD');
 
         return DB::transaction(function () use ($rkpd, $user, $filters) {
-            $renjaStatuses = $this->statuses($filters['renja_statuses'] ?? null);
+            $renjaStatuses = $this->sourceStatuses($filters['renja_statuses'] ?? null);
+            $sourceVersion = $this->officialSourceVersion($rkpd->jenis_versi);
 
             $batch = PlanningSyncBatch::create([
                 'source_module' => 'renja_opd',
@@ -78,6 +81,7 @@ class PlanningSyncService
                 'status' => 'previewed',
                 'filters' => [
                     'renja_statuses' => $renjaStatuses,
+                    'renja_version' => $sourceVersion,
                     'opd_id' => $filters['opd_id'] ?? null,
                 ],
                 'created_by' => $user->id,
@@ -100,11 +104,15 @@ class PlanningSyncService
                     'items.subKegiatanPemerintahan.kegiatanPemerintahan.programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
                     'items.subKegiatanPemerintahan.kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
                 ])
-                ->where('jenis_versi', $rkpd->jenis_versi)
+                ->where('jenis_versi', $sourceVersion)
+                ->where('is_active_version', true)
                 ->where(function ($query) use ($rkpd) {
-                    $query->where('rkpd_id', $rkpd->id)
+                    $rkpdRootId = (int) ($rkpd->root_version_id ?: $rkpd->id);
+
+                    $query->whereHas('rkpd', fn ($query) => $query->where('root_version_id', $rkpdRootId))
                         ->orWhere(function ($query) use ($rkpd) {
-                            $query->where('periode_tahun_id', $rkpd->periode_tahun_id)
+                            $query->whereNull('rkpd_id')
+                                ->where('periode_tahun_id', $rkpd->periode_tahun_id)
                                 ->where('tahun', $rkpd->tahun);
                         });
                 })
@@ -113,6 +121,14 @@ class PlanningSyncService
                 ->orderBy('opd_id')
                 ->orderBy('id')
                 ->get();
+
+            if ($renjas->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'sync' => $sourceVersion === 'perubahan'
+                        ? 'RENJA Perubahan Ditetapkan aktif yang sudah disetujui belum tersedia untuk disinkronkan ke RKPD.'
+                        : 'RENJA Ditetapkan aktif yang sudah disetujui belum tersedia untuk disinkronkan ke RKPD.',
+                ]);
+            }
 
             foreach ($renjas as $renja) {
                 foreach ($renja->items as $item) {
@@ -165,20 +181,16 @@ class PlanningSyncService
      */
     public function previewRkpdToRenja(RenjaOpd $renja, User $user, array $filters = []): PlanningSyncBatch
     {
-        $this->ensureMutable($renja, $user, 'Renja OPD');
+        $this->ensureMutable($renja, 'RENJA OPD');
 
         return DB::transaction(function () use ($renja, $user, $filters) {
-            $rkpd = $renja->rkpd ?: Rkpd::query()
-                ->where('periode_tahun_id', $renja->periode_tahun_id)
-                ->where('tahun', $renja->tahun)
-                ->where('is_active_version', true)
-                ->orderByDesc('nomor_versi')
-                ->latest('id')
-                ->first();
+            $rkpd = $this->officialRkpdForRenja($renja);
 
             if (! $rkpd) {
                 throw ValidationException::withMessages([
-                    'sync' => 'RKPD tahun ini belum tersedia atau belum dihubungkan.',
+                    'sync' => $renja->jenis_versi === 'perubahan'
+                        ? 'RKPD Perubahan Ditetapkan aktif yang sudah disetujui belum tersedia.'
+                        : 'RKPD Ditetapkan aktif yang sudah disetujui belum tersedia.',
                 ]);
             }
 
@@ -285,7 +297,7 @@ class PlanningSyncService
 
             if ($batch->source_module === 'renja_opd' && $batch->target_module === 'rkpd') {
                 $rkpd = Rkpd::findOrFail($batch->target_id);
-                $this->ensureMutable($rkpd, $user, 'RKPD');
+                $this->ensureMutable($rkpd, 'RKPD');
 
                 foreach ($rows as $row) {
                     if ($this->applyRenjaRowToRkpd($rkpd, $row)) {
@@ -296,7 +308,14 @@ class PlanningSyncService
                 }
             } elseif ($batch->source_module === 'rkpd' && $batch->target_module === 'renja_opd') {
                 $renja = RenjaOpd::findOrFail($batch->target_id);
-                $this->ensureMutable($renja, $user, 'Renja OPD');
+                $this->ensureMutable($renja, 'RENJA OPD');
+
+                $rkpd = $this->officialRkpdForRenja($renja);
+                if (! $rkpd || (int) $rkpd->id !== (int) $batch->source_id) {
+                    throw ValidationException::withMessages([
+                        'sync' => 'Sumber RKPD tidak lagi menjadi dokumen resmi aktif. Buat preview sinkronisasi baru.',
+                    ]);
+                }
 
                 foreach ($rows as $row) {
                     if ($this->applyRkpdRowToRenja($renja, $row)) {
@@ -366,11 +385,13 @@ class PlanningSyncService
         ];
     }
 
-    private function ensureMutable(Rkpd|RenjaOpd $model, User $user, string $label): void
+    private function ensureMutable(Rkpd|RenjaOpd $model, string $label): void
     {
-        if (! $user->isSuperAdmin() && in_array((string) $model->status, self::LOCKED_STATUSES, true)) {
+        if ($model->isArchivedVersion()
+            || $model->isOfficialVersion()
+            || ! in_array((string) $model->status, self::TARGET_EDITABLE_STATUSES, true)) {
             throw ValidationException::withMessages([
-                'sync' => "{$label} sudah disetujui atau terkunci. Lakukan revisi resmi sebelum sinkronisasi.",
+                'sync' => "{$label} hanya dapat menjadi target sinkronisasi ketika masih berstatus Draft, Perlu Revisi, atau Ditolak.",
             ]);
         }
     }
@@ -378,19 +399,40 @@ class PlanningSyncService
     /**
      * @return array<int, string>
      */
-    private function statuses(mixed $statuses): array
+    private function sourceStatuses(mixed $statuses): array
     {
-        $allowed = ['draft', 'submitted', 'revision', 'verified', 'approved', 'locked'];
-
         if (is_array($statuses)) {
-            $selected = array_values(array_intersect($allowed, array_map('strval', $statuses)));
+            $selected = array_values(array_intersect(self::SOURCE_STATUSES, array_map('strval', $statuses)));
 
             if ($selected !== []) {
                 return $selected;
             }
         }
 
-        return $allowed;
+        return self::SOURCE_STATUSES;
+    }
+
+    private function officialSourceVersion(string $targetVersion): string
+    {
+        return $targetVersion === 'perubahan' ? 'perubahan' : 'ditetapkan';
+    }
+
+    private function officialRkpdForRenja(RenjaOpd $renja): ?Rkpd
+    {
+        $renja->loadMissing('rkpd:id,root_version_id');
+        $rootId = $renja->rkpd?->root_version_id ?: $renja->rkpd_id;
+
+        return Rkpd::query()
+            ->when($rootId, fn ($query) => $query->where('root_version_id', $rootId))
+            ->when(! $rootId, fn ($query) => $query
+                ->where('periode_tahun_id', $renja->periode_tahun_id)
+                ->where('tahun', $renja->tahun))
+            ->where('jenis_versi', $this->officialSourceVersion($renja->jenis_versi))
+            ->whereIn('status', self::SOURCE_STATUSES)
+            ->where('is_active_version', true)
+            ->orderByDesc('nomor_versi')
+            ->latest('id')
+            ->first();
     }
 
     /**
@@ -685,6 +727,7 @@ class PlanningSyncService
             ->with([
                 'renjaOpd.opd:id,kode,nama,singkatan',
                 'renjaOpd.opdUnit:id,opd_id,kode,nama',
+                'renjaOpd.rkpd:id,root_version_id',
                 'programPemerintahan:id,bidang_urusan_id,kode,nama',
                 'programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
                 'programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
@@ -699,6 +742,19 @@ class PlanningSyncService
 
         if (! $item || ! $item->renjaOpd) {
             $row->update(['status' => 'skipped', 'message' => 'Sumber Renja sudah tidak tersedia.']);
+
+            return false;
+        }
+
+        $targetRootId = (int) ($rkpd->root_version_id ?: $rkpd->id);
+        $sourceRootId = (int) ($item->renjaOpd->rkpd?->root_version_id ?: $item->renjaOpd->rkpd_id);
+
+        if (! $item->renjaOpd->is_active_version
+            || $item->renjaOpd->jenis_versi !== $this->officialSourceVersion($rkpd->jenis_versi)
+            || ! in_array((string) $item->renjaOpd->status, self::SOURCE_STATUSES, true)
+            || (int) $item->renjaOpd->tahun !== (int) $rkpd->tahun
+            || ($sourceRootId > 0 && $sourceRootId !== $targetRootId)) {
+            $row->update(['status' => 'skipped', 'message' => 'Sumber RENJA tidak lagi menjadi dokumen resmi aktif.']);
 
             return false;
         }

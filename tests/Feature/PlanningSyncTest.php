@@ -32,7 +32,7 @@ class PlanningSyncTest extends TestCase
         $user = $this->createSuperAdmin();
 
         $renjaItem = RenjaOpdItem::create([
-            'renja_opd_id' => $fixture['renja']->id,
+            'renja_opd_id' => $fixture['renja_official']->id,
             'program_pemerintahan_id' => $fixture['program']->id,
             'kegiatan_pemerintahan_id' => $fixture['kegiatan']->id,
             'sub_kegiatan_pemerintahan_id' => $fixture['sub_kegiatan']->id,
@@ -73,7 +73,7 @@ class PlanningSyncTest extends TestCase
 
         $this->assertDatabaseHas('rkpd_items', [
             'rkpd_id' => $fixture['rkpd']->id,
-            'renja_opd_id' => $fixture['renja']->id,
+            'renja_opd_id' => $fixture['renja_official']->id,
             'renja_opd_item_id' => $renjaItem->id,
             'opd_id' => $fixture['opd']->id,
             'sub_kegiatan_pemerintahan_id' => $fixture['sub_kegiatan']->id,
@@ -101,7 +101,7 @@ class PlanningSyncTest extends TestCase
         $user = $this->createSuperAdmin();
 
         $rkpdItem = RkpdItem::create([
-            'rkpd_id' => $fixture['rkpd']->id,
+            'rkpd_id' => $fixture['rkpd_official']->id,
             'opd_id' => $fixture['opd']->id,
             'program_pemerintahan_id' => $fixture['program']->id,
             'kegiatan_pemerintahan_id' => $fixture['kegiatan']->id,
@@ -155,6 +155,33 @@ class PlanningSyncTest extends TestCase
             'status' => 'applied',
             'applied_by' => $user->id,
         ]);
+    }
+
+    public function test_sync_rejects_draft_sources_and_non_editable_targets(): void
+    {
+        $this->seed();
+
+        $fixture = $this->createPlanningFixture();
+        $user = $this->createSuperAdmin();
+
+        $fixture['renja_official']->update(['status' => 'draft']);
+
+        $this->actingAs($user)
+            ->post(route('rkpd.sync-renja.preview', $fixture['rkpd']))
+            ->assertSessionHasErrors('sync');
+
+        $fixture['renja_official']->update(['status' => 'approved']);
+        $fixture['rkpd_official']->update(['status' => 'draft']);
+
+        $this->actingAs($user)
+            ->post(route('renja-opd.sync-rkpd.preview', $fixture['renja']))
+            ->assertSessionHasErrors('sync');
+
+        $fixture['rkpd']->update(['status' => 'submitted']);
+
+        $this->actingAs($user)
+            ->post(route('rkpd.sync-renja.preview', $fixture['rkpd']))
+            ->assertSessionHasErrors('sync');
     }
 
     /**
@@ -219,14 +246,45 @@ class PlanningSyncTest extends TestCase
             'tahun' => 2026,
             'judul' => 'RKPD Sinkronisasi',
             'status' => 'draft',
+            'jenis_versi' => 'awal',
+            'nomor_versi' => 1,
+            'is_active_version' => false,
+        ]);
+        $rkpdOfficial = Rkpd::create([
+            'rpjmd_id' => $rpjmd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => 2026,
+            'judul' => 'RKPD Ditetapkan Sinkronisasi',
+            'status' => 'approved',
+            'jenis_versi' => 'ditetapkan',
+            'nomor_versi' => 2,
+            'parent_version_id' => $rkpd->id,
+            'root_version_id' => $rkpd->id,
+            'is_active_version' => true,
         ]);
         $renja = RenjaOpd::create([
-            'rkpd_id' => $rkpd->id,
+            'rkpd_id' => $rkpdOfficial->id,
             'opd_id' => $opd->id,
             'periode_tahun_id' => $periode->id,
             'tahun' => 2026,
             'judul' => 'RENJA Sinkronisasi',
             'status' => 'draft',
+            'jenis_versi' => 'awal',
+            'nomor_versi' => 1,
+            'is_active_version' => false,
+        ]);
+        $renjaOfficial = RenjaOpd::create([
+            'rkpd_id' => $rkpdOfficial->id,
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => 2026,
+            'judul' => 'RENJA Ditetapkan Sinkronisasi',
+            'status' => 'approved',
+            'jenis_versi' => 'ditetapkan',
+            'nomor_versi' => 2,
+            'parent_version_id' => $renja->id,
+            'root_version_id' => $renja->id,
+            'is_active_version' => true,
         ]);
 
         return [
@@ -239,7 +297,9 @@ class PlanningSyncTest extends TestCase
             'sub_kegiatan' => $subKegiatan,
             'rpjmd' => $rpjmd,
             'rkpd' => $rkpd,
+            'rkpd_official' => $rkpdOfficial,
             'renja' => $renja,
+            'renja_official' => $renjaOfficial,
         ];
     }
 

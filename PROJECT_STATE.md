@@ -209,22 +209,29 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
     - pilih kegiatan sesuai program,
     - pilih sub kegiatan sesuai kegiatan.
 - Indikator sub kegiatan otomatis dari master.
-- Sinkronisasi/tarik data RKPD dan Renja sudah mulai dibuat dengan tabel `planning_sync_batches` dan `planning_sync_batch_rows`.
+- Sinkronisasi/tarik data RKPD dan RENJA memakai tabel `planning_sync_batches` dan `planning_sync_batch_rows`. Sumber wajib dokumen resmi aktif berstatus `approved/locked`; target wajib masih `draft/revision/rejected`. Status `submitted/verified/approved/locked` tidak dapat menjadi target, termasuk oleh Super Admin.
+- Arah RKPD -> RENJA mengambil RKPD Ditetapkan aktif untuk RENJA Akhir Draft, atau RKPD Perubahan Ditetapkan aktif untuk RENJA Perubahan. Arah RENJA -> RKPD hanya mengambil RENJA Ditetapkan/Perubahan Ditetapkan aktif. Status dan keaktifan sumber diperiksa kembali saat penerapan batch.
 
 ### Renja OPD
 
 - Renja tahunan.
 - RENJA sekarang memiliki versioning tahunan per OPD/unit:
-    - `RENJA Awal` yang memakai acuan RKPD Awal,
+    - `RENJA Akhir Draft` (nilai internal `awal`) yang memakai acuan RKPD Ditetapkan aktif,
     - `RENJA Ditetapkan` yang otomatis dibuat sebagai snapshot saat RENJA Awal disetujui dan memakai RKPD Ditetapkan,
     - `RENJA Perubahan` yang hanya dapat dibuat setelah RKPD Perubahan ditetapkan dan menjadi versi aktif setelah disetujui.
 - Snapshot menyalin seluruh `renja_opd_items`; versi lama tetap menjadi arsip dan data production lama tidak diganti ID-nya.
 - Migrasi lama memetakan status `approved/locked` sebagai RENJA Ditetapkan dan status lainnya sebagai RENJA Awal.
 - Tahun Renja menjadi input utama; periode tahun mengikuti otomatis.
+- Pembuatan RENJA Akhir Draft otomatis memilih RKPD Ditetapkan aktif yang sudah disetujui pada tahun yang sama. Referensi lama yang masih menunjuk RKPD Awal tetap dapat dipertahankan saat edit agar data production tidak rusak; sinkronisasi akan mencari versi resmi dari root RKPD yang sama.
 - Judul dan nomor dokumen dibuat uppercase.
 - Status awal otomatis draft.
 - Form dan preview Renja disesuaikan agar mirip RKPD.
 - Program yang muncul harus sesuai Renja OPD terkait, termasuk program penunjang khusus OPD.
+- Saat `RENJA Akhir Draft` pertama kali dibuat (nilai internal tetap `awal` untuk kompatibilitas), RENSTRA aktif milik OPD yang mencakup tahun RENJA dipilih otomatis (tetap dapat dipilih pada form) dan seluruh Sub Kegiatan RENSTRA disalin satu kali sebagai struktur awal. Sebelum penyimpanan, modal konfirmasi menjelaskan proses penyalinan dan penyesuaian tahunan yang harus dilakukan user.
+- Cabang Program/Kegiatan RENSTRA yang memakai master sama karena mendukung sasaran berbeda dikonsolidasikan; satu Sub Kegiatan master hanya menjadi satu baris RENJA dan dipetakan ke master Kegiatan/Sub Kegiatan pada periode tahun RENJA.
+- Baris salinan ditandai `sumber_item = renstra` dan menyimpan `opd_sub_kegiatan_id`. Identitas Program, Kegiatan, Sub Kegiatan, indikator, dan target akhir periode RENSTRA dikunci di frontend serta backend; target/pagu/lokasi/sumber dana dan isian tahunan RENJA tetap dapat diedit, baris dapat dihapus, dan tombol tambah manual tetap tersedia.
+- Daftar input RENJA ditampilkan hierarkis seperti rincian RKA: Program -> Kegiatan -> Sub Kegiatan, tanpa tabel operasional yang melebar ke samping.
+- Bootstrap tidak pernah dijalankan ulang jika RENJA sudah pernah memiliki baris, termasuk baris yang telah dihapus lunak. Migrasi `2026_08_26_000001_add_renstra_source_to_renja_opd_items.php` bersifat aditif dan data lama otomatis tetap bertipe `manual`.
 
 ### RKA OPD
 

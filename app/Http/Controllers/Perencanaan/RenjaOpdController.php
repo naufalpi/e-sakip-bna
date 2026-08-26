@@ -17,18 +17,23 @@ use App\Models\Rkpd;
 use App\Models\SubKegiatanPemerintahan;
 use App\Models\User;
 use App\Services\Perencanaan\PlanningSyncService;
+use App\Services\Perencanaan\RenjaInitialItemService;
 use App\Services\Perencanaan\RenjaProgramScopeService;
 use App\Services\Perencanaan\RenjaVersionService;
 use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class RenjaOpdController extends Controller
 {
-    public function __construct(private readonly RenjaProgramScopeService $renjaProgramScopeService) {}
+    public function __construct(
+        private readonly RenjaProgramScopeService $renjaProgramScopeService,
+        private readonly RenjaInitialItemService $renjaInitialItemService,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -125,15 +130,29 @@ class RenjaOpdController extends Controller
 
     public function store(StoreRenjaOpdRequest $request): RedirectResponse
     {
-        $renja = RenjaOpd::create([
-            ...$request->validated(),
-            'status' => 'draft',
-            'jenis_versi' => 'awal',
-            'nomor_versi' => 1,
-            'is_active_version' => true,
-        ]);
+        [$renja, $bootstrap] = DB::transaction(function () use ($request): array {
+            $renja = RenjaOpd::create([
+                ...$request->validated(),
+                'status' => 'draft',
+                'jenis_versi' => 'awal',
+                'nomor_versi' => 1,
+                'is_active_version' => true,
+            ]);
 
-        return redirect()->route('renja-opd.show', $renja)->with('success', 'Renja OPD berhasil dibuat.');
+            return [$renja, $this->renjaInitialItemService->bootstrapFromRenstra($renja)];
+        });
+
+        $message = $bootstrap['copied'] > 0
+            ? "RENJA OPD berhasil dibuat. {$bootstrap['copied']} sub kegiatan dari RENSTRA telah disiapkan."
+            : 'RENJA OPD berhasil dibuat.';
+
+        $redirect = redirect()->route('renja-opd.show', $renja)->with('success', $message);
+
+        if ($bootstrap['skipped'] > 0) {
+            $redirect->with('warning', "{$bootstrap['skipped']} sub kegiatan RENSTRA dilewati karena struktur master tahun RENJA belum tersedia.");
+        }
+
+        return $redirect;
     }
 
     public function show(Request $request, RenjaOpd $renjaOpd, WorkflowDataService $workflowDataService): Response
@@ -316,6 +335,7 @@ class RenjaOpdController extends Controller
                 'tahun' => $rkpd->tahun,
                 'label' => "{$rkpd->tahun} - {$rkpd->versionLabel()} - {$rkpd->judul}",
                 'jenis_versi' => $rkpd->jenis_versi,
+                'status' => $rkpd->status,
                 'is_active_version' => $rkpd->is_active_version,
             ])
             ->all();
@@ -336,6 +356,8 @@ class RenjaOpdController extends Controller
                 'id' => $renstra->id,
                 'opd_id' => $renstra->opd_id,
                 'label' => "{$renstra->tahun_awal}-{$renstra->tahun_akhir} - ".($renstra->opd?->singkatan ?: $renstra->opd?->nama ?: $renstra->judul),
+                'tahun_awal' => $renstra->tahun_awal,
+                'tahun_akhir' => $renstra->tahun_akhir,
             ])
             ->all();
     }
@@ -523,7 +545,13 @@ class RenjaOpdController extends Controller
             'id' => $item->id,
             'opd_id' => $renja?->opd_id,
             'opd_unit_id' => $renja?->opd_unit_id,
+            'opd_sub_kegiatan_id' => $item->opd_sub_kegiatan_id,
+            'sumber_item' => $item->sumber_item ?: 'manual',
+            'is_from_renstra' => $item->isFromRenstra(),
+            'program_pemerintahan_id' => $item->program_pemerintahan_id,
+            'kegiatan_pemerintahan_id' => $item->kegiatan_pemerintahan_id,
             'sub_kegiatan_pemerintahan_id' => $item->sub_kegiatan_pemerintahan_id,
+            'indikator_sub_kegiatan_id' => $item->indikator_sub_kegiatan_id,
             'kode' => $item->kode,
             'nama_sub_kegiatan' => $item->nama_sub_kegiatan,
             'indikator' => $item->indikator,
@@ -555,7 +583,11 @@ class RenjaOpdController extends Controller
             'urusan' => $this->label($urusan?->kode, $urusan?->nama),
             'bidang' => $this->label($bidang?->kode, $bidang?->nama),
             'program' => $this->label($item->programPemerintahan?->kode, $item->programPemerintahan?->nama),
+            'program_kode' => $item->programPemerintahan?->kode,
+            'program_nama' => $item->programPemerintahan?->nama,
             'kegiatan' => $this->label($item->kegiatanPemerintahan?->kode, $item->kegiatanPemerintahan?->nama),
+            'kegiatan_kode' => $item->kegiatanPemerintahan?->kode,
+            'kegiatan_nama' => $item->kegiatanPemerintahan?->nama,
             'sub_kegiatan' => $this->label($item->subKegiatanPemerintahan?->kode, $item->subKegiatanPemerintahan?->nama),
             'perangkat_daerah_penanggung_jawab' => $renja?->opd?->nama,
         ];

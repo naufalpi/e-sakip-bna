@@ -4,6 +4,7 @@ namespace App\Http\Requests\Perencanaan;
 
 use App\Models\PeriodeTahun;
 use App\Models\RenjaOpd;
+use App\Models\RenstraOpd;
 use App\Models\Rkpd;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -32,9 +33,35 @@ class StoreRenjaOpdRequest extends FormRequest
         $periodeTahunId = $this->input('periode_tahun_id') ?: PeriodeTahun::query()
             ->where('tahun', $tahun)
             ->value('id');
+        $rkpdId = $this->input('rkpd_id');
+        $renstraOpdId = $this->input('renstra_opd_id');
+
+        if (! filled($rkpdId) && $tahun) {
+            $rkpdId = Rkpd::query()
+                ->where('periode_tahun_id', $periodeTahunId)
+                ->where('tahun', $tahun)
+                ->where('jenis_versi', 'ditetapkan')
+                ->whereIn('status', ['approved', 'locked'])
+                ->where('is_active_version', true)
+                ->orderByDesc('nomor_versi')
+                ->value('id');
+        }
+
+        if (! filled($renstraOpdId) && $tahun && $this->filled('opd_id')) {
+            $renstraOpdId = RenstraOpd::query()
+                ->where('opd_id', $this->integer('opd_id'))
+                ->where('is_active_version', true)
+                ->where('tahun_awal', '<=', $tahun)
+                ->where('tahun_akhir', '>=', $tahun)
+                ->orderByDesc('nomor_versi')
+                ->orderByDesc('id')
+                ->value('id');
+        }
 
         $this->merge([
             'periode_tahun_id' => $periodeTahunId,
+            'rkpd_id' => $rkpdId,
+            'renstra_opd_id' => $renstraOpdId,
             'judul' => str($this->input('judul', ''))->trim()->upper()->toString(),
             'nomor_dokumen' => filled($this->input('nomor_dokumen'))
                 ? str($this->input('nomor_dokumen'))->trim()->upper()->toString()
@@ -49,7 +76,7 @@ class StoreRenjaOpdRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'rkpd_id' => ['nullable', 'integer', 'exists:rkpd,id'],
+            'rkpd_id' => ['required', 'integer', 'exists:rkpd,id'],
             'renstra_opd_id' => ['nullable', 'integer', 'exists:renstra_opd,id'],
             'opd_id' => ['required', 'integer', 'exists:opds,id'],
             'opd_unit_id' => ['nullable', 'integer', 'exists:opd_units,id'],
@@ -85,8 +112,23 @@ class StoreRenjaOpdRequest extends FormRequest
 
             if ($this->filled('rkpd_id')) {
                 $rkpd = Rkpd::query()->find($this->integer('rkpd_id'));
-                if ($rkpd && ($rkpd->jenis_versi !== 'awal' || (int) $rkpd->tahun !== $this->integer('tahun'))) {
-                    $validator->errors()->add('rkpd_id', 'RENJA Awal harus menggunakan RKPD Awal pada tahun yang sama.');
+                if ($rkpd && ($rkpd->jenis_versi !== 'ditetapkan'
+                    || ! in_array($rkpd->status, ['approved', 'locked'], true)
+                    || ! $rkpd->is_active_version
+                    || (int) $rkpd->tahun !== $this->integer('tahun'))) {
+                    $validator->errors()->add('rkpd_id', 'RENJA Akhir Draft harus menggunakan RKPD Ditetapkan aktif pada tahun yang sama.');
+                }
+            }
+
+            if ($this->filled('renstra_opd_id')) {
+                $renstra = RenstraOpd::query()->find($this->integer('renstra_opd_id'));
+
+                if ($renstra && (int) $renstra->opd_id !== $this->integer('opd_id')) {
+                    $validator->errors()->add('renstra_opd_id', 'RENSTRA acuan harus berasal dari OPD yang sama.');
+                } elseif ($renstra && (! $renstra->is_active_version
+                    || $renstra->tahun_awal > $this->integer('tahun')
+                    || $renstra->tahun_akhir < $this->integer('tahun'))) {
+                    $validator->errors()->add('renstra_opd_id', 'Pilih RENSTRA aktif yang mencakup tahun RENJA.');
                 }
             }
         });

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import PlanningSyncPreview from '@/components/PlanningSyncPreview.vue';
+import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
@@ -260,12 +260,10 @@ const selectedProgramRpjmd = computed(() => props.programRpjmdOptions.find((opti
 const selectedSubKegiatan = computed(() =>
     props.subKegiatanOptions.find((option) => String(option.id) === String(form.sub_kegiatan_pemerintahan_id)),
 );
-const existingSubKegiatanRowByKey = computed(() => new Map(
-    props.existingSubKegiatanRows.map((row) => [`${row.opd_id}:${row.sub_kegiatan_pemerintahan_id}`, row.id]),
-));
-const selectedKegiatan = computed(() =>
-    kegiatanOptions.value.find((option) => String(option.id) === String(selectedKegiatanPemerintahanId.value)),
+const existingSubKegiatanRowByKey = computed(
+    () => new Map(props.existingSubKegiatanRows.map((row) => [`${row.opd_id}:${row.sub_kegiatan_pemerintahan_id}`, row.id])),
 );
+const selectedKegiatan = computed(() => kegiatanOptions.value.find((option) => String(option.id) === String(selectedKegiatanPemerintahanId.value)));
 const previousRealisasiYear = computed(() => props.rkpd.tahun - 2);
 const previousTargetYear = computed(() => props.rkpd.tahun - 1);
 const nextPlanYear = computed(() => props.rkpd.tahun + 1);
@@ -283,12 +281,11 @@ const programOptionsForSelectedOpd = computed(() => {
         .map((option) => ({
             ...option,
             label: option.display_label || option.label,
-            description:
-                option.is_program_penunjang
-                    ? 'Otomatis mengikuti kode bidang utama OPD'
-                    : option.reference_count && option.reference_count > 1
-                      ? `${option.reference_count} kode program master`
-                      : option.description || 'Program dari RPJMD',
+            description: option.is_program_penunjang
+                ? 'Otomatis mengikuti kode bidang utama OPD'
+                : option.reference_count && option.reference_count > 1
+                  ? `${option.reference_count} kode program master`
+                  : option.description || 'Program dari RPJMD',
         }));
 });
 
@@ -394,7 +391,7 @@ const subKegiatanOptionsForSelectedKegiatan = computed<Option[]>(() => {
             return {
                 ...option,
                 group: selectedKegiatan.value?.label || option.description,
-                description: alreadyAdded ? 'Sudah diinput pada RKPD' : (option.indikator_sub_kegiatan || option.description),
+                description: alreadyAdded ? 'Sudah diinput pada RKPD' : option.indikator_sub_kegiatan || option.description,
                 badge: alreadyAdded ? 'Sudah ada' : option.satuan_label,
                 disabled: alreadyAdded,
             };
@@ -640,7 +637,9 @@ type OfficialPreviewRow = {
 
 const moneyValue = (value?: number | string | null) => Number(String(value ?? '').replace(/[^0-9.-]/g, '')) || 0;
 const moneyInputText = (value?: number | string | null) => {
-    let raw = String(value ?? '').trim().replace(/\s/g, '');
+    let raw = String(value ?? '')
+        .trim()
+        .replace(/\s/g, '');
 
     if (!raw) {
         return '';
@@ -661,7 +660,9 @@ const moneyInputText = (value?: number | string | null) => {
     return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 };
 const moneyTypingInputText = (value?: number | string | null) => {
-    let raw = String(value ?? '').trim().replace(/\s/g, '');
+    let raw = String(value ?? '')
+        .trim()
+        .replace(/\s/g, '');
 
     if (/^\d{4,}\.\d{1,2}$/.test(raw)) {
         raw = raw.split('.')[0] ?? '';
@@ -894,7 +895,10 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
             <div class="border-b bg-[linear-gradient(135deg,#f8fbff,#edf7ff)] px-5 py-5">
                 <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div>
-                        <Link :href="route('rkpd.index')" class="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                        <Link
+                            :href="route('rkpd.index')"
+                            class="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                        >
                             <ArrowLeft class="size-4" />
                             Kembali
                         </Link>
@@ -903,14 +907,14 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             <span class="rounded-full border border-[#00336C]/20 bg-[#00336C]/5 px-2.5 py-1 text-xs font-semibold text-[#00336C]">
                                 {{ rkpd.version_label }}
                             </span>
-                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="statusClass(rkpd.status)">{{ statusLabel(rkpd.status) }}</span>
+                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="statusClass(rkpd.status)">{{
+                                statusLabel(rkpd.status)
+                            }}</span>
                             <span v-if="rkpd.is_active_version" class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
                                 <Check class="size-3.5" /> Versi aktif
                             </span>
                         </div>
-                        <p class="mt-1 text-sm text-muted-foreground">
-                            {{ rkpd.tahun }} - {{ rkpd.nomor_dokumen || 'Nomor dokumen belum diisi' }}
-                        </p>
+                        <p class="mt-1 text-sm text-muted-foreground">{{ rkpd.tahun }} - {{ rkpd.nomor_dokumen || 'Nomor dokumen belum diisi' }}</p>
                         <p v-if="rkpd.rpjmd" class="mt-2 text-sm text-muted-foreground">
                             Acuan RPJMD {{ rkpd.rpjmd.tahun_awal }}-{{ rkpd.rpjmd.tahun_akhir }} - {{ rkpd.rpjmd.judul }}
                         </p>
@@ -956,7 +960,11 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         :key="version.id"
                         :href="route('rkpd.show', version.id)"
                         class="inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition"
-                        :class="version.id === rkpd.id ? 'border-[#00336C] bg-[#00336C] text-white' : 'bg-background text-foreground hover:border-[#00336C]/40 hover:bg-sky-50'"
+                        :class="
+                            version.id === rkpd.id
+                                ? 'border-[#00336C] bg-[#00336C] text-white'
+                                : 'bg-background text-foreground hover:border-[#00336C]/40 hover:bg-sky-50'
+                        "
                     >
                         <span>{{ version.version_label }}</span>
                         <span v-if="version.is_active_version" class="size-1.5 rounded-full bg-emerald-400"></span>
@@ -1010,7 +1018,10 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         <span class="block text-sm font-semibold">IKU Kabupaten</span>
                         <span class="mt-0.5 block text-xs opacity-75">{{ ikuFilledCount }} dari {{ ikuTotalCount }} target RKPD terisi</span>
                     </span>
-                    <span class="rounded-full px-2 py-1 text-xs font-semibold" :class="activeTab === 'iku' ? 'bg-white/15' : 'bg-slate-100 text-slate-600'">
+                    <span
+                        class="rounded-full px-2 py-1 text-xs font-semibold"
+                        :class="activeTab === 'iku' ? 'bg-white/15' : 'bg-slate-100 text-slate-600'"
+                    >
                         {{ ikuCompletion }}%
                     </span>
                 </button>
@@ -1027,7 +1038,10 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         <span class="block text-sm font-semibold">Baris RKPD</span>
                         <span class="mt-0.5 block text-xs opacity-75">Sub kegiatan, pendanaan, prioritas</span>
                     </span>
-                    <span class="rounded-full px-2 py-1 text-xs font-semibold" :class="activeTab === 'matrix' ? 'bg-white/15' : 'bg-slate-100 text-slate-600'">
+                    <span
+                        class="rounded-full px-2 py-1 text-xs font-semibold"
+                        :class="activeTab === 'matrix' ? 'bg-white/15' : 'bg-slate-100 text-slate-600'"
+                    >
                         {{ summary.items_count }}
                     </span>
                 </button>
@@ -1092,7 +1106,9 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                                 <span v-else-if="row.target_rkpd" class="font-semibold text-slate-900">
                                     {{ row.target_rkpd }}
                                 </span>
-                                <span v-else class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">Belum diisi</span>
+                                <span v-else class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700"
+                                    >Belum diisi</span
+                                >
                             </td>
                             <td v-if="can.manage" class="border px-4 py-4 text-right">
                                 <div v-if="editingIkuKey === row.key" class="inline-flex gap-2">
@@ -1105,7 +1121,11 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                                         <Save class="size-4" />
                                         Simpan
                                     </button>
-                                    <button type="button" class="h-9 rounded-lg border bg-white px-3 text-xs font-semibold hover:bg-slate-50" @click="cancelIkuEdit">
+                                    <button
+                                        type="button"
+                                        class="h-9 rounded-lg border bg-white px-3 text-xs font-semibold hover:bg-slate-50"
+                                        @click="cancelIkuEdit"
+                                    >
                                         Batal
                                     </button>
                                 </div>
@@ -1190,22 +1210,30 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
             v-if="activeTab === 'matrix' && rkpdItemView === 'input'"
             :can-manage="can.manage"
             title="Sinkronisasi RENJA ke RKPD"
-            description="Tarik baris dari RENJA OPD untuk tahun ini. Cek baris baru dan perbedaan sebelum diterapkan."
+            description="Tarik baris hanya dari RENJA resmi aktif yang sudah disetujui. Target RKPD harus masih draft atau revisi."
             :preview-route="route('rkpd.sync-renja.preview', rkpd.id)"
             :apply-route="rkpdSyncApplyRoute"
             :preview="syncPreview"
-            preview-label="Preview RENJA"
+            preview-label="Sinkronkan dari RENJA"
             apply-label="Terapkan ke RKPD"
         />
 
-        <section v-if="activeTab === 'matrix' && rkpdItemView === 'input' && can.manage && isFormOpen" ref="formSection" class="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <section
+            v-if="activeTab === 'matrix' && rkpdItemView === 'input' && can.manage && isFormOpen"
+            ref="formSection"
+            class="overflow-hidden rounded-xl border bg-card shadow-sm"
+        >
             <div class="border-b px-5 py-4">
                 <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                         <h2 class="text-base font-semibold">{{ editingId ? 'Edit Baris RKPD' : 'Tambah Baris RKPD' }}</h2>
                         <p class="mt-1 text-sm text-muted-foreground">Isi sesuai matriks RKPD final.</p>
                     </div>
-                    <button type="button" class="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold hover:bg-slate-50" @click="closeForm">
+                    <button
+                        type="button"
+                        class="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold hover:bg-slate-50"
+                        @click="closeForm"
+                    >
                         <X class="size-4" />
                         Tutup
                     </button>
@@ -1243,7 +1271,9 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                                 :invalid="Boolean(form.errors.program_rpjmd_id)"
                             />
                             <span v-if="!form.opd_id" class="text-xs text-muted-foreground">Pilih perangkat daerah terlebih dahulu.</span>
-                            <span v-else-if="programOptionsForSelectedOpd.length === 0" class="text-xs text-amber-700">Belum ada program RPJMD untuk OPD ini.</span>
+                            <span v-else-if="programOptionsForSelectedOpd.length === 0" class="text-xs text-amber-700"
+                                >Belum ada program RPJMD untuk OPD ini.</span
+                            >
                             <span v-if="form.errors.program_rpjmd_id" class="text-xs text-red-600">{{ form.errors.program_rpjmd_id }}</span>
                         </label>
 
@@ -1270,14 +1300,20 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                                 :invalid="Boolean(form.errors.sub_kegiatan_pemerintahan_id)"
                             />
                             <span v-if="!selectedKegiatanPemerintahanId" class="text-xs text-muted-foreground">Pilih kegiatan terlebih dahulu.</span>
-                            <span v-if="form.errors.sub_kegiatan_pemerintahan_id" class="text-xs text-red-600">{{ form.errors.sub_kegiatan_pemerintahan_id }}</span>
+                            <span v-if="form.errors.sub_kegiatan_pemerintahan_id" class="text-xs text-red-600">{{
+                                form.errors.sub_kegiatan_pemerintahan_id
+                            }}</span>
                         </label>
 
                         <div v-if="selectedSubKegiatan" class="rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-[#00336C]">
                             <p class="font-semibold">{{ selectedSubKegiatan.label }}</p>
-                            <p v-if="selectedSubKegiatan.sasaran_sub_kegiatan" class="mt-2 text-xs font-semibold uppercase text-slate-600">Sasaran Sub Kegiatan</p>
+                            <p v-if="selectedSubKegiatan.sasaran_sub_kegiatan" class="mt-2 text-xs font-semibold uppercase text-slate-600">
+                                Sasaran Sub Kegiatan
+                            </p>
                             <p v-if="selectedSubKegiatan.sasaran_sub_kegiatan" class="mt-1">{{ selectedSubKegiatan.sasaran_sub_kegiatan }}</p>
-                            <p v-if="selectedSubKegiatan.definisi_operasional" class="mt-2 text-xs font-semibold uppercase text-slate-600">Definisi Operasional</p>
+                            <p v-if="selectedSubKegiatan.definisi_operasional" class="mt-2 text-xs font-semibold uppercase text-slate-600">
+                                Definisi Operasional
+                            </p>
                             <p v-if="selectedSubKegiatan.definisi_operasional" class="mt-1">{{ selectedSubKegiatan.definisi_operasional }}</p>
                         </div>
                     </div>
@@ -1372,15 +1408,27 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         </label>
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Prioritas Nasional</span>
-                            <textarea v-model="form.prioritas_nasional" rows="2" class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"></textarea>
+                            <textarea
+                                v-model="form.prioritas_nasional"
+                                rows="2"
+                                class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            ></textarea>
                         </label>
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Prioritas Daerah</span>
-                            <textarea v-model="form.prioritas_daerah" rows="2" class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"></textarea>
+                            <textarea
+                                v-model="form.prioritas_daerah"
+                                rows="2"
+                                class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            ></textarea>
                         </label>
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Kelompok Sasaran</span>
-                            <input v-model="form.kelompok_sasaran" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                            <input
+                                v-model="form.kelompok_sasaran"
+                                type="text"
+                                class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            />
                         </label>
                     </div>
                 </div>
@@ -1421,7 +1469,11 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                 </div>
 
                 <div class="sticky bottom-0 -mx-5 -mb-5 flex justify-end gap-2 border-t bg-card/95 px-5 py-4 backdrop-blur">
-                    <button type="button" class="inline-flex h-10 items-center justify-center rounded-lg border bg-white px-4 text-sm font-semibold hover:bg-slate-50" @click="closeForm">
+                    <button
+                        type="button"
+                        class="inline-flex h-10 items-center justify-center rounded-lg border bg-white px-4 text-sm font-semibold hover:bg-slate-50"
+                        @click="closeForm"
+                    >
                         Batal
                     </button>
                     <button
@@ -1453,18 +1505,26 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                                 placeholder="Cari kode, indikator, OPD"
                             />
                         </label>
-                        <select v-model="filterForm.status" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
+                        <select
+                            v-model="filterForm.status"
+                            class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                        >
                             <option value="">Semua status</option>
                             <option value="draft">Draft</option>
                             <option value="verified">Terverifikasi</option>
                             <option value="approved">Disetujui</option>
                             <option value="locked">Terkunci</option>
                         </select>
-                        <select v-model="filterForm.opd_id" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
+                        <select
+                            v-model="filterForm.opd_id"
+                            class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                        >
                             <option value="">Semua OPD</option>
                             <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                         </select>
-                        <button type="button" class="h-10 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">Reset</button>
+                        <button type="button" class="h-10 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">
+                            Reset
+                        </button>
                     </form>
                 </div>
             </div>
@@ -1475,11 +1535,17 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         <tr>
                             <th rowspan="3" class="w-14 border border-slate-700 px-2 py-3">No</th>
                             <th rowspan="3" class="w-36 border border-slate-700 px-2 py-3">Kode</th>
-                            <th rowspan="3" class="w-64 border border-slate-700 px-2 py-3">Urusan / Bidang Urusan / Program / Kegiatan / Sub Kegiatan</th>
+                            <th rowspan="3" class="w-64 border border-slate-700 px-2 py-3">
+                                Urusan / Bidang Urusan / Program / Kegiatan / Sub Kegiatan
+                            </th>
                             <th rowspan="3" class="w-56 border border-slate-700 px-2 py-3">Indikator Program / Kegiatan / Sub Kegiatan</th>
                             <th rowspan="3" class="w-28 border border-slate-700 px-2 py-3">Target Akhir Periode Renstra OPD</th>
-                            <th rowspan="3" class="w-28 border border-slate-700 px-2 py-3">Realisasi Capaian Renja OPD Tahun {{ previousRealisasiYear }}</th>
-                            <th rowspan="3" class="w-32 border border-slate-700 px-2 py-3">Prakiraan Capaian Target Renja OPD Tahun {{ previousTargetYear }}</th>
+                            <th rowspan="3" class="w-28 border border-slate-700 px-2 py-3">
+                                Realisasi Capaian Renja OPD Tahun {{ previousRealisasiYear }}
+                            </th>
+                            <th rowspan="3" class="w-32 border border-slate-700 px-2 py-3">
+                                Prakiraan Capaian Target Renja OPD Tahun {{ previousTargetYear }}
+                            </th>
                             <th colspan="6" class="border border-slate-700 px-2 py-3">Capaian Kinerja dan Kerangka Pendanaan</th>
                             <th rowspan="3" class="w-36 border border-slate-700 px-2 py-3">Kelompok Sasaran</th>
                             <th colspan="2" class="border border-slate-700 px-2 py-3">Prakiraan Maju Rencana Tahun {{ nextPlanYear }}</th>
@@ -1531,7 +1597,12 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                                     <button type="button" class="h-8 px-2 text-[#00336C] hover:bg-sky-50" title="Edit" @click="editItem(row.source)">
                                         <Pencil class="size-3.5" />
                                     </button>
-                                    <button type="button" class="h-8 border-l px-2 text-red-600 hover:bg-red-50" title="Hapus" @click="destroyItem(row.source)">
+                                    <button
+                                        type="button"
+                                        class="h-8 border-l px-2 text-red-600 hover:bg-red-50"
+                                        title="Hapus"
+                                        @click="destroyItem(row.source)"
+                                    >
                                         <Trash2 class="size-3.5" />
                                     </button>
                                 </div>
@@ -1549,15 +1620,23 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
             <div class="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
                 <span>Menampilkan {{ items.from ?? 0 }}-{{ items.to ?? 0 }} dari {{ items.total }} data</span>
                 <div class="flex gap-2">
-                    <Link v-if="items.prev_page_url" :href="items.prev_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted">Sebelumnya</Link>
+                    <Link v-if="items.prev_page_url" :href="items.prev_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted"
+                        >Sebelumnya</Link
+                    >
                     <span v-else class="rounded-md border px-3 py-1.5 opacity-50">Sebelumnya</span>
-                    <Link v-if="items.next_page_url" :href="items.next_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted">Berikutnya</Link>
+                    <Link v-if="items.next_page_url" :href="items.next_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted"
+                        >Berikutnya</Link
+                    >
                     <span v-else class="rounded-md border px-3 py-1.5 opacity-50">Berikutnya</span>
                 </div>
             </div>
         </section>
 
-        <div v-if="isRevisionDialogOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm" @click.self="isRevisionDialogOpen = false">
+        <div
+            v-if="isRevisionDialogOpen"
+            class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
+            @click.self="isRevisionDialogOpen = false"
+        >
             <form class="w-full max-w-xl overflow-hidden rounded-2xl border bg-card shadow-2xl" @submit.prevent="submitRevision">
                 <div class="flex items-start justify-between border-b px-5 py-4">
                     <div>
@@ -1565,7 +1644,12 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         <h2 class="mt-1 text-xl font-semibold">Buat RKPD Perubahan</h2>
                         <p class="mt-1 text-sm text-muted-foreground">Seluruh data RKPD Ditetapkan akan disalin sebagai titik awal perubahan.</p>
                     </div>
-                    <button type="button" class="inline-flex size-10 items-center justify-center rounded-lg hover:bg-muted" aria-label="Tutup" @click="isRevisionDialogOpen = false">
+                    <button
+                        type="button"
+                        class="inline-flex size-10 items-center justify-center rounded-lg hover:bg-muted"
+                        aria-label="Tutup"
+                        @click="isRevisionDialogOpen = false"
+                    >
                         <X class="size-5" />
                     </button>
                 </div>
@@ -1573,24 +1657,50 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                 <div class="grid gap-4 p-5">
                     <label class="grid gap-1.5">
                         <span class="text-sm font-semibold">Alasan perubahan <span class="text-red-600">*</span></span>
-                        <textarea v-model="revisionForm.alasan_perubahan" rows="4" class="rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Jelaskan alasan perubahan RKPD"></textarea>
-                        <span v-if="revisionForm.errors.alasan_perubahan" class="text-xs text-red-600">{{ revisionForm.errors.alasan_perubahan }}</span>
+                        <textarea
+                            v-model="revisionForm.alasan_perubahan"
+                            rows="4"
+                            class="rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            placeholder="Jelaskan alasan perubahan RKPD"
+                        ></textarea>
+                        <span v-if="revisionForm.errors.alasan_perubahan" class="text-xs text-red-600">{{
+                            revisionForm.errors.alasan_perubahan
+                        }}</span>
                     </label>
                     <label class="grid gap-1.5">
                         <span class="text-sm font-semibold">Dasar perubahan</span>
-                        <input v-model="revisionForm.dasar_perubahan" type="text" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Contoh: Perubahan RKPD Tahun 2027" />
+                        <input
+                            v-model="revisionForm.dasar_perubahan"
+                            type="text"
+                            class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            placeholder="Contoh: Perubahan RKPD Tahun 2027"
+                        />
                         <span v-if="revisionForm.errors.dasar_perubahan" class="text-xs text-red-600">{{ revisionForm.errors.dasar_perubahan }}</span>
                     </label>
                     <label class="grid gap-1.5">
                         <span class="text-sm font-semibold">Tanggal berlaku</span>
-                        <input v-model="revisionForm.tanggal_berlaku" type="date" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                        <input
+                            v-model="revisionForm.tanggal_berlaku"
+                            type="date"
+                            class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                        />
                         <span v-if="revisionForm.errors.tanggal_berlaku" class="text-xs text-red-600">{{ revisionForm.errors.tanggal_berlaku }}</span>
                     </label>
                 </div>
 
                 <div class="flex justify-end gap-2 border-t bg-muted/30 px-5 py-4">
-                    <button type="button" class="inline-flex h-10 items-center rounded-lg border bg-background px-4 text-sm font-semibold hover:bg-muted" @click="isRevisionDialogOpen = false">Batal</button>
-                    <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-lg bg-[#00336C] px-4 text-sm font-semibold text-white hover:bg-[#002855] disabled:opacity-60" :disabled="revisionForm.processing">
+                    <button
+                        type="button"
+                        class="inline-flex h-10 items-center rounded-lg border bg-background px-4 text-sm font-semibold hover:bg-muted"
+                        @click="isRevisionDialogOpen = false"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="submit"
+                        class="inline-flex h-10 items-center gap-2 rounded-lg bg-[#00336C] px-4 text-sm font-semibold text-white hover:bg-[#002855] disabled:opacity-60"
+                        :disabled="revisionForm.processing"
+                    >
                         <GitBranch class="size-4" /> Buat Perubahan
                     </button>
                 </div>

@@ -6,7 +6,7 @@ import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, Check, ClipboardList, GitBranch, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-vue-next';
+import { ArrowLeft, Check, ClipboardList, GitBranch, LockKeyhole, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-vue-next';
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 type Option = {
@@ -63,7 +63,13 @@ type Row = {
     id: number;
     opd_id?: number | null;
     opd_unit_id?: number | null;
+    opd_sub_kegiatan_id?: number | null;
+    sumber_item?: 'manual' | 'renstra' | string;
+    is_from_renstra?: boolean;
+    program_pemerintahan_id?: number | null;
+    kegiatan_pemerintahan_id?: number | null;
     sub_kegiatan_pemerintahan_id?: number | null;
+    indikator_sub_kegiatan_id?: number | null;
     kode?: string | null;
     nama_sub_kegiatan?: string | null;
     indikator?: string | null;
@@ -86,7 +92,11 @@ type Row = {
     urusan?: string;
     bidang?: string;
     program?: string;
+    program_kode?: string | null;
+    program_nama?: string | null;
     kegiatan?: string;
+    kegiatan_kode?: string | null;
+    kegiatan_nama?: string | null;
     sub_kegiatan?: string;
     perangkat_daerah_penanggung_jawab?: string | null;
 };
@@ -205,6 +215,7 @@ const props = defineProps<{
 const renjaItemView = ref<'input' | 'preview'>('input');
 const isFormOpen = ref(false);
 const editingId = ref<number | null>(null);
+const editingFromRenstra = ref(false);
 const formSection = ref<HTMLElement | null>(null);
 const selectedProgramId = ref<string | number>('');
 const selectedKegiatanPemerintahanId = ref<string | number>('');
@@ -254,6 +265,7 @@ const form = useForm({
 const previousRealisasiYear = computed(() => props.renja.tahun - 2);
 const previousTargetYear = computed(() => props.renja.tahun - 1);
 const nextPlanYear = computed(() => props.renja.tahun + 1);
+const versionLabel = (label: string, version: Renja['jenis_versi']) => (version === 'awal' ? 'RENJA Akhir Draft' : label);
 const opdLabel = computed(() => props.renja.opd?.singkatan || props.renja.opd?.nama || '-');
 const opdFullName = computed(() => props.renja.opd?.nama || opdLabel.value);
 const renjaSyncApplyRoute = computed(() => (props.syncPreview ? route('renja-opd.sync-rkpd.apply', [props.renja.id, props.syncPreview.id]) : null));
@@ -302,9 +314,9 @@ const kegiatanOptions = computed<Option[]>(() =>
     ),
 );
 
-const existingSubKegiatanRowById = computed(() => new Map(
-    props.existingSubKegiatanRows.map((row) => [String(row.sub_kegiatan_pemerintahan_id), row.id]),
-));
+const existingSubKegiatanRowById = computed(
+    () => new Map(props.existingSubKegiatanRows.map((row) => [String(row.sub_kegiatan_pemerintahan_id), row.id])),
+);
 const subKegiatanOptionsForSelectedKegiatan = computed(() =>
     props.subKegiatanOptions
         .filter((option) => String(option.kegiatan_id ?? '') === String(selectedKegiatanPemerintahanId.value))
@@ -324,6 +336,45 @@ const subKegiatanOptionsForSelectedKegiatan = computed(() =>
 const selectedSubKegiatan = computed(() =>
     props.subKegiatanOptions.find((option) => String(option.id) === String(form.sub_kegiatan_pemerintahan_id)),
 );
+
+const groupedPrograms = computed(() => {
+    const programs = new Map<
+        string,
+        {
+            key: string;
+            kode: string;
+            nama: string;
+            kegiatan: Map<string, { key: string; kode: string; nama: string; items: Row[] }>;
+        }
+    >();
+
+    props.items.data.forEach((item) => {
+        const programKey = String(item.program_pemerintahan_id || item.program || 'program-tanpa-pemetaan');
+        if (!programs.has(programKey)) {
+            programs.set(programKey, {
+                key: programKey,
+                kode: item.program_kode || '-',
+                nama: item.program_nama || item.program || 'Program belum terpetakan',
+                kegiatan: new Map(),
+            });
+        }
+
+        const program = programs.get(programKey)!;
+        const kegiatanKey = String(item.kegiatan_pemerintahan_id || item.kegiatan || 'kegiatan-tanpa-pemetaan');
+        if (!program.kegiatan.has(kegiatanKey)) {
+            program.kegiatan.set(kegiatanKey, {
+                key: kegiatanKey,
+                kode: item.kegiatan_kode || '-',
+                nama: item.kegiatan_nama || item.kegiatan || 'Kegiatan belum terpetakan',
+                items: [],
+            });
+        }
+
+        program.kegiatan.get(kegiatanKey)!.items.push(item);
+    });
+
+    return [...programs.values()].map((program) => ({ ...program, kegiatan: [...program.kegiatan.values()] }));
+});
 
 const applyFilters = () =>
     router.get(route('renja-opd.show', props.renja.id), filterForm, { preserveState: true, preserveScroll: true, replace: true });
@@ -384,6 +435,7 @@ const resetFilters = () => {
 
 const resetForm = () => {
     editingId.value = null;
+    editingFromRenstra.value = false;
     isHydratingForm.value = true;
     selectedProgramId.value = '';
     selectedKegiatanPemerintahanId.value = '';
@@ -414,10 +466,12 @@ const editItem = (row: Row) => {
     const option = props.subKegiatanOptions.find((item) => String(item.id) === String(row.sub_kegiatan_pemerintahan_id));
 
     editingId.value = row.id;
+    editingFromRenstra.value = Boolean(row.is_from_renstra || row.sumber_item === 'renstra');
     isHydratingForm.value = true;
     selectedProgramId.value = option?.program_id ?? '';
     selectedKegiatanPemerintahanId.value = option?.kegiatan_id ?? '';
     form.sub_kegiatan_pemerintahan_id = String(row.sub_kegiatan_pemerintahan_id ?? '');
+    form.indikator_sub_kegiatan_id = String(row.indikator_sub_kegiatan_id ?? '');
     form.indikator = row.indikator ?? '';
     form.target_akhir_renstra = row.target_akhir_renstra ?? '';
     form.realisasi_capaian_renja_tahun_lalu = row.realisasi_capaian_renja_tahun_lalu ?? '';
@@ -472,7 +526,9 @@ const statusClass = (status: string) =>
 
 const moneyValue = (value?: number | string | null) => Number(String(value ?? '').replace(/[^0-9.-]/g, '')) || 0;
 const moneyInputText = (value?: number | string | null) => {
-    let raw = String(value ?? '').trim().replace(/\s/g, '');
+    let raw = String(value ?? '')
+        .trim()
+        .replace(/\s/g, '');
 
     if (!raw) {
         return '';
@@ -493,7 +549,9 @@ const moneyInputText = (value?: number | string | null) => {
     return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 };
 const moneyTypingInputText = (value?: number | string | null) => {
-    let raw = String(value ?? '').trim().replace(/\s/g, '');
+    let raw = String(value ?? '')
+        .trim()
+        .replace(/\s/g, '');
 
     if (/^\d{4,}\.\d{1,2}$/.test(raw)) {
         raw = raw.split('.')[0] ?? '';
@@ -723,24 +781,36 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
             <div class="border-b bg-[linear-gradient(135deg,#f8fbff,#edf7ff)] px-5 py-5">
                 <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div>
-                        <Link :href="route('renja-opd.index')" class="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                        <Link
+                            :href="route('renja-opd.index')"
+                            class="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                        >
                             <ArrowLeft class="size-4" />
                             Kembali
                         </Link>
                         <div class="mt-3 flex flex-wrap items-center gap-2">
                             <h1 class="text-2xl font-semibold tracking-normal">{{ renja.judul }}</h1>
-                            <span class="rounded-full border border-[#00336C]/20 bg-[#00336C]/5 px-2.5 py-1 text-xs font-semibold text-[#00336C] dark:border-blue-700 dark:bg-blue-950/50 dark:text-blue-200">
-                                {{ renja.version_label }}
+                            <span
+                                class="rounded-full border border-[#00336C]/20 bg-[#00336C]/5 px-2.5 py-1 text-xs font-semibold text-[#00336C] dark:border-blue-700 dark:bg-blue-950/50 dark:text-blue-200"
+                            >
+                                {{ versionLabel(renja.version_label, renja.jenis_versi) }}
                             </span>
-                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="statusClass(renja.status)">{{ statusLabel(renja.status) }}</span>
-                            <span v-if="renja.is_active_version" class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="statusClass(renja.status)">{{
+                                statusLabel(renja.status)
+                            }}</span>
+                            <span
+                                v-if="renja.is_active_version"
+                                class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300"
+                            >
                                 <Check class="size-3.5" /> Versi aktif
                             </span>
                         </div>
                         <p class="mt-1 text-sm text-muted-foreground">
                             {{ opdLabel }} - Tahun {{ renja.tahun }} - {{ renja.nomor_dokumen || 'Nomor belum diisi' }}
                         </p>
-                        <p v-if="renja.rkpd" class="mt-2 text-sm text-muted-foreground">Acuan {{ renja.rkpd.version_label }} Tahun {{ renja.rkpd.tahun }}</p>
+                        <p v-if="renja.rkpd" class="mt-2 text-sm text-muted-foreground">
+                            Acuan {{ renja.rkpd.version_label }} Tahun {{ renja.rkpd.tahun }}
+                        </p>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
@@ -783,15 +853,22 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         :key="version.id"
                         :href="route('renja-opd.show', version.id)"
                         class="inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition"
-                        :class="version.id === renja.id ? 'border-[#00336C] bg-[#00336C] text-white' : 'bg-background text-foreground hover:border-[#00336C]/40 hover:bg-sky-50 dark:hover:bg-slate-900'"
+                        :class="
+                            version.id === renja.id
+                                ? 'border-[#00336C] bg-[#00336C] text-white'
+                                : 'bg-background text-foreground hover:border-[#00336C]/40 hover:bg-sky-50 dark:hover:bg-slate-900'
+                        "
                     >
-                        <span>{{ version.version_label }}</span>
+                        <span>{{ versionLabel(version.version_label, version.jenis_versi) }}</span>
                         <span v-if="version.is_active_version" class="size-1.5 rounded-full bg-emerald-400"></span>
                     </Link>
                 </div>
             </div>
 
-            <div v-if="renja.jenis_versi === 'perubahan'" class="grid gap-2 border-b bg-amber-50/70 px-5 py-3 text-sm md:grid-cols-[1fr_auto] dark:bg-amber-950/25">
+            <div
+                v-if="renja.jenis_versi === 'perubahan'"
+                class="grid gap-2 border-b bg-amber-50/70 px-5 py-3 text-sm dark:bg-amber-950/25 md:grid-cols-[1fr_auto]"
+            >
                 <div>
                     <span class="font-semibold text-amber-950 dark:text-amber-200">Alasan perubahan:</span>
                     <span class="ml-1 text-amber-900 dark:text-amber-300">{{ renja.alasan_perubahan || '-' }}</span>
@@ -869,22 +946,30 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
             v-if="renjaItemView === 'input'"
             :can-manage="can.manage"
             title="Sinkronisasi RKPD ke RENJA"
-            description="Tarik baris RKPD yang terkait OPD ini. Cek baris baru dan perbedaan sebelum diterapkan."
+            description="Tarik baris hanya dari RKPD Ditetapkan aktif yang sudah disetujui. Target RENJA harus masih draft atau revisi."
             :preview-route="route('renja-opd.sync-rkpd.preview', renja.id)"
             :apply-route="renjaSyncApplyRoute"
             :preview="syncPreview"
-            preview-label="Preview RKPD"
+            preview-label="Sinkronkan dari RKPD"
             apply-label="Terapkan ke RENJA"
         />
 
-        <section v-if="renjaItemView === 'input' && can.manage && isFormOpen" ref="formSection" class="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <section
+            v-if="renjaItemView === 'input' && can.manage && isFormOpen"
+            ref="formSection"
+            class="overflow-hidden rounded-xl border bg-card shadow-sm"
+        >
             <div class="border-b px-5 py-4">
                 <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                         <h2 class="text-base font-semibold">{{ editingId ? 'Edit Sub Kegiatan' : 'Tambah Sub Kegiatan' }}</h2>
                         <p class="mt-1 text-sm text-muted-foreground">Isi sesuai matriks RENJA final.</p>
                     </div>
-                    <button type="button" class="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold hover:bg-slate-50" @click="closeForm">
+                    <button
+                        type="button"
+                        class="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold hover:bg-slate-50"
+                        @click="closeForm"
+                    >
                         <X class="size-4" />
                         Tutup
                     </button>
@@ -892,13 +977,37 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
             </div>
 
             <form class="grid gap-4 p-5" @submit.prevent="submitItem">
-                <div class="rounded-xl border bg-white p-4">
+                <div class="rounded-xl border bg-white p-4 dark:bg-slate-950">
                     <div class="mb-4">
                         <h3 class="font-semibold">Identitas Baris</h3>
-                        <p class="mt-1 text-xs text-muted-foreground">Pilih berurutan dari program sampai sub kegiatan.</p>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            {{
+                                editingFromRenstra
+                                    ? 'Struktur mengikuti RENSTRA; lengkapi isian tahunannya pada bagian berikutnya.'
+                                    : 'Pilih berurutan dari program sampai sub kegiatan.'
+                            }}
+                        </p>
                     </div>
 
                     <div class="grid gap-4">
+                        <div
+                            v-if="editingFromRenstra"
+                            class="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/45 dark:text-sky-100"
+                        >
+                            <span
+                                class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-[#00336C] text-white shadow-sm dark:bg-sky-500 dark:text-slate-950"
+                            >
+                                <LockKeyhole class="size-4" />
+                            </span>
+                            <div>
+                                <p class="font-semibold">Struktur dari RENSTRA</p>
+                                <p class="mt-0.5 text-xs leading-5 text-sky-800 dark:text-sky-200">
+                                    Program, kegiatan, sub kegiatan, indikator, dan target akhir RENSTRA dikunci. Target tahunan, pagu, lokasi, serta
+                                    isian RENJA lainnya tetap dapat disesuaikan.
+                                </p>
+                            </div>
+                        </div>
+
                         <div class="rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-[#00336C]">
                             <p class="text-xs font-semibold uppercase text-slate-600">Perangkat Daerah Penanggung Jawab</p>
                             <p class="mt-1 font-semibold">{{ opdFullName }}</p>
@@ -909,6 +1018,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             <RpjmdRichSelect
                                 v-model="selectedProgramId"
                                 :options="programOptions"
+                                :disabled="editingFromRenstra"
                                 placeholder="Pilih program"
                                 empty-text="Program belum tersedia"
                             />
@@ -919,7 +1029,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             <RpjmdRichSelect
                                 v-model="selectedKegiatanPemerintahanId"
                                 :options="kegiatanOptions"
-                                :disabled="!selectedProgramId"
+                                :disabled="!selectedProgramId || editingFromRenstra"
                                 placeholder="Pilih kegiatan"
                                 empty-text="Kegiatan belum tersedia untuk program ini"
                             />
@@ -931,59 +1041,103 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             <RpjmdRichSelect
                                 v-model="form.sub_kegiatan_pemerintahan_id"
                                 :options="subKegiatanOptionsForSelectedKegiatan"
-                                :disabled="!selectedKegiatanPemerintahanId"
+                                :disabled="!selectedKegiatanPemerintahanId || editingFromRenstra"
                                 placeholder="Pilih sub kegiatan"
                                 empty-text="Sub kegiatan belum tersedia untuk kegiatan ini"
                                 :invalid="Boolean(form.errors.sub_kegiatan_pemerintahan_id)"
                             />
                             <span v-if="!selectedKegiatanPemerintahanId" class="text-xs text-muted-foreground">Pilih kegiatan terlebih dahulu.</span>
-                            <span v-if="form.errors.sub_kegiatan_pemerintahan_id" class="text-xs text-red-600">{{ form.errors.sub_kegiatan_pemerintahan_id }}</span>
+                            <span v-if="form.errors.sub_kegiatan_pemerintahan_id" class="text-xs text-red-600">{{
+                                form.errors.sub_kegiatan_pemerintahan_id
+                            }}</span>
                         </label>
 
                         <div v-if="selectedSubKegiatan" class="rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-[#00336C]">
                             <p class="font-semibold">{{ selectedSubKegiatan.label }}</p>
-                            <p v-if="selectedSubKegiatan.sasaran_sub_kegiatan" class="mt-2 text-xs font-semibold uppercase text-slate-600">Sasaran Sub Kegiatan</p>
+                            <p v-if="selectedSubKegiatan.sasaran_sub_kegiatan" class="mt-2 text-xs font-semibold uppercase text-slate-600">
+                                Sasaran Sub Kegiatan
+                            </p>
                             <p v-if="selectedSubKegiatan.sasaran_sub_kegiatan" class="mt-1">{{ selectedSubKegiatan.sasaran_sub_kegiatan }}</p>
-                            <p v-if="selectedSubKegiatan.definisi_operasional" class="mt-2 text-xs font-semibold uppercase text-slate-600">Definisi Operasional</p>
+                            <p v-if="selectedSubKegiatan.definisi_operasional" class="mt-2 text-xs font-semibold uppercase text-slate-600">
+                                Definisi Operasional
+                            </p>
                             <p v-if="selectedSubKegiatan.definisi_operasional" class="mt-1">{{ selectedSubKegiatan.definisi_operasional }}</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="rounded-xl border bg-white p-4">
+                <div class="rounded-xl border bg-white p-4 dark:bg-slate-950">
                     <div class="mb-4">
                         <h3 class="font-semibold">Target dan Capaian</h3>
                     </div>
                     <div class="grid gap-4">
                         <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Indikator Program / Kegiatan / Sub Kegiatan</span>
+                            <span class="flex items-center gap-2 text-sm font-medium">
+                                Indikator Program / Kegiatan / Sub Kegiatan
+                                <span
+                                    v-if="editingFromRenstra"
+                                    class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-300"
+                                    ><LockKeyhole class="size-3" /> Acuan RENSTRA</span
+                                >
+                            </span>
                             <textarea
                                 v-model="form.indikator"
                                 rows="3"
                                 class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                                :class="
+                                    editingFromRenstra ? 'cursor-not-allowed bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300' : ''
+                                "
+                                :readonly="editingFromRenstra"
                                 placeholder="Contoh: Jumlah dokumen perencanaan perangkat daerah"
                             ></textarea>
                             <span v-if="form.errors.indikator" class="text-xs text-red-600">{{ form.errors.indikator }}</span>
                         </label>
 
                         <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Target Akhir Periode Renstra OPD</span>
-                            <input v-model="form.target_akhir_renstra" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                            <span class="flex items-center gap-2 text-sm font-medium">
+                                Target Akhir Periode Renstra OPD
+                                <span
+                                    v-if="editingFromRenstra"
+                                    class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-300"
+                                    ><LockKeyhole class="size-3" /> Acuan RENSTRA</span
+                                >
+                            </span>
+                            <input
+                                v-model="form.target_akhir_renstra"
+                                type="text"
+                                class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                                :class="
+                                    editingFromRenstra ? 'cursor-not-allowed bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300' : ''
+                                "
+                                :readonly="editingFromRenstra"
+                            />
                         </label>
 
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Realisasi Capaian Renja OPD Tahun {{ previousRealisasiYear }}</span>
-                            <input v-model="form.realisasi_capaian_renja_tahun_lalu" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                            <input
+                                v-model="form.realisasi_capaian_renja_tahun_lalu"
+                                type="text"
+                                class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            />
                         </label>
 
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Prakiraan Capaian Target Renja OPD Tahun {{ previousTargetYear }}</span>
-                            <input v-model="form.prakiraan_capaian_target_renja_tahun_berjalan" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                            <input
+                                v-model="form.prakiraan_capaian_target_renja_tahun_berjalan"
+                                type="text"
+                                class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            />
                         </label>
 
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Target {{ renja.tahun }}</span>
-                            <input v-model="form.target" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                            <input
+                                v-model="form.target"
+                                type="text"
+                                class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            />
                         </label>
                     </div>
                 </div>
@@ -1007,27 +1161,47 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
 
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Lokasi</span>
-                            <textarea v-model="form.lokasi" rows="3" class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"></textarea>
+                            <textarea
+                                v-model="form.lokasi"
+                                rows="3"
+                                class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            ></textarea>
                         </label>
 
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Sumber Dana</span>
-                            <input v-model="form.sumber_dana" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                            <input
+                                v-model="form.sumber_dana"
+                                type="text"
+                                class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            />
                         </label>
 
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Prioritas Nasional</span>
-                            <input v-model="form.prioritas_nasional" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                            <input
+                                v-model="form.prioritas_nasional"
+                                type="text"
+                                class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            />
                         </label>
 
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Prioritas Daerah</span>
-                            <textarea v-model="form.prioritas_daerah" rows="3" class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"></textarea>
+                            <textarea
+                                v-model="form.prioritas_daerah"
+                                rows="3"
+                                class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            ></textarea>
                         </label>
 
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Kelompok Sasaran</span>
-                            <input v-model="form.kelompok_sasaran" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                            <input
+                                v-model="form.kelompok_sasaran"
+                                type="text"
+                                class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            />
                         </label>
                     </div>
                 </div>
@@ -1039,7 +1213,11 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                     <div class="grid gap-4">
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Target</span>
-                            <input v-model="form.prakiraan_maju_target" type="text" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                            <input
+                                v-model="form.prakiraan_maju_target"
+                                type="text"
+                                class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            />
                         </label>
 
                         <label class="grid gap-1.5">
@@ -1056,7 +1234,12 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
 
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Urutan</span>
-                            <input v-model="form.urutan" type="number" min="1" class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                            <input
+                                v-model="form.urutan"
+                                type="number"
+                                min="1"
+                                class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            />
                         </label>
                     </div>
                 </div>
@@ -1084,80 +1267,155 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                     <form class="grid gap-2 lg:grid-cols-[320px_180px_auto]" @submit.prevent="applyFiltersNow">
                         <label class="relative">
                             <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                            <input v-model="filterForm.search" type="search" class="h-10 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Cari kode, sub kegiatan, atau indikator" />
+                            <input
+                                v-model="filterForm.search"
+                                type="search"
+                                class="h-10 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                                placeholder="Cari kode, sub kegiatan, atau indikator"
+                            />
                         </label>
-                        <select v-model="filterForm.status" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
+                        <select
+                            v-model="filterForm.status"
+                            class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                        >
                             <option value="">Semua status</option>
                             <option value="draft">Draft</option>
                             <option value="verified">Terverifikasi</option>
                             <option value="approved">Disetujui</option>
                             <option value="locked">Terkunci</option>
                         </select>
-                        <button type="button" class="h-10 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">Reset</button>
+                        <button type="button" class="h-10 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted" @click="resetFilters">
+                            Reset
+                        </button>
                     </form>
                 </div>
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="min-w-[1700px] text-left text-xs">
-                    <thead class="border-b bg-muted/60 uppercase text-muted-foreground">
-                        <tr>
-                            <th class="px-4 py-3">No</th>
-                            <th class="px-4 py-3">Kode</th>
-                            <th class="px-4 py-3">Urusan / Bidang / Program / Kegiatan / Sub Kegiatan</th>
-                            <th class="px-4 py-3">Indikator Program / Kegiatan / Sub Kegiatan</th>
-                            <th class="px-4 py-3 text-center">Target {{ renja.tahun }}</th>
-                            <th class="px-4 py-3 text-right">Pagu Indikatif</th>
-                            <th class="px-4 py-3">Lokasi</th>
-                            <th class="px-4 py-3">Sumber Dana</th>
-                            <th class="px-4 py-3">Prioritas</th>
-                            <th class="px-4 py-3">Prakiraan Maju {{ nextPlanYear }}</th>
-                            <th v-if="can.manage" class="px-4 py-3 text-right">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="(row, index) in items.data" :key="row.id" class="border-b align-top last:border-0 hover:bg-muted/40">
-                            <td class="px-4 py-3 font-semibold">{{ items.from ? items.from + index : index + 1 }}</td>
-                            <td class="px-4 py-3 font-semibold">{{ row.kode || '-' }}</td>
-                            <td class="min-w-[28rem] px-4 py-3">
-                                <div class="font-semibold">{{ row.nama_sub_kegiatan || row.sub_kegiatan || '-' }}</div>
-                                <div class="mt-1 text-[11px] text-muted-foreground">{{ row.program || '-' }}</div>
-                                <div class="text-[11px] text-muted-foreground">{{ row.kegiatan || '-' }}</div>
-                            </td>
-                            <td class="min-w-80 px-4 py-3">{{ row.indikator || '-' }}</td>
-                            <td class="px-4 py-3 text-center">{{ row.target || '-' }}</td>
-                            <td class="px-4 py-3 text-right font-semibold">{{ formatMoney(row.pagu_indikatif) }}</td>
-                            <td class="px-4 py-3">{{ row.lokasi || '-' }}</td>
-                            <td class="px-4 py-3">{{ row.sumber_dana || '-' }}</td>
-                            <td class="px-4 py-3">{{ row.prioritas_daerah || row.prioritas_nasional || '-' }}</td>
-                            <td class="px-4 py-3">
-                                <div>{{ row.prakiraan_maju_target || '-' }}</div>
-                                <div class="text-muted-foreground">{{ formatMoney(row.prakiraan_maju_pagu_indikatif) }}</div>
-                            </td>
-                            <td v-if="can.manage" class="px-4 py-3 text-right">
-                                <div class="inline-flex overflow-hidden rounded-lg border bg-background">
-                                    <button type="button" class="h-9 px-3 hover:bg-muted" title="Edit" @click="editItem(row)">
+            <div class="divide-y divide-slate-200 dark:divide-slate-800">
+                <section v-for="program in groupedPrograms" :key="program.key" class="p-4 sm:p-5">
+                    <header class="flex items-start gap-3 border-b border-slate-200 pb-4 dark:border-slate-800">
+                        <span class="mt-0.5 shrink-0 rounded-md bg-[#00336C] px-2 py-1 font-mono text-[11px] font-bold text-white">{{
+                            program.kode
+                        }}</span>
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Program</p>
+                            <h3 class="mt-0.5 font-bold leading-6 text-slate-900 dark:text-white">{{ program.nama }}</h3>
+                        </div>
+                    </header>
+
+                    <div
+                        v-for="kegiatan in program.kegiatan"
+                        :key="kegiatan.key"
+                        class="mt-5 border-l-2 border-blue-200 pl-3 dark:border-blue-900 sm:pl-4"
+                    >
+                        <div class="flex items-start gap-2">
+                            <span class="shrink-0 font-mono text-xs font-bold text-blue-700 dark:text-blue-300">{{ kegiatan.kode }}</span>
+                            <p class="text-sm font-semibold leading-5 text-slate-800 dark:text-slate-200">{{ kegiatan.nama }}</p>
+                        </div>
+
+                        <div
+                            class="mt-3 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800"
+                        >
+                            <article
+                                v-for="row in kegiatan.items"
+                                :key="row.id"
+                                class="grid gap-4 bg-card px-4 py-4 transition hover:bg-slate-50/70 dark:hover:bg-slate-900/40 lg:grid-cols-[minmax(13rem,1.25fr)_minmax(12rem,1fr)_minmax(8rem,.55fr)_minmax(9rem,.65fr)_minmax(10rem,.7fr)_auto] lg:items-center"
+                            >
+                                <div class="min-w-0">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <p class="font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">{{ row.kode || '-' }}</p>
+                                        <span
+                                            v-if="row.is_from_renstra"
+                                            class="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200"
+                                            title="Disalin otomatis dari RENSTRA"
+                                        >
+                                            <GitBranch class="size-2.5" />
+                                            RENSTRA
+                                        </span>
+                                    </div>
+                                    <p class="mt-1 text-sm font-semibold leading-5 text-slate-900 dark:text-white">
+                                        {{ row.nama_sub_kegiatan || row.sub_kegiatan || '-' }}
+                                    </p>
+                                </div>
+
+                                <div class="min-w-0">
+                                    <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Indikator acuan</p>
+                                    <p class="mt-1 whitespace-pre-line text-sm leading-5 text-slate-700 dark:text-slate-200">
+                                        {{ row.indikator || '-' }}
+                                    </p>
+                                    <p
+                                        v-if="row.target_akhir_renstra"
+                                        class="mt-1 whitespace-pre-line text-xs font-semibold text-[#00336C] dark:text-blue-300"
+                                    >
+                                        Akhir RENSTRA: {{ row.target_akhir_renstra }}
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Target {{ renja.tahun }}</p>
+                                    <p class="mt-1 text-sm font-bold text-slate-900 dark:text-white">{{ row.target || '-' }}</p>
+                                    <span
+                                        class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                        :class="statusClass(row.status)"
+                                        >{{ statusLabel(row.status) }}</span
+                                    >
+                                </div>
+
+                                <div>
+                                    <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pagu indikatif</p>
+                                    <p class="mt-1 text-sm font-bold tabular-nums text-slate-950 dark:text-white">
+                                        {{ formatMoney(row.pagu_indikatif) }}
+                                    </p>
+                                </div>
+
+                                <div class="min-w-0 text-xs leading-5 text-slate-600 dark:text-slate-300">
+                                    <p class="font-semibold text-slate-800 dark:text-slate-200">{{ row.lokasi || 'Lokasi belum diisi' }}</p>
+                                    <p>{{ row.sumber_dana || 'Sumber dana belum diisi' }}</p>
+                                    <p v-if="row.prioritas_daerah || row.prioritas_nasional" class="mt-1 text-[11px] text-slate-500">
+                                        {{ row.prioritas_daerah || row.prioritas_nasional }}
+                                    </p>
+                                    <p class="mt-1 text-[11px] text-slate-500">
+                                        Maju {{ nextPlanYear }}: {{ row.prakiraan_maju_target || '-' }} ·
+                                        {{ formatMoney(row.prakiraan_maju_pagu_indikatif) }}
+                                    </p>
+                                </div>
+
+                                <div v-if="can.manage" class="flex items-center gap-1.5 lg:justify-end">
+                                    <button
+                                        type="button"
+                                        class="inline-flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                        :title="row.is_from_renstra ? 'Lengkapi isian tahunan' : 'Edit'"
+                                        @click="editItem(row)"
+                                    >
                                         <Pencil class="size-4" />
                                     </button>
-                                    <button type="button" class="h-9 border-l px-3 text-red-600 hover:bg-red-50" title="Hapus" @click="destroyItem(row)">
+                                    <button
+                                        type="button"
+                                        class="inline-flex size-9 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/50"
+                                        title="Hapus"
+                                        @click="destroyItem(row)"
+                                    >
                                         <Trash2 class="size-4" />
                                     </button>
                                 </div>
-                            </td>
-                        </tr>
-                        <tr v-if="items.data.length === 0">
-                            <td :colspan="can.manage ? 11 : 10" class="px-4 py-12 text-center text-sm text-muted-foreground">Belum ada sub kegiatan RENJA.</td>
-                        </tr>
-                    </tbody>
-                </table>
+                            </article>
+                        </div>
+                    </div>
+                </section>
+
+                <div v-if="!groupedPrograms.length" class="px-6 py-16 text-center text-sm text-slate-500">Belum ada sub kegiatan RENJA.</div>
             </div>
 
             <div class="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
                 <span>Menampilkan {{ items.from ?? 0 }}-{{ items.to ?? 0 }} dari {{ items.total }} data</span>
                 <div class="flex gap-2">
-                    <Link v-if="items.prev_page_url" :href="items.prev_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted">Sebelumnya</Link>
+                    <Link v-if="items.prev_page_url" :href="items.prev_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted"
+                        >Sebelumnya</Link
+                    >
                     <span v-else class="rounded-md border px-3 py-1.5 opacity-50">Sebelumnya</span>
-                    <Link v-if="items.next_page_url" :href="items.next_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted">Berikutnya</Link>
+                    <Link v-if="items.next_page_url" :href="items.next_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted"
+                        >Berikutnya</Link
+                    >
                     <span v-else class="rounded-md border px-3 py-1.5 opacity-50">Berikutnya</span>
                 </div>
             </div>
@@ -1170,9 +1428,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         <h2 class="text-base font-semibold">Preview Tabel Renja</h2>
                         <p class="mt-1 text-sm text-muted-foreground">Format mengikuti matriks RKPD resmi.</p>
                     </div>
-                    <div class="rounded-full border bg-white px-3 py-1 text-xs font-semibold text-[#00336C]">
-                        {{ previewItems.length }} baris
-                    </div>
+                    <div class="rounded-full border bg-white px-3 py-1 text-xs font-semibold text-[#00336C]">{{ previewItems.length }} baris</div>
                 </div>
             </div>
 
@@ -1182,11 +1438,17 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                         <tr class="bg-slate-100">
                             <th rowspan="2" class="w-14 border border-slate-700 px-2 py-2">No</th>
                             <th rowspan="2" class="w-32 border border-slate-700 px-2 py-2">Kode</th>
-                            <th rowspan="2" class="w-72 border border-slate-700 px-2 py-2">Urusan / Bidang Urusan / Program / Kegiatan / Sub Kegiatan</th>
+                            <th rowspan="2" class="w-72 border border-slate-700 px-2 py-2">
+                                Urusan / Bidang Urusan / Program / Kegiatan / Sub Kegiatan
+                            </th>
                             <th rowspan="2" class="w-64 border border-slate-700 px-2 py-2">Indikator Program / Kegiatan / Sub Kegiatan</th>
                             <th rowspan="2" class="w-32 border border-slate-700 px-2 py-2">Target Akhir Periode Renstra OPD</th>
-                            <th rowspan="2" class="w-32 border border-slate-700 px-2 py-2">Realisasi Capaian Renja OPD Tahun {{ previousRealisasiYear }}</th>
-                            <th rowspan="2" class="w-36 border border-slate-700 px-2 py-2">Prakiraan Capaian Target Renja OPD Tahun {{ previousTargetYear }}</th>
+                            <th rowspan="2" class="w-32 border border-slate-700 px-2 py-2">
+                                Realisasi Capaian Renja OPD Tahun {{ previousRealisasiYear }}
+                            </th>
+                            <th rowspan="2" class="w-36 border border-slate-700 px-2 py-2">
+                                Prakiraan Capaian Target Renja OPD Tahun {{ previousTargetYear }}
+                            </th>
                             <th colspan="6" class="border border-slate-700 px-2 py-2">Capaian Kinerja dan Kerangka Pendanaan</th>
                             <th rowspan="2" class="w-36 border border-slate-700 px-2 py-2">Kelompok Sasaran</th>
                             <th colspan="2" class="border border-slate-700 px-2 py-2">Prakiraan Maju Rencana Tahun {{ nextPlanYear }}</th>
@@ -1250,7 +1512,12 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                                     <button type="button" class="h-8 px-2 text-[#00336C] hover:bg-sky-50" title="Edit" @click="editItem(row.source)">
                                         <Pencil class="size-3.5" />
                                     </button>
-                                    <button type="button" class="h-8 border-l px-2 text-red-600 hover:bg-red-50" title="Hapus" @click="destroyItem(row.source)">
+                                    <button
+                                        type="button"
+                                        class="h-8 border-l px-2 text-red-600 hover:bg-red-50"
+                                        title="Hapus"
+                                        @click="destroyItem(row.source)"
+                                    >
                                         <Trash2 class="size-3.5" />
                                     </button>
                                 </div>
@@ -1266,15 +1533,26 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
             </div>
         </section>
 
-        <div v-if="isRevisionDialogOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm" @click.self="isRevisionDialogOpen = false">
+        <div
+            v-if="isRevisionDialogOpen"
+            class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
+            @click.self="isRevisionDialogOpen = false"
+        >
             <form class="w-full max-w-xl overflow-hidden rounded-2xl border bg-card shadow-2xl" @submit.prevent="submitRevision">
                 <div class="flex items-start justify-between border-b px-5 py-4">
                     <div>
-                        <div class="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300"><GitBranch class="size-4" /> Versi tahunan</div>
+                        <div class="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                            <GitBranch class="size-4" /> Versi tahunan
+                        </div>
                         <h2 class="mt-1 text-xl font-semibold">Buat RENJA Perubahan</h2>
                         <p class="mt-1 text-sm text-muted-foreground">Data RENJA Ditetapkan akan disalin dan otomatis memakai RKPD Perubahan.</p>
                     </div>
-                    <button type="button" class="inline-flex size-10 items-center justify-center rounded-lg hover:bg-muted" aria-label="Tutup" @click="isRevisionDialogOpen = false">
+                    <button
+                        type="button"
+                        class="inline-flex size-10 items-center justify-center rounded-lg hover:bg-muted"
+                        aria-label="Tutup"
+                        @click="isRevisionDialogOpen = false"
+                    >
                         <X class="size-5" />
                     </button>
                 </div>
@@ -1282,27 +1560,56 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                 <div class="grid gap-4 p-5">
                     <label class="grid gap-1.5">
                         <span class="text-sm font-semibold">Alasan perubahan <span class="text-red-600">*</span></span>
-                        <textarea v-model="revisionForm.alasan_perubahan" rows="4" class="rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Jelaskan alasan perubahan RENJA"></textarea>
-                        <span v-if="revisionForm.errors.alasan_perubahan" class="text-xs text-red-600">{{ revisionForm.errors.alasan_perubahan }}</span>
+                        <textarea
+                            v-model="revisionForm.alasan_perubahan"
+                            rows="4"
+                            class="rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            placeholder="Jelaskan alasan perubahan RENJA"
+                        ></textarea>
+                        <span v-if="revisionForm.errors.alasan_perubahan" class="text-xs text-red-600">{{
+                            revisionForm.errors.alasan_perubahan
+                        }}</span>
                     </label>
                     <label class="grid gap-1.5">
                         <span class="text-sm font-semibold">Dasar perubahan</span>
-                        <input v-model="revisionForm.dasar_perubahan" type="text" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Contoh: Perubahan RKPD Tahun 2027" />
+                        <input
+                            v-model="revisionForm.dasar_perubahan"
+                            type="text"
+                            class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            placeholder="Contoh: Perubahan RKPD Tahun 2027"
+                        />
                         <span v-if="revisionForm.errors.dasar_perubahan" class="text-xs text-red-600">{{ revisionForm.errors.dasar_perubahan }}</span>
                     </label>
                     <label class="grid gap-1.5">
                         <span class="text-sm font-semibold">Tanggal berlaku</span>
-                        <input v-model="revisionForm.tanggal_berlaku" type="date" class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" />
+                        <input
+                            v-model="revisionForm.tanggal_berlaku"
+                            type="date"
+                            class="h-11 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                        />
                         <span v-if="revisionForm.errors.tanggal_berlaku" class="text-xs text-red-600">{{ revisionForm.errors.tanggal_berlaku }}</span>
                     </label>
-                    <p v-if="revisionForm.errors.rkpd_id" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                    <p
+                        v-if="revisionForm.errors.rkpd_id"
+                        class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                    >
                         {{ revisionForm.errors.rkpd_id }}
                     </p>
                 </div>
 
                 <div class="flex justify-end gap-2 border-t bg-muted/30 px-5 py-4">
-                    <button type="button" class="inline-flex h-10 items-center rounded-lg border bg-background px-4 text-sm font-semibold hover:bg-muted" @click="isRevisionDialogOpen = false">Batal</button>
-                    <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-lg bg-[#00336C] px-4 text-sm font-semibold text-white hover:bg-[#002855] disabled:opacity-60" :disabled="revisionForm.processing">
+                    <button
+                        type="button"
+                        class="inline-flex h-10 items-center rounded-lg border bg-background px-4 text-sm font-semibold hover:bg-muted"
+                        @click="isRevisionDialogOpen = false"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="submit"
+                        class="inline-flex h-10 items-center gap-2 rounded-lg bg-[#00336C] px-4 text-sm font-semibold text-white hover:bg-[#002855] disabled:opacity-60"
+                        :disabled="revisionForm.processing"
+                    >
                         <GitBranch class="size-4" /> Buat Perubahan
                     </button>
                 </div>
