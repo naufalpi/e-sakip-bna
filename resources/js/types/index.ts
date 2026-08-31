@@ -13,6 +13,7 @@ export interface NavItem {
     title: string;
     href: string;
     pageComponent?: string;
+    activePrefixes?: string[];
     icon?: LucideIcon;
     isActive?: boolean;
     badge?: string | number;

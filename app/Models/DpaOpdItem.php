@@ -21,7 +21,8 @@ class DpaOpdItem extends Model
         'kode_urusan', 'nama_urusan', 'kode_bidang', 'nama_bidang', 'kode_program', 'nama_program',
         'kode_kegiatan', 'nama_kegiatan', 'kode_sub_kegiatan', 'nama_sub_kegiatan',
         'tolok_ukur_kinerja', 'target_kinerja', 'satuan_kinerja', 'sumber_pendanaan', 'lokasi',
-        'kelompok_sasaran', 'bulan_mulai', 'bulan_selesai', 'jenis_belanja', 'pagu_rka', 'pagu_dpa',
+        'kelompok_sasaran', 'bulan_mulai', 'bulan_selesai', 'jenis_belanja', 'alokasi_tahun_sebelumnya',
+        'pagu_rka', 'pagu_dpa', 'alokasi_tahun_berikutnya',
         'alasan_penyesuaian', 'catatan', 'urutan',
     ];
 
@@ -31,8 +32,10 @@ class DpaOpdItem extends Model
             'bulan_mulai' => 'integer',
             'bulan_selesai' => 'integer',
             'urutan' => 'integer',
+            'alokasi_tahun_sebelumnya' => 'decimal:2',
             'pagu_rka' => 'decimal:2',
             'pagu_dpa' => 'decimal:2',
+            'alokasi_tahun_berikutnya' => 'decimal:2',
         ];
     }
 

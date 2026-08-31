@@ -37,6 +37,7 @@ class PerjanjianKinerjaPolicy
         }
 
         return $user->hasRole('super_admin')
+            || (! $user->hasRole('admin_opd') && $user->hasAnyPermission(['kinerja.manage', 'manage_perjanjian_kinerja']))
             || ((int) $perjanjianKinerja->opd_id === (int) $user->opd_id && $user->hasRole('admin_opd'));
     }
 

@@ -16,6 +16,7 @@ use App\Models\RenjaOpd;
 use App\Models\RenjaOpdItem;
 use App\Models\RenstraOpd;
 use App\Models\Rkpd;
+use App\Models\RkpdItem;
 use App\Models\Role;
 use App\Models\Rpjmd;
 use App\Models\SasaranOpd;
@@ -25,7 +26,9 @@ use App\Models\TujuanOpd;
 use App\Models\UrusanPemerintahan;
 use App\Models\User;
 use App\Services\Perencanaan\RenjaInitialItemService;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class RenjaInitialItemsTest extends TestCase
@@ -151,6 +154,121 @@ class RenjaInitialItemsTest extends TestCase
             ->assertSessionHasErrors('rkpd_id');
 
         $this->assertDatabaseMissing('renja_opd', ['judul' => 'RENJA TANPA RKPD RESMI']);
+    }
+
+    public function test_new_renja_rejects_a_renstra_that_is_not_official(): void
+    {
+        $data = $this->planningData();
+        $data['renstra']->update(['status' => 'revision']);
+
+        $this->actingAs($data['user'])
+            ->post(route('renja-opd.store'), [
+                'rkpd_id' => $data['rkpd_official']->id,
+                'renstra_opd_id' => $data['renstra']->id,
+                'opd_id' => $data['opd']->id,
+                'periode_tahun_id' => $data['target_period']->id,
+                'tahun' => 2089,
+                'judul' => 'RENJA DARI RENSTRA REVISI',
+            ])
+            ->assertSessionHasErrors('renstra_opd_id');
+
+        $this->assertDatabaseMissing('renja_opd', ['judul' => 'RENJA DARI RENSTRA REVISI']);
+    }
+
+    public function test_bootstrap_service_rechecks_the_renstra_official_status(): void
+    {
+        $data = $this->planningData();
+        $data['renstra']->update(['status' => 'draft']);
+        $renja = RenjaOpd::create([
+            'rkpd_id' => $data['rkpd_official']->id,
+            'renstra_opd_id' => $data['renstra']->id,
+            'opd_id' => $data['opd']->id,
+            'periode_tahun_id' => $data['target_period']->id,
+            'tahun' => 2089,
+            'judul' => 'RENJA UJI SERVICE',
+            'status' => 'draft',
+        ]);
+
+        try {
+            app(RenjaInitialItemService::class)->bootstrapFromRenstra($renja);
+            $this->fail('Bootstrap seharusnya menolak RENSTRA yang belum resmi.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('renstra_opd_id', $exception->errors());
+        }
+
+        $this->assertSame(0, $renja->items()->count());
+    }
+
+    public function test_long_renstra_target_is_preserved_in_renja_and_rkpd_text_columns(): void
+    {
+        $data = $this->planningData();
+        $longTargets = [
+            str_repeat('Target layanan sangat panjang ', 12),
+            str_repeat('Target persentase sangat panjang ', 12),
+        ];
+        $targets = TargetIndikatorSubKegiatan::query()
+            ->whereHas('indikator', fn ($query) => $query->where('opd_sub_kegiatan_id', $data['source_sub_opd']->id))
+            ->orderBy('id')
+            ->get();
+
+        foreach ($targets as $index => $target) {
+            $target->update(['target_text' => $longTargets[$index]]);
+        }
+
+        $this->actingAs($data['user'])
+            ->post(route('renja-opd.store'), [
+                'opd_id' => $data['opd']->id,
+                'periode_tahun_id' => $data['target_period']->id,
+                'tahun' => 2089,
+                'judul' => 'RENJA TARGET PANJANG',
+            ])
+            ->assertRedirect();
+
+        $renja = RenjaOpd::query()->where('judul', 'RENJA TARGET PANJANG')->sole();
+        $expected = collect($longTargets)->map(fn (string $target) => trim($target))->implode("\n");
+
+        $this->assertGreaterThan(255, strlen($expected));
+        $this->assertSame($expected, $renja->items()->sole()->target_akhir_renstra);
+
+        $rkpdItem = RkpdItem::create([
+            'rkpd_id' => $data['rkpd_official']->id,
+            'opd_id' => $data['opd']->id,
+            'sub_kegiatan_pemerintahan_id' => $data['target_sub']->id,
+            'target_akhir_renstra' => $expected,
+            'status' => 'draft',
+            'urutan' => 1,
+        ]);
+
+        $this->assertSame($expected, $rkpdItem->fresh()->target_akhir_renstra);
+    }
+
+    public function test_database_unique_index_blocks_duplicate_active_renja_sub_kegiatan_but_allows_replacement_after_soft_delete(): void
+    {
+        $data = $this->planningData();
+        $renja = RenjaOpd::create([
+            'rkpd_id' => $data['rkpd_official']->id,
+            'renstra_opd_id' => $data['renstra']->id,
+            'opd_id' => $data['opd']->id,
+            'periode_tahun_id' => $data['target_period']->id,
+            'tahun' => 2089,
+            'judul' => 'RENJA UJI UNIQUE',
+            'status' => 'draft',
+        ]);
+        $attributes = [
+            'renja_opd_id' => $renja->id,
+            'sub_kegiatan_pemerintahan_id' => $data['target_sub']->id,
+            'kode' => $data['target_sub']->kode,
+            'nama_sub_kegiatan' => $data['target_sub']->nama,
+            'sumber_item' => 'manual',
+            'status' => 'draft',
+            'urutan' => 1,
+        ];
+        $first = RenjaOpdItem::create($attributes);
+        $first->delete();
+        RenjaOpdItem::create($attributes);
+
+        $this->expectException(QueryException::class);
+        RenjaOpdItem::create($attributes);
     }
 
     /** @return array<string, mixed> */

@@ -51,6 +51,10 @@ class JabatanOrganisasiImportApplyService
                     'eselon' => $prepared['eselon'] ?? null,
                     'urutan' => $prepared['urutan'] ?? 0,
                     'status' => $prepared['status'] ?? 'active',
+                    'verification_status' => 'verified',
+                    'verified_by' => $user->id,
+                    'verified_at' => now(),
+                    'verification_note' => null,
                 ];
 
                 if ($existingId = $prepared['existing_id'] ?? null) {

@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { useAutoFilters } from '@/composables/useAutoFilters';
-import { confirmDelete } from '@/lib/sweetAlert';
+import { confirmAction, confirmDelete, promptTextArea } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
+import BadgeCheck from 'lucide-vue-next/dist/esm/icons/badge-check.js';
 import BriefcaseBusiness from 'lucide-vue-next/dist/esm/icons/briefcase-business.js';
 import Building2 from 'lucide-vue-next/dist/esm/icons/building-2.js';
 import ChevronRight from 'lucide-vue-next/dist/esm/icons/chevron-right.js';
 import CircleUserRound from 'lucide-vue-next/dist/esm/icons/circle-user-round.js';
+import CircleX from 'lucide-vue-next/dist/esm/icons/circle-x.js';
+import Clock3 from 'lucide-vue-next/dist/esm/icons/clock-3.js';
 import FileSpreadsheet from 'lucide-vue-next/dist/esm/icons/file-spreadsheet.js';
 import Network from 'lucide-vue-next/dist/esm/icons/network.js';
 import Pencil from 'lucide-vue-next/dist/esm/icons/pencil.js';
@@ -14,6 +17,7 @@ import Search from 'lucide-vue-next/dist/esm/icons/search.js';
 import Trash2 from 'lucide-vue-next/dist/esm/icons/trash-2.js';
 import UserRoundCheck from 'lucide-vue-next/dist/esm/icons/user-round-check.js';
 import UserRoundX from 'lucide-vue-next/dist/esm/icons/user-round-x.js';
+import UsersRound from 'lucide-vue-next/dist/esm/icons/users-round.js';
 import { reactive } from 'vue';
 
 type Option = { id?: number; value?: string; label: string };
@@ -36,6 +40,12 @@ type Jabatan = {
     parent?: { nama: string } | null;
     current_pejabat?: Pejabat | null;
     current_pejabat_count: number;
+    verification_status: 'pending' | 'verified' | 'rejected';
+    verification_label: string;
+    verification_note?: string | null;
+    can_edit: boolean;
+    can_delete: boolean;
+    can_verify: boolean;
 };
 type Paginator<T> = {
     data: T[];
@@ -50,11 +60,11 @@ type Paginator<T> = {
 
 const props = defineProps<{
     items: Paginator<Jabatan>;
-    filters: { search?: string; opd_id?: string; level_jabatan?: string; status?: string; keterisian?: string };
+    filters: { search?: string; opd_id?: string; level_jabatan?: string; status?: string; keterisian?: string; verification_status?: string };
     opdOptions: Option[];
     levelOptions: Option[];
-    stats: { total: number; active: number; occupied: number; vacant: number };
-    can: { manage: boolean };
+    stats: { total: number; active: number; occupied: number; vacant: number; pending: number };
+    can: { create: boolean; import: boolean; verify: boolean; manage_people: boolean; opd_scoped: boolean };
 }>();
 
 const filterForm = reactive({
@@ -63,6 +73,7 @@ const filterForm = reactive({
     level_jabatan: props.filters.level_jabatan ?? '',
     status: props.filters.status ?? '',
     keterisian: props.filters.keterisian ?? '',
+    verification_status: props.filters.verification_status ?? '',
 });
 
 const applyFilters = () =>
@@ -74,8 +85,44 @@ const applyFilters = () =>
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 
 const resetFilters = () => {
-    Object.assign(filterForm, { search: '', opd_id: '', level_jabatan: '', status: '', keterisian: '' });
+    Object.assign(filterForm, { search: '', opd_id: '', level_jabatan: '', status: '', keterisian: '', verification_status: '' });
     applyFiltersNow();
+};
+
+const approve = async (item: Jabatan) => {
+    const confirmed = await confirmAction({
+        title: 'Verifikasi jabatan?',
+        text: `${item.nama} akan ditetapkan sebagai bagian struktur organisasi resmi.`,
+        icon: 'question',
+        confirmButtonText: 'Ya, verifikasi',
+    });
+
+    if (confirmed) {
+        router.patch(
+            route('master.jabatan-organisasi.verify', item.id),
+            { verification_status: 'verified', verification_note: null },
+            { preserveScroll: true },
+        );
+    }
+};
+
+const reject = async (item: Jabatan) => {
+    const note = await promptTextArea({
+        title: 'Kembalikan usulan jabatan',
+        text: `Tuliskan bagian yang perlu diperbaiki pada ${item.nama}.`,
+        inputLabel: 'Catatan perbaikan',
+        inputPlaceholder: 'Contoh: sesuaikan nomenklatur jabatan dengan struktur organisasi terbaru.',
+        confirmButtonText: 'Kirim untuk diperbaiki',
+        minLength: 5,
+    });
+
+    if (note !== null) {
+        router.patch(
+            route('master.jabatan-organisasi.verify', item.id),
+            { verification_status: 'rejected', verification_note: note },
+            { preserveScroll: true },
+        );
+    }
 };
 
 const destroy = async (item: Jabatan) => {
@@ -93,25 +140,54 @@ const levelClass = (level: string) =>
         fungsional: 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200',
         pelaksana: 'border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200',
     })[level] ?? 'border-border bg-muted text-foreground';
+
+const verificationClass = (status: Jabatan['verification_status']) =>
+    ({
+        verified: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200',
+        pending: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200',
+        rejected: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200',
+    })[status];
 </script>
 
 <template>
-    <Head title="Struktur Jabatan" />
+    <Head :title="can.opd_scoped ? 'Jabatan di OPD' : 'Struktur Organisasi'" />
 
     <div class="flex flex-col gap-5 p-4 md:p-6">
+        <nav
+            v-if="can.opd_scoped && can.manage_people"
+            class="inline-flex w-fit rounded-lg border bg-card p-1 text-sm shadow-sm"
+            aria-label="Kelola jabatan dan pegawai"
+        >
+            <Link
+                :href="route('master.pegawai.index')"
+                class="rounded-md px-4 py-2 font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+                <UsersRound class="mr-1.5 inline size-4" /> Pegawai
+            </Link>
+            <Link :href="route('master.jabatan-organisasi.index')" class="rounded-md bg-blue-800 px-4 py-2 font-semibold text-white dark:bg-blue-600">
+                <BriefcaseBusiness class="mr-1.5 inline size-4" /> Jabatan di OPD
+            </Link>
+        </nav>
         <header class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div class="max-w-3xl">
                 <div class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">
                     <Network class="size-4" />
                     Struktur akuntabilitas
                 </div>
-                <h1 class="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">Struktur Jabatan</h1>
+                <h1 class="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                    {{ can.opd_scoped ? 'Jabatan di OPD' : 'Struktur Organisasi' }}
+                </h1>
                 <p class="mt-2 text-sm leading-6 text-muted-foreground">
-                    Susun posisi dan rantai atasan–bawahan sebagai kerangka penempatan pegawai dan Perjanjian Kinerja.
+                    {{
+                        can.opd_scoped
+                            ? 'Kelola kebutuhan jabatan OPD dan rantai atasannya. Usulan baru diverifikasi oleh Admin Kabupaten.'
+                            : 'Kendalikan struktur resmi, rantai atasan–bawahan, dan verifikasi usulan jabatan dari OPD.'
+                    }}
                 </p>
             </div>
-            <div v-if="can.manage" class="flex flex-wrap gap-2">
+            <div v-if="can.create || can.import" class="flex flex-wrap gap-2">
                 <Link
+                    v-if="can.import"
                     :href="route('master.jabatan-organisasi.import.create')"
                     class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border bg-card px-4 text-sm font-semibold shadow-sm transition hover:bg-muted"
                 >
@@ -119,6 +195,7 @@ const levelClass = (level: string) =>
                     Import Excel
                 </Link>
                 <Link
+                    v-if="can.create"
                     :href="route('master.jabatan-organisasi.create')"
                     class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900 dark:bg-blue-600 dark:hover:bg-blue-500"
                 >
@@ -127,6 +204,25 @@ const levelClass = (level: string) =>
                 </Link>
             </div>
         </header>
+
+        <div
+            v-if="can.verify && stats.pending > 0"
+            class="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/20"
+        >
+            <div class="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                <Clock3 class="size-4" /> <strong>{{ stats.pending }} usulan jabatan</strong> menunggu pemeriksaan.
+            </div>
+            <button
+                type="button"
+                class="text-xs font-semibold text-amber-800 hover:underline dark:text-amber-200"
+                @click="
+                    filterForm.verification_status = 'pending';
+                    applyFiltersNow();
+                "
+            >
+                Tampilkan usulan
+            </button>
+        </div>
 
         <section class="grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-2 xl:grid-cols-4">
             <div class="bg-card p-4">
@@ -156,7 +252,7 @@ const levelClass = (level: string) =>
         </section>
 
         <form
-            class="grid gap-3 rounded-xl border bg-card p-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.6fr)_1.15fr_1fr_0.75fr_0.75fr_auto]"
+            class="grid gap-3 rounded-xl border bg-card p-3 md:grid-cols-2 xl:grid-cols-[minmax(230px,1.5fr)_1.1fr_0.9fr_0.75fr_0.9fr_0.75fr_auto]"
             @submit.prevent="applyFiltersNow"
         >
             <div class="relative">
@@ -191,6 +287,15 @@ const levelClass = (level: string) =>
                 <option value="">Semua status</option>
                 <option value="active">Aktif</option>
                 <option value="inactive">Nonaktif</option>
+            </select>
+            <select
+                v-model="filterForm.verification_status"
+                class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:border-blue-600"
+            >
+                <option value="">Semua verifikasi</option>
+                <option value="verified">Terverifikasi</option>
+                <option value="pending">Menunggu verifikasi</option>
+                <option value="rejected">Perlu perbaikan</option>
             </select>
             <button
                 type="button"
@@ -237,7 +342,22 @@ const levelClass = (level: string) =>
                                             <span v-if="item.eselon" class="text-[11px] text-muted-foreground">{{
                                                 item.eselon.replace('_', '.').toUpperCase()
                                             }}</span>
+                                            <span
+                                                class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                                                :class="verificationClass(item.verification_status)"
+                                            >
+                                                <BadgeCheck v-if="item.verification_status === 'verified'" class="size-3" />
+                                                <Clock3 v-else-if="item.verification_status === 'pending'" class="size-3" />
+                                                <CircleX v-else class="size-3" />
+                                                {{ item.verification_label }}
+                                            </span>
                                         </div>
+                                        <p
+                                            v-if="item.verification_status === 'rejected' && item.verification_note"
+                                            class="mt-2 line-clamp-2 text-xs leading-5 text-rose-700 dark:text-rose-300"
+                                        >
+                                            {{ item.verification_note }}
+                                        </p>
                                     </div>
                                 </div>
                             </td>
@@ -285,20 +405,38 @@ const levelClass = (level: string) =>
                                         ><ChevronRight class="size-4"
                                     /></Link>
                                     <Link
-                                        v-if="can.manage"
+                                        v-if="item.can_edit"
                                         :href="route('master.jabatan-organisasi.edit', item.id)"
                                         class="inline-flex size-8 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted hover:text-foreground"
                                         title="Edit"
                                         ><Pencil class="size-3.5"
                                     /></Link>
                                     <button
-                                        v-if="can.manage"
+                                        v-if="item.can_delete"
                                         type="button"
                                         class="inline-flex size-8 items-center justify-center rounded-lg border text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
                                         title="Hapus"
                                         @click="destroy(item)"
                                     >
                                         <Trash2 class="size-3.5" />
+                                    </button>
+                                    <button
+                                        v-if="item.can_verify"
+                                        type="button"
+                                        class="inline-flex size-8 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                                        title="Verifikasi jabatan"
+                                        @click="approve(item)"
+                                    >
+                                        <BadgeCheck class="size-3.5" />
+                                    </button>
+                                    <button
+                                        v-if="item.can_verify && item.verification_status === 'pending'"
+                                        type="button"
+                                        class="inline-flex size-8 items-center justify-center rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                                        title="Kembalikan untuk diperbaiki"
+                                        @click="reject(item)"
+                                    >
+                                        <CircleX class="size-3.5" />
                                     </button>
                                 </div>
                             </td>
@@ -331,6 +469,11 @@ const levelClass = (level: string) =>
                         ><span class="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium">{{
                             item.opd?.singkatan || item.opd?.nama || 'Pemkab'
                         }}</span>
+                        <span
+                            class="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                            :class="verificationClass(item.verification_status)"
+                            >{{ item.verification_label }}</span
+                        >
                     </div>
                     <div class="mt-3 border-l-2 border-border pl-3 text-xs leading-5">
                         <span class="text-muted-foreground">Pegawai: </span

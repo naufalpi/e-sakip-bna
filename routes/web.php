@@ -151,6 +151,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::put('dpa-opd/{dpa_opd}/items/{item}', [DpaOpdItemController::class, 'update'])->name('dpa-opd.items.update');
 
     Route::resource('perjanjian-kinerja', PerjanjianKinerjaController::class);
+    Route::get('perjanjian-kinerja/{perjanjian_kinerja}/print', [PerjanjianKinerjaController::class, 'print'])->name('perjanjian-kinerja.print');
     Route::post('perjanjian-kinerja/{perjanjian_kinerja}/export', [PerjanjianKinerjaController::class, 'export'])->name('perjanjian-kinerja.export');
     Route::post('perjanjian-kinerja/{perjanjian_kinerja}/items', [PerjanjianKinerjaItemController::class, 'store'])->name('perjanjian-kinerja.items.store');
     Route::put('perjanjian-kinerja/{perjanjian_kinerja}/items/{item}', [PerjanjianKinerjaItemController::class, 'update'])->name('perjanjian-kinerja.items.update');
@@ -208,6 +209,8 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
             ->name('jabatan-organisasi.import.show');
         Route::post('jabatan-organisasi/import/{importBatch}/apply', [JabatanOrganisasiImportController::class, 'apply'])
             ->name('jabatan-organisasi.import.apply');
+        Route::patch('jabatan-organisasi/{jabatanOrganisasi}/verification', [JabatanOrganisasiController::class, 'verify'])
+            ->name('jabatan-organisasi.verify');
         Route::resource('jabatan-organisasi', JabatanOrganisasiController::class)
             ->parameters(['jabatan-organisasi' => 'jabatanOrganisasi']);
         Route::post('jabatan-organisasi/{jabatanOrganisasi}/pejabat', [RiwayatPejabatJabatanController::class, 'store'])

@@ -62,7 +62,15 @@ class PenempatanPegawaiController extends Controller
 
     private function resolveJabatan(User $user, Pegawai $pegawai, int $jabatanId): JabatanOrganisasi
     {
-        $jabatan = JabatanOrganisasi::query()->where('status', 'active')->findOrFail($jabatanId);
+        $jabatan = JabatanOrganisasi::query()
+            ->where('status', 'active')
+            ->findOrFail($jabatanId);
+
+        if (! in_array($jabatan->verification_status, ['verified', 'pending'], true)) {
+            throw ValidationException::withMessages([
+                'jabatan_organisasi_id' => 'Jabatan masih memerlukan perbaikan dan belum dapat dipakai untuk penempatan pegawai.',
+            ]);
+        }
 
         if ($this->shouldLimitToUserOpd($user)
             && ((int) $jabatan->opd_id !== (int) $user->opd_id || (int) $pegawai->opd_id !== (int) $user->opd_id)) {

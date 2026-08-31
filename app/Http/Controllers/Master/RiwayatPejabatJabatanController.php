@@ -19,6 +19,7 @@ class RiwayatPejabatJabatanController extends Controller
     public function store(StoreRiwayatPejabatJabatanRequest $request, JabatanOrganisasi $jabatanOrganisasi): RedirectResponse
     {
         $this->assertInScope($request->user(), $jabatanOrganisasi);
+        $this->assertUsableForPlacement($jabatanOrganisasi);
         $data = $request->validated();
         $this->assertUserMatchesOpd($data['user_id'] ?? null, $jabatanOrganisasi);
         $pegawai = $this->resolvePegawai($data, $jabatanOrganisasi);
@@ -99,6 +100,15 @@ class RiwayatPejabatJabatanController extends Controller
         $user = User::query()->findOrFail($userId);
         if ((int) $user->opd_id !== (int) $jabatan->opd_id) {
             throw ValidationException::withMessages(['user_id' => 'Akun pengguna harus berada pada perangkat daerah yang sama.']);
+        }
+    }
+
+    private function assertUsableForPlacement(JabatanOrganisasi $jabatan): void
+    {
+        if (! in_array($jabatan->verification_status, ['verified', 'pending'], true)) {
+            throw ValidationException::withMessages([
+                'jabatan_organisasi_id' => 'Jabatan masih memerlukan perbaikan dan belum dapat dipakai untuk penempatan pegawai.',
+            ]);
         }
     }
 

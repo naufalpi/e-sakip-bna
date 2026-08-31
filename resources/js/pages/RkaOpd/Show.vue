@@ -66,10 +66,6 @@ type WorkflowHistory = {
 type Workflow = { submitted_by?: number | null; histories?: WorkflowHistory[] } | null;
 type BudgetColumns = {
     previous: number;
-    operational: number;
-    capital: number;
-    unexpected: number;
-    transfer: number;
     total: number;
     next: number;
 };
@@ -482,7 +478,7 @@ const statusLabel = (status: string) =>
 
             <div v-else class="bg-slate-50/60 p-3 dark:bg-slate-950/30 sm:p-5">
                 <div class="overflow-x-auto rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950">
-                    <div class="min-w-[1400px] text-slate-950 dark:text-slate-100">
+                    <div class="min-w-[900px] text-slate-950 dark:text-slate-100">
                         <div class="grid grid-cols-[1fr_200px] border-b border-slate-400/70 text-center dark:border-slate-600">
                             <div class="border-r border-slate-400/70 px-6 py-4 dark:border-slate-600">
                                 <p class="text-sm font-extrabold uppercase leading-5 tracking-[.05em]">Rencana Kerja dan Anggaran</p>
@@ -523,36 +519,28 @@ const statusLabel = (status: string) =>
                                 <col class="w-[100px]" />
                                 <col class="w-[100px]" />
                                 <col class="w-[100px]" />
-                                <col class="w-[100px]" />
-                                <col class="w-[100px]" />
-                                <col class="w-[100px]" />
-                                <col class="w-[100px]" />
                             </colgroup>
                             <thead class="bg-slate-100 text-center font-extrabold dark:bg-slate-900">
                                 <tr>
-                                    <th rowspan="3" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Kode</th>
-                                    <th rowspan="3" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Uraian</th>
-                                    <th rowspan="3" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Sumber Dana</th>
-                                    <th rowspan="3" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Lokasi</th>
-                                    <th colspan="7" class="border-b border-slate-400/70 px-2 py-2 dark:border-slate-600">Jumlah</th>
+                                    <th rowspan="2" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Kode</th>
+                                    <th rowspan="2" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Uraian</th>
+                                    <th rowspan="2" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Sumber Dana</th>
+                                    <th rowspan="2" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Lokasi</th>
+                                    <th colspan="3" class="border-b border-slate-400/70 px-2 py-2 dark:border-slate-600">Jumlah Anggaran</th>
                                 </tr>
                                 <tr>
-                                    <th rowspan="2" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">
-                                        Tahun {{ rka.tahun - 1 }}
+                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">
+                                        <span class="block">Alokasi Tahun-1</span>
+                                        <span class="mt-0.5 block font-semibold text-slate-500 dark:text-slate-400">Tahun {{ rka.tahun - 1 }}</span>
                                     </th>
-                                    <th colspan="5" class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">
-                                        Tahun {{ rka.tahun }}
+                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">
+                                        <span class="block">Total Pagu RKA</span>
+                                        <span class="mt-0.5 block font-semibold text-slate-500 dark:text-slate-400">Tahun {{ rka.tahun }}</span>
                                     </th>
-                                    <th rowspan="2" class="border-b border-slate-400/70 px-2 py-2 dark:border-slate-600">
-                                        Tahun {{ rka.tahun + 1 }}
+                                    <th class="border-b border-slate-400/70 px-2 py-2 dark:border-slate-600">
+                                        <span class="block">Alokasi Tahun+1</span>
+                                        <span class="mt-0.5 block font-semibold text-slate-500 dark:text-slate-400">Tahun {{ rka.tahun + 1 }}</span>
                                     </th>
-                                </tr>
-                                <tr>
-                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Belanja Operasi</th>
-                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Belanja Modal</th>
-                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Belanja Tidak Terduga</th>
-                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Belanja Transfer</th>
-                                    <th class="border-b border-r border-slate-400/70 px-2 py-2 dark:border-slate-600">Jumlah (Rp)</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -577,18 +565,6 @@ const statusLabel = (status: string) =>
                                     <td class="border-b border-r border-slate-300 px-2 py-2 text-right tabular-nums dark:border-slate-700">
                                         {{ rupiahTable(row.budget.previous) }}
                                     </td>
-                                    <td class="border-b border-r border-slate-300 px-2 py-2 text-right tabular-nums dark:border-slate-700">
-                                        {{ rupiahTable(row.budget.operational) }}
-                                    </td>
-                                    <td class="border-b border-r border-slate-300 px-2 py-2 text-right tabular-nums dark:border-slate-700">
-                                        {{ rupiahTable(row.budget.capital) }}
-                                    </td>
-                                    <td class="border-b border-r border-slate-300 px-2 py-2 text-right tabular-nums dark:border-slate-700">
-                                        {{ rupiahTable(row.budget.unexpected) }}
-                                    </td>
-                                    <td class="border-b border-r border-slate-300 px-2 py-2 text-right tabular-nums dark:border-slate-700">
-                                        {{ rupiahTable(row.budget.transfer) }}
-                                    </td>
                                     <td
                                         class="border-b border-r border-slate-300 px-2 py-2 text-right font-semibold tabular-nums dark:border-slate-700"
                                     >
@@ -599,7 +575,7 @@ const statusLabel = (status: string) =>
                                     </td>
                                 </tr>
                                 <tr v-if="!previewRows.length">
-                                    <td colspan="11" class="px-6 py-14 text-center text-sm text-slate-500">Belum ada rincian sub kegiatan.</td>
+                                    <td colspan="7" class="px-6 py-14 text-center text-sm text-slate-500">Belum ada rincian sub kegiatan.</td>
                                 </tr>
                             </tbody>
                             <tfoot class="bg-slate-200 font-extrabold dark:bg-slate-800">
@@ -611,18 +587,6 @@ const statusLabel = (status: string) =>
                                         {{ rupiahTable(previewTotal.previous) }}
                                     </td>
                                     <td class="border-r border-slate-400/70 px-2 py-3 text-right tabular-nums dark:border-slate-600">
-                                        {{ rupiahTable(previewTotal.operational) }}
-                                    </td>
-                                    <td class="border-r border-slate-400/70 px-2 py-3 text-right tabular-nums dark:border-slate-600">
-                                        {{ rupiahTable(previewTotal.capital) }}
-                                    </td>
-                                    <td class="border-r border-slate-400/70 px-2 py-3 text-right tabular-nums dark:border-slate-600">
-                                        {{ rupiahTable(previewTotal.unexpected) }}
-                                    </td>
-                                    <td class="border-r border-slate-400/70 px-2 py-3 text-right tabular-nums dark:border-slate-600">
-                                        {{ rupiahTable(previewTotal.transfer) }}
-                                    </td>
-                                    <td class="border-r border-slate-400/70 px-2 py-3 text-right tabular-nums dark:border-slate-600">
                                         {{ rupiahTable(previewTotal.total) }}
                                     </td>
                                     <td class="px-2 py-3 text-right tabular-nums">{{ rupiahTable(previewTotal.next) }}</td>
@@ -632,7 +596,7 @@ const statusLabel = (status: string) =>
                     </div>
                 </div>
                 <p class="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
-                    Nilai final Tahun {{ rka.tahun }} mengacu pada kolom Jumlah (Pagu RKA). Rincian jenis belanja tidak diinput pada modul ini.
+                    Preview menampilkan total Pagu RKA final tanpa rincian jenis belanja.
                 </p>
             </div>
         </section>

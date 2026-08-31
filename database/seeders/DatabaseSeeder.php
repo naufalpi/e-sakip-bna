@@ -82,6 +82,8 @@ class DatabaseSeeder extends Seeder
             ['name' => 'dpa.verify', 'label' => 'Verifikasi DPA OPD', 'module' => 'dpa'],
             ['name' => 'jabatan_organisasi.view', 'label' => 'Lihat Master Jabatan Organisasi', 'module' => 'jabatan_organisasi'],
             ['name' => 'jabatan_organisasi.manage', 'label' => 'Kelola Master Jabatan Organisasi', 'module' => 'jabatan_organisasi'],
+            ['name' => 'jabatan_organisasi.manage_opd', 'label' => 'Kelola Usulan Jabatan OPD', 'module' => 'jabatan_organisasi'],
+            ['name' => 'jabatan_organisasi.verify', 'label' => 'Verifikasi Jabatan Organisasi', 'module' => 'jabatan_organisasi'],
             ['name' => 'pejabat_jabatan.manage', 'label' => 'Kelola Pejabat dalam Jabatan', 'module' => 'jabatan_organisasi'],
             ['name' => 'pegawai.view', 'label' => 'Lihat Master Pegawai', 'module' => 'pegawai'],
             ['name' => 'pegawai.manage', 'label' => 'Kelola Pegawai dan Penempatan', 'module' => 'pegawai'],
@@ -115,7 +117,7 @@ class DatabaseSeeder extends Seeder
             'admin_kabupaten_bagian_organisasi' => [
                 'label' => 'Admin Kabupaten Bagian Organisasi',
                 'description' => 'Monitoring, validasi umum, dan melihat progres OPD.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'jabatan_organisasi.view', 'jabatan_organisasi.manage', 'pejabat_jabatan.manage', 'pegawai.view', 'pegawai.manage', 'users.view', 'periode.view', 'satuan.view', 'strategi.view', 'urusan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'rkpd.view', 'renja.view', 'rka.view', 'dpa.view', 'kinerja.view', 'evaluasi.view', 'dokumen.view', 'lkjip.view', 'laporan.view', 'export_laporan'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'jabatan_organisasi.view', 'jabatan_organisasi.manage', 'jabatan_organisasi.manage_opd', 'jabatan_organisasi.verify', 'pejabat_jabatan.manage', 'pegawai.view', 'pegawai.manage', 'users.view', 'periode.view', 'satuan.view', 'strategi.view', 'urusan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'view_renstra_opd', 'rkpd.view', 'renja.view', 'rka.view', 'dpa.view', 'kinerja.view', 'evaluasi.view', 'dokumen.view', 'lkjip.view', 'laporan.view', 'export_laporan'],
             ],
             'admin_kabupaten_bapperida' => [
                 'label' => 'Admin Kabupaten Bapperida',
@@ -135,12 +137,12 @@ class DatabaseSeeder extends Seeder
             'admin_kabupaten_dinkominfo' => [
                 'label' => 'Admin Kabupaten Dinkominfo',
                 'description' => 'Kelola master data umum, OPD, user, dan konfigurasi aplikasi.',
-                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'opd.manage', 'opd_units.manage', 'manage_opd', 'jabatan_organisasi.view', 'jabatan_organisasi.manage', 'pejabat_jabatan.manage', 'pegawai.view', 'pegawai.manage', 'users.view', 'users.manage', 'manage_users', 'roles.view', 'roles.manage', 'manage_roles', 'periode.view', 'periode.manage', 'lock_period', 'satuan.view', 'satuan.manage', 'strategi.view', 'strategi.manage', 'urusan.view', 'urusan.manage', 'manage_master_umum', 'settings.view', 'settings.manage', 'activity_logs.view'],
+                'permissions' => ['dashboard.view', 'view_dashboard_kabupaten', 'opd.view', 'opd.manage', 'opd_units.manage', 'manage_opd', 'jabatan_organisasi.view', 'jabatan_organisasi.manage', 'jabatan_organisasi.manage_opd', 'jabatan_organisasi.verify', 'pejabat_jabatan.manage', 'pegawai.view', 'pegawai.manage', 'users.view', 'users.manage', 'manage_users', 'roles.view', 'roles.manage', 'manage_roles', 'periode.view', 'periode.manage', 'lock_period', 'satuan.view', 'satuan.manage', 'strategi.view', 'strategi.manage', 'urusan.view', 'urusan.manage', 'manage_master_umum', 'settings.view', 'settings.manage', 'activity_logs.view'],
             ],
             'admin_opd' => [
                 'label' => 'Admin OPD',
                 'description' => 'Kelola data perencanaan dan kinerja OPD masing-masing.',
-                'permissions' => ['dashboard.view', 'view_dashboard_opd', 'opd.view', 'opd_units.manage', 'jabatan_organisasi.view', 'pejabat_jabatan.manage', 'pegawai.view', 'pegawai.manage', 'periode.view', 'satuan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'renstra.manage', 'view_renstra_opd', 'manage_renstra_opd', 'rkpd.view', 'renja.view', 'renja.manage', 'rka.view', 'rka.manage', 'dpa.view', 'dpa.manage', 'kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja', 'manage_rencana_aksi', 'input_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'evaluasi.view', 'lkjip.view', 'lkjip.manage', 'laporan.view', 'laporan.manage'],
+                'permissions' => ['dashboard.view', 'view_dashboard_opd', 'opd.view', 'opd_units.manage', 'jabatan_organisasi.view', 'jabatan_organisasi.manage_opd', 'pejabat_jabatan.manage', 'pegawai.view', 'pegawai.manage', 'periode.view', 'satuan.view', 'rpjmd.view', 'view_rpjmd', 'renstra.view', 'renstra.manage', 'view_renstra_opd', 'manage_renstra_opd', 'rkpd.view', 'renja.view', 'renja.manage', 'rka.view', 'rka.manage', 'dpa.view', 'dpa.manage', 'kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja', 'manage_rencana_aksi', 'input_realisasi', 'dokumen.view', 'dokumen.manage', 'manage_dokumen', 'evaluasi.view', 'lkjip.view', 'lkjip.manage', 'laporan.view', 'laporan.manage'],
             ],
             'pimpinan' => [
                 'label' => 'Pimpinan',

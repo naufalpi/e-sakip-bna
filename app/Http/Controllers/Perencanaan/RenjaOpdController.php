@@ -348,16 +348,18 @@ class RenjaOpdController extends Controller
     {
         return RenstraOpd::query()
             ->with('opd:id,nama,singkatan')
+            ->whereIn('status', ['approved', 'locked'])
             ->where('is_active_version', true)
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->orderByDesc('tahun_awal')
-            ->get(['id', 'opd_id', 'judul', 'tahun_awal', 'tahun_akhir'])
+            ->get(['id', 'opd_id', 'judul', 'tahun_awal', 'tahun_akhir', 'status'])
             ->map(fn (RenstraOpd $renstra) => [
                 'id' => $renstra->id,
                 'opd_id' => $renstra->opd_id,
                 'label' => "{$renstra->tahun_awal}-{$renstra->tahun_akhir} - ".($renstra->opd?->singkatan ?: $renstra->opd?->nama ?: $renstra->judul),
                 'tahun_awal' => $renstra->tahun_awal,
                 'tahun_akhir' => $renstra->tahun_akhir,
+                'status' => $renstra->status,
             ])
             ->all();
     }

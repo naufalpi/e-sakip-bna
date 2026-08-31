@@ -99,16 +99,18 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     pageComponent: 'Master/Opd/Index',
                     icon: Building2,
                 },
-                hasPermission('jabatan_organisasi.view') && !hasRole('admin_opd') && {
-                    title: 'Struktur Organisasi',
-                    href: '/master/jabatan-organisasi',
-                    pageComponent: 'Master/JabatanOrganisasi/Index',
-                    icon: BriefcaseBusiness,
-                },
+                hasPermission('jabatan_organisasi.view') &&
+                    !hasRole('admin_opd') && {
+                        title: 'Struktur Organisasi',
+                        href: '/master/jabatan-organisasi',
+                        pageComponent: 'Master/JabatanOrganisasi/Index',
+                        icon: BriefcaseBusiness,
+                    },
                 hasPermission('pegawai.view') && {
-                    title: 'Pegawai OPD',
+                    title: hasRole('admin_opd') ? 'Jabatan & Pegawai' : 'Pegawai OPD',
                     href: '/master/pegawai',
                     pageComponent: 'Master/Pegawai/Index',
+                    activePrefixes: hasRole('admin_opd') ? ['/master/pegawai', '/master/jabatan-organisasi'] : undefined,
                     icon: Users,
                 },
                 hasPermission('periode.view') && {
@@ -186,6 +188,23 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     href: '/dpa-opd',
                     pageComponent: 'DpaOpd/Index',
                     icon: FileCheck2,
+                },
+            ]),
+        },
+        {
+            label: 'Penetapan Kinerja',
+            items: visibleItems([
+                hasAnyPermission(['kinerja.view', 'kinerja.manage', 'manage_perjanjian_kinerja']) && {
+                    title: 'Perjanjian Kinerja',
+                    href: '/perjanjian-kinerja',
+                    pageComponent: 'Kinerja/PerjanjianKinerja/Index',
+                    icon: FileCheck2,
+                },
+                hasAnyPermission(['kinerja.view', 'kinerja.manage', 'manage_rencana_aksi']) && {
+                    title: 'Rencana Aksi',
+                    href: '/rencana-aksi',
+                    pageComponent: 'Kinerja/RencanaAksi/Index',
+                    icon: ClipboardList,
                 },
             ]),
         },

@@ -17,6 +17,7 @@ class PerjanjianKinerjaItem extends Model
     protected $fillable = [
         'perjanjian_kinerja_id',
         'sumber_item',
+        'jenis_item',
         'level_cascading',
         'cascading_source_type',
         'cascading_source_id',
@@ -24,18 +25,21 @@ class PerjanjianKinerjaItem extends Model
         'indikator_sasaran_opd_id',
         'opd_program_id',
         'satuan_indikator_id',
+        'satuan_snapshot',
         'kode',
         'sasaran',
         'indikator',
         'target',
         'target_text',
         'urutan',
+        'is_readonly',
     ];
 
     protected function casts(): array
     {
         return [
             'target' => 'decimal:4',
+            'is_readonly' => 'boolean',
         ];
     }
 

@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
-import { confirmDelete } from '@/lib/sweetAlert';
+import { confirmAction, confirmDelete, promptTextArea } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import ArrowLeft from 'lucide-vue-next/dist/esm/icons/arrow-left.js';
+import BadgeCheck from 'lucide-vue-next/dist/esm/icons/badge-check.js';
 import BriefcaseBusiness from 'lucide-vue-next/dist/esm/icons/briefcase-business.js';
 import Building2 from 'lucide-vue-next/dist/esm/icons/building-2.js';
 import CalendarRange from 'lucide-vue-next/dist/esm/icons/calendar-range.js';
 import CircleUserRound from 'lucide-vue-next/dist/esm/icons/circle-user-round.js';
+import CircleX from 'lucide-vue-next/dist/esm/icons/circle-x.js';
+import Clock3 from 'lucide-vue-next/dist/esm/icons/clock-3.js';
 import FileBadge2 from 'lucide-vue-next/dist/esm/icons/file-badge-2.js';
 import Network from 'lucide-vue-next/dist/esm/icons/network.js';
 import Pencil from 'lucide-vue-next/dist/esm/icons/pencil.js';
@@ -39,6 +42,9 @@ type Item = {
     eselon?: string | null;
     urutan: number;
     status: string;
+    verification_status: 'pending' | 'verified' | 'rejected';
+    verification_label: string;
+    verification_note?: string | null;
     opd?: { nama: string; singkatan?: string | null } | null;
     opd_unit?: { kode: string; nama: string } | null;
     parent?: { id: number; nama: string } | null;
@@ -68,6 +74,7 @@ const props = defineProps<{
         manage_officials: boolean;
         delete_officials: boolean;
         manage_people: boolean;
+        verify: boolean;
     };
 }>();
 
@@ -158,6 +165,41 @@ const destroyJabatan = async () => {
         router.delete(route('master.jabatan-organisasi.destroy', props.item.id));
     }
 };
+
+const approve = async () => {
+    if (
+        await confirmAction({
+            title: 'Verifikasi jabatan?',
+            text: `${props.item.nama} akan menjadi bagian struktur organisasi resmi.`,
+            confirmButtonText: 'Ya, verifikasi',
+        })
+    ) {
+        router.patch(
+            route('master.jabatan-organisasi.verify', props.item.id),
+            { verification_status: 'verified', verification_note: null },
+            { preserveScroll: true },
+        );
+    }
+};
+
+const reject = async () => {
+    const note = await promptTextArea({
+        title: 'Kembalikan usulan jabatan',
+        text: `Tuliskan bagian yang perlu diperbaiki pada ${props.item.nama}.`,
+        inputLabel: 'Catatan perbaikan',
+        inputPlaceholder: 'Jelaskan nomenklatur atau hierarki yang perlu diperbaiki.',
+        confirmButtonText: 'Kirim untuk diperbaiki',
+        minLength: 5,
+    });
+
+    if (note !== null) {
+        router.patch(
+            route('master.jabatan-organisasi.verify', props.item.id),
+            { verification_status: 'rejected', verification_note: note },
+            { preserveScroll: true },
+        );
+    }
+};
 </script>
 
 <template>
@@ -170,13 +212,31 @@ const destroyJabatan = async () => {
                 class="inline-flex h-9 items-center gap-2 rounded-lg border bg-card px-3 text-sm font-medium hover:bg-muted"
                 ><ArrowLeft class="size-4" /> Struktur Jabatan</Link
             >
-            <div v-if="can.manage_structure" class="flex items-center gap-2">
+            <div v-if="can.manage_structure || can.verify" class="flex flex-wrap items-center gap-2">
+                <button
+                    v-if="can.verify"
+                    type="button"
+                    class="inline-flex h-9 items-center gap-2 rounded-lg bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800"
+                    @click="approve"
+                >
+                    <BadgeCheck class="size-4" /> Verifikasi
+                </button>
+                <button
+                    v-if="can.verify && item.verification_status === 'pending'"
+                    type="button"
+                    class="inline-flex h-9 items-center gap-2 rounded-lg border border-rose-200 bg-card px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/30"
+                    @click="reject"
+                >
+                    <CircleX class="size-4" /> Perlu perbaikan
+                </button>
                 <Link
+                    v-if="can.manage_structure"
                     :href="route('master.jabatan-organisasi.edit', item.id)"
                     class="inline-flex h-9 items-center gap-2 rounded-lg border bg-card px-3 text-sm font-medium hover:bg-muted"
                     ><Pencil class="size-3.5" /> Edit</Link
                 >
                 <button
+                    v-if="can.manage_structure"
                     type="button"
                     class="inline-flex size-9 items-center justify-center rounded-lg border text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
                     title="Hapus jabatan"
@@ -184,6 +244,25 @@ const destroyJabatan = async () => {
                 >
                     <Trash2 class="size-3.5" />
                 </button>
+            </div>
+        </div>
+
+        <div
+            v-if="item.verification_status !== 'verified'"
+            class="flex items-start gap-3 rounded-xl border px-4 py-3 text-sm"
+            :class="
+                item.verification_status === 'pending'
+                    ? 'border-amber-200 bg-amber-50/70 text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100'
+                    : 'border-rose-200 bg-rose-50/70 text-rose-950 dark:border-rose-900 dark:bg-rose-950/20 dark:text-rose-100'
+            "
+        >
+            <Clock3 v-if="item.verification_status === 'pending'" class="mt-0.5 size-4 shrink-0" />
+            <CircleX v-else class="mt-0.5 size-4 shrink-0" />
+            <div>
+                <p class="font-semibold">{{ item.verification_label }}</p>
+                <p class="mt-0.5 text-xs leading-5 opacity-85">
+                    {{ item.verification_note || 'Jabatan sudah dapat dipakai untuk penempatan pegawai, tetapi belum menjadi struktur resmi.' }}
+                </p>
             </div>
         </div>
 
@@ -202,6 +281,18 @@ const destroyJabatan = async () => {
                                 :class="item.status === 'active' ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'"
                                 >{{ item.status === 'active' ? 'Aktif' : 'Nonaktif' }}</span
                             >
+                            <span>•</span>
+                            <span
+                                :class="
+                                    item.verification_status === 'verified'
+                                        ? 'text-emerald-700 dark:text-emerald-300'
+                                        : item.verification_status === 'pending'
+                                          ? 'text-amber-700 dark:text-amber-300'
+                                          : 'text-rose-700 dark:text-rose-300'
+                                "
+                            >
+                                {{ item.verification_label }}
+                            </span>
                         </div>
                         <h1 class="mt-2 text-2xl font-semibold leading-tight tracking-tight md:text-3xl">{{ item.nama }}</h1>
                         <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">

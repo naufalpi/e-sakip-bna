@@ -116,8 +116,6 @@ class RkaOpdTest extends TestCase
         [$renja] = $this->renja('ditetapkan', 'approved');
         $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA DINAS PENGUJIAN 2027']);
         $rka->items()->update([
-            'jenis_belanja' => 'operasi',
-            'pagu_belanja_operasi' => 2500000,
             'sumber_pendanaan' => 'Dana Alokasi Umum',
             'lokasi' => 'Kabupaten Banjarnegara',
         ]);
@@ -146,7 +144,11 @@ class RkaOpdTest extends TestCase
         @unlink($path);
 
         $this->assertIsString($worksheet);
-        $this->assertStringContainsString('BELANJA OPERASI', $worksheet);
+        $this->assertStringContainsString('TOTAL PAGU RKA', $worksheet);
+        $this->assertStringNotContainsString('BELANJA OPERASI', $worksheet);
+        $this->assertStringNotContainsString('BELANJA MODAL', $worksheet);
+        $this->assertStringNotContainsString('BELANJA TIDAK TERDUGA', $worksheet);
+        $this->assertStringNotContainsString('BELANJA TRANSFER', $worksheet);
         $this->assertStringContainsString('Urusan Pengujian', $worksheet);
         $this->assertStringContainsString('Sub Kegiatan Pengujian', $worksheet);
     }
@@ -189,8 +191,7 @@ class RkaOpdTest extends TestCase
 
         $preview = app(RkaPreviewTableService::class)->build($rka->fresh());
         $subActivity = collect($preview['rows'])->firstWhere('level', 'sub_kegiatan');
-        $this->assertSame(0.0, $subActivity['budget']['operational']);
-        $this->assertSame(0.0, $subActivity['budget']['capital']);
+        $this->assertSame(['previous', 'total', 'next'], array_keys($subActivity['budget']));
         $this->assertSame(2500000.0, $subActivity['budget']['total']);
     }
 

@@ -3,12 +3,11 @@
 namespace App\Services\Penganggaran;
 
 use App\Models\DpaOpd;
-use App\Models\DpaOpdItem;
 use Illuminate\Validation\ValidationException;
 
 class DpaReadinessService
 {
-    /** @return array{ready: bool, issues: array<int, string>, mismatched_items: int} */
+    /** @return array{ready: bool, issues: array<int, string>} */
     public function inspect(DpaOpd $dpa, bool $forApproval = false): array
     {
         $issues = [];
@@ -38,24 +37,14 @@ class DpaReadinessService
             }
         }
 
-        $dpa->loadMissing('items.cashPlans');
+        $dpa->loadMissing('items');
         if ($dpa->items->isEmpty()) {
             $issues[] = 'Rincian sub kegiatan belum tersedia';
-        }
-
-        $mismatched = $dpa->items->filter(function (DpaOpdItem $item): bool {
-            return $item->cashPlans->count() !== 12
-                || abs((float) $item->cashPlans->sum('jumlah') - (float) $item->pagu_dpa) > 0.01;
-        });
-
-        if ($mismatched->isNotEmpty()) {
-            $issues[] = $mismatched->count().' sub kegiatan memiliki rencana penarikan yang tidak sama dengan pagu DPA';
         }
 
         return [
             'ready' => $issues === [],
             'issues' => $issues,
-            'mismatched_items' => $mismatched->count(),
         ];
     }
 

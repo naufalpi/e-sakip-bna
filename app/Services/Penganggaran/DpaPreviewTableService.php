@@ -2,27 +2,26 @@
 
 namespace App\Services\Penganggaran;
 
-use App\Models\RkaOpd;
-use App\Models\RkaOpdItem;
+use App\Models\DpaOpd;
+use App\Models\DpaOpdItem;
 use Illuminate\Support\Collection;
 
-class RkaPreviewTableService
+class DpaPreviewTableService
 {
     /**
-     * @return array{rows: array<int, array<string, mixed>>, total: array<string, float>}
+     * @return array{rows: array<int, array<string, mixed>>, total: array{previous: float, total: float, next: float}}
      */
-    public function build(RkaOpd $rka): array
+    public function build(DpaOpd $dpa): array
     {
-        $rka->loadMissing(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama']);
-        $items = $rka->items()->get()->sort($this->compareItems(...))->values();
+        $items = $dpa->items()->get()->sort($this->compareItems(...))->values();
         $rows = [];
 
         if ($items->isNotEmpty()) {
             $rows[] = $this->row(
                 'opd',
-                'opd-'.$rka->id,
-                (string) ($rka->opd?->kode ?? ''),
-                (string) ($rka->opd?->nama ?? 'Perangkat Daerah'),
+                'opd-'.$dpa->id,
+                (string) ($dpa->opd?->kode ?? ''),
+                (string) ($dpa->opd?->nama ?? 'Perangkat Daerah'),
                 $items,
             );
         }
@@ -44,18 +43,13 @@ class RkaPreviewTableService
 
     /**
      * @param  array<int, array<string, mixed>>  $rows
-     * @param  Collection<int, RkaOpdItem>  $items
+     * @param  Collection<int, DpaOpdItem>  $items
      * @param  array<int, array{level: string, code: string, name: string, fallback: string}>  $levels
      */
-    private function appendLevelRows(
-        array &$rows,
-        Collection $items,
-        array $levels,
-        int $index,
-        string $parentKey,
-    ): void {
+    private function appendLevelRows(array &$rows, Collection $items, array $levels, int $index, string $parentKey): void
+    {
         if ($index >= count($levels)) {
-            $items->each(function (RkaOpdItem $item) use (&$rows): void {
+            $items->each(function (DpaOpdItem $item) use (&$rows): void {
                 $rows[] = [
                     ...$this->row(
                         'sub_kegiatan',
@@ -74,9 +68,9 @@ class RkaPreviewTableService
 
         $level = $levels[$index];
         $items
-            ->groupBy(fn (RkaOpdItem $item) => (string) $item->{$level['code']}.'|'.(string) $item->{$level['name']})
+            ->groupBy(fn (DpaOpdItem $item) => (string) $item->{$level['code']}.'|'.(string) $item->{$level['name']})
             ->each(function (Collection $group, string $groupKey) use (&$rows, $levels, $index, $parentKey, $level): void {
-                /** @var RkaOpdItem $first */
+                /** @var DpaOpdItem $first */
                 $first = $group->first();
                 $key = trim($parentKey.'-'.$level['level'].'-'.$groupKey, '-');
                 $rows[] = $this->row(
@@ -90,17 +84,9 @@ class RkaPreviewTableService
             });
     }
 
-    /**
-     * @param  Collection<int, RkaOpdItem>  $items
-     * @return array<string, mixed>
-     */
-    private function row(
-        string $level,
-        string $key,
-        string $code,
-        string $description,
-        Collection $items,
-    ): array {
+    /** @param Collection<int, DpaOpdItem> $items */
+    private function row(string $level, string $key, string $code, string $description, Collection $items): array
+    {
         return [
             'key' => $key,
             'level' => $level,
@@ -113,27 +99,19 @@ class RkaPreviewTableService
     }
 
     /**
-     * @param  Collection<int, RkaOpdItem>  $items
+     * @param  Collection<int, DpaOpdItem>  $items
      * @return array{previous: float, total: float, next: float}
      */
     private function budget(Collection $items): array
     {
-        $budget = [
-            'previous' => 0.0,
-            'total' => 0.0,
-            'next' => 0.0,
+        return [
+            'previous' => $items->sum(fn (DpaOpdItem $item): float => (float) $item->alokasi_tahun_sebelumnya),
+            'total' => $items->sum(fn (DpaOpdItem $item): float => (float) $item->pagu_dpa),
+            'next' => $items->sum(fn (DpaOpdItem $item): float => (float) $item->alokasi_tahun_berikutnya),
         ];
-
-        $items->each(function (RkaOpdItem $item) use (&$budget): void {
-            $budget['previous'] += (float) $item->alokasi_tahun_sebelumnya;
-            $budget['total'] += (float) $item->pagu_rka;
-            $budget['next'] += (float) $item->alokasi_tahun_berikutnya;
-        });
-
-        return $budget;
     }
 
-    private function compareItems(RkaOpdItem $left, RkaOpdItem $right): int
+    private function compareItems(DpaOpdItem $left, DpaOpdItem $right): int
     {
         foreach (['kode_urusan', 'kode_bidang', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan'] as $field) {
             $comparison = strnatcasecmp((string) $left->{$field}, (string) $right->{$field});

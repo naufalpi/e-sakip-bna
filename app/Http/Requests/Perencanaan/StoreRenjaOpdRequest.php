@@ -50,6 +50,7 @@ class StoreRenjaOpdRequest extends FormRequest
         if (! filled($renstraOpdId) && $tahun && $this->filled('opd_id')) {
             $renstraOpdId = RenstraOpd::query()
                 ->where('opd_id', $this->integer('opd_id'))
+                ->whereIn('status', ['approved', 'locked'])
                 ->where('is_active_version', true)
                 ->where('tahun_awal', '<=', $tahun)
                 ->where('tahun_akhir', '>=', $tahun)
@@ -77,7 +78,7 @@ class StoreRenjaOpdRequest extends FormRequest
     {
         return [
             'rkpd_id' => ['required', 'integer', 'exists:rkpd,id'],
-            'renstra_opd_id' => ['nullable', 'integer', 'exists:renstra_opd,id'],
+            'renstra_opd_id' => ['required', 'integer', 'exists:renstra_opd,id'],
             'opd_id' => ['required', 'integer', 'exists:opds,id'],
             'opd_unit_id' => ['nullable', 'integer', 'exists:opd_units,id'],
             'periode_tahun_id' => ['required', 'integer', 'exists:periode_tahun,id'],
@@ -125,12 +126,23 @@ class StoreRenjaOpdRequest extends FormRequest
 
                 if ($renstra && (int) $renstra->opd_id !== $this->integer('opd_id')) {
                     $validator->errors()->add('renstra_opd_id', 'RENSTRA acuan harus berasal dari OPD yang sama.');
-                } elseif ($renstra && (! $renstra->is_active_version
+                } elseif ($renstra && (! in_array($renstra->status, ['approved', 'locked'], true)
+                    || ! $renstra->is_active_version
                     || $renstra->tahun_awal > $this->integer('tahun')
                     || $renstra->tahun_akhir < $this->integer('tahun'))) {
-                    $validator->errors()->add('renstra_opd_id', 'Pilih RENSTRA aktif yang mencakup tahun RENJA.');
+                    $validator->errors()->add('renstra_opd_id', 'Pilih RENSTRA aktif yang sudah disetujui atau dikunci dan mencakup tahun RENJA.');
                 }
             }
         });
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'renstra_opd_id.required' => 'RENSTRA resmi wajib dipilih sebagai sumber RENJA.',
+        ];
     }
 }

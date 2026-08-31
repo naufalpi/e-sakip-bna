@@ -11,6 +11,7 @@ use App\Models\Opd;
 use App\Models\RkaOpd;
 use App\Models\User;
 use App\Services\Penganggaran\DpaCreationService;
+use App\Services\Penganggaran\DpaPreviewTableService;
 use App\Services\Penganggaran\DpaReadinessService;
 use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
@@ -91,8 +92,13 @@ class DpaOpdController extends Controller
             ->with('success', 'DPA berhasil dibuat dan rincian anggaran telah disalin dari RKA resmi.');
     }
 
-    public function show(Request $request, DpaOpd $dpaOpd, WorkflowDataService $workflowDataService, DpaReadinessService $readinessService): Response
-    {
+    public function show(
+        Request $request,
+        DpaOpd $dpaOpd,
+        WorkflowDataService $workflowDataService,
+        DpaReadinessService $readinessService,
+        DpaPreviewTableService $previewTableService,
+    ): Response {
         $this->authorize('view', $dpaOpd);
         $dpaOpd->load([
             'opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'periodeTahun:id,tahun,nama',
@@ -100,23 +106,19 @@ class DpaOpdController extends Controller
             'renjaOpd:id,judul,nomor_dokumen,tahun,jenis_versi,status',
             'rkpd:id,judul,tahun,jenis_versi,status',
         ]);
-        $items = $dpaOpd->items()->with('cashPlans')->orderBy('kode_program')->orderBy('kode_kegiatan')->orderBy('kode_sub_kegiatan')->orderBy('urutan')->get();
+        $items = $dpaOpd->items()->orderBy('kode_program')->orderBy('kode_kegiatan')->orderBy('kode_sub_kegiatan')->orderBy('urutan')->get();
         $serializedItems = $items->map(fn (DpaOpdItem $item) => $this->serializeItem($item))->values()->all();
         $workflow = $workflowDataService->forModel($dpaOpd, 'dpa_opd');
         $user = $request->user();
 
-        $monthlyTotals = collect(range(1, 12))->mapWithKeys(fn (int $month) => [
-            $month => $items->sum(fn (DpaOpdItem $item) => (float) ($item->cashPlans->firstWhere('bulan', $month)?->jumlah ?? 0)),
-        ])->all();
-
         return Inertia::render('DpaOpd/Show', [
             'dpa' => $this->serializeDpa($dpaOpd),
             'items' => $serializedItems,
+            'preview' => $previewTableService->build($dpaOpd),
             'summary' => [
                 'items_count' => count($serializedItems),
                 'pagu_rka' => $items->sum(fn (DpaOpdItem $item) => (float) $item->pagu_rka),
                 'pagu_dpa' => $items->sum(fn (DpaOpdItem $item) => (float) $item->pagu_dpa),
-                'monthly_totals' => $monthlyTotals,
             ],
             'submissionReadiness' => $readinessService->inspect($dpaOpd),
             'approvalReadiness' => $readinessService->inspect($dpaOpd, true),
@@ -141,7 +143,7 @@ class DpaOpdController extends Controller
             'mode' => 'edit',
             'dpa' => $this->serializeDpa($dpaOpd),
             'rkaOptions' => [],
-            'canVerify' => $request->user()->can('verifyBudget', $dpaOpd),
+            'canVerify' => $this->isVerificationMode($request->user(), $dpaOpd),
         ]);
     }
 
@@ -176,6 +178,12 @@ class DpaOpdController extends Controller
     {
         return $user->hasRole('admin_opd')
             && ! $user->hasAnyRole(['super_admin', 'admin_kabupaten_bagian_organisasi', 'admin_kabupaten_bapperida', 'admin_kabupaten_bpkad', 'admin_kabupaten_inspektorat']);
+    }
+
+    private function isVerificationMode(User $user, DpaOpd $dpaOpd): bool
+    {
+        return in_array($dpaOpd->status, ['submitted', 'verified'], true)
+            && ($user->isSuperAdmin() || $user->hasPermission('dpa.verify'));
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -238,9 +246,9 @@ class DpaOpdController extends Controller
                 'kode_program', 'nama_program', 'kode_kegiatan', 'nama_kegiatan', 'kode_sub_kegiatan',
                 'nama_sub_kegiatan', 'tolok_ukur_kinerja', 'target_kinerja', 'satuan_kinerja', 'sumber_pendanaan',
                 'lokasi', 'kelompok_sasaran', 'bulan_mulai', 'bulan_selesai', 'jenis_belanja',
-                'pagu_rka', 'pagu_dpa', 'alasan_penyesuaian', 'catatan', 'urutan',
+                'alokasi_tahun_sebelumnya', 'pagu_rka', 'pagu_dpa', 'alokasi_tahun_berikutnya',
+                'alasan_penyesuaian', 'catatan', 'urutan',
             ]),
-            'cash_plan' => $item->cashPlans->map(fn ($plan) => ['bulan' => $plan->bulan, 'jumlah' => $plan->jumlah])->values()->all(),
         ];
     }
 }

@@ -300,11 +300,15 @@ const confirmCreate = () => {
                             <span class="text-sm font-medium">Renstra OPD Acuan</span>
                             <select
                                 v-model="form.renstra_opd_id"
+                                required
                                 class="h-11 w-full min-w-0 truncate rounded-xl border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-[#00336C]/25"
                             >
-                                <option value="">Belum dihubungkan</option>
+                                <option value="">RENSTRA resmi belum tersedia</option>
                                 <option v-for="option in filteredRenstraOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                             </select>
+                            <span v-if="mode === 'create' && !form.renstra_opd_id" class="text-xs leading-5 text-amber-700 dark:text-amber-300"
+                                >RENJA hanya dapat dibuat dari RENSTRA aktif yang sudah disetujui atau dikunci.</span
+                            >
                             <span v-if="mode === 'create' && form.renstra_opd_id" class="text-xs leading-5 text-muted-foreground"
                                 >Sub kegiatan RENSTRA akan disalin satu kali saat RENJA dibuat. Program dan kegiatan yang sama akan dikelompokkan
                                 otomatis.</span

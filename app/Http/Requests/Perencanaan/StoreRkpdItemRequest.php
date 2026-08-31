@@ -32,7 +32,7 @@ class StoreRkpdItemRequest extends FormRequest
             'sub_kegiatan_pemerintahan_id' => ['required', 'integer', 'exists:sub_kegiatan_pemerintahan,id'],
             'program_rpjmd_id' => ['nullable', 'integer', 'exists:program_rpjmd,id'],
             'indikator' => ['nullable', 'string'],
-            'target_akhir_renstra' => ['nullable', 'string', 'max:255'],
+            'target_akhir_renstra' => ['nullable', 'string'],
             'realisasi_capaian_renja_tahun_lalu' => ['nullable', 'string', 'max:255'],
             'prakiraan_capaian_target_renja_tahun_berjalan' => ['nullable', 'string', 'max:255'],
             'target' => ['nullable', 'string', 'max:255'],

@@ -45,7 +45,7 @@ class PegawaiController extends Controller
                 'penempatan' => fn ($query) => $query
                     ->whereDate('tanggal_mulai', '<=', $today)
                     ->where(fn ($query) => $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $today))
-                    ->with('jabatanOrganisasi:id,nama,level_jabatan,opd_id,opd_unit_id')
+                    ->with('jabatanOrganisasi:id,nama,level_jabatan,opd_id,opd_unit_id,verification_status')
                     ->orderByDesc('tanggal_mulai'),
             ])
             ->withCount('penempatan')
@@ -75,6 +75,9 @@ class PegawaiController extends Controller
             ],
             'can' => [
                 'manage' => $user->hasPermission('pegawai.manage'),
+                'manage_jobs' => $user->hasPermission('jabatan_organisasi.manage')
+                    || $user->hasPermission('jabatan_organisasi.manage_opd'),
+                'opd_scoped' => $this->shouldLimitToUserOpd($user),
             ],
         ]);
     }
@@ -140,7 +143,7 @@ class PegawaiController extends Controller
             'opd:id,kode,nama,singkatan',
             'opdUnit:id,opd_id,kode,nama',
             'user:id,name,username,email',
-            'penempatan.jabatanOrganisasi:id,opd_id,opd_unit_id,parent_id,nama,level_jabatan,eselon,status',
+            'penempatan.jabatanOrganisasi:id,opd_id,opd_unit_id,parent_id,nama,level_jabatan,eselon,status,verification_status',
             'penugasanKinerja.periodeTahun:id,tahun,nama',
             'penugasanKinerja.penempatan.jabatanOrganisasi:id,nama,level_jabatan',
         ]);
@@ -161,6 +164,8 @@ class PegawaiController extends Controller
             'can' => [
                 'manage' => $canManage,
                 'delete' => $canManage && ! $this->shouldLimitToUserOpd($request->user()),
+                'manage_jobs' => $request->user()->hasPermission('jabatan_organisasi.manage')
+                    || $request->user()->hasPermission('jabatan_organisasi.manage_opd'),
             ],
         ]);
     }
@@ -259,6 +264,8 @@ class PegawaiController extends Controller
             'jabatanOptions' => $this->formJabatanOptions($user),
             'penugasanOptions' => RiwayatPejabatJabatan::penugasanOptions(),
             'scopeLocked' => $this->shouldLimitToUserOpd($user),
+            'canManageJobs' => $user->hasPermission('jabatan_organisasi.manage')
+                || $user->hasPermission('jabatan_organisasi.manage_opd'),
         ];
     }
 
@@ -266,23 +273,33 @@ class PegawaiController extends Controller
     {
         return JabatanOrganisasi::query()
             ->where('status', 'active')
+            ->whereIn('verification_status', ['verified', 'pending'])
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->orderByRaw("CASE level_jabatan WHEN 'kepala_daerah' THEN 0 WHEN 'jpt_pratama' THEN 1 WHEN 'administrator' THEN 2 WHEN 'pengawas' THEN 3 WHEN 'fungsional' THEN 4 ELSE 5 END")
             ->orderBy('opd_id')->orderBy('urutan')->orderBy('nama')
-            ->get(['id', 'opd_id', 'opd_unit_id', 'nama', 'level_jabatan'])
+            ->get(['id', 'opd_id', 'opd_unit_id', 'nama', 'level_jabatan', 'verification_status'])
             ->map(fn (JabatanOrganisasi $jabatan) => [
                 'id' => $jabatan->id,
                 'opd_id' => $jabatan->opd_id,
                 'opd_unit_id' => $jabatan->opd_unit_id,
-                'label' => $jabatan->nama,
+                'label' => $jabatan->nama.($jabatan->isPendingVerification() ? ' · menunggu verifikasi' : ''),
                 'level_label' => JabatanOrganisasi::levelLabels()[$jabatan->level_jabatan] ?? $jabatan->level_jabatan,
                 'multiple' => $jabatan->allowsMultipleHolders(),
+                'verification_status' => $jabatan->verification_status,
             ])->all();
     }
 
     private function resolveInitialJabatan(User $user, array $data, int $jabatanId): JabatanOrganisasi
     {
-        $jabatan = JabatanOrganisasi::query()->where('status', 'active')->findOrFail($jabatanId);
+        $jabatan = JabatanOrganisasi::query()
+            ->where('status', 'active')
+            ->findOrFail($jabatanId);
+
+        if (! in_array($jabatan->verification_status, ['verified', 'pending'], true)) {
+            throw ValidationException::withMessages([
+                'jabatan_organisasi_id' => 'Jabatan masih memerlukan perbaikan dan belum dapat dipakai untuk penempatan pegawai.',
+            ]);
+        }
 
         if ($this->shouldLimitToUserOpd($user) && (int) $jabatan->opd_id !== (int) $user->opd_id) {
             abort(403);
@@ -327,16 +344,19 @@ class PegawaiController extends Controller
         return JabatanOrganisasi::query()
             ->with('opd:id,nama,singkatan')
             ->where('status', 'active')
+            ->whereIn('verification_status', ['verified', 'pending'])
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $pegawai->opd_id))
             ->orderByRaw("CASE level_jabatan WHEN 'jpt_pratama' THEN 1 WHEN 'administrator' THEN 2 WHEN 'pengawas' THEN 3 WHEN 'fungsional' THEN 4 ELSE 5 END")
             ->orderBy('opd_id')->orderBy('urutan')->orderBy('nama')
-            ->get(['id', 'opd_id', 'opd_unit_id', 'nama', 'level_jabatan'])
+            ->get(['id', 'opd_id', 'opd_unit_id', 'nama', 'level_jabatan', 'verification_status'])
             ->map(fn (JabatanOrganisasi $jabatan) => [
                 'id' => $jabatan->id,
-                'label' => ($jabatan->opd?->singkatan ? "{$jabatan->opd->singkatan} · " : '').$jabatan->nama,
+                'label' => ($jabatan->opd?->singkatan ? "{$jabatan->opd->singkatan} · " : '').$jabatan->nama
+                    .($jabatan->isPendingVerification() ? ' · menunggu verifikasi' : ''),
                 'level' => $jabatan->level_jabatan,
                 'level_label' => JabatanOrganisasi::levelLabels()[$jabatan->level_jabatan] ?? $jabatan->level_jabatan,
                 'multiple' => $jabatan->allowsMultipleHolders(),
+                'verification_status' => $jabatan->verification_status,
             ])->all();
     }
 
@@ -418,6 +438,7 @@ class PegawaiController extends Controller
                 'level_jabatan' => $placement->jabatanOrganisasi->level_jabatan,
                 'level_label' => JabatanOrganisasi::levelLabels()[$placement->jabatanOrganisasi->level_jabatan] ?? $placement->jabatanOrganisasi->level_jabatan,
                 'multiple' => $placement->jabatanOrganisasi->allowsMultipleHolders(),
+                'verification_status' => $placement->jabatanOrganisasi->verification_status,
             ] : null,
             'jenis_penugasan' => $placement->jenis_penugasan,
             'jenis_penugasan_label' => collect(RiwayatPejabatJabatan::penugasanOptions())->pluck('label', 'value')[$placement->jenis_penugasan] ?? $placement->jenis_penugasan,

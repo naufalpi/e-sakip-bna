@@ -13,6 +13,10 @@ use InvalidArgumentException;
 
 class KinerjaReportContentService
 {
+    public function __construct(
+        private readonly PerjanjianKinerjaDocumentService $perjanjianKinerjaDocumentService,
+    ) {}
+
     /**
      * @return array{
      *     title: string,
@@ -50,65 +54,69 @@ class KinerjaReportContentService
 
     private function perjanjianKinerja(PerjanjianKinerja $pk): array
     {
-        $pk->loadMissing([
-            'opd:id,kode,nama,singkatan,nama_kepala,nip_kepala',
-            'periodeTahun:id,tahun,nama',
-            'renstraOpd:id,judul,tahun_awal,tahun_akhir',
-            'items.satuanIndikator:id,nama,simbol',
-            'items.opdProgram:id,kode,nama',
-        ]);
-
-        $opdName = $this->opdName($pk);
+        $document = $this->perjanjianKinerjaDocumentService->build($pk);
+        $opdName = $pk->level_pk === 'bupati'
+            ? 'Kabupaten Banjarnegara'
+            : $this->opdName($pk);
+        $matrixRows = collect($document['performance_groups'])->flatMap(function (array $group) {
+            return collect($group['indicators'])->map(fn (array $indicator, int $index) => [
+                $index === 0 ? (string) ($group['number'] ?? '-') : '',
+                $index === 0 ? (string) $group['performance'] : '',
+                (string) $indicator['name'],
+                trim((string) $indicator['target'].' '.($indicator['unit'] === '-' ? '' : $indicator['unit'])),
+            ]);
+        })->all();
+        $programRows = collect($document['programs'])->map(fn (array $program) => [
+            trim(($program['code'] ? $program['code'].' - ' : '').$program['name']),
+            $program['budget_label'],
+            $program['note'],
+        ])->all();
 
         return [
-            'title' => 'PERJANJIAN KINERJA',
+            'title' => 'PERJANJIAN KINERJA TAHUN '.$pk->tahun,
             'subtitle' => $opdName.' Tahun '.$pk->tahun,
             'filename' => $this->filename('perjanjian-kinerja', $opdName, $pk->tahun),
             'sections' => [
                 [
                     'heading' => 'Pernyataan Perjanjian Kinerja',
-                    'content' => collect([
-                        'Dokumen ini merupakan Perjanjian Kinerja '.$opdName.' Tahun '.$pk->tahun.' sebagai komitmen pencapaian sasaran strategis dan indikator kinerja yang telah ditetapkan.',
-                        'Target kinerja dalam dokumen ini menjadi dasar pelaksanaan rencana aksi, pengukuran capaian, pelaporan kinerja, serta evaluasi akuntabilitas kinerja perangkat daerah.',
-                    ])->implode("\n\n"),
+                    'content' => 'Dokumen ini merupakan komitmen pencapaian target kinerja Tahun '.$pk->tahun.' sesuai dokumen perencanaan dan anggaran yang telah ditetapkan.',
                 ],
                 [
-                    'heading' => 'Dasar Perencanaan',
-                    'content' => collect([
-                        'Periode: '.($pk->periodeTahun?->nama ?: $pk->tahun),
-                        'Renstra OPD: '.($pk->renstraOpd?->judul ?: 'Belum dikaitkan'),
-                        'Status dokumen: '.$this->statusLabel($pk->status),
-                        'Catatan: '.($pk->catatan ?: '-'),
-                    ])->implode("\n"),
-                ],
-                [
-                    'heading' => 'Lampiran',
-                    'content' => 'Lampiran matriks Perjanjian Kinerja memuat sasaran, indikator, target, satuan, dan program terkait sebagai bagian tidak terpisahkan dari dokumen ini.',
+                    'heading' => 'Sumber Data',
+                    'content' => $document['source_label'],
                 ],
             ],
             'tables' => [
                 [
                     'title' => 'Lampiran 1. Matriks Perjanjian Kinerja',
-                    'headers' => ['No', 'Sasaran', 'Indikator Kinerja', 'Target', 'Satuan', 'Program Terkait'],
-                    'rows' => $pk->items->isEmpty()
-                        ? [['-', 'Belum ada sasaran/indikator.', '-', '-', '-', '-']]
-                        : $pk->items->values()->map(fn ($item, int $index) => [
-                            (string) ($index + 1),
-                            (string) $item->sasaran,
-                            (string) $item->indikator,
-                            $this->targetText($item->target, $item->target_text),
-                            $item->satuanIndikator?->simbol ?: ($item->satuanIndikator?->nama ?: '-'),
-                            $item->opdProgram?->nama ?: '-',
-                        ])->all(),
+                    'headers' => ['No', 'Tujuan dan Sasaran Strategis', 'Indikator Kinerja', 'Target'],
+                    'rows' => $matrixRows ?: [['-', 'Belum ada tujuan/sasaran.', '-', '-']],
+                ],
+                [
+                    'title' => 'Lampiran 2. Program dan Anggaran',
+                    'headers' => ['Program', 'Anggaran', 'Keterangan'],
+                    'rows' => $programRows ?: [['Belum ada program.', 'Rp 0', '-']],
                 ],
             ],
-            'metadata' => $this->metadata($pk, 'perjanjian_kinerja', $opdName, [
-                ['label' => 'Nomor Dokumen', 'value' => $pk->nomor_dokumen ?: '-'],
-                ['label' => 'OPD', 'value' => $opdName],
-                ['label' => 'Tahun', 'value' => (string) $pk->tahun],
-                ['label' => 'Periode', 'value' => $pk->periodeTahun?->nama ?: (string) $pk->tahun],
-                ['label' => 'Status', 'value' => $this->statusLabel($pk->status)],
-            ]),
+            'metadata' => [
+                ...$this->metadata($pk, 'perjanjian_kinerja', $opdName, [
+                    ['label' => 'Nomor Dokumen', 'value' => $pk->nomor_dokumen ?: '-'],
+                    ['label' => 'Pemilik PK', 'value' => $document['first_party']['name']],
+                    ['label' => 'Tahun', 'value' => (string) $pk->tahun],
+                    ['label' => 'Status', 'value' => $this->statusLabel($pk->status)],
+                ]),
+                'layout' => 'perjanjian_kinerja',
+                'pk_document' => $document,
+                'agency_name' => $document['agency_name'],
+                'office_name' => $document['office_name'],
+                'address_line' => $document['address'],
+                'signature' => [
+                    'place_date' => $document['place_date'],
+                    'title' => $document['first_party']['position'],
+                    'name' => $document['first_party']['name'],
+                    'nip' => $document['first_party']['nip'] ?: '-',
+                ],
+            ],
         ];
     }
 

@@ -55,7 +55,11 @@ class ReportDocumentRenderService
         $options->set('isHtml5ParserEnabled', true);
 
         $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($this->html($report), 'UTF-8');
+        $html = data_get($report, 'metadata.layout') === 'perjanjian_kinerja'
+            ? view('reports.perjanjian-kinerja', ['report' => $report, 'browserPrint' => false])->render()
+            : $this->html($report);
+
+        $dompdf->loadHtml($html, 'UTF-8');
         $dompdf->setPaper('A4');
         $dompdf->render();
 

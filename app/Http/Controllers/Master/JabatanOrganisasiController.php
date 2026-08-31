@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Master\StoreJabatanOrganisasiRequest;
 use App\Http\Requests\Master\UpdateJabatanOrganisasiRequest;
+use App\Http\Requests\Master\VerifyJabatanOrganisasiRequest;
 use App\Models\JabatanOrganisasi;
 use App\Models\Opd;
 use App\Models\OpdUnit;
@@ -24,7 +25,7 @@ class JabatanOrganisasiController extends Controller
         abort_unless($request->user()->hasPermission('jabatan_organisasi.view'), 403);
 
         $user = $request->user();
-        $filters = $request->only(['search', 'opd_id', 'level_jabatan', 'status', 'keterisian']);
+        $filters = $request->only(['search', 'opd_id', 'level_jabatan', 'status', 'keterisian', 'verification_status']);
         $today = now()->toDateString();
         $baseQuery = $this->scopedQuery($user);
 
@@ -54,6 +55,7 @@ class JabatanOrganisasiController extends Controller
             ->when(($filters['opd_id'] ?? null) && ! $this->shouldLimitToUserOpd($user), fn (Builder $query, string $opdId) => $query->where('opd_id', $opdId))
             ->when($filters['level_jabatan'] ?? null, fn (Builder $query, string $level) => $query->where('level_jabatan', $level))
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
+            ->when($filters['verification_status'] ?? null, fn (Builder $query, string $status) => $query->where('verification_status', $status))
             ->when($filters['keterisian'] ?? null, function (Builder $query, string $keterisian) use ($today) {
                 $method = $keterisian === 'terisi' ? 'whereHas' : 'whereDoesntHave';
                 $query->{$method}('riwayatPejabat', fn (Builder $query) => $this->currentPejabatConstraint($query, $today));
@@ -64,7 +66,7 @@ class JabatanOrganisasiController extends Controller
             ->orderBy('nama')
             ->paginate(15)
             ->withQueryString()
-            ->through(fn (JabatanOrganisasi $jabatan) => $this->serialize($jabatan));
+            ->through(fn (JabatanOrganisasi $jabatan) => $this->serialize($jabatan, false, $user));
 
         $activeQuery = (clone $baseQuery)->where('status', 'active');
         $occupied = (clone $activeQuery)
@@ -81,30 +83,45 @@ class JabatanOrganisasiController extends Controller
                 'active' => (clone $activeQuery)->count(),
                 'occupied' => $occupied,
                 'vacant' => max(0, (clone $activeQuery)->count() - $occupied),
+                'pending' => (clone $baseQuery)->where('verification_status', 'pending')->count(),
             ],
             'can' => [
-                'manage' => $user->hasPermission('jabatan_organisasi.manage'),
+                'create' => $this->canCreate($user),
+                'import' => $this->isCentralManager($user),
+                'verify' => $user->hasPermission('jabatan_organisasi.verify'),
+                'manage_people' => $user->hasPermission('pegawai.view'),
+                'opd_scoped' => $this->shouldLimitToUserOpd($user),
             ],
         ]);
     }
 
     public function create(Request $request): Response
     {
-        abort_unless($request->user()->hasPermission('jabatan_organisasi.manage'), 403);
+        abort_unless($this->canCreate($request->user()), 403);
 
         return Inertia::render('Master/JabatanOrganisasi/Form', $this->formProps($request->user(), null));
     }
 
     public function store(StoreJabatanOrganisasiRequest $request): RedirectResponse
     {
-        $data = $request->validated();
+        $user = $request->user();
+        abort_unless($this->canCreate($user), 403);
+        $data = $this->normalizeScopedData($user, $request->validated());
         $this->assertHierarchyValid($data);
+
+        if ($this->isCentralManager($user)) {
+            $data = [...$data, 'verification_status' => 'verified', 'proposed_by' => $user->id, 'verified_by' => $user->id, 'verified_at' => now(), 'verification_note' => null];
+        } else {
+            $data = [...$data, 'verification_status' => 'pending', 'proposed_by' => $user->id, 'verified_by' => null, 'verified_at' => null, 'verification_note' => null];
+        }
 
         $jabatan = JabatanOrganisasi::create($data);
 
         return redirect()
             ->route('master.jabatan-organisasi.show', $jabatan)
-            ->with('success', 'Jabatan organisasi berhasil ditambahkan.');
+            ->with('success', $jabatan->isVerified()
+                ? 'Jabatan organisasi berhasil ditambahkan.'
+                : 'Usulan jabatan berhasil disimpan dan menunggu verifikasi Admin Kabupaten.');
     }
 
     public function show(Request $request, JabatanOrganisasi $jabatanOrganisasi): Response
@@ -118,15 +135,18 @@ class JabatanOrganisasiController extends Controller
             'opdUnit:id,opd_id,kode,nama',
             'parent:id,nama,level_jabatan',
             'children:id,parent_id,nama,level_jabatan,status',
+            'proposedBy:id,name',
+            'verifiedBy:id,name',
             'riwayatPejabat.user:id,name,email',
         ]);
 
         return Inertia::render('Master/JabatanOrganisasi/Show', [
-            'item' => $this->serialize($jabatanOrganisasi, true),
+            'item' => $this->serialize($jabatanOrganisasi, true, $user),
             'penugasanOptions' => RiwayatPejabatJabatan::penugasanOptions(),
             'userOptions' => $this->userOptions($jabatanOrganisasi),
             'can' => [
-                'manage_structure' => $user->hasPermission('jabatan_organisasi.manage'),
+                'manage_structure' => $this->canEdit($user, $jabatanOrganisasi),
+                'verify' => $user->hasPermission('jabatan_organisasi.verify') && ! $jabatanOrganisasi->isVerified(),
                 'manage_officials' => false,
                 'delete_officials' => false,
                 'manage_people' => $user->hasPermission('pegawai.view'),
@@ -136,8 +156,8 @@ class JabatanOrganisasiController extends Controller
 
     public function edit(Request $request, JabatanOrganisasi $jabatanOrganisasi): Response
     {
-        abort_unless($request->user()->hasPermission('jabatan_organisasi.manage'), 403);
         $this->abortUnlessInScope($request->user(), $jabatanOrganisasi);
+        abort_unless($this->canEdit($request->user(), $jabatanOrganisasi), 403);
 
         return Inertia::render('Master/JabatanOrganisasi/Form', $this->formProps($request->user(), $jabatanOrganisasi));
     }
@@ -145,20 +165,27 @@ class JabatanOrganisasiController extends Controller
     public function update(UpdateJabatanOrganisasiRequest $request, JabatanOrganisasi $jabatanOrganisasi): RedirectResponse
     {
         $this->abortUnlessInScope($request->user(), $jabatanOrganisasi);
-        $data = $request->validated();
+        abort_unless($this->canEdit($request->user(), $jabatanOrganisasi), 403);
+        $data = $this->normalizeScopedData($request->user(), $request->validated());
         $this->assertHierarchyValid($data, $jabatanOrganisasi);
+
+        if (! $this->isCentralManager($request->user())) {
+            $data = [...$data, 'verification_status' => 'pending', 'proposed_by' => $request->user()->id, 'verified_by' => null, 'verified_at' => null, 'verification_note' => null];
+        }
 
         $jabatanOrganisasi->update($data);
 
         return redirect()
             ->route('master.jabatan-organisasi.show', $jabatanOrganisasi)
-            ->with('success', 'Jabatan organisasi berhasil diperbarui.');
+            ->with('success', $this->isCentralManager($request->user())
+                ? 'Jabatan organisasi berhasil diperbarui.'
+                : 'Usulan jabatan berhasil diperbarui dan dikirim kembali untuk diverifikasi.');
     }
 
     public function destroy(Request $request, JabatanOrganisasi $jabatanOrganisasi): RedirectResponse
     {
-        abort_unless($request->user()->hasPermission('jabatan_organisasi.manage'), 403);
         $this->abortUnlessInScope($request->user(), $jabatanOrganisasi);
+        abort_unless($this->canEdit($request->user(), $jabatanOrganisasi), 403);
 
         if ($jabatanOrganisasi->children()->exists()) {
             return back()->with('error', 'Jabatan belum dapat dihapus karena masih menjadi atasan jabatan lain.');
@@ -171,6 +198,30 @@ class JabatanOrganisasiController extends Controller
         $jabatanOrganisasi->delete();
 
         return redirect()->route('master.jabatan-organisasi.index')->with('success', 'Jabatan organisasi berhasil dihapus.');
+    }
+
+    public function verify(VerifyJabatanOrganisasiRequest $request, JabatanOrganisasi $jabatanOrganisasi): RedirectResponse
+    {
+        $data = $request->validated();
+        $status = $data['verification_status'];
+
+        if ($status === 'verified' && $jabatanOrganisasi->parent_id
+            && ! JabatanOrganisasi::query()->whereKey($jabatanOrganisasi->parent_id)->where('verification_status', 'verified')->exists()) {
+            throw ValidationException::withMessages([
+                'verification_status' => 'Verifikasi dahulu jabatan atasan agar struktur resmi terbentuk dari atas ke bawah.',
+            ]);
+        }
+
+        $jabatanOrganisasi->update([
+            'verification_status' => $status,
+            'verification_note' => $status === 'rejected' ? $data['verification_note'] : null,
+            'verified_by' => $request->user()->id,
+            'verified_at' => now(),
+        ]);
+
+        return back()->with('success', $status === 'verified'
+            ? 'Usulan jabatan telah diverifikasi.'
+            : 'Usulan jabatan dikembalikan kepada Admin OPD untuk diperbaiki.');
     }
 
     private function scopedQuery(User $user): Builder
@@ -196,6 +247,51 @@ class JabatanOrganisasiController extends Controller
     private function shouldLimitToUserUnit(User $user): bool
     {
         return $this->shouldLimitToUserOpd($user) && filled($user->opd_unit_id);
+    }
+
+    private function isCentralManager(User $user): bool
+    {
+        return $user->hasPermission('jabatan_organisasi.manage');
+    }
+
+    private function canCreate(User $user): bool
+    {
+        return $this->isCentralManager($user)
+            || ($this->shouldLimitToUserOpd($user) && $user->hasPermission('jabatan_organisasi.manage_opd'));
+    }
+
+    private function canEdit(User $user, JabatanOrganisasi $jabatan): bool
+    {
+        if ($this->isCentralManager($user)) {
+            return true;
+        }
+
+        return $this->shouldLimitToUserOpd($user)
+            && $user->hasPermission('jabatan_organisasi.manage_opd')
+            && (int) $jabatan->opd_id === (int) $user->opd_id
+            && in_array($jabatan->verification_status, ['pending', 'rejected'], true);
+    }
+
+    private function normalizeScopedData(User $user, array $data): array
+    {
+        if (! $this->shouldLimitToUserOpd($user)) {
+            return $data;
+        }
+
+        if (! $user->opd_id) {
+            abort(403, 'Admin OPD belum terhubung dengan perangkat daerah.');
+        }
+
+        if (($data['level_jabatan'] ?? null) === 'kepala_daerah') {
+            throw ValidationException::withMessages(['level_jabatan' => 'Admin OPD tidak dapat mengusulkan jabatan Kepala Daerah.']);
+        }
+
+        $data['opd_id'] = $user->opd_id;
+        if ($this->shouldLimitToUserUnit($user)) {
+            $data['opd_unit_id'] = $user->opd_unit_id;
+        }
+
+        return $data;
     }
 
     private function abortUnlessInScope(User $user, JabatanOrganisasi $jabatan): void
@@ -241,7 +337,10 @@ class JabatanOrganisasiController extends Controller
             throw ValidationException::withMessages(['parent_id' => 'Atasan langsung wajib dipilih agar rantai akuntabilitas kinerja terbentuk.']);
         }
 
-        $parent = JabatanOrganisasi::query()->findOrFail($parentId);
+        $parent = JabatanOrganisasi::query()
+            ->where('status', 'active')
+            ->where('verification_status', '!=', 'rejected')
+            ->findOrFail($parentId);
         if ($current && (int) $parent->id === (int) $current->id) {
             throw ValidationException::withMessages(['parent_id' => 'Jabatan tidak dapat menjadi atasan untuk dirinya sendiri.']);
         }
@@ -298,12 +397,16 @@ class JabatanOrganisasiController extends Controller
 
         return [
             'mode' => $jabatan ? 'edit' : 'create',
-            'item' => $jabatan ? $this->serialize($jabatan) : null,
+            'item' => $jabatan ? $this->serialize($jabatan, false, $user) : null,
             'opdOptions' => $this->opdOptions($user),
             'unitOptions' => $this->unitOptions($user),
             'parentOptions' => $this->parentOptions($user, $jabatan),
-            'levelOptions' => JabatanOrganisasi::levelOptions(),
+            'levelOptions' => collect(JabatanOrganisasi::levelOptions())
+                ->when($this->shouldLimitToUserOpd($user), fn ($items) => $items->where('value', '!=', 'kepala_daerah'))
+                ->values()->all(),
             'eselonOptions' => JabatanOrganisasi::eselonOptions(),
+            'scopeLocked' => $this->shouldLimitToUserOpd($user),
+            'isOpdProposal' => ! $this->isCentralManager($user),
         ];
     }
 
@@ -338,10 +441,15 @@ class JabatanOrganisasiController extends Controller
 
     private function parentOptions(User $user, ?JabatanOrganisasi $current = null): array
     {
-        return $this->scopedQuery($user)
-            ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->orWhere('level_jabatan', 'kepala_daerah'))
+        return JabatanOrganisasi::query()
+            ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where(
+                fn (Builder $query) => $query
+                    ->where('opd_id', $user->opd_id)
+                    ->orWhere('level_jabatan', 'kepala_daerah')
+            ))
             ->when($current, fn (Builder $query) => $query->whereKeyNot($current->id))
             ->where('status', 'active')
+            ->where('verification_status', '!=', 'rejected')
             ->orderBy('opd_id')->orderBy('urutan')->orderBy('nama')
             ->get(['id', 'opd_id', 'nama', 'level_jabatan'])
             ->map(fn (JabatanOrganisasi $jabatan) => [
@@ -366,7 +474,7 @@ class JabatanOrganisasiController extends Controller
             ])->all();
     }
 
-    private function serialize(JabatanOrganisasi $jabatan, bool $withHistory = false): array
+    private function serialize(JabatanOrganisasi $jabatan, bool $withHistory = false, ?User $actor = null): array
     {
         $today = now()->startOfDay();
         $currentPejabatItems = $jabatan->relationLoaded('riwayatPejabat')
@@ -386,6 +494,15 @@ class JabatanOrganisasiController extends Controller
             'eselon' => $jabatan->eselon,
             'urutan' => $jabatan->urutan,
             'status' => $jabatan->status,
+            'verification_status' => $jabatan->verification_status,
+            'verification_label' => JabatanOrganisasi::verificationLabels()[$jabatan->verification_status] ?? $jabatan->verification_status,
+            'verification_note' => $jabatan->verification_note,
+            'verified_at' => $jabatan->verified_at?->timezone(config('app.timezone'))->format('d M Y H:i'),
+            'proposed_by' => $jabatan->relationLoaded('proposedBy') && $jabatan->proposedBy ? ['id' => $jabatan->proposedBy->id, 'name' => $jabatan->proposedBy->name] : null,
+            'verified_by' => $jabatan->relationLoaded('verifiedBy') && $jabatan->verifiedBy ? ['id' => $jabatan->verifiedBy->id, 'name' => $jabatan->verifiedBy->name] : null,
+            'can_edit' => $actor ? $this->canEdit($actor, $jabatan) : false,
+            'can_delete' => $actor ? $this->canEdit($actor, $jabatan) : false,
+            'can_verify' => $actor ? $actor->hasPermission('jabatan_organisasi.verify') && ! $jabatan->isVerified() : false,
             'children_count' => $jabatan->children_count ?? ($jabatan->relationLoaded('children') ? $jabatan->children->count() : null),
             'opd' => $jabatan->opd ? [
                 'id' => $jabatan->opd->id,

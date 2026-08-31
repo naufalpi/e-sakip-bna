@@ -11,7 +11,7 @@ import UsersRound from 'lucide-vue-next/dist/esm/icons/users-round.js';
 import { reactive } from 'vue';
 
 type Option = { id?: number; value?: string; label: string };
-type Placement = { id: number; jabatan?: { nama: string; level_label: string } | null };
+type Placement = { id: number; jabatan?: { nama: string; level_label: string; verification_status?: string } | null };
 type Row = {
     id: number;
     nama: string;
@@ -40,7 +40,7 @@ const props = defineProps<{
     opdOptions: Option[];
     jenisOptions: Option[];
     stats: { total: number; active: number; withPlacement: number };
-    can: { manage: boolean };
+    can: { manage: boolean; manage_jobs: boolean; opd_scoped: boolean };
 }>();
 
 const filterForm = reactive({
@@ -61,6 +61,21 @@ const resetFilters = () => {
     <Head title="Pegawai OPD" />
 
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 md:p-6">
+        <nav
+            v-if="can.manage_jobs && can.opd_scoped"
+            class="inline-flex w-fit rounded-lg border bg-card p-1 text-sm shadow-sm"
+            aria-label="Kelola jabatan dan pegawai"
+        >
+            <Link :href="route('master.pegawai.index')" class="rounded-md bg-blue-800 px-4 py-2 font-semibold text-white dark:bg-blue-600">
+                Pegawai
+            </Link>
+            <Link
+                :href="route('master.jabatan-organisasi.index')"
+                class="rounded-md px-4 py-2 font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+                Jabatan di OPD
+            </Link>
+        </nav>
         <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="flex items-start gap-3">
                 <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-800 text-white shadow-sm dark:bg-blue-600">
@@ -172,6 +187,18 @@ const resetFilters = () => {
                                     <div v-for="placement in item.current_placements.slice(0, 2)" :key="placement.id">
                                         <p class="font-medium leading-5">{{ placement.jabatan?.nama }}</p>
                                         <p class="text-[11px] text-muted-foreground">{{ placement.jabatan?.level_label }}</p>
+                                        <p
+                                            v-if="placement.jabatan?.verification_status === 'pending'"
+                                            class="text-[10px] font-semibold text-amber-700 dark:text-amber-300"
+                                        >
+                                            Menunggu verifikasi jabatan
+                                        </p>
+                                        <p
+                                            v-else-if="placement.jabatan?.verification_status === 'rejected'"
+                                            class="text-[10px] font-semibold text-rose-700 dark:text-rose-300"
+                                        >
+                                            Jabatan perlu diperbaiki
+                                        </p>
                                     </div>
                                     <p v-if="item.current_placements.length > 2" class="text-xs font-medium text-blue-700">
                                         +{{ item.current_placements.length - 2 }} jabatan lain

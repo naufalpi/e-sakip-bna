@@ -59,7 +59,7 @@ class RkaPreviewExcelExportService
     /** @param array{rows: array<int, array<string, mixed>>, total: array<string, float>} $preview */
     private function worksheetXml(RkaOpd $rka, array $preview): string
     {
-        $dataStart = 14;
+        $dataStart = 13;
         $footerRow = $dataStart + max(1, count($preview['rows']));
         $lastRow = max($footerRow, $dataStart);
         $sheetData = $this->documentHeaderRows($rka).$this->tableHeaderRows($rka);
@@ -69,15 +69,15 @@ class RkaPreviewExcelExportService
         }
 
         if ($preview['rows'] === []) {
-            $sheetData .= '<row r="14" ht="34" customHeight="1">'.$this->inlineCell('A14', 'Belum ada rincian sub kegiatan.', 12).'</row>';
+            $sheetData .= '<row r="13" ht="34" customHeight="1">'.$this->inlineCell('A13', 'Belum ada rincian sub kegiatan.', 12).'</row>';
         }
 
         $sheetData .= $this->footerRow($footerRow, $preview['total']);
 
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-            .'<dimension ref="A1:K'.$lastRow.'"/>'
-            .'<sheetViews><sheetView workbookViewId="0"><pane ySplit="13" topLeftCell="A14" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+            .'<dimension ref="A1:G'.$lastRow.'"/>'
+            .'<sheetViews><sheetView workbookViewId="0"><pane ySplit="12" topLeftCell="A13" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
             .'<sheetFormatPr defaultRowHeight="18"/>'
             .$this->columnsXml()
             .'<sheetData>'.$sheetData.'</sheetData>'
@@ -96,7 +96,7 @@ class RkaPreviewExcelExportService
 
         return '<row r="1" ht="22" customHeight="1">'
             .$this->inlineCell('A1', 'RENCANA KERJA DAN ANGGARAN', 1)
-            .$this->inlineCell('J1', "REKAPITULASI\nRKA-BELANJA\nSKPD", 2)
+            .$this->inlineCell('F1', "REKAPITULASI\nRKA-BELANJA\nSKPD", 2)
             .'</row>'
             .'<row r="2" ht="22" customHeight="1">'.$this->inlineCell('A2', 'SATUAN KERJA PERANGKAT DAERAH', 1).'</row>'
             .'<row r="3" ht="22" customHeight="1">'.$this->inlineCell('A3', 'Pemerintah Kabupaten Banjarnegara Tahun Anggaran '.$rka->tahun, 2).'</row>'
@@ -116,19 +116,12 @@ class RkaPreviewExcelExportService
             .$this->inlineCell('B11', 'URAIAN', 6)
             .$this->inlineCell('C11', 'SUMBER DANA', 6)
             .$this->inlineCell('D11', 'LOKASI', 6)
-            .$this->inlineCell('E11', 'JUMLAH', 6)
+            .$this->inlineCell('E11', 'JUMLAH ANGGARAN', 6)
             .'</row>'
-            .'<row r="12" ht="24" customHeight="1">'
-            .$this->inlineCell('E12', 'TAHUN '.($rka->tahun - 1), 6)
-            .$this->inlineCell('F12', 'TAHUN '.$rka->tahun, 6)
-            .$this->inlineCell('K12', 'TAHUN '.($rka->tahun + 1), 6)
-            .'</row>'
-            .'<row r="13" ht="38" customHeight="1">'
-            .$this->inlineCell('F13', 'BELANJA OPERASI', 6)
-            .$this->inlineCell('G13', 'BELANJA MODAL', 6)
-            .$this->inlineCell('H13', 'BELANJA TIDAK TERDUGA', 6)
-            .$this->inlineCell('I13', 'BELANJA TRANSFER', 6)
-            .$this->inlineCell('J13', 'JUMLAH (RP)', 6)
+            .'<row r="12" ht="38" customHeight="1">'
+            .$this->inlineCell('E12', "ALOKASI TAHUN-1\nTAHUN ".($rka->tahun - 1), 6)
+            .$this->inlineCell('F12', "TOTAL PAGU RKA\nTAHUN ".$rka->tahun, 6)
+            .$this->inlineCell('G12', "ALOKASI TAHUN+1\nTAHUN ".($rka->tahun + 1), 6)
             .'</row>';
     }
 
@@ -146,12 +139,8 @@ class RkaPreviewExcelExportService
             .$this->inlineCell('C'.$rowNumber, (string) $row['source'], $textStyle)
             .$this->inlineCell('D'.$rowNumber, (string) $row['location'], $textStyle)
             .$this->numberCell('E'.$rowNumber, (float) $budget['previous'], $numberStyle)
-            .$this->numberCell('F'.$rowNumber, (float) $budget['operational'], $numberStyle)
-            .$this->numberCell('G'.$rowNumber, (float) $budget['capital'], $numberStyle)
-            .$this->numberCell('H'.$rowNumber, (float) $budget['unexpected'], $numberStyle)
-            .$this->numberCell('I'.$rowNumber, (float) $budget['transfer'], $numberStyle)
-            .$this->numberCell('J'.$rowNumber, (float) $budget['total'], $numberStyle)
-            .$this->numberCell('K'.$rowNumber, (float) $budget['next'], $numberStyle)
+            .$this->numberCell('F'.$rowNumber, (float) $budget['total'], $numberStyle)
+            .$this->numberCell('G'.$rowNumber, (float) $budget['next'], $numberStyle)
             .'</row>';
     }
 
@@ -161,12 +150,8 @@ class RkaPreviewExcelExportService
         return '<row r="'.$rowNumber.'" ht="28" customHeight="1">'
             .$this->inlineCell('A'.$rowNumber, 'JUMLAH ANGGARAN BELANJA', 19)
             .$this->numberCell('E'.$rowNumber, $total['previous'], 20)
-            .$this->numberCell('F'.$rowNumber, $total['operational'], 20)
-            .$this->numberCell('G'.$rowNumber, $total['capital'], 20)
-            .$this->numberCell('H'.$rowNumber, $total['unexpected'], 20)
-            .$this->numberCell('I'.$rowNumber, $total['transfer'], 20)
-            .$this->numberCell('J'.$rowNumber, $total['total'], 20)
-            .$this->numberCell('K'.$rowNumber, $total['next'], 20)
+            .$this->numberCell('F'.$rowNumber, $total['total'], 20)
+            .$this->numberCell('G'.$rowNumber, $total['next'], 20)
             .'</row>';
     }
 
@@ -177,15 +162,15 @@ class RkaPreviewExcelExportService
             .'<col min="2" max="2" width="46" customWidth="1"/>'
             .'<col min="3" max="3" width="14" customWidth="1"/>'
             .'<col min="4" max="4" width="17" customWidth="1"/>'
-            .'<col min="5" max="11" width="15" customWidth="1"/>'
+            .'<col min="5" max="7" width="18" customWidth="1"/>'
             .'</cols>';
     }
 
     private function mergeCellsXml(int $footerRow): string
     {
         $merges = [
-            'A1:I1', 'A2:I2', 'A3:I3', 'J1:K3', 'C5:K5', 'C6:K6', 'A8:K8', 'A9:K9',
-            'A11:A13', 'B11:B13', 'C11:C13', 'D11:D13', 'E11:K11', 'E12:E13', 'F12:J12', 'K12:K13',
+            'A1:E1', 'A2:E2', 'A3:E3', 'F1:G3', 'C5:G5', 'C6:G6', 'A8:G8', 'A9:G9',
+            'A11:A12', 'B11:B12', 'C11:C12', 'D11:D12', 'E11:G11',
             'A'.$footerRow.':D'.$footerRow,
         ];
 

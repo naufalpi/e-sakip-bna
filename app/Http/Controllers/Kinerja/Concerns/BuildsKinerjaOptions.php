@@ -77,10 +77,13 @@ trait BuildsKinerjaOptions
             ->when($opdId, fn (Builder $query) => $query->where('opd_id', $opdId))
             ->whereIn('status', self::APPROVED_PLANNING_STATUSES)
             ->orderByDesc('tahun_awal')
-            ->get(['id', 'opd_id', 'judul', 'tahun_awal', 'tahun_akhir'])
+            ->get(['id', 'opd_id', 'periode_tahun_id', 'judul', 'tahun_awal', 'tahun_akhir'])
             ->map(fn (RenstraOpd $renstra) => [
                 'id' => $renstra->id,
                 'opd_id' => $renstra->opd_id,
+                'periode_tahun_id' => $renstra->periode_tahun_id,
+                'tahun_awal' => $renstra->tahun_awal,
+                'tahun_akhir' => $renstra->tahun_akhir,
                 'label' => "{$renstra->tahun_awal}-{$renstra->tahun_akhir} - {$renstra->judul}",
             ])
             ->all();

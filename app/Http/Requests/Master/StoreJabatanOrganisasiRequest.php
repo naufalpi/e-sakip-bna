@@ -10,7 +10,8 @@ class StoreJabatanOrganisasiRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->hasPermission('jabatan_organisasi.manage');
+        return $this->user()->hasPermission('jabatan_organisasi.manage')
+            || $this->user()->hasPermission('jabatan_organisasi.manage_opd');
     }
 
     public function rules(): array

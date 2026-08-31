@@ -3,7 +3,6 @@
 namespace App\Services\Penganggaran;
 
 use App\Models\DpaOpd;
-use App\Models\DpaOpdItem;
 use App\Models\RkaOpd;
 use App\Models\RkaOpdItem;
 use Illuminate\Support\Facades\DB;
@@ -60,11 +59,10 @@ class DpaCreationService
             ]);
 
             foreach ($lockedRka->items as $index => $rkaItem) {
-                $item = $dpa->items()->create($this->itemPayload($rkaItem, $index + 1));
-                $item->cashPlans()->createMany($this->defaultCashPlan($item));
+                $dpa->items()->create($this->itemPayload($rkaItem, $index + 1));
             }
 
-            return $dpa->load(['opd', 'opdUnit', 'rkaOpd', 'items.cashPlans']);
+            return $dpa->load(['opd', 'opdUnit', 'rkaOpd', 'items']);
         });
     }
 
@@ -114,31 +112,13 @@ class DpaCreationService
             'bulan_mulai' => $item->bulan_mulai,
             'bulan_selesai' => $item->bulan_selesai,
             'jenis_belanja' => $item->jenis_belanja,
+            'alokasi_tahun_sebelumnya' => $item->alokasi_tahun_sebelumnya,
             'pagu_rka' => $item->pagu_rka,
             'pagu_dpa' => $item->pagu_rka,
+            'alokasi_tahun_berikutnya' => $item->alokasi_tahun_berikutnya,
             'alasan_penyesuaian' => null,
             'catatan' => null,
             'urutan' => $item->urutan ?: $urutan,
         ];
-    }
-
-    /** @return array<int, array{bulan: int, jumlah: float}> */
-    private function defaultCashPlan(DpaOpdItem $item): array
-    {
-        $activeMonths = range($item->bulan_mulai, $item->bulan_selesai);
-        $totalCents = (int) round((float) $item->pagu_dpa * 100);
-        $baseCents = intdiv($totalCents, count($activeMonths));
-        $remainder = $totalCents - ($baseCents * count($activeMonths));
-        $lastMonth = max($activeMonths);
-
-        return collect(range(1, 12))->map(function (int $month) use ($activeMonths, $baseCents, $remainder, $lastMonth): array {
-            $isActive = in_array($month, $activeMonths, true);
-            $cents = $isActive ? $baseCents : 0;
-            if ($month === $lastMonth) {
-                $cents += $remainder;
-            }
-
-            return ['bulan' => $month, 'jumlah' => $cents / 100];
-        })->all();
     }
 }

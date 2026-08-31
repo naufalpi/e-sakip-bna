@@ -133,7 +133,7 @@ class JabatanOrganisasiTest extends TestCase
             ->assertSessionHasErrors('tanggal_mulai');
     }
 
-    public function test_admin_opd_only_views_own_scope_and_cannot_manage_master_jabatan(): void
+    public function test_admin_opd_can_propose_own_jobs_while_verified_structure_remains_locked(): void
     {
         $this->seed();
         $ownOpd = Opd::query()->where('status', 'active')->firstOrFail();
@@ -164,11 +164,48 @@ class JabatanOrganisasiTest extends TestCase
                 ->component('Master/JabatanOrganisasi/Index')
                 ->has('items.data', 1)
                 ->where('items.data.0.nama', 'Jabatan OPD Sendiri')
-                ->where('can.manage', false));
+                ->where('items.data.0.can_edit', false)
+                ->where('can.create', true)
+                ->where('can.opd_scoped', true));
 
         $this->actingAs($adminOpd)
             ->get(route('master.jabatan-organisasi.create'))
+            ->assertOk();
+
+        $this->actingAs($adminOpd)
+            ->post(route('master.jabatan-organisasi.store'), [
+                'opd_id' => $otherOpd->id,
+                'parent_id' => JabatanOrganisasi::query()->where('nama', 'Jabatan OPD Sendiri')->value('id'),
+                'nama' => 'Kepala Bidang Usulan OPD',
+                'level_jabatan' => 'administrator',
+                'urutan' => 2,
+                'status' => 'active',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $proposal = JabatanOrganisasi::query()->where('nama', 'Kepala Bidang Usulan OPD')->firstOrFail();
+        $this->assertSame($ownOpd->id, $proposal->opd_id);
+        $this->assertSame('pending', $proposal->verification_status);
+        $this->assertSame($adminOpd->id, $proposal->proposed_by);
+
+        $this->actingAs($adminOpd)
+            ->get(route('master.jabatan-organisasi.edit', JabatanOrganisasi::query()->where('nama', 'Jabatan OPD Sendiri')->firstOrFail()))
             ->assertForbidden();
+
+        $reviewer = $this->userWithRole('admin_kabupaten_bagian_organisasi');
+        $this->actingAs($reviewer)
+            ->patch(route('master.jabatan-organisasi.verify', $proposal), [
+                'verification_status' => 'verified',
+                'verification_note' => null,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('jabatan_organisasi', [
+            'id' => $proposal->id,
+            'verification_status' => 'verified',
+            'verified_by' => $reviewer->id,
+        ]);
     }
 
     public function test_admin_opd_manages_people_separately_and_legacy_history_endpoint_remains_scoped(): void

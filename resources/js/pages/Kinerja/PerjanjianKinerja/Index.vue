@@ -2,7 +2,7 @@
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { Plus, Search } from 'lucide-vue-next';
+import { FileSignature, Plus, Search } from 'lucide-vue-next';
 import { reactive } from 'vue';
 
 type Option = { id: number; label: string };
@@ -14,9 +14,13 @@ type Row = {
     tahun: number;
     status: string;
     tipe_pk: string;
+    level_pk: string;
     tipe_pk_label: string;
+    sumber_data?: string | null;
     pegawai?: { id: number; nama: string; nip?: string | null } | null;
     items_count: number;
+    programs_count: number;
+    total_anggaran: number;
     opd?: Opd | null;
     periode_tahun?: { id: number; tahun: number; nama: string } | null;
 };
@@ -33,15 +37,16 @@ type Paginator<T> = {
 
 const props = defineProps<{
     items: Paginator<Row>;
-    filters: { search?: string; status?: string; opd_id?: string; periode_tahun_id?: string; tahun?: string };
+    filters: { search?: string; status?: string; level_pk?: string; opd_id?: string; periode_tahun_id?: string; tahun?: string };
     opdOptions: Option[];
     periodeOptions: Option[];
-    can: { manage: boolean };
+    can: { manage: boolean; manage_bupati: boolean };
 }>();
 
 const filterForm = reactive({
     search: props.filters.search ?? '',
     status: props.filters.status ?? '',
+    level_pk: props.filters.level_pk ?? '',
     opd_id: props.filters.opd_id ?? '',
     periode_tahun_id: props.filters.periode_tahun_id ?? '',
     tahun: props.filters.tahun ?? '',
@@ -52,6 +57,7 @@ const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
 const resetFilters = () => {
     filterForm.search = '';
     filterForm.status = '';
+    filterForm.level_pk = '';
     filterForm.opd_id = '';
     filterForm.periode_tahun_id = '';
     filterForm.tahun = '';
@@ -85,17 +91,21 @@ const statusClass = (status: string) =>
         rejected: 'bg-red-100 text-red-800',
         locked: 'bg-zinc-200 text-zinc-800',
     })[status] ?? 'bg-slate-100 text-slate-700';
+
+const money = (value: number) => `Rp ${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value || 0)}`;
 </script>
 
 <template>
     <Head title="Perjanjian Kinerja" />
     <div class="flex flex-col gap-4 p-4">
-        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-                <h1 class="text-2xl font-semibold tracking-normal">Perjanjian Kinerja</h1>
-                <p class="mt-1 text-sm text-muted-foreground">
-                    PK Cascading untuk akuntabilitas organisasi dan PK Individu untuk hasil kerja manual staf.
-                </p>
+        <div class="flex flex-col gap-3 border-b pb-5 md:flex-row md:items-end md:justify-between">
+            <div class="flex items-start gap-3">
+                <div class="rounded-xl bg-primary/10 p-2.5 text-primary"><FileSignature class="size-5" /></div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-primary">Penetapan Kinerja</p>
+                    <h1 class="mt-0.5 text-2xl font-bold tracking-tight">Perjanjian Kinerja</h1>
+                    <p class="mt-1 text-sm text-muted-foreground">PK Bupati, Kepala OPD, struktural, serta JF/Pelaksana dalam satu alur dokumen.</p>
+                </div>
             </div>
             <Link
                 v-if="can.manage"
@@ -107,7 +117,7 @@ const statusClass = (status: string) =>
             </Link>
         </div>
 
-        <form class="grid gap-3 rounded-lg border bg-card p-3 lg:grid-cols-[1fr_170px_220px_190px_120px_auto]" @submit.prevent="applyFiltersNow">
+        <form class="grid gap-3 rounded-xl border bg-card p-3 lg:grid-cols-[1fr_155px_170px_200px_170px_105px_auto]" @submit.prevent="applyFiltersNow">
             <div class="relative">
                 <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <input
@@ -129,6 +139,13 @@ const statusClass = (status: string) =>
                 <option value="approved">Disetujui</option>
                 <option value="rejected">Ditolak</option>
                 <option value="locked">Terkunci</option>
+            </select>
+            <select v-model="filterForm.level_pk" class="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
+                <option value="">Semua level PK</option>
+                <option v-if="can.manage_bupati" value="bupati">PK Bupati</option>
+                <option value="kepala_opd">PK Kepala OPD</option>
+                <option value="struktural">PK Struktural</option>
+                <option value="individu">PK JF / Pelaksana</option>
             </select>
             <select
                 v-model="filterForm.opd_id"
@@ -161,7 +178,7 @@ const statusClass = (status: string) =>
                             <th class="px-4 py-3">OPD</th>
                             <th class="px-4 py-3">Perjanjian Kinerja</th>
                             <th class="px-4 py-3">Periode</th>
-                            <th class="px-4 py-3">Item</th>
+                            <th class="px-4 py-3">Isi Dokumen</th>
                             <th class="px-4 py-3">Status</th>
                             <th class="px-4 py-3 text-right">Aksi</th>
                         </tr>
@@ -169,8 +186,8 @@ const statusClass = (status: string) =>
                     <tbody>
                         <tr v-for="row in items.data" :key="row.id" class="border-b last:border-0">
                             <td class="px-4 py-3">
-                                <div class="font-medium">{{ row.opd?.singkatan || row.opd?.nama || '-' }}</div>
-                                <div class="text-xs text-muted-foreground">{{ row.opd?.kode || '-' }}</div>
+                                <div class="font-medium">{{ row.opd?.singkatan || row.opd?.nama || 'Kabupaten Banjarnegara' }}</div>
+                                <div class="text-xs text-muted-foreground">{{ row.opd?.kode || (row.level_pk === 'bupati' ? 'Pemerintah Kabupaten' : '-') }}</div>
                             </td>
                             <td class="px-4 py-3">
                                 <div class="font-medium">{{ row.judul }}</div>
@@ -182,7 +199,8 @@ const statusClass = (status: string) =>
                             </td>
                             <td class="px-4 py-3 text-muted-foreground">{{ row.tahun }}</td>
                             <td class="px-4 py-3">
-                                <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ row.items_count }} item</span>
+                                <div class="text-xs font-semibold">{{ row.items_count }} indikator · {{ row.programs_count }} program</div>
+                                <div v-if="row.programs_count" class="mt-1 text-[11px] text-muted-foreground">{{ money(row.total_anggaran) }}</div>
                             </td>
                             <td class="px-4 py-3">
                                 <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(row.status)">{{

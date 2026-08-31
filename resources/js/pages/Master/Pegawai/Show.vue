@@ -14,11 +14,11 @@ import Trash2 from 'lucide-vue-next/dist/esm/icons/trash-2.js';
 import X from 'lucide-vue-next/dist/esm/icons/x.js';
 import { computed, ref } from 'vue';
 
-type Option = { id?: number; value?: string; label: string; level_label?: string; multiple?: boolean; tahun?: number };
+type Option = { id?: number; value?: string; label: string; level_label?: string; multiple?: boolean; verification_status?: string; tahun?: number };
 type Placement = {
     id: number;
     jabatan_organisasi_id: number;
-    jabatan?: { id: number; nama: string; level_label: string; multiple: boolean } | null;
+    jabatan?: { id: number; nama: string; level_label: string; multiple: boolean; verification_status?: string } | null;
     jenis_penugasan: string;
     jenis_penugasan_label: string;
     nomor_sk?: string | null;
@@ -59,7 +59,7 @@ const props = defineProps<{
     periodeOptions: Option[];
     sourceTypeOptions: Option[];
     cascadingOptions: Record<string, Option[]>;
-    can: { manage: boolean; delete: boolean };
+    can: { manage: boolean; delete: boolean; manage_jobs: boolean };
 }>();
 
 const placementEditorOpen = ref(false);
@@ -340,6 +340,18 @@ const sourceTypeLabel = (value: string) => props.sourceTypeOptions.find((option)
                         <p class="mt-1 text-xs text-muted-foreground">
                             {{ placement.jabatan?.level_label
                             }}<template v-if="placement.jabatan?.multiple"> · dapat ditempati lebih dari satu pegawai</template>
+                        </p>
+                        <p
+                            v-if="placement.jabatan?.verification_status === 'pending'"
+                            class="mt-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300"
+                        >
+                            Jabatan menunggu verifikasi Admin Kabupaten
+                        </p>
+                        <p
+                            v-else-if="placement.jabatan?.verification_status === 'rejected'"
+                            class="mt-1 text-[11px] font-semibold text-rose-700 dark:text-rose-300"
+                        >
+                            Jabatan perlu diperbaiki oleh Admin OPD
                         </p>
                         <p class="mt-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                             <CalendarRange class="size-3.5" />TMT {{ formatDate(placement.tanggal_mulai) }} ·

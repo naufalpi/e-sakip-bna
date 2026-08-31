@@ -16,6 +16,7 @@ type Option = {
     opd_id?: number | null;
     opd_unit_id?: number | null;
     level_label?: string;
+    verification_status?: string;
 };
 type FormData = {
     opd_id: Id;
@@ -44,6 +45,7 @@ const props = defineProps<{
     jabatanOptions: Option[];
     penugasanOptions: Option[];
     scopeLocked: boolean;
+    canManageJobs: boolean;
 }>();
 
 const form = useForm<FormData>({
@@ -105,6 +107,13 @@ const submit = () => (props.mode === 'create' ? form.post(route('master.pegawai.
                     <p class="mt-1 text-sm text-muted-foreground">
                         {{ mode === 'create' ? 'Isi data pegawai dan pilih jabatannya dalam satu langkah.' : 'Perbarui data utama pegawai.' }}
                     </p>
+                    <Link
+                        v-if="mode === 'create' && canManageJobs"
+                        :href="route('master.jabatan-organisasi.index')"
+                        class="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900 dark:text-blue-300"
+                    >
+                        <BriefcaseBusiness class="size-3.5" /> Jabatan belum tersedia? Kelola jabatan OPD
+                    </Link>
                 </div>
             </div>
             <Link
@@ -120,13 +129,24 @@ const submit = () => (props.mode === 'create' ? form.post(route('master.pegawai.
             <div class="grid gap-5 p-5 md:grid-cols-2 md:p-7">
                 <div class="grid gap-2 md:col-span-2">
                     <label for="nama" class="text-sm font-medium">Nama lengkap <span class="text-red-600">*</span></label>
-                    <input id="nama" v-model="form.nama" required class="h-11 rounded-lg border bg-background px-3.5 text-sm" placeholder="Nama lengkap pegawai" />
+                    <input
+                        id="nama"
+                        v-model="form.nama"
+                        required
+                        class="h-11 rounded-lg border bg-background px-3.5 text-sm"
+                        placeholder="Nama lengkap pegawai"
+                    />
                     <InputError :message="form.errors.nama" />
                 </div>
 
                 <div class="grid gap-2">
                     <label for="nip" class="text-sm font-medium">NIP</label>
-                    <input id="nip" v-model="form.nip" class="h-11 rounded-lg border bg-background px-3.5 text-sm" placeholder="Kosongkan jika tidak ada" />
+                    <input
+                        id="nip"
+                        v-model="form.nip"
+                        class="h-11 rounded-lg border bg-background px-3.5 text-sm"
+                        placeholder="Kosongkan jika tidak ada"
+                    />
                     <InputError :message="form.errors.nip" />
                 </div>
                 <div class="grid gap-2">
@@ -174,7 +194,13 @@ const submit = () => (props.mode === 'create' ? form.post(route('master.pegawai.
                     </div>
                     <div class="grid gap-2">
                         <label for="tanggal_mulai" class="text-sm font-medium">TMT jabatan <span class="text-red-600">*</span></label>
-                        <input id="tanggal_mulai" v-model="form.tanggal_mulai" required type="date" class="h-11 rounded-lg border bg-background px-3.5 text-sm" />
+                        <input
+                            id="tanggal_mulai"
+                            v-model="form.tanggal_mulai"
+                            required
+                            type="date"
+                            class="h-11 rounded-lg border bg-background px-3.5 text-sm"
+                        />
                         <InputError :message="form.errors.tanggal_mulai" />
                     </div>
                     <div class="grid gap-2">
@@ -187,14 +213,21 @@ const submit = () => (props.mode === 'create' ? form.post(route('master.pegawai.
                 </template>
 
                 <details class="group border-t pt-4 md:col-span-2">
-                    <summary class="flex cursor-pointer list-none items-center justify-between rounded-lg py-1 text-sm font-semibold text-muted-foreground hover:text-foreground">
+                    <summary
+                        class="flex cursor-pointer list-none items-center justify-between rounded-lg py-1 text-sm font-semibold text-muted-foreground hover:text-foreground"
+                    >
                         <span>Data tambahan <span class="font-normal">(opsional)</span></span>
                         <ChevronDown class="size-4 transition-transform group-open:rotate-180" />
                     </summary>
                     <div class="mt-5 grid gap-5 md:grid-cols-2">
                         <div class="grid gap-2 md:col-span-2">
                             <label for="pangkat" class="text-sm font-medium">Pangkat / golongan</label>
-                            <input id="pangkat" v-model="form.pangkat_golongan" class="h-10 rounded-lg border bg-background px-3 text-sm" placeholder="Contoh: Penata Tk. I, III/d" />
+                            <input
+                                id="pangkat"
+                                v-model="form.pangkat_golongan"
+                                class="h-10 rounded-lg border bg-background px-3 text-sm"
+                                placeholder="Contoh: Penata Tk. I, III/d"
+                            />
                             <InputError :message="form.errors.pangkat_golongan" />
                         </div>
 
@@ -206,7 +239,12 @@ const submit = () => (props.mode === 'create' ? form.post(route('master.pegawai.
                             </div>
                             <div class="grid gap-2">
                                 <label for="tanggal_sk" class="text-sm font-medium">Tanggal SK</label>
-                                <input id="tanggal_sk" v-model="form.tanggal_sk" type="date" class="h-10 rounded-lg border bg-background px-3 text-sm" />
+                                <input
+                                    id="tanggal_sk"
+                                    v-model="form.tanggal_sk"
+                                    type="date"
+                                    class="h-10 rounded-lg border bg-background px-3 text-sm"
+                                />
                                 <InputError :message="form.errors.tanggal_sk" />
                             </div>
                         </template>

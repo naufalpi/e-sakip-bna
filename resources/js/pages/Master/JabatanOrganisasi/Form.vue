@@ -29,6 +29,8 @@ const props = defineProps<{
     parentOptions: Option[];
     levelOptions: Option[];
     eselonOptions: Option[];
+    scopeLocked: boolean;
+    isOpdProposal: boolean;
 }>();
 
 const form = useForm<JabatanForm>({
@@ -118,6 +120,17 @@ const submit = () => {
             >
         </header>
 
+        <div
+            v-if="isOpdProposal"
+            class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100"
+        >
+            <Info class="mt-0.5 size-4 shrink-0" />
+            <p>
+                Jabatan baru disimpan sebagai <strong>usulan OPD</strong>. Jabatan dapat dipakai untuk penempatan pegawai, lalu akan menjadi bagian
+                struktur resmi setelah diverifikasi Admin Kabupaten.
+            </p>
+        </div>
+
         <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_290px]">
             <section class="overflow-hidden rounded-xl border bg-card">
                 <div class="border-b px-5 py-4">
@@ -153,6 +166,7 @@ const submit = () => {
                             <select
                                 id="opd_id"
                                 v-model="form.opd_id"
+                                :disabled="scopeLocked"
                                 class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15"
                             >
                                 <option value="">Pilih perangkat daerah</option>
@@ -251,10 +265,7 @@ const submit = () => {
                     class="flex gap-3 rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-xs leading-5 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100"
                 >
                     <Info class="mt-0.5 size-4 shrink-0" />
-                    <p>
-                        Nama pejabat tidak diisi di sini. Setelah jabatan disimpan, tambahkan pejabat beserta masa tugas dan dasar SK pada halaman
-                        detail.
-                    </p>
+                    <p>Nama pegawai tidak diisi di sini. Penempatan pegawai, masa tugas, dan dasar SK dikelola pada menu Pegawai OPD.</p>
                 </div>
             </aside>
         </div>

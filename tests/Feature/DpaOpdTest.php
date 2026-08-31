@@ -22,7 +22,7 @@ class DpaOpdTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_dpa_is_created_as_snapshot_with_complete_monthly_cash_plan(): void
+    public function test_dpa_is_created_as_budget_snapshot_without_monthly_cash_plan(): void
     {
         $rka = $this->rka('murni', 'approved');
         $dpa = app(DpaCreationService::class)->createFromRka($rka, [
@@ -34,15 +34,14 @@ class DpaOpdTest extends TestCase
         $this->assertDatabaseHas('dpa_opd_items', [
             'dpa_opd_id' => $dpa->id,
             'kode_sub_kegiatan' => '1.01.01.2.01.0001',
+            'alokasi_tahun_sebelumnya' => '2000000.00',
             'pagu_rka' => '2500000.00',
             'pagu_dpa' => '2500000.00',
+            'alokasi_tahun_berikutnya' => '2750000.00',
         ]);
 
         $item = $dpa->items->first();
-        $this->assertCount(12, $item->cashPlans);
-        $this->assertEqualsWithDelta(2500000, (float) $item->cashPlans->sum('jumlah'), 0.01);
-        $this->assertSame(0.0, (float) $item->cashPlans->firstWhere('bulan', 1)->jumlah);
-        $this->assertGreaterThan(0, (float) $item->cashPlans->firstWhere('bulan', 3)->jumlah);
+        $this->assertCount(0, $item->cashPlans);
     }
 
     public function test_dppa_is_derived_from_approved_change_rka(): void
@@ -70,16 +69,14 @@ class DpaOpdTest extends TestCase
         app(DpaCreationService::class)->createFromRka($rka, ['judul' => 'DPA DUPLIKAT']);
     }
 
-    public function test_dpa_readiness_detects_cash_plan_mismatch(): void
+    public function test_dpa_readiness_does_not_require_monthly_cash_plan(): void
     {
         $dpa = $this->completeDpa();
-        $item = $dpa->items->first();
-        $item->cashPlans->first()->increment('jumlah', 1);
 
         $readiness = app(DpaReadinessService::class)->inspect($dpa->fresh());
 
-        $this->assertFalse($readiness['ready']);
-        $this->assertSame(1, $readiness['mismatched_items']);
+        $this->assertTrue($readiness['ready']);
+        $this->assertDatabaseCount('dpa_opd_cash_plans', 0);
     }
 
     public function test_dpa_workflow_requires_legalization_identity_before_approval(): void
@@ -121,7 +118,52 @@ class DpaOpdTest extends TestCase
         $this->actingAs($admin)->get(route('dpa-opd.index'))->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('DpaOpd/Index')->has('items.data', 1));
         $this->actingAs($admin)->get(route('dpa-opd.show', $dpa))->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('DpaOpd/Show')->where('dpa.id', $dpa->id)->has('items', 1)->has('summary.monthly_totals', 12));
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('DpaOpd/Show')
+                ->where('dpa.id', $dpa->id)
+                ->has('items', 1)
+                ->has('preview.rows', 6)
+                ->where('preview.total.total', 2500000));
+    }
+
+    public function test_super_admin_uses_document_edit_mode_for_draft_and_verification_mode_after_submission(): void
+    {
+        $dpa = $this->completeDpa();
+        $admin = $this->superAdmin();
+
+        $this->actingAs($admin)->get(route('dpa-opd.edit', $dpa))->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('DpaOpd/Form')
+                ->where('dpa.status', 'draft')
+                ->where('canVerify', false));
+
+        app(WorkflowTransitionService::class)->transition($dpa->fresh(), 'dpa_opd', 'submit', $admin);
+
+        $this->actingAs($admin)->get(route('dpa-opd.edit', $dpa->fresh()))->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('DpaOpd/Form')
+                ->where('dpa.status', 'submitted')
+                ->where('canVerify', true));
+    }
+
+    public function test_dpa_item_can_be_updated_without_monthly_cash_plan(): void
+    {
+        $dpa = $this->completeDpa();
+        $item = $dpa->items->firstOrFail();
+
+        $this->actingAs($this->superAdmin())
+            ->put(route('dpa-opd.items.update', ['dpa_opd' => $dpa, 'item' => $item]), [
+                'pagu_dpa' => '2.600.000',
+                'alasan_penyesuaian' => 'Sesuai dokumen DPA resmi.',
+                'catatan' => 'Pagu final.',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('dpa_opd_items', [
+            'id' => $item->id,
+            'pagu_dpa' => '2600000.00',
+            'alasan_penyesuaian' => 'Sesuai dokumen DPA resmi.',
+        ]);
     }
 
     public function test_bpkad_verifies_dpa_while_bapperida_only_monitors(): void
@@ -176,7 +218,8 @@ class DpaOpdTest extends TestCase
             'tolok_ukur_kinerja' => 'Jumlah dokumen pengujian', 'target_kinerja' => '12', 'satuan_kinerja' => 'Dokumen',
             'sumber_pendanaan' => 'Dana Alokasi Umum', 'lokasi' => 'Kabupaten Banjarnegara',
             'kelompok_sasaran' => 'Perangkat Daerah', 'bulan_mulai' => 3, 'bulan_selesai' => 11,
-            'jenis_belanja' => 'operasi', 'pagu_rka' => 2500000, 'urutan' => 1,
+            'jenis_belanja' => 'operasi', 'alokasi_tahun_sebelumnya' => 2000000,
+            'pagu_rka' => 2500000, 'alokasi_tahun_berikutnya' => 2750000, 'urutan' => 1,
         ]);
 
         return $rka;

@@ -160,6 +160,51 @@ class PegawaiPenempatanTest extends TestCase
         $this->assertSame(1, $structural->riwayatPejabat()->count());
     }
 
+    public function test_pending_job_can_be_used_but_rejected_job_cannot_receive_new_placement(): void
+    {
+        $this->seed();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $adminOpd = $this->userWithRole('admin_opd', $opd);
+        $pegawai = $this->employee($opd, 'Pegawai Verifikasi Jabatan', '198501012015011001');
+
+        $pending = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Analis Pending',
+            'level_jabatan' => 'fungsional',
+            'urutan' => 1,
+            'status' => 'active',
+            'verification_status' => 'pending',
+            'proposed_by' => $adminOpd->id,
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->post(route('master.pegawai.penempatan.store', $pegawai), [
+                'jabatan_organisasi_id' => $pending->id,
+                'jenis_penugasan' => 'definitif',
+                'tanggal_mulai' => '2026-01-01',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $rejected = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Analis Ditolak',
+            'level_jabatan' => 'fungsional',
+            'urutan' => 2,
+            'status' => 'active',
+            'verification_status' => 'rejected',
+            'verification_note' => 'Nomenklatur belum sesuai.',
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->post(route('master.pegawai.penempatan.store', $pegawai), [
+                'jabatan_organisasi_id' => $rejected->id,
+                'jenis_penugasan' => 'definitif',
+                'tanggal_mulai' => '2027-01-01',
+            ])
+            ->assertSessionHasErrors('jabatan_organisasi_id');
+    }
+
     public function test_annual_assignment_controls_cascading_pk_and_individual_pk_is_excluded_from_action_plan(): void
     {
         $this->seed();

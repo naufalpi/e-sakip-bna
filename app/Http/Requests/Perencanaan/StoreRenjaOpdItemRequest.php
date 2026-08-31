@@ -31,7 +31,7 @@ class StoreRenjaOpdItemRequest extends FormRequest
             'sub_kegiatan_pemerintahan_id' => ['required', 'integer', 'exists:sub_kegiatan_pemerintahan,id'],
             'indikator_sub_kegiatan_id' => ['nullable', 'integer', 'exists:indikator_sub_kegiatan,id'],
             'indikator' => ['nullable', 'string'],
-            'target_akhir_renstra' => ['nullable', 'string', 'max:255'],
+            'target_akhir_renstra' => ['nullable', 'string'],
             'realisasi_capaian_renja_tahun_lalu' => ['nullable', 'string', 'max:255'],
             'prakiraan_capaian_target_renja_tahun_berjalan' => ['nullable', 'string', 'max:255'],
             'target' => ['nullable', 'string', 'max:255'],

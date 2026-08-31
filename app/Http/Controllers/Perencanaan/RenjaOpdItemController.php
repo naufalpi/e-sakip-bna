@@ -10,6 +10,7 @@ use App\Models\RenjaOpdItem;
 use App\Models\SubKegiatanPemerintahan;
 use App\Services\Perencanaan\RenjaProgramScopeService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -23,12 +24,22 @@ class RenjaOpdItemController extends Controller
         $this->ensureSubKegiatanAvailable($renjaOpd, (int) $request->validated('sub_kegiatan_pemerintahan_id'));
         $subKegiatan = $this->subKegiatan((int) $request->validated('sub_kegiatan_pemerintahan_id'), $renjaOpd);
 
-        $renjaOpd->items()->create($this->payload($request->validated(), $subKegiatan, [
-            'opd_sub_kegiatan_id' => null,
-            'sumber_item' => 'manual',
-            'status' => $request->validated('status') ?: 'draft',
-            'urutan' => $request->validated('urutan') ?: ((int) $renjaOpd->items()->max('urutan')) + 1,
-        ]));
+        try {
+            $renjaOpd->items()->create($this->payload($request->validated(), $subKegiatan, [
+                'opd_sub_kegiatan_id' => null,
+                'sumber_item' => 'manual',
+                'status' => $request->validated('status') ?: 'draft',
+                'urutan' => $request->validated('urutan') ?: ((int) $renjaOpd->items()->max('urutan')) + 1,
+            ]));
+        } catch (QueryException $exception) {
+            if ($this->isActiveSubKegiatanDuplicate($exception)) {
+                throw ValidationException::withMessages([
+                    'sub_kegiatan_pemerintahan_id' => 'Sub kegiatan tersebut sudah diinput pada Renja OPD ini.',
+                ]);
+            }
+
+            throw $exception;
+        }
 
         return back()->with('success', 'Sub kegiatan RENJA berhasil disimpan.');
     }
@@ -105,6 +116,16 @@ class RenjaOpdItemController extends Controller
                 'sub_kegiatan_pemerintahan_id' => 'Sub kegiatan tersebut sudah diinput pada Renja OPD ini.',
             ]);
         }
+    }
+
+    private function isActiveSubKegiatanDuplicate(QueryException $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'renja_items_active_sub_kegiatan_unique')
+            || (str_contains($message, 'unique constraint failed')
+                && str_contains($message, 'renja_opd_items.renja_opd_id')
+                && str_contains($message, 'renja_opd_items.sub_kegiatan_pemerintahan_id'));
     }
 
     /**

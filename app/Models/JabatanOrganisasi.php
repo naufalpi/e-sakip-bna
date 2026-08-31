@@ -24,12 +24,18 @@ class JabatanOrganisasi extends Model
         'eselon',
         'urutan',
         'status',
+        'verification_status',
+        'proposed_by',
+        'verified_by',
+        'verified_at',
+        'verification_note',
     ];
 
     protected function casts(): array
     {
         return [
             'urutan' => 'integer',
+            'verified_at' => 'datetime',
         ];
     }
 
@@ -63,6 +69,25 @@ class JabatanOrganisasi extends Model
         ];
     }
 
+    public static function verificationLabels(): array
+    {
+        return [
+            'pending' => 'Menunggu verifikasi',
+            'verified' => 'Terverifikasi',
+            'rejected' => 'Perlu perbaikan',
+        ];
+    }
+
+    public function isVerified(): bool
+    {
+        return $this->verification_status === 'verified';
+    }
+
+    public function isPendingVerification(): bool
+    {
+        return $this->verification_status === 'pending';
+    }
+
     public function allowsMultipleHolders(): bool
     {
         return in_array($this->level_jabatan, ['fungsional', 'pelaksana'], true);
@@ -86,6 +111,16 @@ class JabatanOrganisasi extends Model
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function proposedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'proposed_by');
+    }
+
+    public function verifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by');
     }
 
     public function children(): HasMany

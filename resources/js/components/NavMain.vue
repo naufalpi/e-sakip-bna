@@ -15,7 +15,11 @@ defineProps<{
 
 const page = usePage<SharedData>();
 
-const isActive = (href: string) => page.url === href || page.url.startsWith(`${href}/`) || page.url.startsWith(`${href}?`);
+const isActive = (item: NavItem) => {
+    const prefixes = item.activePrefixes?.length ? item.activePrefixes : [item.href];
+
+    return prefixes.some((href) => page.url === href || page.url.startsWith(`${href}/`) || page.url.startsWith(`${href}?`));
+};
 </script>
 
 <template>
@@ -23,7 +27,7 @@ const isActive = (href: string) => page.url === href || page.url.startsWith(`${h
         <SidebarGroupLabel class="app-sidebar-group-label">{{ label ?? 'Platform' }}</SidebarGroupLabel>
         <SidebarMenu class="space-y-1">
             <SidebarMenuItem v-for="item in items" :key="item.title" class="app-sidebar-menu-item">
-                <SidebarMenuButton as-child :is-active="isActive(item.href)" class="app-sidebar-menu-button">
+                <SidebarMenuButton as-child :is-active="isActive(item)" class="app-sidebar-menu-button">
                     <Link
                         :href="item.href"
                         prefetch="hover"

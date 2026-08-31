@@ -6,9 +6,11 @@ use App\Models\OpdSubKegiatan;
 use App\Models\PeriodeTahun;
 use App\Models\RenjaOpd;
 use App\Models\RenjaOpdItem;
+use App\Models\RenstraOpd;
 use App\Models\SubKegiatanPemerintahan;
 use App\Models\TargetIndikatorSubKegiatan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class RenjaInitialItemService
 {
@@ -29,10 +31,31 @@ class RenjaInitialItemService
             }
 
             if (! $renja->renstra_opd_id) {
-                return ['copied' => 0, 'skipped' => 0, 'bootstrapped' => true];
+                throw ValidationException::withMessages([
+                    'renstra_opd_id' => 'RENSTRA resmi wajib dipilih sebagai sumber RENJA.',
+                ]);
             }
 
-            $renstra = $renja->renstraOpd()->first(['id', 'tahun_akhir']);
+            $renstra = RenstraOpd::query()->find($renja->renstra_opd_id, [
+                'id',
+                'opd_id',
+                'tahun_awal',
+                'tahun_akhir',
+                'status',
+                'is_active_version',
+            ]);
+
+            if (! $renstra
+                || (int) $renstra->opd_id !== (int) $renja->opd_id
+                || ! in_array($renstra->status, ['approved', 'locked'], true)
+                || ! $renstra->is_active_version
+                || (int) $renstra->tahun_awal > (int) $renja->tahun
+                || (int) $renstra->tahun_akhir < (int) $renja->tahun) {
+                throw ValidationException::withMessages([
+                    'renstra_opd_id' => 'RENJA hanya dapat menyalin RENSTRA aktif yang sudah disetujui atau dikunci, berasal dari OPD yang sama, dan mencakup tahun RENJA.',
+                ]);
+            }
+
             $finalPeriodId = $renstra?->tahun_akhir
                 ? PeriodeTahun::query()->where('tahun', $renstra->tahun_akhir)->value('id')
                 : null;
