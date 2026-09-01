@@ -67,7 +67,7 @@ class UpdateProgramPemerintahanReferenceRequest extends FormRequest
                 'integer',
                 'exists:satuan_indikator,id',
             ],
-            'indicators' => ['nullable', 'array', 'max:20'],
+            'indicators' => ['nullable', 'array', 'max:40'],
             'indicators.*.indikator' => ['nullable', 'string', 'max:10000', 'distinct:ignore_case'],
             'indicators.*.satuan_indikator_id' => [
                 'nullable',

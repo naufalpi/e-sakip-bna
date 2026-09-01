@@ -503,7 +503,7 @@ const canSubmitSingle = computed(() => {
 });
 
 const addSubKegiatanIndicator = () => {
-    if (singleForm.indicators.length < 20) {
+    if (singleForm.indicators.length < 40) {
         singleForm.indicators.push(emptyIndicator());
     }
 };
@@ -1039,7 +1039,7 @@ const destroyProgramPeriod = async () => {
                                         </div>
                                         <button
                                             type="button"
-                                            :disabled="singleForm.indicators.length >= 20"
+                                            :disabled="singleForm.indicators.length >= 40"
                                             class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border bg-background px-3 text-xs font-semibold text-[#00336C] transition hover:border-[#00336C]/30 hover:bg-[#00336C]/5 disabled:cursor-not-allowed disabled:opacity-50 dark:text-sky-300"
                                             @click="addSubKegiatanIndicator"
                                         >
