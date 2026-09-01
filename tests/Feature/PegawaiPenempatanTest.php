@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\IndikatorSasaranOpd;
 use App\Models\JabatanOrganisasi;
 use App\Models\Opd;
 use App\Models\Pegawai;
@@ -12,6 +13,7 @@ use App\Models\RenstraOpd;
 use App\Models\Role;
 use App\Models\Rpjmd;
 use App\Models\SasaranOpd;
+use App\Models\TargetIndikatorSasaranOpd;
 use App\Models\TujuanOpd;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,6 +23,57 @@ use Tests\TestCase;
 class PegawaiPenempatanTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_active_kepala_daerah_identity_can_be_updated_without_opd(): void
+    {
+        $this->seed();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $admin = $this->userWithRole('super_admin', $opd);
+        $jabatan = JabatanOrganisasi::create([
+            'nama' => 'Bupati Banjarnegara',
+            'level_jabatan' => 'kepala_daerah',
+            'status' => 'active',
+        ]);
+        $pegawai = Pegawai::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Bupati Uji',
+            'jenis_pegawai' => 'pejabat_negara',
+            'status' => 'active',
+        ]);
+        $pegawai->penempatan()->create([
+            'jabatan_organisasi_id' => $jabatan->id,
+            'nama_pejabat' => $pegawai->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => now()->subDay()->toDateString(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('master.pegawai.edit', $pegawai))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Master/Pegawai/Form')
+                ->where('isKepalaDaerah', true));
+
+        $this->actingAs($admin)
+            ->put(route('master.pegawai.update', $pegawai), [
+                'opd_id' => null,
+                'opd_unit_id' => null,
+                'user_id' => null,
+                'nama' => 'Bupati Uji Diperbarui',
+                'nip' => null,
+                'pangkat_golongan' => null,
+                'jenis_pegawai' => 'pejabat_negara',
+                'status' => 'active',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('pegawai', [
+            'id' => $pegawai->id,
+            'opd_id' => null,
+            'nama' => 'Bupati Uji Diperbarui',
+        ]);
+    }
 
     public function test_employee_and_initial_position_can_be_saved_in_one_step(): void
     {
@@ -128,6 +181,66 @@ class PegawaiPenempatanTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_structure_and_employee_indexes_follow_the_opd_hierarchy(): void
+    {
+        $this->seed();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $adminOpd = $this->userWithRole('admin_opd', $opd);
+
+        $kabid = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Kepala Bidang Pengujian',
+            'level_jabatan' => 'administrator',
+            'urutan' => 1,
+            'status' => 'active',
+        ]);
+        $kepala = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Kepala Dinas Pengujian',
+            'level_jabatan' => 'jpt_pratama',
+            'urutan' => 9,
+            'status' => 'active',
+        ]);
+        $sekretaris = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Sekretaris Dinas Pengujian',
+            'level_jabatan' => 'administrator',
+            'urutan' => 9,
+            'status' => 'active',
+        ]);
+
+        foreach ([
+            [$kabid, 'A Pegawai Kabid', '198001012010011011'],
+            [$kepala, 'Z Pegawai Kepala', '198001012010011012'],
+            [$sekretaris, 'M Pegawai Sekretaris', '198001012010011013'],
+        ] as [$jabatan, $nama, $nip]) {
+            $pegawai = $this->employee($opd, $nama, $nip);
+            $pegawai->penempatan()->create([
+                'jabatan_organisasi_id' => $jabatan->id,
+                'nama_pejabat' => $pegawai->nama,
+                'nip' => $pegawai->nip,
+                'jenis_penugasan' => 'definitif',
+                'tanggal_mulai' => now()->subDay()->toDateString(),
+            ]);
+        }
+
+        $this->actingAs($adminOpd)
+            ->get(route('master.jabatan-organisasi.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('items.data.0.nama', 'Kepala Dinas Pengujian')
+                ->where('items.data.1.nama', 'Sekretaris Dinas Pengujian')
+                ->where('items.data.2.nama', 'Kepala Bidang Pengujian'));
+
+        $this->actingAs($adminOpd)
+            ->get(route('master.pegawai.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('items.data.0.nama', 'Z Pegawai Kepala')
+                ->where('items.data.1.nama', 'M Pegawai Sekretaris')
+                ->where('items.data.2.nama', 'A Pegawai Kabid'));
+    }
+
     public function test_structural_position_rejects_overlapping_holder(): void
     {
         $this->seed();
@@ -205,7 +318,75 @@ class PegawaiPenempatanTest extends TestCase
             ->assertSessionHasErrors('jabatan_organisasi_id');
     }
 
-    public function test_annual_assignment_controls_cascading_pk_and_individual_pk_is_excluded_from_action_plan(): void
+    public function test_updating_employee_synchronizes_current_structure_identity_without_changing_pk_snapshot(): void
+    {
+        $this->seed();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $periode = PeriodeTahun::query()->firstOrFail();
+        $admin = $this->userWithRole('super_admin', $opd);
+        $jabatan = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Kepala Bidang Sinkronisasi',
+            'level_jabatan' => 'administrator',
+            'status' => 'active',
+        ]);
+        $pegawai = Pegawai::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Nama Lama',
+            'nip' => '198001012010011099',
+            'jenis_pegawai' => 'pns',
+            'status' => 'active',
+        ]);
+        $placement = $pegawai->penempatan()->create([
+            'jabatan_organisasi_id' => $jabatan->id,
+            'nama_pejabat' => 'Nama Lama',
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => now()->subYear()->toDateString(),
+        ]);
+        $pk = PerjanjianKinerja::create([
+            'opd_id' => $opd->id,
+            'pegawai_id' => $pegawai->id,
+            'penempatan_pegawai_id' => $placement->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'tipe_pk' => 'cascading',
+            'level_pk' => 'struktural',
+            'nama_pegawai_snapshot' => 'Nama Lama',
+            'nip_snapshot' => '198001012010011099',
+            'jabatan_snapshot' => $jabatan->nama,
+            'judul' => 'PK Snapshot Lama',
+            'status' => 'approved',
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('master.pegawai.update', $pegawai), [
+                'opd_id' => $opd->id,
+                'opd_unit_id' => null,
+                'user_id' => null,
+                'nama' => 'Nama Pegawai Terbaru',
+                'nip' => '198001012010011099',
+                'pangkat_golongan' => 'Pembina / IV.a',
+                'jenis_pegawai' => 'pns',
+                'status' => 'active',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('riwayat_pejabat_jabatan', [
+            'id' => $placement->id,
+            'nama_pejabat' => 'Nama Pegawai Terbaru',
+            'nip' => '198001012010011099',
+            'pangkat_golongan' => 'Pembina / IV.a',
+        ]);
+        $this->assertDatabaseHas('perjanjian_kinerja', [
+            'id' => $pk->id,
+            'nama_pegawai_snapshot' => 'Nama Lama',
+            'nip_snapshot' => '198001012010011099',
+            'jabatan_snapshot' => $jabatan->nama,
+        ]);
+    }
+
+    public function test_pk_selects_cascading_scope_directly_and_manual_individual_pk_is_excluded_from_action_plan(): void
     {
         $this->seed();
         $opd = Opd::query()->where('status', 'active')->firstOrFail();
@@ -239,20 +420,18 @@ class PegawaiPenempatanTest extends TestCase
             'sasaran' => 'Meningkatnya kualitas layanan',
             'urutan' => 1,
         ]);
-
-        $assignmentPayload = [
+        $indikator = IndikatorSasaranOpd::create([
+            'sasaran_opd_id' => $sasaran->id,
+            'indikator' => 'Indeks kualitas layanan',
+            'urutan' => 1,
+        ]);
+        TargetIndikatorSasaranOpd::create([
+            'indikator_sasaran_opd_id' => $indikator->id,
             'periode_tahun_id' => $periode->id,
-            'sumber_kinerja_type' => 'sasaran',
-            'sumber_kinerja_id' => $sasaran->id,
-            'peran' => 'penanggung_jawab',
-        ];
-        $this->actingAs($adminOpd)
-            ->post(route('master.pegawai.pengampu-kinerja.store', $assigned), $assignmentPayload)
-            ->assertRedirect()
-            ->assertSessionDoesntHaveErrors();
-        $this->actingAs($adminOpd)
-            ->post(route('master.pegawai.pengampu-kinerja.store', $assigned), $assignmentPayload)
-            ->assertSessionHasErrors('sumber_kinerja_id');
+            'target' => 90,
+            'target_text' => '90 persen',
+        ]);
+        $renstra->forceFill(['is_active_version' => true])->save();
 
         $basePayload = [
             'opd_id' => $opd->id,
@@ -261,22 +440,41 @@ class PegawaiPenempatanTest extends TestCase
             'judul' => 'PK Cascading Pengujian',
             'status' => 'draft',
             'tipe_pk' => 'cascading',
+            'level_pk' => 'struktural',
             'renstra_opd_id' => $renstra->id,
+            'lingkup_kinerja_snapshot' => ['sasaran_opd:'.$sasaran->id],
         ];
 
         $this->actingAs($adminOpd)
             ->post(route('perjanjian-kinerja.store'), [...$basePayload, 'pegawai_id' => $individual->id])
-            ->assertSessionHasErrors('pegawai_id');
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
         $this->actingAs($adminOpd)
             ->post(route('perjanjian-kinerja.store'), [...$basePayload, 'pegawai_id' => $assigned->id])
             ->assertRedirect()
             ->assertSessionDoesntHaveErrors();
+
+        $cascadingPk = PerjanjianKinerja::query()->where('pegawai_id', $assigned->id)->firstOrFail();
+        $this->actingAs($adminOpd)
+            ->put(route('perjanjian-kinerja.update', $cascadingPk), [
+                ...$basePayload,
+                'pegawai_id' => $assigned->id,
+                'lingkup_kinerja_snapshot' => [],
+                'nomor_dokumen' => 'PK/EDIT/001',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+        $this->assertSame(
+            ['sasaran_opd:'.$sasaran->id],
+            $cascadingPk->refresh()->lingkup_kinerja_snapshot,
+        );
 
         $this->actingAs($adminOpd)
             ->post(route('perjanjian-kinerja.store'), [
                 ...$basePayload,
                 'pegawai_id' => $individual->id,
                 'tipe_pk' => 'individual',
+                'level_pk' => 'individu',
                 'renstra_opd_id' => null,
                 'judul' => 'PK Individu Pengujian',
                 'status' => 'approved',

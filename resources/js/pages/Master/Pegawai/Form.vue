@@ -15,6 +15,7 @@ type Option = {
     label: string;
     opd_id?: number | null;
     opd_unit_id?: number | null;
+    level_jabatan?: string;
     level_label?: string;
     verification_status?: string;
 };
@@ -45,11 +46,12 @@ const props = defineProps<{
     jabatanOptions: Option[];
     penugasanOptions: Option[];
     scopeLocked: boolean;
+    isKepalaDaerah: boolean;
     canManageJobs: boolean;
 }>();
 
 const form = useForm<FormData>({
-    opd_id: props.item?.opd_id ?? (props.opdOptions.length === 1 ? Number(props.opdOptions[0].id) : ''),
+    opd_id: props.isKepalaDaerah ? '' : (props.item?.opd_id ?? (props.opdOptions.length === 1 ? Number(props.opdOptions[0].id) : '')),
     opd_unit_id: props.item?.opd_unit_id ?? '',
     user_id: props.item?.user_id ?? '',
     nama: props.item?.nama ?? '',
@@ -67,7 +69,14 @@ const form = useForm<FormData>({
 
 const filteredUnits = computed(() => props.unitOptions.filter((option) => Number(option.opd_id) === Number(form.opd_id)));
 const filteredUsers = computed(() => props.userOptions.filter((option) => Number(option.opd_id) === Number(form.opd_id)));
-const filteredJabatan = computed(() => props.jabatanOptions.filter((option) => Number(option.opd_id) === Number(form.opd_id)));
+const selectedJabatan = computed(() => props.jabatanOptions.find((option) => Number(option.id) === Number(form.jabatan_organisasi_id)));
+const isKepalaDaerahIdentity = computed(() => props.isKepalaDaerah || selectedJabatan.value?.level_jabatan === 'kepala_daerah');
+const hasKepalaDaerahOption = computed(() => props.jabatanOptions.some((option) => option.level_jabatan === 'kepala_daerah'));
+const filteredJabatan = computed(() =>
+    props.jabatanOptions.filter(
+        (option) => option.level_jabatan === 'kepala_daerah' || Number(option.opd_id) === Number(form.opd_id),
+    ),
+);
 
 watch(
     () => form.opd_id,
@@ -85,6 +94,11 @@ watch(
     (value) => {
         if (props.mode !== 'create' || !value) return;
         const jabatan = props.jabatanOptions.find((option) => Number(option.id) === Number(value));
+        if (jabatan?.level_jabatan === 'kepala_daerah') {
+            form.opd_id = '';
+            form.opd_unit_id = '';
+            return;
+        }
         form.opd_unit_id = jabatan?.opd_unit_id ? Number(jabatan.opd_unit_id) : '';
     },
 );
@@ -157,7 +171,7 @@ const submit = () => (props.mode === 'create' ? form.post(route('master.pegawai.
                     <InputError :message="form.errors.jenis_pegawai" />
                 </div>
 
-                <div class="grid gap-2 md:col-span-2">
+                <div v-if="!isKepalaDaerahIdentity" class="grid gap-2 md:col-span-2">
                     <label for="opd_id" class="text-sm font-medium">Perangkat daerah <span class="text-red-600">*</span></label>
                     <select
                         id="opd_id"
@@ -182,10 +196,10 @@ const submit = () => (props.mode === 'create' ? form.post(route('master.pegawai.
                             id="jabatan"
                             v-model="form.jabatan_organisasi_id"
                             required
-                            :disabled="!form.opd_id"
+                            :disabled="!form.opd_id && !hasKepalaDaerahOption"
                             class="h-11 rounded-lg border bg-background px-3.5 text-sm disabled:opacity-60"
                         >
-                            <option value="">{{ form.opd_id ? 'Pilih jabatan' : 'Pilih perangkat daerah dahulu' }}</option>
+                            <option value="">{{ form.opd_id || hasKepalaDaerahOption ? 'Pilih jabatan' : 'Pilih perangkat daerah dahulu' }}</option>
                             <option v-for="option in filteredJabatan" :key="option.id" :value="option.id">
                                 {{ option.label }} · {{ option.level_label }}
                             </option>
@@ -249,7 +263,7 @@ const submit = () => (props.mode === 'create' ? form.post(route('master.pegawai.
                             </div>
                         </template>
 
-                        <div v-if="mode === 'edit'" class="grid gap-2">
+                        <div v-if="mode === 'edit' && !isKepalaDaerahIdentity" class="grid gap-2">
                             <label for="opd_unit_id" class="text-sm font-medium">Unit organisasi</label>
                             <select id="opd_unit_id" v-model="form.opd_unit_id" class="h-10 rounded-lg border bg-background px-3 text-sm">
                                 <option value="">Belum ditentukan</option>

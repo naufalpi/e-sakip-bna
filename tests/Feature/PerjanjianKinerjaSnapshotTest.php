@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\DpaOpd;
 use App\Models\DpaOpdItem;
-use App\Models\IndikatorOpdProgram;
 use App\Models\IndikatorSasaranOpd;
 use App\Models\IndikatorTujuanDaerah;
 use App\Models\IndikatorTujuanOpd;
@@ -20,13 +19,13 @@ use App\Models\RkpdItem;
 use App\Models\Rpjmd;
 use App\Models\RpjmdVisi;
 use App\Models\SasaranOpd;
-use App\Models\TargetIndikatorOpdProgram;
 use App\Models\TargetIndikatorSasaranOpd;
 use App\Models\TargetIndikatorTujuanOpd;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
 use App\Services\Kinerja\PerjanjianKinerjaSnapshotService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class PerjanjianKinerjaSnapshotTest extends TestCase
@@ -129,12 +128,21 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
             'status' => 'approved',
             'is_active_version' => true,
         ]);
-        $tujuan = TujuanOpd::create(['renstra_opd_id' => $renstra->id, 'kode' => 'T1', 'tujuan' => 'Layanan semakin baik', 'urutan' => 1]);
+        $tujuan = TujuanOpd::create(['renstra_opd_id' => $renstra->id, 'tujuan' => 'Layanan semakin baik', 'urutan' => 1]);
         $indikatorTujuan = IndikatorTujuanOpd::create(['tujuan_opd_id' => $tujuan->id, 'indikator' => 'Indeks layanan', 'urutan' => 1]);
         TargetIndikatorTujuanOpd::create(['indikator_tujuan_opd_id' => $indikatorTujuan->id, 'periode_tahun_id' => $periode->id, 'target_text' => 'A']);
         $sasaran = SasaranOpd::create(['tujuan_opd_id' => $tujuan->id, 'kode' => 'S1', 'sasaran' => 'Kualitas layanan meningkat', 'urutan' => 1]);
         $indikatorSasaran = IndikatorSasaranOpd::create(['sasaran_opd_id' => $sasaran->id, 'indikator' => 'Nilai pelayanan', 'urutan' => 1]);
         TargetIndikatorSasaranOpd::create(['indikator_sasaran_opd_id' => $indikatorSasaran->id, 'periode_tahun_id' => $periode->id, 'target' => 90]);
+        OpdProgram::create([
+            'renstra_opd_id' => $renstra->id,
+            'sasaran_opd_id' => $sasaran->id,
+            'kode' => '1.01.01',
+            'nama' => 'PROGRAM ADMINISTRASI UMUM',
+            'sasaran_program' => 'Administrasi tersedia',
+            'status' => 'draft',
+            'urutan' => 1,
+        ]);
         $program = OpdProgram::create([
             'renstra_opd_id' => $renstra->id,
             'sasaran_opd_id' => $sasaran->id,
@@ -142,10 +150,8 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
             'nama' => 'PROGRAM PENGELOLAAN INFORMASI',
             'sasaran_program' => 'Informasi tersedia',
             'status' => 'draft',
-            'urutan' => 1,
+            'urutan' => 2,
         ]);
-        $indikatorProgram = IndikatorOpdProgram::create(['opd_program_id' => $program->id, 'indikator' => 'Persentase informasi tersedia', 'urutan' => 1]);
-        TargetIndikatorOpdProgram::create(['indikator_opd_program_id' => $indikatorProgram->id, 'periode_tahun_id' => $periode->id, 'target' => 95]);
         $renja = RenjaOpd::create([
             'renstra_opd_id' => $renstra->id,
             'opd_id' => $opd->id,
@@ -170,6 +176,14 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
             'sumber_pendanaan' => 'APBD',
             'urutan' => 1,
         ]);
+        DpaOpdItem::create([
+            'dpa_opd_id' => $dpa->id,
+            'kode_program' => '2.16.03',
+            'nama_program' => 'PROGRAM PENGELOLAAN INFORMASI',
+            'pagu_dpa' => 26000000,
+            'sumber_pendanaan' => 'DAK',
+            'urutan' => 2,
+        ]);
         $pk = PerjanjianKinerja::create([
             'opd_id' => $opd->id,
             'renstra_opd_id' => $renstra->id,
@@ -185,12 +199,41 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
 
         app(PerjanjianKinerjaSnapshotService::class)->populate($pk);
 
-        $this->assertSame(['tujuan_opd', 'sasaran_opd', 'program_opd'], $pk->items()->pluck('jenis_item')->all());
+        $this->assertSame(['tujuan_opd', 'sasaran_opd'], $pk->items()->pluck('jenis_item')->all());
+        $this->assertDatabaseMissing('perjanjian_kinerja_items', [
+            'perjanjian_kinerja_id' => $pk->id,
+            'jenis_item' => 'program_opd',
+        ]);
         $this->assertTrue($pk->items()->get()->every(fn ($item) => $item->is_readonly));
         $this->assertDatabaseHas('perjanjian_kinerja_programs', [
             'perjanjian_kinerja_id' => $pk->id,
+            'opd_program_id' => $program->id,
             'nama_program' => 'PROGRAM PENGELOLAAN INFORMASI',
-            'anggaran' => 74000000,
+            'anggaran' => 100000000,
+            'keterangan' => 'APBD, DAK',
+        ]);
+
+        TargetIndikatorSasaranOpd::query()
+            ->where('indikator_sasaran_opd_id', $indikatorSasaran->id)
+            ->delete();
+
+        try {
+            app(PerjanjianKinerjaSnapshotService::class)->populate($pk);
+            $this->fail('Sinkronisasi PK seharusnya ditolak ketika target tahunan RENSTRA belum tersedia.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('renstra_opd_id', $exception->errors());
+        }
+
+        // Penghapusan snapshot dilakukan di transaksi yang sama, sehingga kegagalan sinkronisasi
+        // tidak boleh merusak data PK terakhir yang masih sah.
+        $this->assertDatabaseHas('perjanjian_kinerja_items', [
+            'perjanjian_kinerja_id' => $pk->id,
+            'indikator' => 'Nilai pelayanan',
+            'target' => 90,
+        ]);
+        $this->assertDatabaseHas('perjanjian_kinerja_programs', [
+            'perjanjian_kinerja_id' => $pk->id,
+            'anggaran' => 100000000,
         ]);
     }
 }

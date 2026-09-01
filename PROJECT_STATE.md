@@ -72,11 +72,12 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
     - Admin OPD dapat mengusulkan jabatan baru hanya untuk OPD sendiri melalui permission `jabatan_organisasi.manage_opd`. Usulan berstatus `pending`; Admin OPD hanya dapat mengubah/menghapus usulan miliknya yang masih `pending/rejected`, sedangkan jabatan resmi `verified` tetap terkunci.
     - Admin Kabupaten memverifikasi atau mengembalikan usulan dengan catatan melalui permission `jabatan_organisasi.verify`. Verifikasi hierarki wajib dilakukan dari jabatan atasan ke bawah.
     - Jabatan `pending` dapat dipakai untuk penempatan pegawai agar operasional OPD tidak terhenti. Jabatan `rejected` tetap mempertahankan histori lama tetapi tidak dapat dipilih untuk penempatan baru sampai diperbaiki dan diverifikasi.
-    - Admin OPD dapat menambah/memperbarui pegawai, mencatat/mengakhiri penempatan, dan menentukan pengampu kinerja tahunan hanya untuk OPD sendiri melalui permission `pegawai.manage`. Admin OPD tidak dapat mengubah jabatan resmi atau menghapus histori penempatan.
+    - Admin OPD dapat menambah/memperbarui pegawai dan mencatat/mengakhiri penempatan hanya untuk OPD sendiri melalui permission `pegawai.manage`. Admin OPD tidak dapat mengubah jabatan resmi atau menghapus histori penempatan.
     - Pengelola pusat dapat mengelola seluruh pegawai, perpindahan lintas OPD, serta penghapusan data kosong. Data yang sudah memiliki histori penempatan/PK harus dinonaktifkan, bukan dihapus.
-    - Penugasan pengampu kinerja disimpan per pegawai, periode, dan level cascading (sasaran/program/kegiatan/sub kegiatan). Penugasan ini menjadi syarat pembuatan PK Cascading.
-    - Pimpinan memperoleh akses lihat sesuai cakupan OPD.
-    - Struktur level mengikuti rantai akuntabilitas Perbup Banjarnegara Nomor 41 Tahun 2024 sebagai fondasi penyusunan PK bertingkat.
+    - Lingkup kinerja tahunan tidak lagi diatur pada profil pegawai. Tabel/rute penugasan pengampu lama tetap dipertahankan untuk kompatibilitas histori production, tetapi UI-nya disembunyikan dan tidak menjadi syarat PK baru.
+- Pimpinan memperoleh akses lihat sesuai cakupan OPD.
+- Daftar `Struktur Organisasi` dan `Pegawai OPD` dikelompokkan per perangkat daerah. Di dalam setiap OPD, data mengikuti hierarki jabatan aktif: Kepala Daerah/Kepala OPD, Sekretaris, Administrator/Kabid, Pengawas, Fungsional, lalu Pelaksana; pegawai tanpa jabatan aktif ditempatkan paling bawah.
+- Struktur level mengikuti rantai akuntabilitas Perbup Banjarnegara Nomor 41 Tahun 2024 sebagai fondasi penyusunan PK bertingkat.
     - Migrasi `2026_08_27_000001_add_jabatan_verification_workflow.php` menambahkan status/audit verifikasi jabatan dan permission usulan/verifikasi tanpa menghapus data lama.
 - Master periode tahun.
 - Master satuan indikator.
@@ -303,12 +304,21 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 ### Fondasi Perjanjian Kinerja Bertingkat
 
 - PK sekarang memiliki empat level dokumen: `PK Bupati`, `PK Kepala OPD`, `PK Struktural`, dan `PK JF/Pelaksana`.
+- Menu `Referensi Data -> Kop Dokumen` mengelola satu profil kop Kabupaten dan satu profil per OPD. Admin Kabupaten dapat mengelola seluruh profil, sedangkan Admin OPD hanya dapat mengelola profil OPD sendiri.
+- Kop dokumen memuat logo, nama pemerintah, nama instansi, alamat, telepon, faksimile, website, surel, kota, dan kode pos. Saat PK dibuat, kop disalin menjadi snapshot sehingga perubahan master tidak mengubah dokumen lama; snapshot kop PK berstatus Draft/Perlu Perbaikan/Ditolak masih dapat disesuaikan melalui aksi `Atur Kop`.
 - PK Bupati mengambil snapshot indikator tujuan/sasaran beserta target dan program/anggaran dari RKPD resmi aktif berstatus `approved/locked`.
-- PK Kepala OPD mengambil snapshot tujuan OPD, sasaran OPD, indikator program OPD, target tahunan Renstra, serta program/anggaran dari DPA/DPPA resmi yang terhubung pada RENJA dan Renstra yang sama.
-- Snapshot PK Bupati/Kepala OPD bersifat read-only. Koreksi dilakukan pada dokumen sumber resmi, lalu sumber PK diubah untuk membentuk ulang snapshot; data sumber tidak ikut berubah.
+- PK Kepala OPD menampilkan matriks hanya dari Tujuan OPD dan Sasaran OPD beserta indikator/target tahunannya. Sasaran Program dan indikator program tidak menjadi baris bernomor pada matriks; Program OPD tetap ditampilkan terpisah pada tabel Program dan Anggaran yang bersumber dari DPA/DPPA resmi.
+- Seluruh PK Cascading memakai snapshot read-only. Koreksi dilakukan pada dokumen sumber resmi atau lingkup pilihan PK, lalu snapshot dibentuk ulang; data sumber tidak ikut berubah.
 - PK memiliki subjek pegawai, snapshot nama/NIP/jabatan Pihak Pertama dan Pihak Kedua, penempatan yang digunakan, tanggal/tempat penandatanganan, dan sumber dokumen.
-- PK Cascading hanya dapat dibuat bila pegawai memiliki penugasan pengampu pada periode yang sama; jalur ini dapat diteruskan ke Rencana Aksi dan realisasi/pengukuran organisasi.
-- PK Individu dapat dibuat untuk staf/JF/Pelaksana tanpa sumber cascading; item diisi manual dan sengaja tidak tersedia sebagai sumber Rencana Aksi maupun realisasi organisasi.
+- PK Struktural memilih langsung beberapa Sasaran OPD, Program OPD, Kegiatan OPD, atau Sub Kegiatan OPD dari Renstra resmi aktif pada form PK. Pilihan disimpan pada `lingkup_kinerja_snapshot`, lalu seluruh indikator dan target tahun terkait disalin sebagai snapshot.
+- PK JF/Pelaksana mempunyai dua mode: `Cascading` memakai pemilihan lingkup Renstra yang sama, sedangkan `Manual` diisi sendiri setelah PK dibuat. Hanya PK Cascading resmi yang dapat diteruskan ke Rencana Aksi dan realisasi/pengukuran organisasi.
+- Pihak Kedua PK Struktural/JF/Pelaksana mengikuti pemegang aktif jabatan induk pada Struktur Organisasi, bukan sekadar pegawai lain dalam OPD. Kepala OPD tetap berpasangan dengan Kepala Daerah; Kabid/Kabag dengan Kepala OPD atau atasan langsungnya; Kasi/Kasubbag dengan Kabid/Kabag sesuai rantai `parent_id`.
+- Cetak PK Struktural memakai format resmi Sekretaris/Kabid/Kabag: identitas pejabat dan unit kerja, matriks Sasaran Program/Sasaran Kegiatan, rekap Program-Anggaran-Keterangan, tanda tangan atasan langsung, dan catatan penyesuaian. Seluruh cetak browser, PDF, dan Word PK memakai ukuran 21 × 33 cm.
+- Pilihan PK kini membedakan `PK Sek/Kabid/Kabag` (`level_pk=struktural`) dan `PK Kasi/Kasubbag/JF/Pelaksana` (`level_pk=individu`). Mode cascading untuk kelompok kedua hanya menerima Kegiatan/Sub Kegiatan Renstra dan memakai format cetak khusus: matriks Sasaran Kegiatan/Sasaran Sub Kegiatan, rekap Kegiatan-Sub Kegiatan beserta anggaran DPA/DPPA resmi, serta catatan kaki resmi.
+- Halaman awal PK menampilkan dokumen dalam kelompok per OPD (termasuk kelompok khusus tingkat kabupaten), dengan ringkasan jumlah dokumen/resmi, informasi pemilik, level, status, tahun, isi snapshot, anggaran, dan aksi yang responsif. Pencarian PK juga mencakup nama/NIP pegawai.
+- Judul PK dibentuk otomatis dan readonly dari jabatan penandatangan serta tahun (`PK Bupati Banjarnegara Tahun YYYY`, atau `PK {Nama Jabatan} Tahun YYYY`). Jika data lama belum memiliki penempatan, sistem memakai nama pegawai sebagai fallback; backend menormalisasi judul saat dokumen disimpan.
+- Migrasi `2026_08_31_000002_add_direct_cascading_scope_to_perjanjian_kinerja.php` bersifat aditif dan tidak menghapus penugasan maupun PK lama.
+- Sinkronisasi Struktur Organisasi, Pegawai OPD, dan PK memakai penempatan aktif sebagai sumber OPD/unit/jabatan. Perubahan identitas pegawai menyegarkan identitas penempatan aktif, perubahan struktur menyegarkan pemegang aktif, dan PK memvalidasi lingkup berdasarkan OPD jabatan yang dipilih. Snapshot PK yang sudah tersimpan tetap tidak diubah. Migrasi `2026_08_31_000003_sync_current_pegawai_organization.php` menormalkan data aktif lama tanpa menghapus histori.
 - Data PK lama tetap bertipe cascading secara default dan tidak dihapus oleh migrasi; identitas pegawainya dapat dilengkapi saat dokumen diedit.
 - Preview/cetak PK memakai format dua halaman: pernyataan dan tanda tangan, kemudian lampiran matriks indikator serta rekap program/anggaran. Export PDF memakai layout yang sama; export Word tetap tersedia.
 - Dasar implementasi: Perpres 29/2014, PermenPANRB 53/2014, dan Perbup Banjarnegara 41/2024. Perbup Banjarnegara 14/2015 sudah dicabut oleh Perbup 41/2024.

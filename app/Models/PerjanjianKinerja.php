@@ -29,6 +29,7 @@ class PerjanjianKinerja extends Model
         'tipe_pk',
         'level_pk',
         'sumber_data',
+        'lingkup_kinerja_snapshot',
         'nama_pegawai_snapshot',
         'nip_snapshot',
         'jabatan_snapshot',
@@ -36,6 +37,7 @@ class PerjanjianKinerja extends Model
         'nip_atasan_snapshot',
         'jabatan_atasan_snapshot',
         'snapshot_dibuat_pada',
+        'kop_dokumen_snapshot',
         'judul',
         'nomor_dokumen',
         'tanggal_dokumen',
@@ -52,6 +54,8 @@ class PerjanjianKinerja extends Model
             'tahun' => 'integer',
             'tanggal_dokumen' => 'date',
             'snapshot_dibuat_pada' => 'datetime',
+            'kop_dokumen_snapshot' => 'array',
+            'lingkup_kinerja_snapshot' => 'array',
             'submitted_at' => 'datetime',
         ];
     }
@@ -121,8 +125,8 @@ class PerjanjianKinerja extends Model
         return match ($this->level_pk) {
             'bupati' => 'PK Bupati',
             'kepala_opd' => 'PK Kepala OPD',
-            'struktural' => 'PK Struktural',
-            'individu' => 'PK JF/Pelaksana',
+            'struktural' => 'PK Sek/Kabid/Kabag',
+            'individu' => $this->tipe_pk === 'cascading' ? 'PK Kasi/Kasubbag/JF/Pelaksana' : 'PK JF/Pelaksana Manual',
             default => 'Perjanjian Kinerja',
         };
     }

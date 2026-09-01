@@ -19,6 +19,7 @@ import CalendarDays from 'lucide-vue-next/dist/esm/icons/calendar-days.js';
 import BarChart3 from 'lucide-vue-next/dist/esm/icons/chart-column.js';
 import ClipboardList from 'lucide-vue-next/dist/esm/icons/clipboard-list.js';
 import FileCheck2 from 'lucide-vue-next/dist/esm/icons/file-check-2.js';
+import FileBadge2 from 'lucide-vue-next/dist/esm/icons/file-badge-2.js';
 import FileSpreadsheet from 'lucide-vue-next/dist/esm/icons/file-spreadsheet.js';
 import FileText from 'lucide-vue-next/dist/esm/icons/file-text.js';
 import GitBranch from 'lucide-vue-next/dist/esm/icons/git-branch.js';
@@ -98,6 +99,12 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     href: '/master/opd',
                     pageComponent: 'Master/Opd/Index',
                     icon: Building2,
+                },
+                hasAnyPermission(['kop_dokumen.view', 'kop_dokumen.manage']) && {
+                    title: 'Kop Dokumen',
+                    href: '/master/kop-dokumen',
+                    pageComponent: 'Master/KopDokumen/Index',
+                    icon: FileBadge2,
                 },
                 hasPermission('jabatan_organisasi.view') &&
                     !hasRole('admin_opd') && {

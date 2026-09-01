@@ -65,6 +65,8 @@ class DatabaseSeeder extends Seeder
             ['name' => 'urusan.manage', 'label' => 'Kelola Urusan Pemerintahan', 'module' => 'urusan_pemerintahan'],
             ['name' => 'settings.view', 'label' => 'Lihat Pengaturan Sistem', 'module' => 'system_settings'],
             ['name' => 'settings.manage', 'label' => 'Kelola Pengaturan Sistem', 'module' => 'system_settings'],
+            ['name' => 'kop_dokumen.view', 'label' => 'Lihat Pengaturan Kop Dokumen', 'module' => 'kop_dokumen'],
+            ['name' => 'kop_dokumen.manage', 'label' => 'Kelola Kop Dokumen', 'module' => 'kop_dokumen'],
             ['name' => 'activity_logs.view', 'label' => 'Lihat Audit Log', 'module' => 'audit_log'],
             ['name' => 'rpjmd.view', 'label' => 'Lihat RPJMD', 'module' => 'rpjmd'],
             ['name' => 'rpjmd.manage', 'label' => 'Kelola RPJMD', 'module' => 'rpjmd'],
@@ -150,6 +152,21 @@ class DatabaseSeeder extends Seeder
                 'permissions' => ['dashboard.view', 'view_dashboard_pimpinan', 'jabatan_organisasi.view', 'pegawai.view', 'rpjmd.view', 'view_rpjmd', 'rkpd.view', 'renja.view', 'rka.view', 'dpa.view', 'lkjip.view', 'laporan.view'],
             ],
         ];
+
+        foreach ([
+            'admin_kabupaten_bagian_organisasi',
+            'admin_kabupaten_bapperida',
+            'admin_kabupaten_bpkad',
+            'admin_kabupaten_inspektorat',
+            'admin_kabupaten_dinkominfo',
+            'admin_opd',
+        ] as $roleName) {
+            $roles[$roleName]['permissions'] = [
+                ...$roles[$roleName]['permissions'],
+                'kop_dokumen.view',
+                'kop_dokumen.manage',
+            ];
+        }
 
         foreach ($roles as $name => $roleData) {
             $role = Role::updateOrCreate(

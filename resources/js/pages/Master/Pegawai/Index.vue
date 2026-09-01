@@ -3,15 +3,19 @@ import { useAutoFilters } from '@/composables/useAutoFilters';
 import { Head, Link, router } from '@inertiajs/vue3';
 import BadgeCheck from 'lucide-vue-next/dist/esm/icons/badge-check.js';
 import BriefcaseBusiness from 'lucide-vue-next/dist/esm/icons/briefcase-business.js';
+import Building2 from 'lucide-vue-next/dist/esm/icons/building-2.js';
 import ChevronRight from 'lucide-vue-next/dist/esm/icons/chevron-right.js';
 import CircleUserRound from 'lucide-vue-next/dist/esm/icons/circle-user-round.js';
 import Plus from 'lucide-vue-next/dist/esm/icons/plus.js';
 import Search from 'lucide-vue-next/dist/esm/icons/search.js';
 import UsersRound from 'lucide-vue-next/dist/esm/icons/users-round.js';
-import { reactive } from 'vue';
+import { computed, reactive } from 'vue';
 
 type Option = { id?: number; value?: string; label: string };
-type Placement = { id: number; jabatan?: { nama: string; level_label: string; verification_status?: string } | null };
+type Placement = {
+    id: number;
+    jabatan?: { nama: string; level_jabatan: string; level_label: string; verification_status?: string } | null;
+};
 type Row = {
     id: number;
     nama: string;
@@ -19,7 +23,7 @@ type Row = {
     pangkat_golongan?: string | null;
     jenis_pegawai_label: string;
     status: string;
-    opd?: { nama: string; singkatan?: string | null } | null;
+    opd?: { id: number; nama: string; singkatan?: string | null } | null;
     opd_unit?: { kode: string; nama: string } | null;
     current_placements: Placement[];
 };
@@ -55,6 +59,25 @@ const resetFilters = () => {
     Object.assign(filterForm, { search: '', opd_id: '', jenis_pegawai: '', status: '' });
     applyFiltersNow();
 };
+
+const groupedItems = computed(() => {
+    const groups = new Map<string, { key: string; label: string; name: string; items: Row[] }>();
+
+    props.items.data.forEach((item) => {
+        const key = item.opd ? `opd-${item.opd.id}` : 'kabupaten';
+        const group = groups.get(key) ?? {
+            key,
+            label: item.opd?.singkatan || item.opd?.nama || 'Lingkup Kabupaten',
+            name: item.opd?.nama || 'Pegawai tingkat kabupaten',
+            items: [],
+        };
+
+        group.items.push(item);
+        groups.set(key, group);
+    });
+
+    return Array.from(groups.values());
+});
 </script>
 
 <template>
@@ -154,78 +177,102 @@ const resetFilters = () => {
                     <thead class="border-b bg-muted/40 text-[11px] uppercase tracking-wider text-muted-foreground">
                         <tr>
                             <th class="px-5 py-3">Pegawai</th>
-                            <th class="px-5 py-3">Perangkat daerah</th>
                             <th class="px-5 py-3">Jabatan saat ini</th>
+                            <th class="px-5 py-3">Unit kerja</th>
                             <th class="px-5 py-3">Jenis</th>
                             <th class="px-5 py-3 text-right">Aksi</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y">
-                        <tr v-for="item in items.data" :key="item.id" class="transition-colors hover:bg-muted/25">
-                            <td class="px-5 py-4 align-top">
-                                <div class="flex items-start gap-3">
-                                    <div
-                                        class="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200"
+                    <tbody>
+                        <template v-for="group in groupedItems" :key="group.key">
+                            <tr class="border-y border-blue-100 bg-blue-50/70 dark:border-blue-900/60 dark:bg-blue-950/25">
+                                <td colspan="5" class="px-5 py-3">
+                                    <div class="flex items-center gap-3">
+                                        <div
+                                            class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-800 text-white dark:bg-blue-600"
+                                        >
+                                            <Building2 class="size-4" />
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="font-semibold text-blue-950 dark:text-blue-100">{{ group.label }}</p>
+                                            <p v-if="group.name !== group.label" class="truncate text-xs text-blue-800/70 dark:text-blue-200/70">
+                                                {{ group.name }}
+                                            </p>
+                                        </div>
+                                        <span
+                                            class="rounded-full border border-blue-200 bg-background/80 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-blue-800 dark:border-blue-800 dark:text-blue-200"
+                                        >
+                                            {{ group.items.length }} pegawai
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-for="item in group.items" :key="item.id" class="border-b transition-colors last:border-b-0 hover:bg-muted/25">
+                                <td class="px-5 py-4 align-top">
+                                    <div class="flex items-start gap-3">
+                                        <div
+                                            class="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200"
+                                        >
+                                            <CircleUserRound class="size-4" />
+                                        </div>
+                                        <div>
+                                            <Link :href="route('master.pegawai.show', item.id)" class="font-semibold hover:text-blue-700">{{
+                                                item.nama
+                                            }}</Link>
+                                            <p class="mt-0.5 text-xs text-muted-foreground">{{ item.nip ? `NIP ${item.nip}` : 'NIP belum diisi' }}</p>
+                                            <p v-if="item.pangkat_golongan" class="text-xs text-muted-foreground">{{ item.pangkat_golongan }}</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-5 py-4 align-top">
+                                    <div v-if="item.current_placements.length" class="space-y-1.5">
+                                        <div v-for="placement in item.current_placements.slice(0, 2)" :key="placement.id">
+                                            <p class="font-medium leading-5">{{ placement.jabatan?.nama }}</p>
+                                            <p class="text-[11px] text-muted-foreground">{{ placement.jabatan?.level_label }}</p>
+                                            <p
+                                                v-if="placement.jabatan?.verification_status === 'pending'"
+                                                class="text-[10px] font-semibold text-amber-700 dark:text-amber-300"
+                                            >
+                                                Menunggu verifikasi jabatan
+                                            </p>
+                                            <p
+                                                v-else-if="placement.jabatan?.verification_status === 'rejected'"
+                                                class="text-[10px] font-semibold text-rose-700 dark:text-rose-300"
+                                            >
+                                                Jabatan perlu diperbaiki
+                                            </p>
+                                        </div>
+                                        <p v-if="item.current_placements.length > 2" class="text-xs font-medium text-blue-700">
+                                            +{{ item.current_placements.length - 2 }} jabatan lain
+                                        </p>
+                                    </div>
+                                    <span v-else class="text-xs text-muted-foreground">Belum memiliki jabatan</span>
+                                </td>
+                                <td class="px-5 py-4 align-top">
+                                    <p v-if="item.opd_unit" class="font-medium leading-5">{{ item.opd_unit.nama }}</p>
+                                    <span v-else class="text-xs text-muted-foreground">Lingkup utama OPD</span>
+                                </td>
+                                <td class="px-5 py-4 align-top">
+                                    <span class="inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold">{{
+                                        item.jenis_pegawai_label
+                                    }}</span>
+                                    <p
+                                        class="mt-2 text-[11px] font-medium"
+                                        :class="item.status === 'active' ? 'text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground'"
                                     >
-                                        <CircleUserRound class="size-4" />
-                                    </div>
-                                    <div>
-                                        <Link :href="route('master.pegawai.show', item.id)" class="font-semibold hover:text-blue-700">{{
-                                            item.nama
-                                        }}</Link>
-                                        <p class="mt-0.5 text-xs text-muted-foreground">{{ item.nip ? `NIP ${item.nip}` : 'NIP belum diisi' }}</p>
-                                        <p v-if="item.pangkat_golongan" class="text-xs text-muted-foreground">{{ item.pangkat_golongan }}</p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-5 py-4 align-top">
-                                <p class="font-medium">{{ item.opd?.singkatan || item.opd?.nama || 'Lingkup kabupaten' }}</p>
-                                <p v-if="item.opd_unit" class="mt-1 text-xs text-muted-foreground">{{ item.opd_unit.nama }}</p>
-                            </td>
-                            <td class="px-5 py-4 align-top">
-                                <div v-if="item.current_placements.length" class="space-y-1.5">
-                                    <div v-for="placement in item.current_placements.slice(0, 2)" :key="placement.id">
-                                        <p class="font-medium leading-5">{{ placement.jabatan?.nama }}</p>
-                                        <p class="text-[11px] text-muted-foreground">{{ placement.jabatan?.level_label }}</p>
-                                        <p
-                                            v-if="placement.jabatan?.verification_status === 'pending'"
-                                            class="text-[10px] font-semibold text-amber-700 dark:text-amber-300"
-                                        >
-                                            Menunggu verifikasi jabatan
-                                        </p>
-                                        <p
-                                            v-else-if="placement.jabatan?.verification_status === 'rejected'"
-                                            class="text-[10px] font-semibold text-rose-700 dark:text-rose-300"
-                                        >
-                                            Jabatan perlu diperbaiki
-                                        </p>
-                                    </div>
-                                    <p v-if="item.current_placements.length > 2" class="text-xs font-medium text-blue-700">
-                                        +{{ item.current_placements.length - 2 }} jabatan lain
+                                        {{ item.status === 'active' ? 'Aktif' : 'Nonaktif' }}
                                     </p>
-                                </div>
-                                <span v-else class="text-xs text-muted-foreground">Belum memiliki jabatan</span>
-                            </td>
-                            <td class="px-5 py-4 align-top">
-                                <span class="inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold">{{
-                                    item.jenis_pegawai_label
-                                }}</span>
-                                <p
-                                    class="mt-2 text-[11px] font-medium"
-                                    :class="item.status === 'active' ? 'text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground'"
-                                >
-                                    {{ item.status === 'active' ? 'Aktif' : 'Nonaktif' }}
-                                </p>
-                            </td>
-                            <td class="px-5 py-4 text-right align-top">
-                                <Link
-                                    :href="route('master.pegawai.show', item.id)"
-                                    class="inline-flex size-9 items-center justify-center rounded-lg border hover:bg-muted"
-                                    title="Buka detail"
-                                    ><ChevronRight class="size-4"
-                                /></Link>
-                            </td>
-                        </tr>
+                                </td>
+                                <td class="px-5 py-4 text-right align-top">
+                                    <Link
+                                        :href="route('master.pegawai.show', item.id)"
+                                        class="inline-flex size-9 items-center justify-center rounded-lg border hover:bg-muted"
+                                        title="Buka detail"
+                                        ><ChevronRight class="size-4"
+                                    /></Link>
+                                </td>
+                            </tr>
+                        </template>
                     </tbody>
                 </table>
             </div>

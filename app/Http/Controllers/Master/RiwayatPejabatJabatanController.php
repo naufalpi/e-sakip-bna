@@ -9,6 +9,7 @@ use App\Models\JabatanOrganisasi;
 use App\Models\Pegawai;
 use App\Models\RiwayatPejabatJabatan;
 use App\Models\User;
+use App\Services\Master\PegawaiOrganizationSyncService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,8 +17,11 @@ use Illuminate\Validation\ValidationException;
 
 class RiwayatPejabatJabatanController extends Controller
 {
-    public function store(StoreRiwayatPejabatJabatanRequest $request, JabatanOrganisasi $jabatanOrganisasi): RedirectResponse
-    {
+    public function store(
+        StoreRiwayatPejabatJabatanRequest $request,
+        JabatanOrganisasi $jabatanOrganisasi,
+        PegawaiOrganizationSyncService $syncService,
+    ): RedirectResponse {
         $this->assertInScope($request->user(), $jabatanOrganisasi);
         $this->assertUsableForPlacement($jabatanOrganisasi);
         $data = $request->validated();
@@ -26,7 +30,9 @@ class RiwayatPejabatJabatanController extends Controller
         $data['pegawai_id'] = $pegawai->id;
         $this->assertPeriodAvailable($jabatanOrganisasi, $data);
 
-        $jabatanOrganisasi->riwayatPejabat()->create($data);
+        $placement = $jabatanOrganisasi->riwayatPejabat()->create($data);
+        $syncService->syncPlacementIdentity($placement, $pegawai);
+        $syncService->syncEmployee($pegawai);
 
         return back()->with('success', 'Riwayat pejabat berhasil ditambahkan.');
     }
@@ -34,7 +40,8 @@ class RiwayatPejabatJabatanController extends Controller
     public function update(
         UpdateRiwayatPejabatJabatanRequest $request,
         JabatanOrganisasi $jabatanOrganisasi,
-        RiwayatPejabatJabatan $riwayatPejabat
+        RiwayatPejabatJabatan $riwayatPejabat,
+        PegawaiOrganizationSyncService $syncService,
     ): RedirectResponse {
         $this->assertBelongsToJabatan($jabatanOrganisasi, $riwayatPejabat);
         $this->assertInScope($request->user(), $jabatanOrganisasi);
@@ -51,6 +58,8 @@ class RiwayatPejabatJabatanController extends Controller
         $this->assertPeriodAvailable($jabatanOrganisasi, $data, $riwayatPejabat);
 
         $riwayatPejabat->update($data);
+        $syncService->syncPlacementIdentity($riwayatPejabat, $pegawai);
+        $syncService->syncEmployee($pegawai);
 
         return back()->with('success', 'Riwayat pejabat berhasil diperbarui.');
     }
@@ -58,13 +67,17 @@ class RiwayatPejabatJabatanController extends Controller
     public function destroy(
         Request $request,
         JabatanOrganisasi $jabatanOrganisasi,
-        RiwayatPejabatJabatan $riwayatPejabat
+        RiwayatPejabatJabatan $riwayatPejabat,
+        PegawaiOrganizationSyncService $syncService,
     ): RedirectResponse {
         abort_unless($request->user()->hasPermission('jabatan_organisasi.manage'), 403);
         $this->assertBelongsToJabatan($jabatanOrganisasi, $riwayatPejabat);
         $this->assertInScope($request->user(), $jabatanOrganisasi);
 
         $riwayatPejabat->delete();
+        if ($riwayatPejabat->pegawai) {
+            $syncService->syncEmployee($riwayatPejabat->pegawai);
+        }
 
         return back()->with('success', 'Riwayat pejabat berhasil dihapus.');
     }

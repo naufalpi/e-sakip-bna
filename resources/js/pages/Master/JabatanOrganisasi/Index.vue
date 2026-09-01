@@ -18,7 +18,7 @@ import Trash2 from 'lucide-vue-next/dist/esm/icons/trash-2.js';
 import UserRoundCheck from 'lucide-vue-next/dist/esm/icons/user-round-check.js';
 import UserRoundX from 'lucide-vue-next/dist/esm/icons/user-round-x.js';
 import UsersRound from 'lucide-vue-next/dist/esm/icons/users-round.js';
-import { reactive } from 'vue';
+import { computed, reactive } from 'vue';
 
 type Option = { id?: number; value?: string; label: string };
 type Pejabat = {
@@ -35,7 +35,7 @@ type Jabatan = {
     eselon?: string | null;
     status: string;
     children_count?: number | null;
-    opd?: { nama: string; singkatan?: string | null } | null;
+    opd?: { id: number; nama: string; singkatan?: string | null } | null;
     opd_unit?: { kode: string; nama: string } | null;
     parent?: { nama: string } | null;
     current_pejabat?: Pejabat | null;
@@ -147,6 +147,25 @@ const verificationClass = (status: Jabatan['verification_status']) =>
         pending: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200',
         rejected: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200',
     })[status];
+
+const groupedItems = computed(() => {
+    const groups = new Map<string, { key: string; label: string; name: string; items: Jabatan[] }>();
+
+    props.items.data.forEach((item) => {
+        const key = item.opd ? `opd-${item.opd.id}` : 'kabupaten';
+        const group = groups.get(key) ?? {
+            key,
+            label: item.opd?.singkatan || item.opd?.nama || 'Pemerintah Kabupaten',
+            name: item.opd?.nama || 'Struktur tingkat kabupaten',
+            items: [],
+        };
+
+        group.items.push(item);
+        groups.set(key, group);
+    });
+
+    return Array.from(groups.values());
+});
 </script>
 
 <template>
@@ -312,175 +331,212 @@ const verificationClass = (status: Jabatan['verification_status']) =>
                     <thead class="border-b bg-muted/50 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                         <tr>
                             <th class="w-[31%] px-5 py-3.5">Jabatan</th>
-                            <th class="w-[22%] px-4 py-3.5">Perangkat daerah / unit</th>
+                            <th class="w-[22%] px-4 py-3.5">Unit organisasi</th>
                             <th class="w-[20%] px-4 py-3.5">Atasan langsung</th>
                             <th class="w-[18%] px-4 py-3.5">Pegawai aktif</th>
                             <th class="w-[9%] px-4 py-3.5 text-right">Aksi</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y">
-                        <tr v-for="item in items.data" :key="item.id" class="group align-top transition hover:bg-muted/35">
-                            <td class="px-5 py-4">
-                                <div class="flex gap-3">
-                                    <div
-                                        class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background text-blue-800 dark:text-blue-300"
-                                    >
-                                        <BriefcaseBusiness class="size-4" />
+                    <tbody>
+                        <template v-for="group in groupedItems" :key="group.key">
+                            <tr class="border-y border-blue-100 bg-blue-50/70 dark:border-blue-900/60 dark:bg-blue-950/25">
+                                <td colspan="5" class="px-5 py-3">
+                                    <div class="flex items-center gap-3">
+                                        <div
+                                            class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-800 text-white dark:bg-blue-600"
+                                        >
+                                            <Building2 class="size-4" />
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="font-semibold text-blue-950 dark:text-blue-100">{{ group.label }}</p>
+                                            <p v-if="group.name !== group.label" class="truncate text-xs text-blue-800/70 dark:text-blue-200/70">
+                                                {{ group.name }}
+                                            </p>
+                                        </div>
+                                        <span
+                                            class="rounded-full border border-blue-200 bg-background/80 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-blue-800 dark:border-blue-800 dark:text-blue-200"
+                                        >
+                                            {{ group.items.length }} jabatan
+                                        </span>
                                     </div>
-                                    <div class="min-w-0">
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="item in group.items"
+                                :key="item.id"
+                                class="group border-b align-top transition last:border-b-0 hover:bg-muted/35"
+                            >
+                                <td class="px-5 py-4">
+                                    <div class="flex gap-3">
+                                        <div
+                                            class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background text-blue-800 dark:text-blue-300"
+                                        >
+                                            <BriefcaseBusiness class="size-4" />
+                                        </div>
+                                        <div class="min-w-0">
+                                            <Link
+                                                :href="route('master.jabatan-organisasi.show', item.id)"
+                                                class="font-semibold leading-5 text-foreground hover:text-blue-700 dark:hover:text-blue-300"
+                                                >{{ item.nama }}</Link
+                                            >
+                                            <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                                                <span
+                                                    class="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                                                    :class="levelClass(item.level_jabatan)"
+                                                    >{{ item.level_label }}</span
+                                                >
+                                                <span v-if="item.eselon" class="text-[11px] text-muted-foreground">{{
+                                                    item.eselon.replace('_', '.').toUpperCase()
+                                                }}</span>
+                                                <span
+                                                    class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                                                    :class="verificationClass(item.verification_status)"
+                                                >
+                                                    <BadgeCheck v-if="item.verification_status === 'verified'" class="size-3" />
+                                                    <Clock3 v-else-if="item.verification_status === 'pending'" class="size-3" />
+                                                    <CircleX v-else class="size-3" />
+                                                    {{ item.verification_label }}
+                                                </span>
+                                            </div>
+                                            <p
+                                                v-if="item.verification_status === 'rejected' && item.verification_note"
+                                                class="mt-2 line-clamp-2 text-xs leading-5 text-rose-700 dark:text-rose-300"
+                                            >
+                                                {{ item.verification_note }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <p v-if="item.opd_unit" class="line-clamp-2 font-medium leading-5 text-foreground">
+                                        {{ item.opd_unit.kode }} · {{ item.opd_unit.nama }}
+                                    </p>
+                                    <span v-else class="text-xs text-muted-foreground">Lingkup utama OPD</span>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <template v-if="item.parent">
+                                        <p class="line-clamp-2 font-medium leading-5">{{ item.parent.nama }}</p>
+                                    </template>
+                                    <span v-else class="text-xs text-muted-foreground">Puncak hierarki</span>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <div v-if="item.current_pejabat" class="flex gap-2.5">
+                                        <CircleUserRound class="mt-0.5 size-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
+                                        <div class="min-w-0">
+                                            <p class="truncate font-medium">{{ item.current_pejabat.nama_pejabat }}</p>
+                                            <p class="mt-1 truncate text-[11px] text-muted-foreground">
+                                                {{ item.current_pejabat.jenis_penugasan_label
+                                                }}<template v-if="item.current_pejabat.nip"> · {{ item.current_pejabat.nip }}</template>
+                                            </p>
+                                            <p
+                                                v-if="item.current_pejabat_count > 1"
+                                                class="mt-1 text-[11px] font-semibold text-blue-700 dark:text-blue-300"
+                                            >
+                                                +{{ item.current_pejabat_count - 1 }} pegawai lainnya
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span
+                                        v-else
+                                        class="inline-flex rounded-full border border-dashed border-amber-400/70 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300"
+                                        >Belum terisi</span
+                                    >
+                                </td>
+                                <td class="px-4 py-4 text-right">
+                                    <div class="inline-flex items-center gap-1">
                                         <Link
                                             :href="route('master.jabatan-organisasi.show', item.id)"
-                                            class="font-semibold leading-5 text-foreground hover:text-blue-700 dark:hover:text-blue-300"
-                                            >{{ item.nama }}</Link
+                                            class="inline-flex size-8 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted hover:text-foreground"
+                                            title="Lihat detail"
+                                            ><ChevronRight class="size-4"
+                                        /></Link>
+                                        <Link
+                                            v-if="item.can_edit"
+                                            :href="route('master.jabatan-organisasi.edit', item.id)"
+                                            class="inline-flex size-8 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted hover:text-foreground"
+                                            title="Edit"
+                                            ><Pencil class="size-3.5"
+                                        /></Link>
+                                        <button
+                                            v-if="item.can_delete"
+                                            type="button"
+                                            class="inline-flex size-8 items-center justify-center rounded-lg border text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                            title="Hapus"
+                                            @click="destroy(item)"
                                         >
-                                        <div class="mt-1 flex flex-wrap items-center gap-1.5">
-                                            <span
-                                                class="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
-                                                :class="levelClass(item.level_jabatan)"
-                                                >{{ item.level_label }}</span
-                                            >
-                                            <span v-if="item.eselon" class="text-[11px] text-muted-foreground">{{
-                                                item.eselon.replace('_', '.').toUpperCase()
-                                            }}</span>
-                                            <span
-                                                class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
-                                                :class="verificationClass(item.verification_status)"
-                                            >
-                                                <BadgeCheck v-if="item.verification_status === 'verified'" class="size-3" />
-                                                <Clock3 v-else-if="item.verification_status === 'pending'" class="size-3" />
-                                                <CircleX v-else class="size-3" />
-                                                {{ item.verification_label }}
-                                            </span>
-                                        </div>
-                                        <p
-                                            v-if="item.verification_status === 'rejected' && item.verification_note"
-                                            class="mt-2 line-clamp-2 text-xs leading-5 text-rose-700 dark:text-rose-300"
+                                            <Trash2 class="size-3.5" />
+                                        </button>
+                                        <button
+                                            v-if="item.can_verify"
+                                            type="button"
+                                            class="inline-flex size-8 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                                            title="Verifikasi jabatan"
+                                            @click="approve(item)"
                                         >
-                                            {{ item.verification_note }}
-                                        </p>
+                                            <BadgeCheck class="size-3.5" />
+                                        </button>
+                                        <button
+                                            v-if="item.can_verify && item.verification_status === 'pending'"
+                                            type="button"
+                                            class="inline-flex size-8 items-center justify-center rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                                            title="Kembalikan untuk diperbaiki"
+                                            @click="reject(item)"
+                                        >
+                                            <CircleX class="size-3.5" />
+                                        </button>
                                     </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4">
-                                <p class="font-medium text-foreground">{{ item.opd?.singkatan || item.opd?.nama || 'Pemerintah Kabupaten' }}</p>
-                                <p v-if="item.opd_unit" class="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                                    {{ item.opd_unit.kode }} · {{ item.opd_unit.nama }}
-                                </p>
-                            </td>
-                            <td class="px-4 py-4">
-                                <template v-if="item.parent">
-                                    <p class="line-clamp-2 font-medium leading-5">{{ item.parent.nama }}</p>
-                                </template>
-                                <span v-else class="text-xs text-muted-foreground">Puncak hierarki</span>
-                            </td>
-                            <td class="px-4 py-4">
-                                <div v-if="item.current_pejabat" class="flex gap-2.5">
-                                    <CircleUserRound class="mt-0.5 size-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
-                                    <div class="min-w-0">
-                                        <p class="truncate font-medium">{{ item.current_pejabat.nama_pejabat }}</p>
-                                        <p class="mt-1 truncate text-[11px] text-muted-foreground">
-                                            {{ item.current_pejabat.jenis_penugasan_label
-                                            }}<template v-if="item.current_pejabat.nip"> · {{ item.current_pejabat.nip }}</template>
-                                        </p>
-                                        <p
-                                            v-if="item.current_pejabat_count > 1"
-                                            class="mt-1 text-[11px] font-semibold text-blue-700 dark:text-blue-300"
-                                        >
-                                            +{{ item.current_pejabat_count - 1 }} pegawai lainnya
-                                        </p>
-                                    </div>
-                                </div>
-                                <span
-                                    v-else
-                                    class="inline-flex rounded-full border border-dashed border-amber-400/70 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300"
-                                    >Belum terisi</span
-                                >
-                            </td>
-                            <td class="px-4 py-4 text-right">
-                                <div class="inline-flex items-center gap-1">
-                                    <Link
-                                        :href="route('master.jabatan-organisasi.show', item.id)"
-                                        class="inline-flex size-8 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted hover:text-foreground"
-                                        title="Lihat detail"
-                                        ><ChevronRight class="size-4"
-                                    /></Link>
-                                    <Link
-                                        v-if="item.can_edit"
-                                        :href="route('master.jabatan-organisasi.edit', item.id)"
-                                        class="inline-flex size-8 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted hover:text-foreground"
-                                        title="Edit"
-                                        ><Pencil class="size-3.5"
-                                    /></Link>
-                                    <button
-                                        v-if="item.can_delete"
-                                        type="button"
-                                        class="inline-flex size-8 items-center justify-center rounded-lg border text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                                        title="Hapus"
-                                        @click="destroy(item)"
-                                    >
-                                        <Trash2 class="size-3.5" />
-                                    </button>
-                                    <button
-                                        v-if="item.can_verify"
-                                        type="button"
-                                        class="inline-flex size-8 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
-                                        title="Verifikasi jabatan"
-                                        @click="approve(item)"
-                                    >
-                                        <BadgeCheck class="size-3.5" />
-                                    </button>
-                                    <button
-                                        v-if="item.can_verify && item.verification_status === 'pending'"
-                                        type="button"
-                                        class="inline-flex size-8 items-center justify-center rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
-                                        title="Kembalikan untuk diperbaiki"
-                                        @click="reject(item)"
-                                    >
-                                        <CircleX class="size-3.5" />
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
+                                </td>
+                            </tr>
+                        </template>
                     </tbody>
                 </table>
             </div>
 
-            <div class="divide-y lg:hidden">
-                <article v-for="item in items.data" :key="item.id" class="p-4">
-                    <div class="flex items-start gap-3">
-                        <div
-                            class="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background text-blue-800 dark:text-blue-300"
-                        >
-                            <BriefcaseBusiness class="size-4" />
+            <div class="lg:hidden">
+                <section v-for="group in groupedItems" :key="group.key" class="border-b last:border-b-0">
+                    <div class="flex items-center gap-3 border-b border-blue-100 bg-blue-50/70 px-4 py-3 dark:border-blue-900/60 dark:bg-blue-950/25">
+                        <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-800 text-white dark:bg-blue-600">
+                            <Building2 class="size-4" />
                         </div>
                         <div class="min-w-0 flex-1">
-                            <Link :href="route('master.jabatan-organisasi.show', item.id)" class="font-semibold leading-5">{{ item.nama }}</Link>
+                            <p class="font-semibold text-blue-950 dark:text-blue-100">{{ group.label }}</p>
+                            <p v-if="group.name !== group.label" class="truncate text-xs text-blue-800/70 dark:text-blue-200/70">{{ group.name }}</p>
                         </div>
-                        <Link
-                            :href="route('master.jabatan-organisasi.show', item.id)"
-                            class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border"
-                            ><ChevronRight class="size-4"
-                        /></Link>
+                        <span class="text-xs font-semibold tabular-nums text-blue-800 dark:text-blue-200">{{ group.items.length }}</span>
                     </div>
-                    <div class="mt-3 flex flex-wrap gap-1.5">
-                        <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold" :class="levelClass(item.level_jabatan)">{{
-                            item.level_label
-                        }}</span
-                        ><span class="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium">{{
-                            item.opd?.singkatan || item.opd?.nama || 'Pemkab'
-                        }}</span>
-                        <span
-                            class="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
-                            :class="verificationClass(item.verification_status)"
-                            >{{ item.verification_label }}</span
-                        >
-                    </div>
-                    <div class="mt-3 border-l-2 border-border pl-3 text-xs leading-5">
-                        <span class="text-muted-foreground">Pegawai: </span
-                        ><span class="font-medium">{{ item.current_pejabat?.nama_pejabat || 'Belum terisi' }}</span
-                        ><span v-if="item.current_pejabat_count > 1" class="text-blue-700"> +{{ item.current_pejabat_count - 1 }}</span>
-                    </div>
-                </article>
+                    <article v-for="item in group.items" :key="item.id" class="border-b p-4 last:border-b-0">
+                        <div class="flex items-start gap-3">
+                            <div
+                                class="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background text-blue-800 dark:text-blue-300"
+                            >
+                                <BriefcaseBusiness class="size-4" />
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <Link :href="route('master.jabatan-organisasi.show', item.id)" class="font-semibold leading-5">{{ item.nama }}</Link>
+                            </div>
+                            <Link
+                                :href="route('master.jabatan-organisasi.show', item.id)"
+                                class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border"
+                                ><ChevronRight class="size-4"
+                            /></Link>
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-1.5">
+                            <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold" :class="levelClass(item.level_jabatan)">{{
+                                item.level_label
+                            }}</span>
+                            <span
+                                class="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                                :class="verificationClass(item.verification_status)"
+                                >{{ item.verification_label }}</span
+                            >
+                        </div>
+                        <div class="mt-3 border-l-2 border-border pl-3 text-xs leading-5">
+                            <span class="text-muted-foreground">Pegawai: </span
+                            ><span class="font-medium">{{ item.current_pejabat?.nama_pejabat || 'Belum terisi' }}</span
+                            ><span v-if="item.current_pejabat_count > 1" class="text-blue-700"> +{{ item.current_pejabat_count - 1 }}</span>
+                        </div>
+                    </article>
+                </section>
             </div>
 
             <div v-if="items.data.length === 0" class="flex flex-col items-center px-6 py-14 text-center">

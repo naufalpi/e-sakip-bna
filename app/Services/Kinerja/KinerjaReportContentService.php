@@ -58,6 +58,9 @@ class KinerjaReportContentService
         $opdName = $pk->level_pk === 'bupati'
             ? 'Kabupaten Banjarnegara'
             : $this->opdName($pk);
+        $fileSubject = $pk->level_pk === 'individu'
+            ? $document['first_party']['name']
+            : $document['first_party']['position'];
         $matrixRows = collect($document['performance_groups'])->flatMap(function (array $group) {
             return collect($group['indicators'])->map(fn (array $indicator, int $index) => [
                 $index === 0 ? (string) ($group['number'] ?? '-') : '',
@@ -75,7 +78,7 @@ class KinerjaReportContentService
         return [
             'title' => 'PERJANJIAN KINERJA TAHUN '.$pk->tahun,
             'subtitle' => $opdName.' Tahun '.$pk->tahun,
-            'filename' => $this->filename('perjanjian-kinerja', $opdName, $pk->tahun),
+            'filename' => $this->filename('pk', $fileSubject, $pk->tahun),
             'sections' => [
                 [
                     'heading' => 'Pernyataan Perjanjian Kinerja',

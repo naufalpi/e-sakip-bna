@@ -9,6 +9,7 @@ use App\Models\JabatanOrganisasi;
 use App\Models\Pegawai;
 use App\Models\RiwayatPejabatJabatan;
 use App\Models\User;
+use App\Services\Master\PegawaiOrganizationSyncService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,15 +17,18 @@ use Illuminate\Validation\ValidationException;
 
 class PenempatanPegawaiController extends Controller
 {
-    public function store(StorePenempatanPegawaiRequest $request, Pegawai $pegawai): RedirectResponse
-    {
+    public function store(
+        StorePenempatanPegawaiRequest $request,
+        Pegawai $pegawai,
+        PegawaiOrganizationSyncService $syncService,
+    ): RedirectResponse {
         $this->assertInScope($request->user(), $pegawai);
         $data = $request->validated();
         $jabatan = $this->resolveJabatan($request->user(), $pegawai, (int) $data['jabatan_organisasi_id']);
         $this->assertPeriodAvailable($pegawai, $jabatan, $data);
 
         $placement = $pegawai->penempatan()->create($this->placementPayload($pegawai, $data));
-        $this->syncCurrentOrganization($pegawai, $jabatan, $data);
+        $syncService->syncEmployee($pegawai);
 
         return back()->with('success', "Jabatan {$placement->nama_pejabat} berhasil dicatat.");
     }
@@ -32,7 +36,8 @@ class PenempatanPegawaiController extends Controller
     public function update(
         UpdatePenempatanPegawaiRequest $request,
         Pegawai $pegawai,
-        RiwayatPejabatJabatan $penempatan
+        RiwayatPejabatJabatan $penempatan,
+        PegawaiOrganizationSyncService $syncService,
     ): RedirectResponse {
         $this->assertInScope($request->user(), $pegawai);
         $this->assertBelongsToPegawai($pegawai, $penempatan);
@@ -41,13 +46,17 @@ class PenempatanPegawaiController extends Controller
         $this->assertPeriodAvailable($pegawai, $jabatan, $data, $penempatan);
 
         $penempatan->update($this->placementPayload($pegawai, $data));
-        $this->syncCurrentOrganization($pegawai, $jabatan, $data);
+        $syncService->syncEmployee($pegawai);
 
         return back()->with('success', 'Jabatan pegawai berhasil diperbarui.');
     }
 
-    public function destroy(Request $request, Pegawai $pegawai, RiwayatPejabatJabatan $penempatan): RedirectResponse
-    {
+    public function destroy(
+        Request $request,
+        Pegawai $pegawai,
+        RiwayatPejabatJabatan $penempatan,
+        PegawaiOrganizationSyncService $syncService,
+    ): RedirectResponse {
         abort_unless($request->user()->hasPermission('pegawai.manage') && ! $this->shouldLimitToUserOpd($request->user()), 403);
         $this->assertBelongsToPegawai($pegawai, $penempatan);
 
@@ -56,6 +65,7 @@ class PenempatanPegawaiController extends Controller
         }
 
         $penempatan->delete();
+        $syncService->syncEmployee($pegawai);
 
         return back()->with('success', 'Riwayat jabatan pegawai berhasil dihapus.');
     }
@@ -117,14 +127,6 @@ class PenempatanPegawaiController extends Controller
             'nip' => $pegawai->nip,
             'pangkat_golongan' => $pegawai->pangkat_golongan,
         ];
-    }
-
-    private function syncCurrentOrganization(Pegawai $pegawai, JabatanOrganisasi $jabatan, array $data): void
-    {
-        $today = now()->toDateString();
-        if ($data['tanggal_mulai'] <= $today && (! ($data['tanggal_selesai'] ?? null) || $data['tanggal_selesai'] >= $today)) {
-            $pegawai->update(['opd_id' => $jabatan->opd_id, 'opd_unit_id' => $jabatan->opd_unit_id]);
-        }
     }
 
     private function assertBelongsToPegawai(Pegawai $pegawai, RiwayatPejabatJabatan $penempatan): void

@@ -11,6 +11,7 @@ use App\Models\Opd;
 use App\Models\OpdUnit;
 use App\Models\RiwayatPejabatJabatan;
 use App\Models\User;
+use App\Services\Master\PegawaiOrganizationSyncService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -60,11 +61,26 @@ class JabatanOrganisasiController extends Controller
                 $method = $keterisian === 'terisi' ? 'whereHas' : 'whereDoesntHave';
                 $query->{$method}('riwayatPejabat', fn (Builder $query) => $this->currentPejabatConstraint($query, $today));
             })
-            ->orderByRaw("CASE level_jabatan WHEN 'kepala_daerah' THEN 1 WHEN 'jpt_pratama' THEN 2 WHEN 'administrator' THEN 3 WHEN 'pengawas' THEN 4 WHEN 'fungsional' THEN 5 ELSE 6 END")
-            ->orderBy('opd_id')
+            ->orderByRaw('CASE WHEN jabatan_organisasi.opd_id IS NULL THEN 0 ELSE 1 END')
+            ->orderBy(
+                Opd::query()
+                    ->select('nama')
+                    ->whereColumn('opds.id', 'jabatan_organisasi.opd_id')
+                    ->limit(1)
+            )
+            ->orderByRaw("CASE
+                WHEN level_jabatan = 'kepala_daerah' THEN 1
+                WHEN level_jabatan = 'jpt_pratama' THEN 2
+                WHEN level_jabatan = 'administrator' AND LOWER(nama) LIKE '%sekretaris%' THEN 3
+                WHEN level_jabatan = 'administrator' THEN 4
+                WHEN level_jabatan = 'pengawas' THEN 5
+                WHEN level_jabatan = 'fungsional' THEN 6
+                WHEN level_jabatan = 'pelaksana' THEN 7
+                ELSE 8
+            END")
             ->orderBy('urutan')
             ->orderBy('nama')
-            ->paginate(15)
+            ->paginate(50)
             ->withQueryString()
             ->through(fn (JabatanOrganisasi $jabatan) => $this->serialize($jabatan, false, $user));
 
@@ -162,8 +178,11 @@ class JabatanOrganisasiController extends Controller
         return Inertia::render('Master/JabatanOrganisasi/Form', $this->formProps($request->user(), $jabatanOrganisasi));
     }
 
-    public function update(UpdateJabatanOrganisasiRequest $request, JabatanOrganisasi $jabatanOrganisasi): RedirectResponse
-    {
+    public function update(
+        UpdateJabatanOrganisasiRequest $request,
+        JabatanOrganisasi $jabatanOrganisasi,
+        PegawaiOrganizationSyncService $syncService,
+    ): RedirectResponse {
         $this->abortUnlessInScope($request->user(), $jabatanOrganisasi);
         abort_unless($this->canEdit($request->user(), $jabatanOrganisasi), 403);
         $data = $this->normalizeScopedData($request->user(), $request->validated());
@@ -174,6 +193,7 @@ class JabatanOrganisasiController extends Controller
         }
 
         $jabatanOrganisasi->update($data);
+        $syncService->syncCurrentHolders($jabatanOrganisasi);
 
         return redirect()
             ->route('master.jabatan-organisasi.show', $jabatanOrganisasi)

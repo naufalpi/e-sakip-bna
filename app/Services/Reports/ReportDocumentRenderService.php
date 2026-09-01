@@ -55,12 +55,15 @@ class ReportDocumentRenderService
         $options->set('isHtml5ParserEnabled', true);
 
         $dompdf = new Dompdf($options);
-        $html = data_get($report, 'metadata.layout') === 'perjanjian_kinerja'
+        $isPerformanceAgreement = data_get($report, 'metadata.layout') === 'perjanjian_kinerja';
+        $html = $isPerformanceAgreement
             ? view('reports.perjanjian-kinerja', ['report' => $report, 'browserPrint' => false])->render()
             : $this->html($report);
 
         $dompdf->loadHtml($html, 'UTF-8');
-        $dompdf->setPaper('A4');
+        $dompdf->setPaper($isPerformanceAgreement
+            ? [0, 0, 595.2756, 935.4331]
+            : 'A4');
         $dompdf->render();
 
         return $dompdf->output();
@@ -71,6 +74,10 @@ class ReportDocumentRenderService
      */
     private function renderWord(array $report): string
     {
+        if (data_get($report, 'metadata.layout') === 'perjanjian_kinerja') {
+            return $this->renderPerformanceAgreementWord($report);
+        }
+
         $phpWord = new PhpWord;
         $phpWord->setDefaultFontName('Arial');
         $phpWord->setDefaultFontSize(11);
@@ -85,12 +92,14 @@ class ReportDocumentRenderService
             'bgColor' => 'E5E7EB',
         ]);
 
-        $section = $phpWord->addSection([
+        $sectionSettings = [
             'marginTop' => 900,
             'marginRight' => 1100,
             'marginBottom' => 900,
             'marginLeft' => 1100,
-        ]);
+        ];
+
+        $section = $phpWord->addSection($sectionSettings);
 
         $header = $section->addHeader();
         $header->addText($this->agencyName($report), ['bold' => true, 'size' => 9], ['alignment' => Jc::CENTER]);
@@ -113,6 +122,322 @@ class ReportDocumentRenderService
         $this->addWordTables($section, $report['tables'] ?? []);
         $this->addWordSignature($section, $report);
 
+        return $this->saveWord($phpWord);
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     */
+    private function renderPerformanceAgreementWord(array $report): string
+    {
+        $document = (array) data_get($report, 'metadata.pk_document', []);
+        $first = (array) ($document['first_party'] ?? []);
+        $second = (array) ($document['second_party'] ?? []);
+        $isBupati = (bool) ($document['is_bupati'] ?? false);
+        $isHeadOfOpd = ($document['level'] ?? null) === 'kepala_opd';
+        $isStructural = ($document['level'] ?? null) === 'struktural';
+        $isLowerCascading = (bool) ($document['is_lower_cascading'] ?? false);
+        $isManualIndividual = (bool) ($document['is_manual_individual'] ?? false);
+        $usesActivityFormat = $isLowerCascading || $isManualIndividual;
+        $usesOfficialFormat = $isHeadOfOpd || $isStructural || $usesActivityFormat;
+
+        $phpWord = new PhpWord;
+        $phpWord->setDefaultFontName('Arial');
+        $phpWord->setDefaultFontSize(12);
+        $phpWord->addTableStyle('PkPlain', [
+            'borderColor' => 'FFFFFF',
+            'borderSize' => 1,
+            'cellMargin' => 20,
+            'layout' => Table::LAYOUT_FIXED,
+        ]);
+        $phpWord->addTableStyle('PkMatrix', [
+            'borderColor' => '000000',
+            'borderSize' => 6,
+            'cellMargin' => 55,
+            'layout' => Table::LAYOUT_FIXED,
+        ]);
+
+        $section = $phpWord->addSection([
+            'pageSizeW' => 11906,
+            'pageSizeH' => 18709,
+            'marginTop' => 737,
+            'marginRight' => 1021,
+            'marginBottom' => 794,
+            'marginLeft' => 1021,
+        ]);
+
+        $this->addPkWordLetterhead($section, $report, $document);
+        $section->addText(
+            (string) ($document['title'] ?? 'PERJANJIAN KINERJA'),
+            ['bold' => true, 'size' => 16],
+            ['alignment' => Jc::CENTER, 'spaceBefore' => 260, 'spaceAfter' => 230],
+        );
+
+        $paragraphStyle = ['alignment' => Jc::BOTH, 'spaceAfter' => 100, 'lineHeight' => 1.5];
+        if ($isBupati) {
+            $section->addText('Dalam rangka mewujudkan manajemen pemerintahan yang efektif, transparan, akuntabel, dan berorientasi pada hasil, saya yang bertanda tangan di bawah ini:', [], $paragraphStyle);
+            $this->addPkWordIdentity($section, $first);
+            $section->addText('berjanji akan mewujudkan target kinerja yang seharusnya sesuai lampiran perjanjian ini, dalam rangka mencapai target kinerja jangka menengah sebagaimana telah ditetapkan dalam dokumen perencanaan. Keberhasilan dan kegagalan pencapaian target kinerja tersebut menjadi tanggung jawab kami.', [], $paragraphStyle);
+        } else {
+            $section->addText('Dalam rangka mewujudkan manajemen pemerintahan yang efektif, transparan dan akuntabel serta berorientasi pada hasil, kami yang bertanda tangan di bawah ini:', [], $paragraphStyle);
+            $this->addPkWordIdentity($section, $first);
+            $this->addPkWordPartyRole($section, 'Selanjutnya disebut sebagai ', 'PIHAK PERTAMA');
+            $this->addPkWordIdentity($section, $second);
+            $this->addPkWordPartyRole($section, 'Selaku atasan PIHAK PERTAMA, selanjutnya disebut sebagai ', 'PIHAK KEDUA');
+            $section->addText('PIHAK PERTAMA berjanji akan mewujudkan target kinerja yang seharusnya, sesuai lampiran perjanjian ini, dalam rangka mencapai target kinerja jangka menengah seperti yang telah ditetapkan dalam dokumen perencanaan. Keberhasilan dan kegagalan pencapaian target kinerja tersebut menjadi tanggung jawab kami.', [], $paragraphStyle);
+            $section->addText('PIHAK KEDUA akan melakukan supervisi yang diperlukan serta melakukan evaluasi terhadap capaian kinerja dari perjanjian kinerja ini dan mengambil tindakan yang diperlukan dalam rangka pemberian penghargaan dan sanksi.', [], $paragraphStyle);
+        }
+
+        $this->addPkWordSignatures($section, $document, false, ! $isBupati);
+
+        $section->addPageBreak();
+        $section->addText('LAMPIRAN PERJANJIAN KINERJA TAHUN '.($document['year'] ?? ''), ['bold' => true, 'size' => 11], ['alignment' => Jc::CENTER, 'spaceAfter' => 80, 'lineHeight' => 1.5]);
+        $section->addText(
+            (string) ($usesOfficialFormat ? ($document['office_name'] ?? '') : ($first['position'] ?? ($document['office_name'] ?? ''))),
+            ['bold' => true, 'size' => 11],
+            ['alignment' => Jc::CENTER, 'spaceAfter' => 180, 'lineHeight' => 1.5],
+        );
+
+        if ($isStructural || $usesActivityFormat) {
+            $identity = $section->addTable('PkPlain');
+            foreach ([
+                ['Nama Pejabat', $document['employee_name'] ?? ($first['name'] ?? '-')],
+                ['Unit Kerja', $document['work_unit'] ?? ($document['office_name'] ?? '-')],
+            ] as [$label, $value]) {
+                $identity->addRow();
+                $identity->addCell(1900, $this->pkInvisibleCellStyle())->addText($label, ['bold' => true, 'size' => 11], ['lineHeight' => 1.5]);
+                $identity->addCell(250, $this->pkInvisibleCellStyle())->addText(':', ['size' => 11], ['lineHeight' => 1.5]);
+                $identity->addCell(7450, $this->pkInvisibleCellStyle())->addText((string) $value, ['size' => 11], ['lineHeight' => 1.5]);
+            }
+            $section->addTextBreak(1);
+        }
+
+        $matrixTitle = $isManualIndividual
+            ? 'SASARAN KEGIATAN DAN SASARAN SUB KEGIATAN'
+            : ($isLowerCascading
+                ? 'SASARAN KEGIATAN DAN SASARAN SUB KEGIATAN ***'
+                : ($isStructural
+                    ? 'SASARAN PROGRAM DAN SASARAN KEGIATAN **'
+                    : 'TUJUAN DAN SASARAN STRATEGIS'.($isHeadOfOpd ? ' *' : '')));
+        $matrix = $section->addTable('PkMatrix');
+        $matrix->addRow();
+        foreach ([[650, 'NO'], [4300, $matrixTitle], [3100, 'INDIKATOR KINERJA'], [1350, 'TARGET']] as [$width, $label]) {
+            $matrix->addCell($width, ['valign' => 'center'])->addText($label, ['bold' => true, 'size' => 11], ['alignment' => Jc::CENTER, 'lineHeight' => 1.5]);
+        }
+
+        $groups = (array) ($document['performance_groups'] ?? []);
+        if ($groups === []) {
+            $matrix->addRow();
+            $matrix->addCell(9400, ['gridSpan' => 4])->addText('Belum ada matriks kinerja.', ['size' => 11], ['alignment' => Jc::CENTER, 'lineHeight' => 1.5]);
+        } else {
+            foreach ($groups as $group) {
+                $indicators = (array) ($group['indicators'] ?? []);
+                $indicators = $indicators ?: [['name' => '-', 'target' => '-', 'unit' => '-']];
+                foreach ($indicators as $index => $indicator) {
+                    $matrix->addRow();
+                    $mergeStyle = ['vMerge' => $index === 0 ? 'restart' : 'continue', 'valign' => 'top'];
+                    $matrix->addCell(650, $mergeStyle)->addText($index === 0 ? (string) ($group['number'] ?? '') : '', ['size' => 11], ['alignment' => Jc::CENTER, 'lineHeight' => 1.5]);
+                    $matrix->addCell(4300, $mergeStyle)->addText($index === 0 ? (string) ($group['performance'] ?? '-') : '', ['size' => 11], ['lineHeight' => 1.5]);
+                    $matrix->addCell(3100)->addText((string) ($indicator['name'] ?? '-'), ['size' => 11], ['lineHeight' => 1.5]);
+                    $unit = ($indicator['unit'] ?? '-') === '-' ? '' : ' '.(string) $indicator['unit'];
+                    $matrix->addCell(1350)->addText(trim((string) ($indicator['target'] ?? '-').$unit), ['size' => 11], ['alignment' => Jc::CENTER, 'lineHeight' => 1.5]);
+                }
+            }
+        }
+
+        $section->addTextBreak(1);
+        $this->addPkWordBudgetTable($section, $document, $usesActivityFormat, $isStructural, $usesOfficialFormat);
+        $this->addPkWordSignatures($section, $document, true, $isStructural || $usesActivityFormat);
+
+        if ($isStructural) {
+            $section->addText('**) Untuk disesuaikan dengan kondisi pada masing-masing Perangkat Daerah; apabila tidak melaksanakan kegiatan, maka diisi sampai ke sasaran program.', ['italic' => true, 'size' => 11], ['alignment' => Jc::BOTH, 'spaceBefore' => 180, 'lineHeight' => 1.5]);
+        } elseif ($isManualIndividual) {
+            $section->addText('***) Untuk kolom kedua disesuaikan dengan kondisi yang dilaksanakan oleh pejabat pengawas pada masing-masing Perangkat Daerah (misalnya hanya melaksanakan sub kegiatan maka diisi hanya sasaran sub kegiatan, demikian juga indikatornya menyesuaikan).', ['italic' => true, 'size' => 11], ['alignment' => Jc::BOTH, 'spaceBefore' => 180, 'lineHeight' => 1.5]);
+        } elseif ($usesActivityFormat) {
+            $section->addText('***) Untuk kolom kedua disesuaikan dengan kondisi yang dilaksanakan oleh pejabat pengawas pada masing-masing Perangkat Daerah. Apabila hanya melaksanakan sub kegiatan, maka diisi hanya sasaran sub kegiatan; demikian juga indikatornya menyesuaikan.', ['italic' => true, 'size' => 11], ['alignment' => Jc::BOTH, 'spaceBefore' => 180, 'lineHeight' => 1.5]);
+        }
+
+        return $this->saveWord($phpWord);
+    }
+
+    /**
+     * Word tetap dapat menampilkan border bawaan pada tabel layout saat borderSize nol.
+     * Border putih eksplisit memastikan tabel bantu kop, identitas, dan tanda tangan
+     * tidak ikut tercetak, sementara tabel matriks tetap memakai style PkMatrix.
+     *
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function pkInvisibleCellStyle(array $overrides = []): array
+    {
+        return array_merge([
+            'borderTopColor' => 'FFFFFF',
+            'borderTopSize' => 1,
+            'borderRightColor' => 'FFFFFF',
+            'borderRightSize' => 1,
+            'borderBottomColor' => 'FFFFFF',
+            'borderBottomSize' => 1,
+            'borderLeftColor' => 'FFFFFF',
+            'borderLeftSize' => 1,
+        ], $overrides);
+    }
+
+    /** @param array<string, mixed> $document */
+    private function addPkWordLetterhead($section, array $report, array $document): void
+    {
+        $table = $section->addTable('PkPlain');
+        $table->addRow();
+        $logoCell = $table->addCell(1350, $this->pkInvisibleCellStyle(['valign' => 'center']));
+        if ($path = $this->wordLogoPath($report)) {
+            $logoCell->addImage($path, ['height' => 91, 'alignment' => Jc::CENTER]);
+        }
+        $copy = $table->addCell(8250, $this->pkInvisibleCellStyle(['valign' => 'center']));
+        $copy->addText((string) ($document['agency_name'] ?? 'PEMERINTAH KABUPATEN BANJARNEGARA'), ['size' => 15], ['alignment' => Jc::CENTER, 'spaceAfter' => 0]);
+        $copy->addText((string) ($document['office_name'] ?? 'PERANGKAT DAERAH'), ['bold' => true, 'size' => 18], ['alignment' => Jc::CENTER, 'spaceAfter' => 0]);
+        $address = trim((string) ($document['address'] ?? 'Kabupaten Banjarnegara'));
+        if (filled($document['telephone'] ?? null)) {
+            $address .= ' Telepon '.$document['telephone'];
+        }
+        if (filled($document['fax'] ?? null)) {
+            $address .= ' Faksimile '.$document['fax'];
+        }
+        $copy->addText($address, ['size' => 10], ['alignment' => Jc::CENTER, 'spaceAfter' => 0]);
+        $contacts = collect([
+            filled($document['website'] ?? null) ? 'Website '.$document['website'] : null,
+            filled($document['email'] ?? null) ? 'Surat Elektronik '.$document['email'] : null,
+        ])->filter()->implode(' ');
+        if ($contacts !== '') {
+            $copy->addText($contacts, ['size' => 10], ['alignment' => Jc::CENTER, 'spaceAfter' => 0]);
+        }
+        $copy->addText(trim((string) ($document['city'] ?? 'BANJARNEGARA').' '.(string) ($document['postal_code'] ?? '')), ['size' => 11], ['alignment' => Jc::CENTER]);
+        $section->addLine(['weight' => 1.5, 'width' => 520, 'height' => 0]);
+    }
+
+    /** @param array<string, mixed> $party */
+    private function addPkWordIdentity($section, array $party): void
+    {
+        $table = $section->addTable('PkPlain');
+        foreach ([['Nama', $party['name'] ?? '-'], ['Jabatan', $party['position'] ?? '-']] as [$label, $value]) {
+            $table->addRow();
+            $table->addCell(1350, $this->pkInvisibleCellStyle())->addText($label, ['size' => 12], ['lineHeight' => 1.5]);
+            $table->addCell(220, $this->pkInvisibleCellStyle())->addText(':', ['size' => 12], ['lineHeight' => 1.5]);
+            $table->addCell(8030, $this->pkInvisibleCellStyle())->addText((string) $value, ['size' => 12], ['lineHeight' => 1.5]);
+        }
+    }
+
+    private function addPkWordPartyRole($section, string $prefix, string $role): void
+    {
+        $run = $section->addTextRun(['spaceAfter' => 80, 'lineHeight' => 1.5]);
+        $run->addText($prefix, ['size' => 12]);
+        $run->addText($role, ['bold' => true, 'size' => 12]);
+    }
+
+    /** @param array<string, mixed> $document */
+    private function addPkWordSignatures($section, array $document, bool $appendix, bool $showPartyLabels): void
+    {
+        $first = (array) ($document['first_party'] ?? []);
+        $second = (array) ($document['second_party'] ?? []);
+        $fontSize = $appendix ? 11 : 12;
+        $paragraphStyle = ['alignment' => Jc::CENTER, 'lineHeight' => 1.5];
+        $dateTable = $section->addTable('PkPlain');
+        $dateTable->addRow();
+        $dateTable->addCell(4800, $this->pkInvisibleCellStyle());
+        $dateTable->addCell(4800, $this->pkInvisibleCellStyle())->addText(
+            (string) ($document['place_date'] ?? 'Banjarnegara, ....................'),
+            ['size' => $fontSize],
+            array_merge($paragraphStyle, ['spaceBefore' => $appendix ? 260 : 100]),
+        );
+
+        $table = $section->addTable('PkPlain');
+        $table->addRow();
+        foreach ([[$second, 'Pihak Kedua'], [$first, 'Pihak Pertama']] as [$party, $label]) {
+            $cell = $table->addCell(4800, $this->pkInvisibleCellStyle(['valign' => 'top']));
+            if ($showPartyLabels) {
+                $cell->addText($label, ['size' => $fontSize], array_merge($paragraphStyle, ['spaceAfter' => 20]));
+            }
+            $cell->addText(mb_strtoupper((string) ($party['position'] ?? '-')), ['bold' => true, 'size' => $fontSize], array_merge($paragraphStyle, ['spaceAfter' => 520]));
+            $cell->addText((string) ($party['name'] ?? '-'), ['bold' => true, 'underline' => 'single', 'size' => $fontSize], array_merge($paragraphStyle, ['spaceAfter' => 0]));
+            if (filled($party['rank'] ?? null)) {
+                $cell->addText((string) $party['rank'], ['size' => $fontSize], array_merge($paragraphStyle, ['spaceAfter' => 0]));
+            }
+            if (filled($party['nip'] ?? null)) {
+                $cell->addText('NIP. '.$party['nip'], ['size' => $fontSize], $paragraphStyle);
+            }
+        }
+    }
+
+    /** @param array<string, mixed> $document */
+    private function addPkWordBudgetTable($section, array $document, bool $usesActivityFormat, bool $isStructural, bool $usesOfficialFormat): void
+    {
+        $table = $section->addTable('PkMatrix');
+        $table->addRow();
+        foreach ([[4200, $usesActivityFormat ? 'KEGIATAN DAN SUB KEGIATAN' : 'PROGRAM'], [2900, 'ANGGARAN'], [2500, 'KETERANGAN']] as [$width, $label]) {
+            $table->addCell($width, ['valign' => 'center'])->addText($label, ['bold' => true, 'size' => 11], ['alignment' => Jc::CENTER, 'lineHeight' => 1.5]);
+        }
+
+        if ($usesActivityFormat) {
+            $activities = (array) ($document['activity_budget_groups'] ?? []);
+            if ($activities === []) {
+                $table->addRow();
+                $table->addCell(4200)->addText('Belum ada kegiatan atau sub kegiatan.', ['size' => 11], ['lineHeight' => 1.5]);
+                $table->addCell(2900)->addText('Rp 0', ['size' => 11], ['lineHeight' => 1.5]);
+                $table->addCell(2500)->addText('-', ['size' => 11], ['lineHeight' => 1.5]);
+
+                return;
+            }
+
+            foreach ($activities as $index => $activity) {
+                $subActivities = (array) ($activity['sub_activities'] ?? []);
+                $table->addRow();
+                $nameCell = $table->addCell(4200);
+                $nameCell->addText(($index + 1).'. '.($activity['name'] ?? '-'), ['size' => 11], ['lineHeight' => 1.5]);
+                foreach ($subActivities as $subIndex => $subActivity) {
+                    $nameCell->addText(chr(97 + $subIndex).'.   '.($subActivity['name'] ?? '-'), ['size' => 11], ['indentation' => ['left' => 260], 'lineHeight' => 1.5]);
+                }
+                $budgetCell = $table->addCell(2900);
+                $budgetCell->addText((string) ($activity['budget_label'] ?? 'Rp 0'), ['size' => 11], ['lineHeight' => 1.5]);
+                foreach ($subActivities as $subActivity) {
+                    $budgetCell->addText((string) ($subActivity['budget_label'] ?? 'Rp 0'), ['size' => 11], ['lineHeight' => 1.5]);
+                }
+                $table->addCell(2500)->addText((string) ($activity['note'] ?? '-'), ['size' => 11], ['lineHeight' => 1.5]);
+            }
+
+            return;
+        }
+
+        $programs = (array) ($document['programs'] ?? []);
+        if ($programs === []) {
+            $table->addRow();
+            $table->addCell(4200)->addText('Belum ada program.', ['size' => 11], ['lineHeight' => 1.5]);
+            $table->addCell(2900)->addText('Rp 0', ['size' => 11], ['lineHeight' => 1.5]);
+            $table->addCell(2500)->addText('-', ['size' => 11], ['lineHeight' => 1.5]);
+
+            return;
+        }
+
+        foreach ($programs as $index => $program) {
+            $table->addRow();
+            $nameCell = $table->addCell(4200);
+            $nameCell->addText(($index + 1).'. '.($program['name'] ?? '-'), ['size' => 11], ['lineHeight' => 1.5]);
+            if ($isStructural) {
+                foreach ((array) ($program['activities'] ?? []) as $activityIndex => $activity) {
+                    $nameCell->addText(chr(97 + $activityIndex).'.   '.($activity['name'] ?? '-'), ['size' => 11], ['lineHeight' => 1.5]);
+                }
+            }
+            $table->addCell(2900)->addText((string) ($program['budget_label'] ?? 'Rp 0'), ['size' => 11], ['lineHeight' => 1.5]);
+            $table->addCell(2500)->addText((string) ($program['note'] ?? '-'), ['size' => 11], ['lineHeight' => 1.5]);
+        }
+
+        if (! $usesOfficialFormat) {
+            $table->addRow();
+            $table->addCell(4200)->addText('Total Anggaran', ['bold' => true, 'size' => 11], ['lineHeight' => 1.5]);
+            $table->addCell(2900)->addText((string) ($document['total_budget_label'] ?? 'Rp 0'), ['bold' => true, 'size' => 11], ['lineHeight' => 1.5]);
+            $table->addCell(2500);
+        }
+    }
+
+    private function saveWord(PhpWord $phpWord): string
+    {
         $cacheDirectory = storage_path('framework/cache');
         File::ensureDirectoryExists($cacheDirectory);
 

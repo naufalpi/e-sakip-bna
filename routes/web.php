@@ -22,6 +22,7 @@ use App\Http\Controllers\Lkjip\LkjipBabController;
 use App\Http\Controllers\Lkjip\LkjipController;
 use App\Http\Controllers\Master\JabatanOrganisasiController;
 use App\Http\Controllers\Master\JabatanOrganisasiImportController;
+use App\Http\Controllers\Master\KopDokumenController;
 use App\Http\Controllers\Master\OpdController;
 use App\Http\Controllers\Master\OpdUnitController;
 use App\Http\Controllers\Master\PegawaiController;
@@ -150,8 +151,11 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::resource('dpa-opd', DpaOpdController::class)->parameters(['dpa-opd' => 'dpa_opd']);
     Route::put('dpa-opd/{dpa_opd}/items/{item}', [DpaOpdItemController::class, 'update'])->name('dpa-opd.items.update');
 
+    Route::get('perjanjian-kinerja/cascading-scope-options', [PerjanjianKinerjaController::class, 'cascadingScopeOptions'])->name('perjanjian-kinerja.cascading-scope-options');
     Route::resource('perjanjian-kinerja', PerjanjianKinerjaController::class);
+    Route::patch('perjanjian-kinerja/{perjanjian_kinerja}/kop', [PerjanjianKinerjaController::class, 'updateKop'])->name('perjanjian-kinerja.kop.update');
     Route::get('perjanjian-kinerja/{perjanjian_kinerja}/print', [PerjanjianKinerjaController::class, 'print'])->name('perjanjian-kinerja.print');
+    Route::get('perjanjian-kinerja/{perjanjian_kinerja}/download/docx', [PerjanjianKinerjaController::class, 'downloadWord'])->name('perjanjian-kinerja.download.docx');
     Route::post('perjanjian-kinerja/{perjanjian_kinerja}/export', [PerjanjianKinerjaController::class, 'export'])->name('perjanjian-kinerja.export');
     Route::post('perjanjian-kinerja/{perjanjian_kinerja}/items', [PerjanjianKinerjaItemController::class, 'store'])->name('perjanjian-kinerja.items.store');
     Route::put('perjanjian-kinerja/{perjanjian_kinerja}/items/{item}', [PerjanjianKinerjaItemController::class, 'update'])->name('perjanjian-kinerja.items.update');
@@ -198,6 +202,10 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::patch('tindak-lanjut-rekomendasi/{tindak_lanjut}/verify', [TindakLanjutRekomendasiController::class, 'verify'])->name('tindak-lanjut-rekomendasi.verify');
 
     Route::prefix('master')->name('master.')->group(function () {
+        Route::get('kop-dokumen', [KopDokumenController::class, 'index'])->name('kop-dokumen.index');
+        Route::post('kop-dokumen/{scopeKey}', [KopDokumenController::class, 'update'])
+            ->where('scopeKey', 'kabupaten|opd:\\d+')
+            ->name('kop-dokumen.update');
         Route::resource('opd', OpdController::class)->except(['show']);
         Route::get('jabatan-organisasi/import', [JabatanOrganisasiImportController::class, 'create'])
             ->name('jabatan-organisasi.import.create');

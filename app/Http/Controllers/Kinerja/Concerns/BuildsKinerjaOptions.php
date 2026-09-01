@@ -61,6 +61,7 @@ trait BuildsKinerjaOptions
             ->get(['id', 'tahun', 'nama'])
             ->map(fn (PeriodeTahun $periode) => [
                 'id' => $periode->id,
+                'tahun' => $periode->tahun,
                 'label' => "{$periode->tahun} - {$periode->nama}",
             ])
             ->all();
@@ -76,6 +77,7 @@ trait BuildsKinerjaOptions
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($opdId, fn (Builder $query) => $query->where('opd_id', $opdId))
             ->whereIn('status', self::APPROVED_PLANNING_STATUSES)
+            ->where('is_active_version', true)
             ->orderByDesc('tahun_awal')
             ->get(['id', 'opd_id', 'periode_tahun_id', 'judul', 'tahun_awal', 'tahun_akhir'])
             ->map(fn (RenstraOpd $renstra) => [

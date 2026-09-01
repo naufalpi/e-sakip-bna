@@ -13,10 +13,10 @@ use App\Models\OpdSubKegiatan;
 use App\Models\OpdUnit;
 use App\Models\Pegawai;
 use App\Models\PenugasanPengampuKinerja;
-use App\Models\PeriodeTahun;
 use App\Models\RiwayatPejabatJabatan;
 use App\Models\SasaranOpd;
 use App\Models\User;
+use App\Services\Master\PegawaiOrganizationSyncService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,8 +36,29 @@ class PegawaiController extends Controller
         $filters = $request->only(['search', 'opd_id', 'jenis_pegawai', 'status']);
         $baseQuery = $this->scopedQuery($user);
         $today = now()->toDateString();
+        $hierarchyRank = RiwayatPejabatJabatan::query()
+            ->selectRaw("MIN(CASE
+                WHEN jabatan_organisasi.level_jabatan = 'kepala_daerah' THEN 1
+                WHEN jabatan_organisasi.level_jabatan = 'jpt_pratama' THEN 2
+                WHEN jabatan_organisasi.level_jabatan = 'administrator' AND LOWER(jabatan_organisasi.nama) LIKE '%sekretaris%' THEN 3
+                WHEN jabatan_organisasi.level_jabatan = 'administrator' THEN 4
+                WHEN jabatan_organisasi.level_jabatan = 'pengawas' THEN 5
+                WHEN jabatan_organisasi.level_jabatan = 'fungsional' THEN 6
+                WHEN jabatan_organisasi.level_jabatan = 'pelaksana' THEN 7
+                ELSE 8
+            END)")
+            ->join('jabatan_organisasi', 'jabatan_organisasi.id', '=', 'riwayat_pejabat_jabatan.jabatan_organisasi_id')
+            ->whereColumn('riwayat_pejabat_jabatan.pegawai_id', 'pegawai.id')
+            ->whereNull('riwayat_pejabat_jabatan.deleted_at')
+            ->whereNull('jabatan_organisasi.deleted_at')
+            ->whereDate('riwayat_pejabat_jabatan.tanggal_mulai', '<=', $today)
+            ->where(fn (Builder $query) => $query
+                ->whereNull('riwayat_pejabat_jabatan.tanggal_selesai')
+                ->orWhereDate('riwayat_pejabat_jabatan.tanggal_selesai', '>=', $today));
 
         $items = (clone $baseQuery)
+            ->select('pegawai.*')
+            ->selectSub($hierarchyRank, 'hierarchy_rank')
             ->with([
                 'opd:id,kode,nama,singkatan',
                 'opdUnit:id,opd_id,kode,nama',
@@ -58,8 +79,16 @@ class PegawaiController extends Controller
             ->when(($filters['opd_id'] ?? null) && ! $this->shouldLimitToUserOpd($user), fn (Builder $query, string $opdId) => $query->where('opd_id', $opdId))
             ->when($filters['jenis_pegawai'] ?? null, fn (Builder $query, string $jenis) => $query->where('jenis_pegawai', $jenis))
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
+            ->orderByRaw('CASE WHEN pegawai.opd_id IS NULL THEN 0 ELSE 1 END')
+            ->orderBy(
+                Opd::query()
+                    ->select('nama')
+                    ->whereColumn('opds.id', 'pegawai.opd_id')
+                    ->limit(1)
+            )
+            ->orderBy('hierarchy_rank')
             ->orderBy('nama')
-            ->paginate(15)
+            ->paginate(50)
             ->withQueryString()
             ->through(fn (Pegawai $pegawai) => $this->serialize($pegawai));
 
@@ -89,7 +118,7 @@ class PegawaiController extends Controller
         return Inertia::render('Master/Pegawai/Form', $this->formProps($request->user()));
     }
 
-    public function store(StorePegawaiRequest $request): RedirectResponse
+    public function store(StorePegawaiRequest $request, PegawaiOrganizationSyncService $syncService): RedirectResponse
     {
         $data = $this->normalizeScopedData($request->user(), $request->validated());
         $placementData = Arr::only($data, [
@@ -127,6 +156,7 @@ class PegawaiController extends Controller
 
             return $pegawai;
         });
+        $syncService->syncEmployee($pegawai);
 
         return redirect()->route('master.pegawai.show', $pegawai)->with(
             'success',
@@ -144,8 +174,6 @@ class PegawaiController extends Controller
             'opdUnit:id,opd_id,kode,nama',
             'user:id,name,username,email',
             'penempatan.jabatanOrganisasi:id,opd_id,opd_unit_id,parent_id,nama,level_jabatan,eselon,status,verification_status',
-            'penugasanKinerja.periodeTahun:id,tahun,nama',
-            'penugasanKinerja.penempatan.jabatanOrganisasi:id,nama,level_jabatan',
         ]);
 
         $canManage = $request->user()->hasPermission('pegawai.manage');
@@ -154,13 +182,6 @@ class PegawaiController extends Controller
             'item' => $this->serialize($pegawai, true),
             'jabatanOptions' => $this->jabatanOptions($request->user(), $pegawai),
             'penugasanOptions' => RiwayatPejabatJabatan::penugasanOptions(),
-            'periodeOptions' => PeriodeTahun::query()->orderByDesc('tahun')->get(['id', 'tahun', 'nama'])->map(fn (PeriodeTahun $periode) => [
-                'id' => $periode->id,
-                'tahun' => $periode->tahun,
-                'label' => "{$periode->tahun} - {$periode->nama}",
-            ])->all(),
-            'sourceTypeOptions' => PenugasanPengampuKinerja::sourceOptions(),
-            'cascadingOptions' => $this->cascadingOptions($pegawai),
             'can' => [
                 'manage' => $canManage,
                 'delete' => $canManage && ! $this->shouldLimitToUserOpd($request->user()),
@@ -178,12 +199,19 @@ class PegawaiController extends Controller
         return Inertia::render('Master/Pegawai/Form', $this->formProps($request->user(), $pegawai));
     }
 
-    public function update(UpdatePegawaiRequest $request, Pegawai $pegawai): RedirectResponse
-    {
+    public function update(
+        UpdatePegawaiRequest $request,
+        Pegawai $pegawai,
+        PegawaiOrganizationSyncService $syncService,
+    ): RedirectResponse {
         $this->abortUnlessInScope($request->user(), $pegawai);
         $data = $this->normalizeScopedData($request->user(), $request->validated());
+        if ($currentOrganization = $syncService->currentOrganization($pegawai)) {
+            $data = [...$data, ...$currentOrganization];
+        }
         $this->assertReferencesMatch($data);
         $pegawai->update($data);
+        $syncService->syncEmployee($pegawai);
 
         return redirect()->route('master.pegawai.show', $pegawai)->with('success', 'Data pegawai berhasil diperbarui.');
     }
@@ -264,6 +292,11 @@ class PegawaiController extends Controller
             'jabatanOptions' => $this->formJabatanOptions($user),
             'penugasanOptions' => RiwayatPejabatJabatan::penugasanOptions(),
             'scopeLocked' => $this->shouldLimitToUserOpd($user),
+            'isKepalaDaerah' => $pegawai?->penempatan()
+                ->whereDate('tanggal_mulai', '<=', now()->toDateString())
+                ->where(fn (Builder $query) => $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', now()->toDateString()))
+                ->whereHas('jabatanOrganisasi', fn (Builder $query) => $query->where('level_jabatan', 'kepala_daerah'))
+                ->exists() ?? false,
             'canManageJobs' => $user->hasPermission('jabatan_organisasi.manage')
                 || $user->hasPermission('jabatan_organisasi.manage_opd'),
         ];
@@ -283,6 +316,7 @@ class PegawaiController extends Controller
                 'opd_id' => $jabatan->opd_id,
                 'opd_unit_id' => $jabatan->opd_unit_id,
                 'label' => $jabatan->nama.($jabatan->isPendingVerification() ? ' · menunggu verifikasi' : ''),
+                'level_jabatan' => $jabatan->level_jabatan,
                 'level_label' => JabatanOrganisasi::levelLabels()[$jabatan->level_jabatan] ?? $jabatan->level_jabatan,
                 'multiple' => $jabatan->allowsMultipleHolders(),
                 'verification_status' => $jabatan->verification_status,

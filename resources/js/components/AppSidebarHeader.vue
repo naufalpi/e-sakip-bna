@@ -28,6 +28,7 @@ const breadcrumbTitleByPrefix: Array<[string, string]> = [
     ['/workflow/inbox', 'Pengajuan Masuk'],
     ['/notifications', 'Notifikasi'],
     ['/master/opd', 'Master OPD'],
+    ['/master/kop-dokumen', 'Pengaturan Kop Dokumen'],
     ['/master/jabatan-organisasi', 'Struktur Jabatan'],
     ['/master/pegawai', 'Pegawai OPD'],
     ['/master/periode-tahun', 'Periode Tahun'],

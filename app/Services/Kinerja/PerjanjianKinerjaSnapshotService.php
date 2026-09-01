@@ -8,7 +8,9 @@ use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorSasaranOpd;
 use App\Models\IndikatorTujuanDaerah;
 use App\Models\IndikatorTujuanOpd;
+use App\Models\OpdKegiatan;
 use App\Models\OpdProgram;
+use App\Models\OpdSubKegiatan;
 use App\Models\PerjanjianKinerja;
 use App\Models\Rkpd;
 use App\Models\RkpdItem;
@@ -27,7 +29,10 @@ class PerjanjianKinerjaSnapshotService
 
     public function populate(PerjanjianKinerja $pk): void
     {
-        if (! in_array($pk->level_pk, ['bupati', 'kepala_opd'], true)) {
+        $isAutomatic = in_array($pk->level_pk, ['bupati', 'kepala_opd'], true);
+        $isDirectCascading = $pk->sumber_data === 'renstra_cascading';
+
+        if (! $isAutomatic && ! $isDirectCascading && $pk->sumber_data !== 'manual') {
             return;
         }
 
@@ -35,14 +40,156 @@ class PerjanjianKinerjaSnapshotService
             $pk->items()->delete();
             $pk->programs()->delete();
 
+            if ($pk->sumber_data === 'manual') {
+                $pk->forceFill(['snapshot_dibuat_pada' => null])->saveQuietly();
+
+                return;
+            }
+
             if ($pk->level_pk === 'bupati') {
                 $this->populateBupati($pk);
-            } else {
+            } elseif ($pk->level_pk === 'kepala_opd') {
                 $this->populateKepalaOpd($pk);
+            } else {
+                $this->populateDirectCascading($pk);
             }
 
             $pk->forceFill(['snapshot_dibuat_pada' => now()])->saveQuietly();
         });
+    }
+
+    private function populateDirectCascading(PerjanjianKinerja $pk): void
+    {
+        $renstra = $pk->renstraOpd;
+
+        if (! $pk->opd_id
+            || ! $renstra
+            || (int) $renstra->opd_id !== (int) $pk->opd_id
+            || ! in_array($renstra->status, self::OFFICIAL_STATUSES, true)
+            || ! $renstra->is_active_version
+            || ! $pk->periodeTahun()->where('tahun', $pk->tahun)->exists()
+            || (int) $pk->tahun < (int) $renstra->tahun_awal
+            || (int) $pk->tahun > (int) $renstra->tahun_akhir) {
+            throw ValidationException::withMessages([
+                'renstra_opd_id' => 'PK Cascading harus memakai Renstra resmi aktif yang sesuai OPD dan tahun.',
+            ]);
+        }
+
+        $selection = collect($pk->lingkup_kinerja_snapshot ?? [])->filter()->unique()->values();
+        if ($selection->isEmpty()) {
+            throw ValidationException::withMessages([
+                'lingkup_kinerja_snapshot' => 'Pilih minimal satu item cascading dari Renstra.',
+            ]);
+        }
+
+        if ($pk->level_pk === 'individu'
+            && $pk->tipe_pk === 'cascading'
+            && $selection->contains(fn (string $key) => ! str_starts_with($key, 'opd_kegiatan:') && ! str_starts_with($key, 'opd_sub_kegiatan:'))) {
+            throw ValidationException::withMessages([
+                'lingkup_kinerja_snapshot' => 'PK Kasi/Kasubbag/JF/Pelaksana hanya dapat mengambil Kegiatan atau Sub Kegiatan dari cascading Renstra.',
+            ]);
+        }
+
+        $items = collect();
+
+        $selection->each(function (string $key) use ($items, $pk, $renstra): void {
+            [$type, $rawId] = array_pad(explode(':', $key, 2), 2, null);
+            $id = (int) $rawId;
+
+            $node = match ($type) {
+                'sasaran_opd' => SasaranOpd::query()
+                    ->whereKey($id)
+                    ->whereHas('tujuan', fn ($query) => $query->where('renstra_opd_id', $renstra->id))
+                    ->with(['indikator' => fn ($query) => $query->with([
+                        'satuanIndikator:id,nama,simbol',
+                        'targets' => fn ($query) => $query->where('periode_tahun_id', $pk->periode_tahun_id),
+                    ])])
+                    ->first(),
+                'opd_program' => OpdProgram::query()
+                    ->whereKey($id)
+                    ->where('renstra_opd_id', $renstra->id)
+                    ->with(['indikator' => fn ($query) => $query->with([
+                        'satuanIndikator:id,nama,simbol',
+                        'targets' => fn ($query) => $query->where('periode_tahun_id', $pk->periode_tahun_id),
+                    ])])
+                    ->first(),
+                'opd_kegiatan' => OpdKegiatan::query()
+                    ->whereKey($id)
+                    ->whereHas('program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))
+                    ->with(['indikator' => fn ($query) => $query->with([
+                        'satuanIndikator:id,nama,simbol',
+                        'targets' => fn ($query) => $query->where('periode_tahun_id', $pk->periode_tahun_id),
+                    ])])
+                    ->first(),
+                'opd_sub_kegiatan' => OpdSubKegiatan::query()
+                    ->whereKey($id)
+                    ->whereHas('kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))
+                    ->with(['indikator' => fn ($query) => $query->with([
+                        'satuanIndikator:id,nama,simbol',
+                        'targets' => fn ($query) => $query->where('periode_tahun_id', $pk->periode_tahun_id),
+                    ])])
+                    ->first(),
+                default => null,
+            };
+
+            if (! $node) {
+                throw ValidationException::withMessages([
+                    'lingkup_kinerja_snapshot' => 'Salah satu item cascading tidak ditemukan pada Renstra yang dipilih.',
+                ]);
+            }
+
+            if ($node->indikator->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'lingkup_kinerja_snapshot' => 'Salah satu item cascading yang dipilih belum memiliki indikator pada Renstra.',
+                ]);
+            }
+
+            $performance = match ($type) {
+                'sasaran_opd' => $node->sasaran,
+                'opd_program' => $node->sasaran_program ?: $node->nama,
+                'opd_kegiatan' => $node->sasaran_kegiatan ?: $node->nama,
+                'opd_sub_kegiatan' => $node->sasaran_sub_kegiatan ?: $node->nama,
+            };
+            $itemType = match ($type) {
+                'sasaran_opd' => 'sasaran_opd',
+                'opd_program' => 'program_opd',
+                'opd_kegiatan' => 'kegiatan_opd',
+                'opd_sub_kegiatan' => 'sub_kegiatan_opd',
+            };
+
+            $node->indikator->each(function (Model $indicator) use ($items, $node, $type, $itemType, $performance): void {
+                $target = $indicator->targets->first();
+                $references = match ($type) {
+                    'sasaran_opd' => [
+                        'sasaran_opd_id' => $node->id,
+                        'indikator_sasaran_opd_id' => $indicator->id,
+                    ],
+                    'opd_program' => ['opd_program_id' => $node->id],
+                    default => [],
+                };
+
+                $items->push([
+                    ...$this->performanceItem(
+                        $itemType,
+                        $node->kode,
+                        $performance,
+                        $indicator,
+                        $target?->target_text,
+                        $target?->target,
+                    ),
+                    ...$references,
+                ]);
+            });
+        });
+
+        if ($items->isEmpty()) {
+            throw ValidationException::withMessages([
+                'lingkup_kinerja_snapshot' => 'Item yang dipilih belum memiliki indikator sehingga belum dapat dimasukkan ke PK.',
+            ]);
+        }
+
+        $this->ensureTargetsAvailable($items, 'lingkup_kinerja_snapshot', 'Target tahunan salah satu indikator cascading belum tersedia pada Renstra untuk tahun PK.');
+        $this->storeItems($pk, $items);
     }
 
     private function populateBupati(PerjanjianKinerja $pk): void
@@ -135,31 +282,45 @@ class PerjanjianKinerjaSnapshotService
             ]);
         }
 
+        if (! $dpa->items()->exists()) {
+            throw ValidationException::withMessages([
+                'dpa_opd_id' => 'DPA/DPPA belum memiliki rincian anggaran yang dapat dimasukkan ke PK Kepala OPD.',
+            ]);
+        }
+
         $items = collect();
 
-        TujuanOpd::query()
+        $goals = TujuanOpd::query()
             ->where('renstra_opd_id', $renstra->id)
             ->with(['indikator' => fn ($query) => $query->with([
                 'satuanIndikator:id,nama,simbol',
                 'targets' => fn ($query) => $query->where('periode_tahun_id', $pk->periode_tahun_id),
             ])])
             ->orderBy('urutan')
-            ->get()
-            ->each(function (TujuanOpd $tujuan) use ($items): void {
-                $tujuan->indikator->each(function (IndikatorTujuanOpd $indikator) use ($items, $tujuan): void {
-                    $target = $indikator->targets->first();
-                    $items->push($this->performanceItem(
-                        'tujuan_opd',
-                        $indikator->kode,
-                        $tujuan->tujuan,
-                        $indikator,
-                        $target?->target_text,
-                        $target?->target,
-                    ));
-                });
-            });
+            ->orderBy('id')
+            ->get();
 
-        SasaranOpd::query()
+        $goals->each(function (TujuanOpd $tujuan) use ($items): void {
+            if ($tujuan->indikator->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'renstra_opd_id' => 'Salah satu Tujuan OPD belum memiliki indikator pada Renstra.',
+                ]);
+            }
+
+            $tujuan->indikator->each(function (IndikatorTujuanOpd $indikator) use ($items, $tujuan): void {
+                $target = $indikator->targets->first();
+                $items->push($this->performanceItem(
+                    'tujuan_opd',
+                    $indikator->kode,
+                    $tujuan->tujuan,
+                    $indikator,
+                    $target?->target_text,
+                    $target?->target,
+                ));
+            });
+        });
+
+        $objectives = SasaranOpd::query()
             ->whereHas('tujuan', fn ($query) => $query->where('renstra_opd_id', $renstra->id))
             ->with([
                 'tujuan:id,urutan',
@@ -169,53 +330,39 @@ class PerjanjianKinerjaSnapshotService
                 ]),
             ])
             ->get()
-            ->sortBy(fn (SasaranOpd $sasaran) => sprintf('%06d-%06d-%010d', $sasaran->tujuan?->urutan ?? 0, $sasaran->urutan, $sasaran->id))
-            ->each(function (SasaranOpd $sasaran) use ($items): void {
-                $sasaran->indikator->each(function (IndikatorSasaranOpd $indikator) use ($items, $sasaran): void {
-                    $target = $indikator->targets->first();
-                    $items->push([
-                        ...$this->performanceItem(
-                            'sasaran_opd',
-                            $sasaran->kode,
-                            $sasaran->sasaran,
-                            $indikator,
-                            $target?->target_text,
-                            $target?->target,
-                        ),
-                        'sasaran_opd_id' => $sasaran->id,
-                        'indikator_sasaran_opd_id' => $indikator->id,
-                    ]);
-                });
-            });
+            ->sortBy(fn (SasaranOpd $sasaran) => sprintf('%06d-%06d-%010d', $sasaran->tujuan?->urutan ?? 0, $sasaran->urutan, $sasaran->id));
 
-        OpdProgram::query()
-            ->where('renstra_opd_id', $renstra->id)
-            ->with([
-                'sasaran:id,urutan',
-                'indikator' => fn ($query) => $query->with([
-                    'satuanIndikator:id,nama,simbol',
-                    'targets' => fn ($query) => $query->where('periode_tahun_id', $pk->periode_tahun_id),
-                ]),
-            ])
-            ->get()
-            ->sortBy(fn (OpdProgram $program) => sprintf('%06d-%06d-%010d', $program->sasaran?->urutan ?? 0, $program->urutan, $program->id))
-            ->each(function (OpdProgram $program) use ($items): void {
-                $program->indikator->each(function ($indikator) use ($items, $program): void {
-                    $target = $indikator->targets->first();
-                    $items->push([
-                        ...$this->performanceItem(
-                            'program_opd',
-                            $program->kode,
-                            $program->sasaran_program ?: $program->nama,
-                            $indikator,
-                            $target?->target_text,
-                            $target?->target,
-                        ),
-                        'opd_program_id' => $program->id,
-                    ]);
-                });
-            });
+        $objectives->each(function (SasaranOpd $sasaran) use ($items): void {
+            if ($sasaran->indikator->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'renstra_opd_id' => 'Salah satu Sasaran OPD belum memiliki indikator pada Renstra.',
+                ]);
+            }
 
+            $sasaran->indikator->each(function (IndikatorSasaranOpd $indikator) use ($items, $sasaran): void {
+                $target = $indikator->targets->first();
+                $items->push([
+                    ...$this->performanceItem(
+                        'sasaran_opd',
+                        $sasaran->kode,
+                        $sasaran->sasaran,
+                        $indikator,
+                        $target?->target_text,
+                        $target?->target,
+                    ),
+                    'sasaran_opd_id' => $sasaran->id,
+                    'indikator_sasaran_opd_id' => $indikator->id,
+                ]);
+            });
+        });
+
+        if ($goals->isEmpty() || $objectives->isEmpty()) {
+            throw ValidationException::withMessages([
+                'renstra_opd_id' => 'Renstra belum memiliki Tujuan OPD dan Sasaran OPD yang lengkap untuk PK Kepala OPD.',
+            ]);
+        }
+
+        $this->ensureTargetsAvailable($items, 'renstra_opd_id', 'Target tahunan salah satu indikator Tujuan/Sasaran OPD belum tersedia pada Renstra untuk tahun PK.');
         $this->storeItems($pk, $items);
         $this->storeDpaPrograms($pk, $dpa, $renstra->id);
     }
@@ -285,29 +432,68 @@ class PerjanjianKinerjaSnapshotService
     {
         $opdPrograms = OpdProgram::query()
             ->where('renstra_opd_id', $renstraId)
-            ->get(['id', 'program_pemerintahan_id', 'kode'])
-            ->groupBy('program_pemerintahan_id');
+            ->get(['id', 'program_pemerintahan_id', 'kode', 'nama']);
+        $programsByMaster = $opdPrograms
+            ->filter(fn (OpdProgram $program) => filled($program->program_pemerintahan_id))
+            ->groupBy(fn (OpdProgram $program) => (string) $program->program_pemerintahan_id);
+        $programsByCode = $opdPrograms
+            ->filter(fn (OpdProgram $program) => filled($program->kode))
+            ->groupBy(fn (OpdProgram $program) => $this->normalizeProgramIdentity($program->kode));
+        $programsByName = $opdPrograms
+            ->filter(fn (OpdProgram $program) => filled($program->nama))
+            ->groupBy(fn (OpdProgram $program) => $this->normalizeProgramIdentity($program->nama));
 
         $groups = DpaOpdItem::query()
             ->where('dpa_opd_id', $dpa->id)
             ->orderBy('urutan')
             ->get()
-            ->groupBy(fn (DpaOpdItem $item) => (string) ($item->program_pemerintahan_id ?: ($item->kode_program ?: $item->nama_program)));
+            ->groupBy(function (DpaOpdItem $item): string {
+                if (filled($item->kode_program)) {
+                    return 'code:'.$this->normalizeProgramIdentity($item->kode_program);
+                }
 
-        $this->storeProgramGroups($pk, $groups, function (Collection $items) use ($opdPrograms): array {
+                if (filled($item->program_pemerintahan_id)) {
+                    return 'master:'.$item->program_pemerintahan_id;
+                }
+
+                if (filled($item->nama_program)) {
+                    return 'name:'.$this->normalizeProgramIdentity($item->nama_program);
+                }
+
+                return 'item:'.$item->id;
+            });
+
+        $this->storeProgramGroups($pk, $groups, function (Collection $items) use ($programsByMaster, $programsByCode, $programsByName): array {
             /** @var DpaOpdItem $first */
             $first = $items->first();
-            $opdProgram = $opdPrograms->get($first->program_pemerintahan_id)?->first();
+            $masterId = $items->pluck('program_pemerintahan_id')->filter()->first();
+            $code = $items->pluck('kode_program')->first(fn ($value) => filled($value));
+            $name = $items->pluck('nama_program')->first(fn ($value) => filled($value));
+            $opdProgram = ($masterId ? $programsByMaster->get((string) $masterId)?->first() : null)
+                ?: (filled($code) ? $programsByCode->get($this->normalizeProgramIdentity($code))?->first() : null)
+                ?: (filled($name) ? $programsByName->get($this->normalizeProgramIdentity($name))?->first() : null);
 
             return [
                 'opd_program_id' => $opdProgram?->id,
-                'program_pemerintahan_id' => $first->program_pemerintahan_id,
-                'kode' => $first->kode_program,
-                'nama_program' => $first->nama_program ?: 'Program belum diberi nama',
+                'program_pemerintahan_id' => $masterId,
+                'kode' => $code,
+                'nama_program' => $name ?: 'Program belum diberi nama',
                 'anggaran' => $items->sum(fn (DpaOpdItem $item) => (float) ($item->pagu_dpa ?? 0)),
                 'keterangan' => $this->fundingLabel($items->pluck('sumber_pendanaan')),
             ];
         });
+    }
+
+    private function ensureTargetsAvailable(Collection $items, string $field, string $message): void
+    {
+        if ($items->contains(fn (array $item) => $item['target'] === null && blank($item['target_text'] ?? null))) {
+            throw ValidationException::withMessages([$field => $message]);
+        }
+    }
+
+    private function normalizeProgramIdentity(mixed $value): string
+    {
+        return mb_strtolower(preg_replace('/\s+/', ' ', trim((string) $value)) ?? '');
     }
 
     private function storeProgramGroups(PerjanjianKinerja $pk, Collection $groups, callable $mapper): void

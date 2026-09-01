@@ -23,9 +23,9 @@ class PerjanjianKinerjaItemController extends Controller
     ): RedirectResponse {
         $this->authorize('update', $perjanjianKinerja);
 
-        if (in_array($perjanjianKinerja->level_pk, ['bupati', 'kepala_opd'], true)) {
+        if ($this->usesReadonlySnapshot($perjanjianKinerja)) {
             throw ValidationException::withMessages([
-                'sasaran' => 'Matriks PK Bupati dan PK Kepala OPD dibuat otomatis dari dokumen sumber resmi dan tidak dapat ditambah manual.',
+                'sasaran' => 'Matriks PK Cascading dibentuk dari lingkup kinerja pada dokumen PK dan tidak dapat ditambah manual.',
             ]);
         }
 
@@ -50,7 +50,7 @@ class PerjanjianKinerjaItemController extends Controller
         $this->authorize('update', $perjanjianKinerja);
         abort_unless((int) $item->perjanjian_kinerja_id === (int) $perjanjianKinerja->id, 404);
 
-        if ($item->is_readonly) {
+        if ($this->usesReadonlySnapshot($perjanjianKinerja) || $item->is_readonly) {
             throw ValidationException::withMessages([
                 'sasaran' => 'Item snapshot dari dokumen sumber resmi tidak dapat diubah. Perbaiki dokumen sumber lalu buat ulang snapshot PK.',
             ]);
@@ -73,7 +73,7 @@ class PerjanjianKinerjaItemController extends Controller
         $this->authorize('update', $perjanjianKinerja);
         abort_unless((int) $item->perjanjian_kinerja_id === (int) $perjanjianKinerja->id, 404);
 
-        if ($item->is_readonly) {
+        if ($this->usesReadonlySnapshot($perjanjianKinerja) || $item->is_readonly) {
             return back()->with('error', 'Item snapshot dari dokumen sumber resmi tidak dapat dihapus.');
         }
 
@@ -128,5 +128,11 @@ class PerjanjianKinerjaItemController extends Controller
         }
 
         return [...$data, 'sumber_item' => 'cascading', 'jenis_item' => $data['level_cascading'] ?? 'manual'];
+    }
+
+    private function usesReadonlySnapshot(PerjanjianKinerja $pk): bool
+    {
+        return $pk->tipe_pk === 'cascading'
+            && in_array($pk->sumber_data, ['rkpd', 'dpa', 'renstra_cascading'], true);
     }
 }

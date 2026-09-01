@@ -6,13 +6,12 @@ import ArrowLeft from 'lucide-vue-next/dist/esm/icons/arrow-left.js';
 import BriefcaseBusiness from 'lucide-vue-next/dist/esm/icons/briefcase-business.js';
 import CalendarRange from 'lucide-vue-next/dist/esm/icons/calendar-range.js';
 import CircleUserRound from 'lucide-vue-next/dist/esm/icons/circle-user-round.js';
-import GitBranch from 'lucide-vue-next/dist/esm/icons/git-branch.js';
 import Pencil from 'lucide-vue-next/dist/esm/icons/pencil.js';
 import Plus from 'lucide-vue-next/dist/esm/icons/plus.js';
 import Save from 'lucide-vue-next/dist/esm/icons/save.js';
 import Trash2 from 'lucide-vue-next/dist/esm/icons/trash-2.js';
 import X from 'lucide-vue-next/dist/esm/icons/x.js';
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 
 type Option = { id?: number; value?: string; label: string; level_label?: string; multiple?: boolean; verification_status?: string; tahun?: number };
 type Placement = {
@@ -26,17 +25,6 @@ type Placement = {
     tanggal_mulai: string;
     tanggal_selesai?: string | null;
 };
-type Assignment = {
-    id: number;
-    periode_tahun_id: number;
-    tahun: number;
-    sumber_kinerja_type: string;
-    sumber_kinerja_label: string;
-    peran: string;
-    status: string;
-    periode_label?: string | null;
-    jabatan_label?: string | null;
-};
 type Item = {
     id: number;
     nama: string;
@@ -49,16 +37,12 @@ type Item = {
     user?: { name: string; username?: string | null; email?: string | null } | null;
     current_placements: Placement[];
     penempatan: Placement[];
-    penugasan_kinerja: Assignment[];
 };
 
 const props = defineProps<{
     item: Item;
     jabatanOptions: Option[];
     penugasanOptions: Option[];
-    periodeOptions: Option[];
-    sourceTypeOptions: Option[];
-    cascadingOptions: Record<string, Option[]>;
     can: { manage: boolean; delete: boolean; manage_jobs: boolean };
 }>();
 
@@ -72,15 +56,6 @@ const placementForm = useForm({
     tanggal_mulai: new Date().toISOString().slice(0, 10),
     tanggal_selesai: '',
 });
-const assignmentOpen = ref(false);
-const assignmentForm = useForm({
-    penempatan_pegawai_id: '' as number | '',
-    periode_tahun_id: '' as number | '',
-    sumber_kinerja_type: 'sub_kegiatan',
-    sumber_kinerja_id: '' as number | '',
-    peran: 'penanggung_jawab',
-});
-const selectedSources = computed(() => props.cascadingOptions[assignmentForm.sumber_kinerja_type] ?? []);
 
 const openPlacement = (placement?: Placement) => {
     editingPlacementId.value = placement?.id ?? null;
@@ -111,21 +86,9 @@ const submitPlacement = () => {
     }
     placementForm.post(route('master.pegawai.penempatan.store', props.item.id), { preserveScroll: true, onSuccess: closePlacement });
 };
-const submitAssignment = () =>
-    assignmentForm.post(route('master.pegawai.pengampu-kinerja.store', props.item.id), {
-        preserveScroll: true,
-        onSuccess: () => {
-            assignmentForm.reset();
-            assignmentOpen.value = false;
-        },
-    });
 const removePlacement = async (placement: Placement) => {
     if (await confirmDelete(`Hapus riwayat jabatan ${placement.jabatan?.nama}?`))
         router.delete(route('master.pegawai.penempatan.destroy', [props.item.id, placement.id]), { preserveScroll: true });
-};
-const removeAssignment = async (assignment: Assignment) => {
-    if (await confirmDelete(`Hapus penugasan ${assignment.sumber_kinerja_label}?`))
-        router.delete(route('master.pegawai.pengampu-kinerja.destroy', [props.item.id, assignment.id]), { preserveScroll: true });
 };
 const removeEmployee = async () => {
     if (await confirmDelete(`Hapus pegawai ${props.item.nama}? Data yang sudah memiliki riwayat akan ditolak sistem.`))
@@ -137,7 +100,6 @@ const isCurrent = (placement: Placement) => {
     const today = new Date().toISOString().slice(0, 10);
     return placement.tanggal_mulai <= today && (!placement.tanggal_selesai || placement.tanggal_selesai >= today);
 };
-const sourceTypeLabel = (value: string) => props.sourceTypeOptions.find((option) => option.value === value)?.label ?? value;
 </script>
 
 <template>
@@ -383,6 +345,7 @@ const sourceTypeLabel = (value: string) => props.sourceTypeOptions.find((option)
             </div>
         </section>
 
+        <!-- Legacy UI penugasan pengampu disimpan sementara untuk kompatibilitas data lama.
         <section class="overflow-hidden rounded-xl border bg-card">
             <div class="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -512,5 +475,6 @@ const sourceTypeLabel = (value: string) => props.sourceTypeOptions.find((option)
                 </div>
             </div>
         </section>
+        -->
     </div>
 </template>
