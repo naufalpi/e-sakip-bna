@@ -44,6 +44,42 @@ class RenstraOpdTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_kabupaten_viewer_receives_period_columns_for_renstra_preview(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '1.00.99', 'nama' => 'Dinas Uji Preview', 'status' => 'active']);
+        $rpjmd = Rpjmd::create([
+            'judul' => 'RPJMD Uji Preview',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'status' => 'approved',
+        ]);
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $rpjmd->id,
+            'judul' => 'RENSTRA Uji Preview',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'status' => 'submitted',
+        ]);
+
+        $viewer = User::factory()->create();
+        $viewer->roles()->sync([Role::where('name', 'admin_kabupaten_bagian_organisasi')->value('id')]);
+
+        $this->actingAs($viewer)
+            ->get(route('renstra-opd.show', $renstra))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('RenstraOpd/Show')
+                ->where('can.manage', false)
+                ->where('periodeOptions', fn ($options) => collect($options)->contains(
+                    fn (array $option) => (int) ($option['tahun'] ?? 0) === 2026,
+                ))
+                ->where('nodeOptions', [])
+            );
+    }
+
     public function test_admin_opd_can_crud_only_own_renstra(): void
     {
         $this->seed();

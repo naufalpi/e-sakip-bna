@@ -230,7 +230,10 @@ class RenstraOpdController extends Controller
             'nodeOptions' => $manage ? $this->nodeOptions($renstraOpd) : [],
             'rpjmdReferenceOptions' => $manage ? $this->rpjmdReferenceOptions($renstraOpd) : [],
             'masterReferenceOptions' => $manage ? $this->masterReferenceOptions($renstraOpd) : [],
-            'periodeOptions' => $manage ? $this->periodeOptions() : [],
+            // Periode tahun juga dipakai oleh tabel preview untuk membentuk
+            // kolom target dan pagu. Data ini harus tetap tersedia bagi
+            // reviewer/viewer meskipun mereka tidak memiliki hak mengedit.
+            'periodeOptions' => $this->periodeOptions(),
             'satuanOptions' => $manage ? $this->satuanOptions() : [],
             'can' => [
                 'manage' => $manage,
