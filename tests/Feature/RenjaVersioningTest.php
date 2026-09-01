@@ -52,8 +52,6 @@ class RenjaVersioningTest extends TestCase
         $rkpdChange = app(RkpdVersionService::class)->createChange($rkpdEstablished, [
             'alasan_perubahan' => 'Penyesuaian prioritas daerah.',
         ]);
-        $rkpdChange->update(['status' => 'approved']);
-        app(RkpdVersionService::class)->publishAfterApproval($rkpdChange, $approver);
 
         $renjaChange = app(RenjaVersionService::class)->createChange($renjaEstablished, [
             'alasan_perubahan' => 'Penyesuaian target dan pagu OPD.',
@@ -67,6 +65,16 @@ class RenjaVersioningTest extends TestCase
         $this->assertFalse($renjaChange->is_active_version);
         $this->assertFalse($renjaChange->isArchivedVersion());
         $this->assertTrue($renjaEstablished->fresh()->is_active_version);
+
+        try {
+            app(RenjaVersionService::class)->publishAfterApproval($renjaChange, $approver);
+            $this->fail('RENJA Perubahan belum boleh ditetapkan sebelum RKPD Perubahan disetujui.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('document', $exception->errors());
+        }
+
+        $rkpdChange->update(['status' => 'approved']);
+        app(RkpdVersionService::class)->publishAfterApproval($rkpdChange, $approver);
 
         $renjaChange->update(['status' => 'approved']);
         $published = app(RenjaVersionService::class)->publishAfterApproval($renjaChange, $approver);

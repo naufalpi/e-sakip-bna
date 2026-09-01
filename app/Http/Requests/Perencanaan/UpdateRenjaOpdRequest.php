@@ -10,6 +10,8 @@ use Illuminate\Validation\Validator;
 
 class UpdateRenjaOpdRequest extends FormRequest
 {
+    private const WORKING_RKPD_STATUSES = ['draft', 'submitted', 'verified', 'revision', 'rejected'];
+
     public function authorize(): bool
     {
         $renjaOpd = $this->route('renja_opd');
@@ -85,15 +87,20 @@ class UpdateRenjaOpdRequest extends FormRequest
                 $unchangedLegacyReference = $renja->jenis_versi === 'awal'
                     && (int) $renja->rkpd_id === $this->integer('rkpd_id')
                     && $rkpd?->jenis_versi === 'awal';
+                $workingVersion = $renja->jenis_versi === 'perubahan' ? 'perubahan' : 'awal';
+                $validWorkingReference = $rkpd?->jenis_versi === $workingVersion
+                    && in_array((string) $rkpd?->status, self::WORKING_RKPD_STATUSES, true);
                 $validOfficialReference = $rkpd
                     && $rkpd->jenis_versi === $expectedVersion
                     && in_array($rkpd->status, ['approved', 'locked'], true)
                     && $rkpd->is_active_version;
 
-                if ($rkpd && ((! $unchangedLegacyReference && ! $validOfficialReference)
+                if ($rkpd && ((! $unchangedLegacyReference && ! $validWorkingReference && ! $validOfficialReference)
                     || (int) $rkpd->tahun !== $this->integer('tahun'))) {
-                    $label = $expectedVersion === 'perubahan' ? 'RKPD Perubahan Ditetapkan' : 'RKPD Ditetapkan';
-                    $validator->errors()->add('rkpd_id', "Versi RENJA ini harus menggunakan {$label} aktif pada tahun yang sama.");
+                    $label = $expectedVersion === 'perubahan'
+                        ? 'RKPD Perubahan Ditetapkan'
+                        : 'RKPD Awal tahap kerja atau RKPD Ditetapkan';
+                    $validator->errors()->add('rkpd_id', "Versi RENJA ini harus menggunakan {$label} yang sesuai pada tahun yang sama.");
                 }
             }
         });

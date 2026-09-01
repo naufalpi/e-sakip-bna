@@ -105,15 +105,22 @@ const filteredRenstraOptions = computed(() =>
     ),
 );
 const expectedRkpdVersion = computed(() => (props.renja?.jenis_versi === 'perubahan' ? 'perubahan' : 'ditetapkan'));
+const workingRkpdStatuses = ['draft', 'submitted', 'verified', 'revision', 'rejected'];
 const filteredRkpdOptions = computed(() =>
     props.rkpdOptions.filter((option) => {
         const isCurrentLegacyReference = props.mode === 'edit' && String(option.id) === String(props.renja?.rkpd_id);
+        const isWorkingReference =
+            option.jenis_versi === ((props.renja?.jenis_versi ?? 'awal') === 'perubahan' ? 'perubahan' : 'awal') &&
+            (!option.status || workingRkpdStatuses.includes(option.status));
         const isOfficialReference =
             (!option.jenis_versi || option.jenis_versi === expectedRkpdVersion.value) &&
             (!option.status || ['approved', 'locked'].includes(option.status)) &&
             option.is_active_version !== false;
 
-        return (!option.tahun || Number(option.tahun) === Number(form.tahun)) && (isCurrentLegacyReference || isOfficialReference);
+        return (
+            (!option.tahun || Number(option.tahun) === Number(form.tahun)) &&
+            (isCurrentLegacyReference || isWorkingReference || isOfficialReference)
+        );
     }),
 );
 const selectedPeriode = computed(() => props.periodeOptions.find((option) => Number(option.tahun) === Number(form.tahun)));
@@ -121,6 +128,11 @@ const selectedOpd = computed(() => props.opdOptions.find((option) => String(opti
 const selectedRenstra = computed(() => filteredRenstraOptions.value.find((option) => String(option.id) === String(form.renstra_opd_id)));
 const frontendVersionLabel = computed(() =>
     props.renja?.jenis_versi === 'awal' ? 'RENJA Akhir Draft' : props.renja?.version_label || 'RENJA Akhir Draft',
+);
+const rkpdReferenceHelp = computed(() =>
+    props.renja?.jenis_versi === 'perubahan'
+        ? 'RENJA Perubahan dapat memakai RKPD Perubahan tahap kerja. Saat disetujui, sistem akan memastikan RKPD Perubahan Ditetapkan sudah resmi.'
+        : 'RENJA Akhir Draft dapat memakai RKPD Awal tahap kerja. Saat disetujui, sistem akan mengikat RENJA Ditetapkan ke RKPD Ditetapkan yang resmi.',
 );
 const title = computed(() => (props.mode === 'create' ? 'Tambah RENJA Akhir Draft' : `Edit ${frontendVersionLabel.value}`));
 const isCreateConfirmationOpen = ref(false);
@@ -279,20 +291,16 @@ const confirmCreate = () => {
 
                     <div class="grid min-w-0 gap-4 xl:grid-cols-2">
                         <label class="grid min-w-0 gap-1.5">
-                            <span class="text-sm font-medium"
-                                >Acuan {{ expectedRkpdVersion === 'perubahan' ? 'RKPD Perubahan Ditetapkan' : 'RKPD Ditetapkan' }}</span
-                            >
+                            <span class="text-sm font-medium">Acuan RKPD</span>
                             <select
                                 v-model="form.rkpd_id"
                                 required
                                 class="h-11 w-full min-w-0 truncate rounded-xl border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-[#00336C]/25"
                             >
-                                <option value="">Dokumen resmi belum tersedia</option>
+                                <option value="">Pilih RKPD acuan</option>
                                 <option v-for="option in filteredRkpdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                             </select>
-                            <span class="text-xs leading-5 text-muted-foreground"
-                                >Hanya dokumen RKPD resmi, aktif, dan sudah disetujui yang dapat menjadi acuan.</span
-                            >
+                            <span class="text-xs leading-5 text-muted-foreground">{{ rkpdReferenceHelp }}</span>
                             <span v-if="form.errors.rkpd_id" class="text-xs text-red-600">{{ form.errors.rkpd_id }}</span>
                         </label>
 

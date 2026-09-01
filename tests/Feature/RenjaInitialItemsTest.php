@@ -139,21 +139,56 @@ class RenjaInitialItemsTest extends TestCase
         $this->assertSame(1, RenjaOpdItem::withTrashed()->where('renja_opd_id', $renja->id)->count());
     }
 
-    public function test_new_renja_requires_an_active_approved_rkpd_reference(): void
+    public function test_new_renja_can_use_a_working_rkpd_before_rkpd_is_established(): void
+    {
+        $data = $this->planningData();
+        $workingRkpd = Rkpd::create([
+            'rpjmd_id' => $data['rkpd_official']->rpjmd_id,
+            'periode_tahun_id' => $data['target_period']->id,
+            'tahun' => 2089,
+            'judul' => 'RKPD AWAL TAHUN 2089',
+            'status' => 'draft',
+            'jenis_versi' => 'awal',
+            'nomor_versi' => 1,
+            'is_active_version' => false,
+        ]);
+
+        $this->actingAs($data['user'])
+            ->post(route('renja-opd.store'), [
+                'rkpd_id' => $workingRkpd->id,
+                'renstra_opd_id' => $data['renstra']->id,
+                'opd_id' => $data['opd']->id,
+                'periode_tahun_id' => $data['target_period']->id,
+                'tahun' => 2089,
+                'judul' => 'RENJA DENGAN RKPD TAHAP KERJA',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('renja_opd', [
+            'judul' => 'RENJA DENGAN RKPD TAHAP KERJA',
+            'rkpd_id' => $workingRkpd->id,
+            'jenis_versi' => 'awal',
+            'status' => 'draft',
+        ]);
+    }
+
+    public function test_new_renja_rejects_a_non_official_established_rkpd_reference(): void
     {
         $data = $this->planningData();
         $data['rkpd_official']->update(['status' => 'draft']);
 
         $this->actingAs($data['user'])
             ->post(route('renja-opd.store'), [
+                'rkpd_id' => $data['rkpd_official']->id,
+                'renstra_opd_id' => $data['renstra']->id,
                 'opd_id' => $data['opd']->id,
                 'periode_tahun_id' => $data['target_period']->id,
                 'tahun' => 2089,
-                'judul' => 'RENJA TANPA RKPD RESMI',
+                'judul' => 'RENJA DENGAN RKPD TIDAK SAH',
             ])
             ->assertSessionHasErrors('rkpd_id');
 
-        $this->assertDatabaseMissing('renja_opd', ['judul' => 'RENJA TANPA RKPD RESMI']);
+        $this->assertDatabaseMissing('renja_opd', ['judul' => 'RENJA DENGAN RKPD TIDAK SAH']);
     }
 
     public function test_new_renja_rejects_a_renstra_that_is_not_official(): void

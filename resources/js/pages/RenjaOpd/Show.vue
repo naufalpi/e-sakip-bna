@@ -946,7 +946,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
             v-if="renjaItemView === 'input'"
             :can-manage="can.manage"
             title="Sinkronisasi RKPD ke RENJA"
-            description="Tarik baris hanya dari RKPD Ditetapkan aktif yang sudah disetujui. Target RENJA harus masih draft atau revisi."
+            description="Selaraskan dari RKPD Ditetapkan aktif. Jika RENJA sudah diajukan, kembalikan ke status Perlu Revisi terlebih dahulu agar dapat disesuaikan."
             :preview-route="route('renja-opd.sync-rkpd.preview', renja.id)"
             :apply-route="renjaSyncApplyRoute"
             :preview="syncPreview"

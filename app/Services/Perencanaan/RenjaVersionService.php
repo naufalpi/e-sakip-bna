@@ -10,6 +10,8 @@ use Illuminate\Validation\ValidationException;
 
 class RenjaVersionService
 {
+    private const WORKING_RKPD_STATUSES = ['draft', 'submitted', 'verified', 'revision', 'rejected'];
+
     /**
      * Approval of RENJA Awal publishes a RENJA Ditetapkan snapshot. Approval
      * of RENJA Perubahan makes that snapshot the active OPD document.
@@ -73,10 +75,10 @@ class RenjaVersionService
                 ]);
             }
 
-            $reference = $this->referenceRkpd($source, 'perubahan', true);
+            $reference = $this->workingRkpdChange($source) ?: $this->referenceRkpd($source, 'perubahan', true);
             if (! $reference) {
                 throw ValidationException::withMessages([
-                    'rkpd_id' => 'RKPD Perubahan Ditetapkan harus tersedia sebelum membuat RENJA Perubahan.',
+                    'rkpd_id' => 'RKPD Perubahan tahap kerja atau RKPD Perubahan Ditetapkan harus tersedia sebelum membuat RENJA Perubahan.',
                 ]);
             }
 
@@ -156,6 +158,23 @@ class RenjaVersionService
             ->whereIn('status', ['approved', 'locked'])
             ->when($activeOnly, fn ($query) => $query->where('is_active_version', true))
             ->orderByDesc('nomor_versi')
+            ->first();
+    }
+
+    private function workingRkpdChange(RenjaOpd $renja): ?Rkpd
+    {
+        $renja->loadMissing('rkpd');
+        $rootId = $renja->rkpd?->root_version_id ?: $renja->rkpd_id;
+
+        return Rkpd::query()
+            ->when($rootId, fn ($query) => $query->where('root_version_id', $rootId))
+            ->when(! $rootId, fn ($query) => $query
+                ->where('periode_tahun_id', $renja->periode_tahun_id)
+                ->where('tahun', $renja->tahun))
+            ->where('jenis_versi', 'perubahan')
+            ->whereIn('status', self::WORKING_RKPD_STATUSES)
+            ->orderByDesc('nomor_versi')
+            ->latest('id')
             ->first();
     }
 

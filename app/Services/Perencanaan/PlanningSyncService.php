@@ -16,7 +16,9 @@ use Illuminate\Validation\ValidationException;
 
 class PlanningSyncService
 {
-    private const SOURCE_STATUSES = ['approved', 'locked'];
+    private const OFFICIAL_SOURCE_STATUSES = ['approved', 'locked'];
+
+    private const RENJA_COMPILATION_STATUSES = ['submitted', 'verified'];
 
     private const TARGET_EDITABLE_STATUSES = ['draft', 'revision', 'rejected'];
 
@@ -71,7 +73,7 @@ class PlanningSyncService
 
         return DB::transaction(function () use ($rkpd, $user, $filters) {
             $renjaStatuses = $this->sourceStatuses($filters['renja_statuses'] ?? null);
-            $sourceVersion = $this->officialSourceVersion($rkpd->jenis_versi);
+            $sourceVersion = $this->workingRenjaVersion($rkpd->jenis_versi);
 
             $batch = PlanningSyncBatch::create([
                 'source_module' => 'renja_opd',
@@ -105,11 +107,12 @@ class PlanningSyncService
                     'items.subKegiatanPemerintahan.kegiatanPemerintahan.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
                 ])
                 ->where('jenis_versi', $sourceVersion)
-                ->where('is_active_version', true)
                 ->where(function ($query) use ($rkpd) {
                     $rkpdRootId = (int) ($rkpd->root_version_id ?: $rkpd->id);
 
-                    $query->whereHas('rkpd', fn ($query) => $query->where('root_version_id', $rkpdRootId))
+                    $query->whereHas('rkpd', fn ($query) => $query
+                        ->whereKey($rkpdRootId)
+                        ->orWhere('root_version_id', $rkpdRootId))
                         ->orWhere(function ($query) use ($rkpd) {
                             $query->whereNull('rkpd_id')
                                 ->where('periode_tahun_id', $rkpd->periode_tahun_id)
@@ -125,8 +128,8 @@ class PlanningSyncService
             if ($renjas->isEmpty()) {
                 throw ValidationException::withMessages([
                     'sync' => $sourceVersion === 'perubahan'
-                        ? 'RENJA Perubahan Ditetapkan aktif yang sudah disetujui belum tersedia untuk disinkronkan ke RKPD.'
-                        : 'RENJA Ditetapkan aktif yang sudah disetujui belum tersedia untuk disinkronkan ke RKPD.',
+                        ? 'RENJA Perubahan yang sudah diajukan atau diverifikasi belum tersedia untuk dikompilasi ke RKPD Perubahan.'
+                        : 'RENJA Akhir Draft yang sudah diajukan atau diverifikasi belum tersedia untuk dikompilasi ke RKPD.',
                 ]);
             }
 
@@ -402,19 +405,24 @@ class PlanningSyncService
     private function sourceStatuses(mixed $statuses): array
     {
         if (is_array($statuses)) {
-            $selected = array_values(array_intersect(self::SOURCE_STATUSES, array_map('strval', $statuses)));
+            $selected = array_values(array_intersect(self::RENJA_COMPILATION_STATUSES, array_map('strval', $statuses)));
 
             if ($selected !== []) {
                 return $selected;
             }
         }
 
-        return self::SOURCE_STATUSES;
+        return self::RENJA_COMPILATION_STATUSES;
     }
 
-    private function officialSourceVersion(string $targetVersion): string
+    private function workingRenjaVersion(string $targetVersion): string
     {
-        return $targetVersion === 'perubahan' ? 'perubahan' : 'ditetapkan';
+        return $targetVersion === 'perubahan' ? 'perubahan' : 'awal';
+    }
+
+    private function officialRkpdVersion(string $renjaVersion): string
+    {
+        return $renjaVersion === 'perubahan' ? 'perubahan' : 'ditetapkan';
     }
 
     private function officialRkpdForRenja(RenjaOpd $renja): ?Rkpd
@@ -427,8 +435,8 @@ class PlanningSyncService
             ->when(! $rootId, fn ($query) => $query
                 ->where('periode_tahun_id', $renja->periode_tahun_id)
                 ->where('tahun', $renja->tahun))
-            ->where('jenis_versi', $this->officialSourceVersion($renja->jenis_versi))
-            ->whereIn('status', self::SOURCE_STATUSES)
+            ->where('jenis_versi', $this->officialRkpdVersion($renja->jenis_versi))
+            ->whereIn('status', self::OFFICIAL_SOURCE_STATUSES)
             ->where('is_active_version', true)
             ->orderByDesc('nomor_versi')
             ->latest('id')
@@ -749,9 +757,8 @@ class PlanningSyncService
         $targetRootId = (int) ($rkpd->root_version_id ?: $rkpd->id);
         $sourceRootId = (int) ($item->renjaOpd->rkpd?->root_version_id ?: $item->renjaOpd->rkpd_id);
 
-        if (! $item->renjaOpd->is_active_version
-            || $item->renjaOpd->jenis_versi !== $this->officialSourceVersion($rkpd->jenis_versi)
-            || ! in_array((string) $item->renjaOpd->status, self::SOURCE_STATUSES, true)
+        if ($item->renjaOpd->jenis_versi !== $this->workingRenjaVersion($rkpd->jenis_versi)
+            || ! in_array((string) $item->renjaOpd->status, self::RENJA_COMPILATION_STATUSES, true)
             || (int) $item->renjaOpd->tahun !== (int) $rkpd->tahun
             || ($sourceRootId > 0 && $sourceRootId !== $targetRootId)) {
             $row->update(['status' => 'skipped', 'message' => 'Sumber RENJA tidak lagi menjadi dokumen resmi aktif.']);

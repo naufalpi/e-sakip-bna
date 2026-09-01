@@ -1210,7 +1210,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
             v-if="activeTab === 'matrix' && rkpdItemView === 'input'"
             :can-manage="can.manage"
             title="Sinkronisasi RENJA ke RKPD"
-            description="Tarik baris hanya dari RENJA resmi aktif yang sudah disetujui. Target RKPD harus masih draft atau revisi."
+            description="Kompilasi usulan dari RENJA Akhir Draft yang sudah diajukan atau diverifikasi. Target RKPD harus masih draft atau revisi."
             :preview-route="route('rkpd.sync-renja.preview', rkpd.id)"
             :apply-route="rkpdSyncApplyRoute"
             :preview="syncPreview"

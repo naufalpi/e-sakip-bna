@@ -31,8 +31,9 @@ class PlanningSyncTest extends TestCase
         $fixture = $this->createPlanningFixture();
         $user = $this->createSuperAdmin();
 
+        $fixture['renja']->update(['status' => 'submitted']);
         $renjaItem = RenjaOpdItem::create([
-            'renja_opd_id' => $fixture['renja_official']->id,
+            'renja_opd_id' => $fixture['renja']->id,
             'program_pemerintahan_id' => $fixture['program']->id,
             'kegiatan_pemerintahan_id' => $fixture['kegiatan']->id,
             'sub_kegiatan_pemerintahan_id' => $fixture['sub_kegiatan']->id,
@@ -73,7 +74,7 @@ class PlanningSyncTest extends TestCase
 
         $this->assertDatabaseHas('rkpd_items', [
             'rkpd_id' => $fixture['rkpd']->id,
-            'renja_opd_id' => $fixture['renja_official']->id,
+            'renja_opd_id' => $fixture['renja']->id,
             'renja_opd_item_id' => $renjaItem->id,
             'opd_id' => $fixture['opd']->id,
             'sub_kegiatan_pemerintahan_id' => $fixture['sub_kegiatan']->id,
@@ -164,13 +165,10 @@ class PlanningSyncTest extends TestCase
         $fixture = $this->createPlanningFixture();
         $user = $this->createSuperAdmin();
 
-        $fixture['renja_official']->update(['status' => 'draft']);
-
         $this->actingAs($user)
             ->post(route('rkpd.sync-renja.preview', $fixture['rkpd']))
             ->assertSessionHasErrors('sync');
 
-        $fixture['renja_official']->update(['status' => 'approved']);
         $fixture['rkpd_official']->update(['status' => 'draft']);
 
         $this->actingAs($user)
@@ -248,7 +246,7 @@ class PlanningSyncTest extends TestCase
             'status' => 'draft',
             'jenis_versi' => 'awal',
             'nomor_versi' => 1,
-            'is_active_version' => false,
+            'is_active_version' => true,
         ]);
         $rkpdOfficial = Rkpd::create([
             'rpjmd_id' => $rpjmd->id,

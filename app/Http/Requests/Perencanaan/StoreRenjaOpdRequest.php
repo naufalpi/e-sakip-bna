@@ -11,6 +11,8 @@ use Illuminate\Validation\Validator;
 
 class StoreRenjaOpdRequest extends FormRequest
 {
+    private const WORKING_RKPD_STATUSES = ['draft', 'submitted', 'verified', 'revision', 'rejected'];
+
     public function authorize(): bool
     {
         $user = $this->user();
@@ -44,6 +46,14 @@ class StoreRenjaOpdRequest extends FormRequest
                 ->whereIn('status', ['approved', 'locked'])
                 ->where('is_active_version', true)
                 ->orderByDesc('nomor_versi')
+                ->value('id');
+
+            $rkpdId ??= Rkpd::query()
+                ->where('periode_tahun_id', $periodeTahunId)
+                ->where('tahun', $tahun)
+                ->where('jenis_versi', 'awal')
+                ->whereIn('status', self::WORKING_RKPD_STATUSES)
+                ->latest('id')
                 ->value('id');
         }
 
@@ -113,11 +123,17 @@ class StoreRenjaOpdRequest extends FormRequest
 
             if ($this->filled('rkpd_id')) {
                 $rkpd = Rkpd::query()->find($this->integer('rkpd_id'));
-                if ($rkpd && ($rkpd->jenis_versi !== 'ditetapkan'
-                    || ! in_array($rkpd->status, ['approved', 'locked'], true)
-                    || ! $rkpd->is_active_version
+                $validWorkingReference = $rkpd
+                    && $rkpd->jenis_versi === 'awal'
+                    && in_array($rkpd->status, self::WORKING_RKPD_STATUSES, true);
+                $validOfficialReference = $rkpd
+                    && $rkpd->jenis_versi === 'ditetapkan'
+                    && in_array($rkpd->status, ['approved', 'locked'], true)
+                    && $rkpd->is_active_version;
+
+                if ($rkpd && ((! $validWorkingReference && ! $validOfficialReference)
                     || (int) $rkpd->tahun !== $this->integer('tahun'))) {
-                    $validator->errors()->add('rkpd_id', 'RENJA Akhir Draft harus menggunakan RKPD Ditetapkan aktif pada tahun yang sama.');
+                    $validator->errors()->add('rkpd_id', 'RENJA Akhir Draft harus menggunakan RKPD Awal tahap kerja atau RKPD Ditetapkan aktif pada tahun yang sama.');
                 }
             }
 

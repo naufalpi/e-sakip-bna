@@ -264,6 +264,11 @@ const versionClass = (version: Row['jenis_versi']) =>
                                 <div class="mt-1.5 flex flex-wrap items-center gap-2 xl:mt-0">
                                     <span class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold" :class="versionClass(row.jenis_versi)">{{ versionLabel(row) }}</span>
                                     <span v-if="row.is_active_version" class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">Versi aktif</span>
+                                    <span
+                                        v-else-if="row.jenis_versi === 'awal' && ['approved', 'locked'].includes(row.status)"
+                                        class="text-[11px] font-semibold text-slate-500 dark:text-slate-400"
+                                        >Arsip proses</span
+                                    >
                                 </div>
                                 <p class="mt-2 text-sm font-bold leading-5 text-slate-900 dark:text-slate-100">{{ row.judul }}</p>
                                 <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ row.tahun }} · {{ row.nomor_dokumen || 'Nomor dokumen belum diisi' }}</p>
