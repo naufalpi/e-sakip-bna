@@ -40,10 +40,13 @@ class UpdateDpaOpdRequest extends FormRequest
             'tanggal_perkada_penjabaran' => ['nullable', 'date'],
             'nama_pengguna_anggaran' => ['nullable', 'string', 'max:255'],
             'nip_pengguna_anggaran' => ['nullable', 'string', 'max:50'],
+            'pengguna_anggaran_penempatan_id' => ['nullable', 'integer', 'exists:riwayat_pejabat_jabatan,id'],
             'nama_ppkd' => ['nullable', 'string', 'max:255'],
             'nip_ppkd' => ['nullable', 'string', 'max:50'],
+            'ppkd_penempatan_id' => ['nullable', 'integer', 'exists:riwayat_pejabat_jabatan,id'],
             'nama_sekretaris_daerah' => ['nullable', 'string', 'max:255'],
             'nip_sekretaris_daerah' => ['nullable', 'string', 'max:50'],
+            'sekretaris_daerah_penempatan_id' => ['nullable', 'integer', 'exists:riwayat_pejabat_jabatan,id'],
             'catatan' => ['nullable', 'string', 'max:5000'],
             'catatan_verifikasi' => ['nullable', 'string', 'max:5000'],
         ];

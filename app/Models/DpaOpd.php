@@ -19,8 +19,10 @@ class DpaOpd extends Model
         'rka_opd_id', 'renja_opd_id', 'rkpd_id', 'opd_id', 'opd_unit_id', 'periode_tahun_id',
         'tahun', 'jenis_anggaran', 'judul', 'nomor_dpa', 'tanggal_pengesahan',
         'nomor_perda_apbd', 'tanggal_perda_apbd', 'nomor_perkada_penjabaran', 'tanggal_perkada_penjabaran',
-        'nama_pengguna_anggaran', 'nip_pengguna_anggaran', 'nama_ppkd', 'nip_ppkd',
-        'nama_sekretaris_daerah', 'nip_sekretaris_daerah', 'status', 'catatan', 'catatan_verifikasi',
+        'nama_pengguna_anggaran', 'nip_pengguna_anggaran', 'pengguna_anggaran_pegawai_id', 'pengguna_anggaran_penempatan_id',
+        'nama_ppkd', 'nip_ppkd', 'ppkd_pegawai_id', 'ppkd_penempatan_id',
+        'nama_sekretaris_daerah', 'nip_sekretaris_daerah', 'sekretaris_daerah_pegawai_id', 'sekretaris_daerah_penempatan_id',
+        'status', 'catatan', 'catatan_verifikasi',
         'submitted_by', 'submitted_at',
     ];
 
@@ -68,6 +70,36 @@ class DpaOpd extends Model
     public function periodeTahun(): BelongsTo
     {
         return $this->belongsTo(PeriodeTahun::class);
+    }
+
+    public function penggunaAnggaran(): BelongsTo
+    {
+        return $this->belongsTo(Pegawai::class, 'pengguna_anggaran_pegawai_id');
+    }
+
+    public function penempatanPenggunaAnggaran(): BelongsTo
+    {
+        return $this->belongsTo(RiwayatPejabatJabatan::class, 'pengguna_anggaran_penempatan_id');
+    }
+
+    public function ppkd(): BelongsTo
+    {
+        return $this->belongsTo(Pegawai::class, 'ppkd_pegawai_id');
+    }
+
+    public function penempatanPpkd(): BelongsTo
+    {
+        return $this->belongsTo(RiwayatPejabatJabatan::class, 'ppkd_penempatan_id');
+    }
+
+    public function sekretarisDaerah(): BelongsTo
+    {
+        return $this->belongsTo(Pegawai::class, 'sekretaris_daerah_pegawai_id');
+    }
+
+    public function penempatanSekretarisDaerah(): BelongsTo
+    {
+        return $this->belongsTo(RiwayatPejabatJabatan::class, 'sekretaris_daerah_penempatan_id');
     }
 
     public function submittedBy(): BelongsTo

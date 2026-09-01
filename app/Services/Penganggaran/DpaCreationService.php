@@ -54,6 +54,8 @@ class DpaCreationService
                 'tanggal_perkada_penjabaran' => $header['tanggal_perkada_penjabaran'] ?? null,
                 'nama_pengguna_anggaran' => $header['nama_pengguna_anggaran'] ?? null,
                 'nip_pengguna_anggaran' => $header['nip_pengguna_anggaran'] ?? null,
+                'pengguna_anggaran_pegawai_id' => $header['pengguna_anggaran_pegawai_id'] ?? null,
+                'pengguna_anggaran_penempatan_id' => $header['pengguna_anggaran_penempatan_id'] ?? null,
                 'status' => 'draft',
                 'catatan' => $header['catatan'] ?? null,
             ]);

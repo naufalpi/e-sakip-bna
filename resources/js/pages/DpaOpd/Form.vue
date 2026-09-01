@@ -12,7 +12,7 @@ type RkaOption = {
     items_count: number;
     total_pagu: string | number;
     default_title: string;
-    opd?: { kode?: string | null; nama: string; singkatan?: string | null } | null;
+    opd?: { id: number; kode?: string | null; nama: string; singkatan?: string | null } | null;
     opd_unit?: { kode?: string | null; nama: string } | null;
 };
 type Dpa = {
@@ -27,10 +27,13 @@ type Dpa = {
     tanggal_perkada_penjabaran?: string | null;
     nama_pengguna_anggaran?: string | null;
     nip_pengguna_anggaran?: string | null;
+    pengguna_anggaran_penempatan_id?: number | null;
     nama_ppkd?: string | null;
     nip_ppkd?: string | null;
+    ppkd_penempatan_id?: number | null;
     nama_sekretaris_daerah?: string | null;
     nip_sekretaris_daerah?: string | null;
+    sekretaris_daerah_penempatan_id?: number | null;
     catatan?: string | null;
     catatan_verifikasi?: string | null;
     tahun: number;
@@ -39,7 +42,31 @@ type Dpa = {
     rka?: { judul: string; tahun: number } | null;
 };
 
-const props = defineProps<{ mode: 'create' | 'edit'; dpa: Dpa | null; rkaOptions: RkaOption[]; canVerify: boolean }>();
+type SignatoryOption = {
+    placement_id: number;
+    employee_id: number;
+    opd_id: number;
+    name: string;
+    nip?: string | null;
+    position: string;
+    opd_label?: string | null;
+    label: string;
+};
+
+type SignatoryOptions = {
+    budgetUsers: SignatoryOption[];
+    ppkd: SignatoryOption[];
+    regionalSecretaries: SignatoryOption[];
+};
+
+const props = defineProps<{
+    mode: 'create' | 'edit';
+    dpa: Dpa | null;
+    rkaOptions: RkaOption[];
+    signatoryOptions: SignatoryOptions;
+    canVerify: boolean;
+    canUseManualSignatory: boolean;
+}>();
 const form = useForm({
     rka_opd_id: props.dpa?.rka_opd_id ?? ('' as number | string),
     judul: props.dpa?.judul ?? '',
@@ -51,16 +78,75 @@ const form = useForm({
     tanggal_perkada_penjabaran: props.dpa?.tanggal_perkada_penjabaran ?? '',
     nama_pengguna_anggaran: props.dpa?.nama_pengguna_anggaran ?? '',
     nip_pengguna_anggaran: props.dpa?.nip_pengguna_anggaran ?? '',
+    pengguna_anggaran_penempatan_id: props.dpa?.pengguna_anggaran_penempatan_id ?? ('' as number | string),
     nama_ppkd: props.dpa?.nama_ppkd ?? '',
     nip_ppkd: props.dpa?.nip_ppkd ?? '',
+    ppkd_penempatan_id: props.dpa?.ppkd_penempatan_id ?? ('' as number | string),
     nama_sekretaris_daerah: props.dpa?.nama_sekretaris_daerah ?? '',
     nip_sekretaris_daerah: props.dpa?.nip_sekretaris_daerah ?? '',
+    sekretaris_daerah_penempatan_id: props.dpa?.sekretaris_daerah_penempatan_id ?? ('' as number | string),
     catatan: props.dpa?.catatan ?? '',
     catatan_verifikasi: props.dpa?.catatan_verifikasi ?? '',
 });
 const selectedRka = computed(() => props.rkaOptions.find((item) => item.id === Number(form.rka_opd_id)) ?? null);
+const selectedOpdId = computed(() => selectedRka.value?.opd?.id ?? props.dpa?.opd?.id ?? null);
+const budgetUserOptions = computed(() =>
+    props.signatoryOptions.budgetUsers.filter((option) => Number(option.opd_id) === Number(selectedOpdId.value)),
+);
+const selectedBudgetUser = computed(
+    () => budgetUserOptions.value.find((option) => option.placement_id === Number(form.pengguna_anggaran_penempatan_id)) ?? null,
+);
+const selectedPpkd = computed(
+    () => props.signatoryOptions.ppkd.find((option) => option.placement_id === Number(form.ppkd_penempatan_id)) ?? null,
+);
+const selectedRegionalSecretary = computed(
+    () =>
+        props.signatoryOptions.regionalSecretaries.find(
+            (option) => option.placement_id === Number(form.sekretaris_daerah_penempatan_id),
+        ) ?? null,
+);
 watch(selectedRka, (rka) => {
     if (props.mode === 'create' && rka) form.judul = rka.default_title;
+});
+watch(
+    budgetUserOptions,
+    (options) => {
+        if (!form.pengguna_anggaran_penempatan_id && options.length === 1) {
+            form.pengguna_anggaran_penempatan_id = options[0].placement_id;
+        }
+    },
+    { immediate: true },
+);
+watch(
+    () => props.signatoryOptions.ppkd,
+    (options) => {
+        if (props.canVerify && !form.ppkd_penempatan_id && options.length === 1) form.ppkd_penempatan_id = options[0].placement_id;
+    },
+    { immediate: true },
+);
+watch(
+    () => props.signatoryOptions.regionalSecretaries,
+    (options) => {
+        if (props.canVerify && !form.sekretaris_daerah_penempatan_id && options.length === 1) {
+            form.sekretaris_daerah_penempatan_id = options[0].placement_id;
+        }
+    },
+    { immediate: true },
+);
+watch(selectedBudgetUser, (option) => {
+    if (!option) return;
+    form.nama_pengguna_anggaran = option.name;
+    form.nip_pengguna_anggaran = option.nip ?? '';
+});
+watch(selectedPpkd, (option) => {
+    if (!option) return;
+    form.nama_ppkd = option.name;
+    form.nip_ppkd = option.nip ?? '';
+});
+watch(selectedRegionalSecretary, (option) => {
+    if (!option) return;
+    form.nama_sekretaris_daerah = option.name;
+    form.nip_sekretaris_daerah = option.nip ?? '';
 });
 const rupiah = (value?: string | number | null) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -230,33 +316,115 @@ const backUrl = computed(() => (props.mode === 'edit' && props.dpa ? route('dpa-
                         </div>
                     </div>
                     <div class="grid gap-5">
-                        <fieldset :disabled="canVerify" class="grid gap-4 disabled:opacity-60 sm:grid-cols-2">
-                            <label
-                                ><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Nama Pengguna Anggaran</span
-                                ><input
-                                    v-model="form.nama_pengguna_anggaran"
-                                    class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" /></label
-                            ><label
-                                ><span class="text-xs font-bold uppercase tracking-wide text-slate-500">NIP Pengguna Anggaran</span
-                                ><input v-model="form.nip_pengguna_anggaran" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm"
-                            /></label>
+                        <fieldset :disabled="canVerify" class="grid gap-3 disabled:opacity-60">
+                            <label v-if="budgetUserOptions.length || form.pengguna_anggaran_penempatan_id">
+                                <span class="text-xs font-bold uppercase tracking-wide text-slate-500">Pengguna Anggaran</span>
+                                <select
+                                    v-model="form.pengguna_anggaran_penempatan_id"
+                                    class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-700"
+                                >
+                                    <option value="">Pilih Kepala Perangkat Daerah aktif</option>
+                                    <option v-for="option in budgetUserOptions" :key="option.placement_id" :value="option.placement_id">
+                                        {{ option.label }}
+                                    </option>
+                                </select>
+                                <span v-if="form.errors.pengguna_anggaran_penempatan_id" class="mt-1.5 block text-xs text-red-600">
+                                    {{ form.errors.pengguna_anggaran_penempatan_id }}
+                                </span>
+                            </label>
+                            <div
+                                v-if="selectedBudgetUser"
+                                class="grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm dark:border-emerald-900 dark:bg-emerald-950/30 sm:grid-cols-2"
+                            >
+                                <div>
+                                    <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Nama pejabat</p>
+                                    <p class="mt-1 font-semibold text-slate-900 dark:text-white">{{ selectedBudgetUser.name }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-700">NIP dan jabatan</p>
+                                    <p class="mt-1 font-semibold text-slate-900 dark:text-white">NIP {{ selectedBudgetUser.nip || '-' }}</p>
+                                    <p class="mt-0.5 text-xs text-slate-500">{{ selectedBudgetUser.position }}</p>
+                                </div>
+                            </div>
+                            <div v-else-if="!budgetUserOptions.length && canUseManualSignatory" class="grid gap-4 sm:grid-cols-2">
+                                <label>
+                                    <span class="text-xs font-bold uppercase tracking-wide text-slate-500">Nama Pengguna Anggaran</span>
+                                    <input v-model="form.nama_pengguna_anggaran" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" />
+                                </label>
+                                <label>
+                                    <span class="text-xs font-bold uppercase tracking-wide text-slate-500">NIP Pengguna Anggaran</span>
+                                    <input v-model="form.nip_pengguna_anggaran" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" />
+                                </label>
+                            </div>
+                            <div
+                                v-else-if="!budgetUserOptions.length"
+                                class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+                            >
+                                Belum ada Kepala Perangkat Daerah aktif pada Master Pegawai dan Struktur Organisasi untuk OPD ini.
+                            </div>
                         </fieldset>
                         <div v-if="canVerify" class="grid gap-4 border-t border-slate-200 pt-5 dark:border-slate-800 sm:grid-cols-2">
-                            <label
-                                ><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Nama PPKD</span
-                                ><input v-model="form.nama_ppkd" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" /></label
-                            ><label
-                                ><span class="text-xs font-bold uppercase tracking-wide text-slate-500">NIP PPKD</span
-                                ><input v-model="form.nip_ppkd" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" /></label
-                            ><label
-                                ><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Nama Sekretaris Daerah</span
-                                ><input
-                                    v-model="form.nama_sekretaris_daerah"
-                                    class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" /></label
-                            ><label
-                                ><span class="text-xs font-bold uppercase tracking-wide text-slate-500">NIP Sekretaris Daerah</span
-                                ><input v-model="form.nip_sekretaris_daerah" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm"
-                            /></label>
+                            <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+                                <label v-if="signatoryOptions.ppkd.length || form.ppkd_penempatan_id">
+                                    <span class="text-xs font-bold uppercase tracking-wide text-slate-500">PPKD</span>
+                                    <select v-model="form.ppkd_penempatan_id" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm">
+                                        <option value="">Pilih PPKD aktif</option>
+                                        <option v-for="option in signatoryOptions.ppkd" :key="option.placement_id" :value="option.placement_id">
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                    <span v-if="form.errors.ppkd_penempatan_id" class="mt-1.5 block text-xs text-red-600">{{ form.errors.ppkd_penempatan_id }}</span>
+                                </label>
+                                <div v-else-if="canUseManualSignatory" class="grid gap-3">
+                                    <label>
+                                        <span class="text-xs font-bold uppercase tracking-wide text-slate-500">Nama PPKD</span>
+                                        <input v-model="form.nama_ppkd" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" />
+                                    </label>
+                                    <label>
+                                        <span class="text-xs font-bold uppercase tracking-wide text-slate-500">NIP PPKD</span>
+                                        <input v-model="form.nip_ppkd" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" />
+                                    </label>
+                                </div>
+                                <p v-else class="text-xs leading-5 text-amber-700">Pejabat PPKD aktif belum tersedia di Master Pegawai.</p>
+                                <p v-if="selectedPpkd" class="mt-2 text-xs leading-5 text-slate-500">
+                                    {{ selectedPpkd.position }} · NIP {{ selectedPpkd.nip || '-' }}
+                                </p>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+                                <label v-if="signatoryOptions.regionalSecretaries.length || form.sekretaris_daerah_penempatan_id">
+                                    <span class="text-xs font-bold uppercase tracking-wide text-slate-500">Sekretaris Daerah</span>
+                                    <select
+                                        v-model="form.sekretaris_daerah_penempatan_id"
+                                        class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm"
+                                    >
+                                        <option value="">Pilih Sekretaris Daerah aktif</option>
+                                        <option
+                                            v-for="option in signatoryOptions.regionalSecretaries"
+                                            :key="option.placement_id"
+                                            :value="option.placement_id"
+                                        >
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                    <span v-if="form.errors.sekretaris_daerah_penempatan_id" class="mt-1.5 block text-xs text-red-600">
+                                        {{ form.errors.sekretaris_daerah_penempatan_id }}
+                                    </span>
+                                </label>
+                                <div v-else-if="canUseManualSignatory" class="grid gap-3">
+                                    <label>
+                                        <span class="text-xs font-bold uppercase tracking-wide text-slate-500">Nama Sekretaris Daerah</span>
+                                        <input v-model="form.nama_sekretaris_daerah" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" />
+                                    </label>
+                                    <label>
+                                        <span class="text-xs font-bold uppercase tracking-wide text-slate-500">NIP Sekretaris Daerah</span>
+                                        <input v-model="form.nip_sekretaris_daerah" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" />
+                                    </label>
+                                </div>
+                                <p v-else class="text-xs leading-5 text-amber-700">Sekretaris Daerah aktif belum tersedia di Master Pegawai.</p>
+                                <p v-if="selectedRegionalSecretary" class="mt-2 text-xs leading-5 text-slate-500">
+                                    {{ selectedRegionalSecretary.position }} · NIP {{ selectedRegionalSecretary.nip || '-' }}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </section>

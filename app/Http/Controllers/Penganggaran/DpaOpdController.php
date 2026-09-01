@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Penganggaran\DpaCreationService;
 use App\Services\Penganggaran\DpaPreviewTableService;
 use App\Services\Penganggaran\DpaReadinessService;
+use App\Services\Penganggaran\DpaSignatoryService;
 use App\Services\Workflow\WorkflowDataService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -71,7 +72,7 @@ class DpaOpdController extends Controller
         ]);
     }
 
-    public function create(Request $request): Response
+    public function create(Request $request, DpaSignatoryService $signatoryService): Response
     {
         $this->authorize('create', DpaOpd::class);
 
@@ -79,14 +80,21 @@ class DpaOpdController extends Controller
             'mode' => 'create',
             'dpa' => null,
             'rkaOptions' => $this->eligibleRkaOptions($request->user()),
+            'signatoryOptions' => $signatoryService->options($request->user()),
             'canVerify' => false,
+            'canUseManualSignatory' => $request->user()->isSuperAdmin(),
         ]);
     }
 
-    public function store(StoreDpaOpdRequest $request, DpaCreationService $service): RedirectResponse
+    public function store(StoreDpaOpdRequest $request, DpaCreationService $service, DpaSignatoryService $signatoryService): RedirectResponse
     {
         $rka = RkaOpd::query()->findOrFail($request->integer('rka_opd_id'));
-        $dpa = $service->createFromRka($rka, $request->safe()->except('rka_opd_id'));
+        $payload = $signatoryService->applySelections(
+            $request->safe()->except('rka_opd_id'),
+            $rka->opd_id,
+            $request->user(),
+        );
+        $dpa = $service->createFromRka($rka, $payload);
 
         return redirect()->route('dpa-opd.show', $dpa)
             ->with('success', 'DPA berhasil dibuat dan rincian anggaran telah disalin dari RKA resmi.');
@@ -134,7 +142,7 @@ class DpaOpdController extends Controller
         ]);
     }
 
-    public function edit(Request $request, DpaOpd $dpaOpd): Response
+    public function edit(Request $request, DpaOpd $dpaOpd, DpaSignatoryService $signatoryService): Response
     {
         abort_unless($request->user()->can('update', $dpaOpd) || $request->user()->can('verifyBudget', $dpaOpd), 403);
         $dpaOpd->load(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'rkaOpd:id,judul,tahun,jenis_anggaran,status']);
@@ -143,24 +151,29 @@ class DpaOpdController extends Controller
             'mode' => 'edit',
             'dpa' => $this->serializeDpa($dpaOpd),
             'rkaOptions' => [],
+            'signatoryOptions' => $signatoryService->options($request->user(), $dpaOpd),
             'canVerify' => $this->isVerificationMode($request->user(), $dpaOpd),
+            'canUseManualSignatory' => $request->user()->isSuperAdmin(),
         ]);
     }
 
-    public function update(UpdateDpaOpdRequest $request, DpaOpd $dpaOpd): RedirectResponse
+    public function update(UpdateDpaOpdRequest $request, DpaOpd $dpaOpd, DpaSignatoryService $signatoryService): RedirectResponse
     {
         $payload = $request->validated();
         if (! $request->user()->can('update', $dpaOpd)) {
             $payload = Arr::only($payload, [
                 'nomor_dpa', 'tanggal_pengesahan', 'nama_ppkd', 'nip_ppkd',
-                'nama_sekretaris_daerah', 'nip_sekretaris_daerah', 'catatan_verifikasi',
+                'ppkd_penempatan_id', 'nama_sekretaris_daerah', 'nip_sekretaris_daerah',
+                'sekretaris_daerah_penempatan_id', 'catatan_verifikasi',
             ]);
         } elseif (! $request->user()->isSuperAdmin()) {
             $payload = Arr::except($payload, [
                 'nomor_dpa', 'tanggal_pengesahan', 'nama_ppkd', 'nip_ppkd',
-                'nama_sekretaris_daerah', 'nip_sekretaris_daerah', 'catatan_verifikasi',
+                'ppkd_penempatan_id', 'nama_sekretaris_daerah', 'nip_sekretaris_daerah',
+                'sekretaris_daerah_penempatan_id', 'catatan_verifikasi',
             ]);
         }
+        $payload = $signatoryService->applySelections($payload, $dpaOpd->opd_id, $request->user(), $dpaOpd);
         $dpaOpd->update($payload);
 
         return redirect()->route('dpa-opd.show', $dpaOpd)->with('success', 'Informasi DPA berhasil diperbarui.');
@@ -230,8 +243,13 @@ class DpaOpdController extends Controller
             'nomor_perkada_penjabaran' => $dpa->nomor_perkada_penjabaran,
             'tanggal_perkada_penjabaran' => $dpa->tanggal_perkada_penjabaran?->toDateString(),
             'nama_pengguna_anggaran' => $dpa->nama_pengguna_anggaran, 'nip_pengguna_anggaran' => $dpa->nip_pengguna_anggaran,
+            'pengguna_anggaran_pegawai_id' => $dpa->pengguna_anggaran_pegawai_id,
+            'pengguna_anggaran_penempatan_id' => $dpa->pengguna_anggaran_penempatan_id,
             'nama_ppkd' => $dpa->nama_ppkd, 'nip_ppkd' => $dpa->nip_ppkd,
+            'ppkd_pegawai_id' => $dpa->ppkd_pegawai_id, 'ppkd_penempatan_id' => $dpa->ppkd_penempatan_id,
             'nama_sekretaris_daerah' => $dpa->nama_sekretaris_daerah, 'nip_sekretaris_daerah' => $dpa->nip_sekretaris_daerah,
+            'sekretaris_daerah_pegawai_id' => $dpa->sekretaris_daerah_pegawai_id,
+            'sekretaris_daerah_penempatan_id' => $dpa->sekretaris_daerah_penempatan_id,
             'status' => $dpa->status, 'catatan' => $dpa->catatan, 'catatan_verifikasi' => $dpa->catatan_verifikasi,
             'opd' => $dpa->opd, 'opd_unit' => $dpa->opdUnit, 'rka' => $dpa->rkaOpd, 'renja' => $dpa->renjaOpd, 'rkpd' => $dpa->rkpd,
         ];

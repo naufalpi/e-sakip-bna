@@ -2,8 +2,9 @@
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Head, Link, useForm } from '@inertiajs/vue3';
-import { AlertTriangle, ArrowLeft, Banknote, Download, Landmark, Pencil, Rows3, Save } from 'lucide-vue-next';
+import { confirmDelete } from '@/lib/sweetAlert';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { AlertTriangle, ArrowLeft, Banknote, Download, Landmark, Pencil, Rows3, Save, Trash2 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 type Rka = {
@@ -92,6 +93,7 @@ const props = defineProps<{
 const activeTab = ref<'rincian' | 'preview'>('rincian');
 const editOpen = ref(false);
 const editing = ref<Row | null>(null);
+const canDeleteItems = computed(() => props.can.manage && ['draft', 'revision', 'rejected'].includes(props.rka.status));
 const itemForm = useForm({
     tolok_ukur_kinerja: '',
     target_kinerja: '',
@@ -136,6 +138,14 @@ const saveItem = () => {
             editing.value = null;
         },
     });
+};
+
+const destroyItem = async (item: Row) => {
+    const label = [item.kode_sub_kegiatan, item.nama_sub_kegiatan].filter(Boolean).join(' - ');
+
+    if (await confirmDelete(`Hapus sub kegiatan ${label || 'ini'} dari RKA? Data sumber RENJA tidak akan ikut terhapus.`)) {
+        router.delete(route('rka-opd.items.destroy', { rka_opd: props.rka.id, item: item.id }), { preserveScroll: true });
+    }
 };
 
 const groupedPrograms = computed(() => {
@@ -460,15 +470,27 @@ const statusLabel = (status: string) =>
                                     <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pagu RKA</p>
                                     <p class="mt-1 text-sm font-bold tabular-nums text-slate-950 dark:text-white">{{ rupiah(item.pagu_rka) }}</p>
                                 </div>
-                                <button
-                                    v-if="can.manage"
-                                    type="button"
-                                    class="inline-flex size-9 items-center justify-center rounded-lg border text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                                    title="Edit rincian"
-                                    @click="openEditor(item)"
-                                >
-                                    <Pencil class="size-4" />
-                                </button>
+                                <div v-if="can.manage" class="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        class="inline-flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                                        title="Edit rincian RKA"
+                                        :aria-label="`Edit ${item.nama_sub_kegiatan || 'sub kegiatan'}`"
+                                        @click="openEditor(item)"
+                                    >
+                                        <Pencil class="size-4" />
+                                    </button>
+                                    <button
+                                        v-if="canDeleteItems"
+                                        type="button"
+                                        class="inline-flex size-9 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50 hover:text-red-700 dark:border-red-900/70 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:text-red-300"
+                                        title="Hapus sub kegiatan dari RKA"
+                                        :aria-label="`Hapus ${item.nama_sub_kegiatan || 'sub kegiatan'} dari RKA`"
+                                        @click="destroyItem(item)"
+                                    >
+                                        <Trash2 class="size-4" />
+                                    </button>
+                                </div>
                             </article>
                         </div>
                     </div>

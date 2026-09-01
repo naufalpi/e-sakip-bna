@@ -195,6 +195,35 @@ class RkaOpdTest extends TestCase
         $this->assertSame(2500000.0, $subActivity['budget']['total']);
     }
 
+    public function test_draft_rka_item_can_be_soft_deleted_without_deleting_renja_source(): void
+    {
+        [$renja, $renjaItem] = $this->renja('ditetapkan', 'approved');
+        $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA DINAS PENGUJIAN 2027']);
+        $item = $rka->items()->firstOrFail();
+
+        $this->actingAs($this->superAdmin())
+            ->delete(route('rka-opd.items.destroy', ['rka_opd' => $rka, 'item' => $item]))
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Sub kegiatan RKA berhasil dihapus.');
+
+        $this->assertSoftDeleted('rka_opd_items', ['id' => $item->id]);
+        $this->assertDatabaseHas('renja_opd_items', ['id' => $renjaItem->id, 'deleted_at' => null]);
+    }
+
+    public function test_rka_item_cannot_be_deleted_when_document_is_not_editable(): void
+    {
+        [$renja] = $this->renja('ditetapkan', 'approved');
+        $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA DINAS PENGUJIAN 2027']);
+        $item = $rka->items()->firstOrFail();
+        $rka->update(['status' => 'approved']);
+
+        $this->actingAs($this->superAdmin())
+            ->delete(route('rka-opd.items.destroy', ['rka_opd' => $rka, 'item' => $item]))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('rka_opd_items', ['id' => $item->id, 'deleted_at' => null]);
+    }
+
     public function test_rka_uses_submit_and_approve_workflow_without_verification_stage(): void
     {
         [$renja] = $this->renja('ditetapkan', 'approved');
@@ -314,5 +343,14 @@ class RkaOpdTest extends TestCase
         ]);
 
         return [$renja, $item];
+    }
+
+    private function superAdmin(): User
+    {
+        $user = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
+        $role = Role::firstOrCreate(['name' => 'super_admin'], ['label' => 'Super Admin', 'is_system' => true]);
+        $user->roles()->syncWithoutDetaching($role);
+
+        return $user;
     }
 }

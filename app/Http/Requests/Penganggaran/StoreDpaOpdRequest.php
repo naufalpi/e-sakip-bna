@@ -33,6 +33,7 @@ class StoreDpaOpdRequest extends FormRequest
             'tanggal_perkada_penjabaran' => ['nullable', 'date'],
             'nama_pengguna_anggaran' => ['nullable', 'string', 'max:255'],
             'nip_pengguna_anggaran' => ['nullable', 'string', 'max:50'],
+            'pengguna_anggaran_penempatan_id' => ['nullable', 'integer', 'exists:riwayat_pejabat_jabatan,id'],
             'catatan' => ['nullable', 'string', 'max:5000'],
         ];
     }

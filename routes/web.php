@@ -147,9 +147,11 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('rka-opd/{rka_opd}/preview/export', [RkaOpdController::class, 'exportPreview'])->name('rka-opd.preview.export');
     Route::resource('rka-opd', RkaOpdController::class)->parameters(['rka-opd' => 'rka_opd']);
     Route::put('rka-opd/{rka_opd}/items/{item}', [RkaOpdItemController::class, 'update'])->name('rka-opd.items.update');
+    Route::delete('rka-opd/{rka_opd}/items/{item}', [RkaOpdItemController::class, 'destroy'])->name('rka-opd.items.destroy');
 
     Route::resource('dpa-opd', DpaOpdController::class)->parameters(['dpa-opd' => 'dpa_opd']);
     Route::put('dpa-opd/{dpa_opd}/items/{item}', [DpaOpdItemController::class, 'update'])->name('dpa-opd.items.update');
+    Route::delete('dpa-opd/{dpa_opd}/items/{item}', [DpaOpdItemController::class, 'destroy'])->name('dpa-opd.items.destroy');
 
     Route::get('perjanjian-kinerja/cascading-scope-options', [PerjanjianKinerjaController::class, 'cascadingScopeOptions'])->name('perjanjian-kinerja.cascading-scope-options');
     Route::resource('perjanjian-kinerja', PerjanjianKinerjaController::class);

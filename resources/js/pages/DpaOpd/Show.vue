@@ -2,8 +2,9 @@
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Head, Link, useForm } from '@inertiajs/vue3';
-import { AlertTriangle, ArrowLeft, FileCheck2, Landmark, Pencil, Save, ShieldCheck, WalletCards } from 'lucide-vue-next';
+import { confirmDelete } from '@/lib/sweetAlert';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { AlertTriangle, ArrowLeft, FileCheck2, Landmark, Pencil, Save, ShieldCheck, Trash2, WalletCards } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 type Dpa = {
@@ -89,6 +90,7 @@ const props = defineProps<{
 const activeTab = ref<'rincian' | 'preview'>('rincian');
 const editOpen = ref(false);
 const editing = ref<Row | null>(null);
+const canDeleteItems = computed(() => props.can.manage && ['draft', 'revision', 'rejected'].includes(props.dpa.status));
 const itemForm = useForm({ pagu_dpa: 0 as string | number, alasan_penyesuaian: '', catatan: '' });
 
 const groupedPrograms = computed(() => {
@@ -198,6 +200,13 @@ const saveItem = () => {
             editing.value = null;
         },
     });
+};
+const destroyItem = async (item: Row) => {
+    const label = [item.kode_sub_kegiatan, item.nama_sub_kegiatan].filter(Boolean).join(' - ');
+
+    if (await confirmDelete(`Hapus sub kegiatan ${label || 'ini'} dari DPA? Data sumber RKA tidak akan ikut terhapus.`)) {
+        router.delete(route('dpa-opd.items.destroy', { dpa_opd: props.dpa.id, item: item.id }), { preserveScroll: true });
+    }
 };
 </script>
 
@@ -432,15 +441,27 @@ const saveItem = () => {
                                     <p class="mt-1 text-sm font-bold tabular-nums">{{ rupiah(item.pagu_dpa) }}</p>
                                     <p class="mt-1 text-[10px] text-slate-500">RKA {{ rupiah(item.pagu_rka) }}</p>
                                 </div>
-                                <button
-                                    v-if="can.manage || can.verifyBudget"
-                                    type="button"
-                                    class="inline-flex size-9 items-center justify-center rounded-lg border text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                                    title="Edit rincian DPA"
-                                    @click="openEditor(item)"
-                                >
-                                    <Pencil class="size-4" />
-                                </button>
+                                <div v-if="can.manage || can.verifyBudget" class="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        class="inline-flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                                        title="Edit rincian DPA"
+                                        :aria-label="`Edit ${item.nama_sub_kegiatan || 'sub kegiatan'}`"
+                                        @click="openEditor(item)"
+                                    >
+                                        <Pencil class="size-4" />
+                                    </button>
+                                    <button
+                                        v-if="canDeleteItems"
+                                        type="button"
+                                        class="inline-flex size-9 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50 hover:text-red-700 dark:border-red-900/70 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:text-red-300"
+                                        title="Hapus sub kegiatan dari DPA"
+                                        :aria-label="`Hapus ${item.nama_sub_kegiatan || 'sub kegiatan'} dari DPA`"
+                                        @click="destroyItem(item)"
+                                    >
+                                        <Trash2 class="size-4" />
+                                    </button>
+                                </div>
                             </article>
                         </div>
                     </div>

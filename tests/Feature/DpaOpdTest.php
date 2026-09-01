@@ -3,9 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\DpaOpd;
+use App\Models\JabatanOrganisasi;
 use App\Models\Opd;
+use App\Models\Pegawai;
 use App\Models\PeriodeTahun;
 use App\Models\Permission;
+use App\Models\RiwayatPejabatJabatan;
 use App\Models\RkaOpd;
 use App\Models\RkaOpdItem;
 use App\Models\Role;
@@ -146,6 +149,60 @@ class DpaOpdTest extends TestCase
                 ->where('canVerify', true));
     }
 
+    public function test_dpa_signatories_are_selected_from_active_employee_placements_and_saved_as_snapshots(): void
+    {
+        $rka = $this->rka('murni', 'approved');
+        [$budgetUser, $budgetPlacement] = $this->activeOfficial($rka->opd, 'Kepala Dinas Pengujian', 'jpt_pratama', '198001012000011001');
+        $admin = $this->superAdmin();
+
+        $this->actingAs($admin)
+            ->get(route('dpa-opd.create'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('DpaOpd/Form')
+                ->where('signatoryOptions.budgetUsers.0.placement_id', $budgetPlacement->id)
+                ->where('signatoryOptions.budgetUsers.0.employee_id', $budgetUser->id));
+
+        $this->actingAs($admin)
+            ->post(route('dpa-opd.store'), [
+                'rka_opd_id' => $rka->id,
+                'judul' => 'DPA DINAS PENGUJIAN TAHUN ANGGARAN 2027',
+                'pengguna_anggaran_penempatan_id' => $budgetPlacement->id,
+            ])
+            ->assertRedirect();
+
+        $dpa = DpaOpd::query()->where('rka_opd_id', $rka->id)->firstOrFail();
+        $this->assertSame($budgetUser->id, $dpa->pengguna_anggaran_pegawai_id);
+        $this->assertSame($budgetPlacement->id, $dpa->pengguna_anggaran_penempatan_id);
+        $this->assertSame($budgetUser->nama, $dpa->nama_pengguna_anggaran);
+        $this->assertSame($budgetUser->nip, $dpa->nip_pengguna_anggaran);
+
+        $bpkad = Opd::create(['kode' => '5.02', 'nama' => 'Badan Pengelolaan Keuangan dan Aset Daerah', 'singkatan' => 'BPKAD', 'status' => 'active']);
+        [$ppkd, $ppkdPlacement] = $this->activeOfficial($bpkad, 'Kepala BPKAD selaku PPKD', 'jpt_pratama', '197001011990011001');
+        $setda = Opd::create(['kode' => '4.01', 'nama' => 'Sekretariat Daerah', 'singkatan' => 'SETDA', 'status' => 'active']);
+        [$secretary, $secretaryPlacement] = $this->activeOfficial($setda, 'Sekretaris Daerah', 'jpt_pratama', '197101011991011001');
+        $dpa->update(['status' => 'submitted']);
+
+        $this->actingAs($admin)
+            ->put(route('dpa-opd.update', $dpa), [
+                'judul' => $dpa->judul,
+                'nomor_dpa' => 'DPA/A.1/TEST/2027',
+                'tanggal_pengesahan' => '2026-12-30',
+                'pengguna_anggaran_penempatan_id' => $budgetPlacement->id,
+                'ppkd_penempatan_id' => $ppkdPlacement->id,
+                'sekretaris_daerah_penempatan_id' => $secretaryPlacement->id,
+            ])
+            ->assertRedirect();
+
+        $dpa->refresh();
+        $this->assertSame($ppkd->id, $dpa->ppkd_pegawai_id);
+        $this->assertSame($ppkdPlacement->id, $dpa->ppkd_penempatan_id);
+        $this->assertSame($ppkd->nama, $dpa->nama_ppkd);
+        $this->assertSame($secretary->id, $dpa->sekretaris_daerah_pegawai_id);
+        $this->assertSame($secretaryPlacement->id, $dpa->sekretaris_daerah_penempatan_id);
+        $this->assertSame($secretary->nip, $dpa->nip_sekretaris_daerah);
+    }
+
     public function test_dpa_item_can_be_updated_without_monthly_cash_plan(): void
     {
         $dpa = $this->completeDpa();
@@ -164,6 +221,34 @@ class DpaOpdTest extends TestCase
             'pagu_dpa' => '2600000.00',
             'alasan_penyesuaian' => 'Sesuai dokumen DPA resmi.',
         ]);
+    }
+
+    public function test_draft_dpa_item_can_be_soft_deleted_without_deleting_rka_source(): void
+    {
+        $dpa = $this->completeDpa();
+        $item = $dpa->items->firstOrFail();
+        $rkaItemId = $item->rka_opd_item_id;
+
+        $this->actingAs($this->superAdmin())
+            ->delete(route('dpa-opd.items.destroy', ['dpa_opd' => $dpa, 'item' => $item]))
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Sub kegiatan DPA berhasil dihapus.');
+
+        $this->assertSoftDeleted('dpa_opd_items', ['id' => $item->id]);
+        $this->assertDatabaseHas('rka_opd_items', ['id' => $rkaItemId, 'deleted_at' => null]);
+    }
+
+    public function test_dpa_item_cannot_be_deleted_when_document_is_not_editable(): void
+    {
+        $dpa = $this->completeDpa();
+        $item = $dpa->items->firstOrFail();
+        $dpa->update(['status' => 'submitted']);
+
+        $this->actingAs($this->superAdmin())
+            ->delete(route('dpa-opd.items.destroy', ['dpa_opd' => $dpa, 'item' => $item]))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('dpa_opd_items', ['id' => $item->id, 'deleted_at' => null]);
     }
 
     public function test_bpkad_verifies_dpa_while_bapperida_only_monitors(): void
@@ -232,5 +317,33 @@ class DpaOpdTest extends TestCase
         $user->roles()->syncWithoutDetaching($role);
 
         return $user;
+    }
+
+    /** @return array{0: Pegawai, 1: RiwayatPejabatJabatan} */
+    private function activeOfficial(Opd $opd, string $position, string $level, string $nip): array
+    {
+        $job = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => $position,
+            'level_jabatan' => $level,
+            'status' => 'active',
+            'verification_status' => 'verified',
+        ]);
+        $employee = Pegawai::create([
+            'opd_id' => $opd->id,
+            'nama' => str($position)->replace(' selaku PPKD', '')->toString(),
+            'nip' => $nip,
+            'jenis_pegawai' => 'pns',
+            'status' => 'active',
+        ]);
+        $placement = $employee->penempatan()->create([
+            'jabatan_organisasi_id' => $job->id,
+            'nama_pejabat' => $employee->nama,
+            'nip' => $employee->nip,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => '2026-01-01',
+        ]);
+
+        return [$employee, $placement];
     }
 }
