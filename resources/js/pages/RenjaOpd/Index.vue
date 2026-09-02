@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DataPagination from '@/components/DataPagination.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDocumentDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -33,11 +34,20 @@ type Paginator<T> = {
     total: number;
     prev_page_url: string | null;
     next_page_url: string | null;
+    links?: Array<{ url: string | null; label: string; active: boolean }>;
 };
 
 const props = defineProps<{
     items: Paginator<Row>;
-    filters: { search?: string; status?: string; opd_id?: string; periode_tahun_id?: string; tahun?: string; jenis_versi?: string };
+    filters: {
+        search?: string;
+        status?: string;
+        opd_id?: string;
+        periode_tahun_id?: string;
+        tahun?: string;
+        jenis_versi?: string;
+        per_page?: string;
+    };
     opdOptions: Option[];
     periodeOptions: Option[];
     can: { manage: boolean };
@@ -50,6 +60,7 @@ const filterForm = reactive({
     periode_tahun_id: props.filters.periode_tahun_id ?? '',
     tahun: props.filters.tahun ?? '',
     jenis_versi: props.filters.jenis_versi ?? '',
+    per_page: props.filters.per_page ?? '10',
 });
 
 const applyFilters = () => router.get(route('renja-opd.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
@@ -111,7 +122,9 @@ const versionClass = (version: Row['jenis_versi']) =>
 
     <div class="flex flex-col gap-5 p-4 sm:p-5">
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
-            <div class="relative overflow-hidden border-b border-slate-200 bg-[linear-gradient(118deg,#ffffff_0%,#f5f9ff_58%,#edf6ff_100%)] px-5 py-5 dark:border-slate-800 dark:bg-slate-950 sm:px-6 sm:py-6">
+            <div
+                class="relative overflow-hidden border-b border-slate-200 bg-[linear-gradient(118deg,#ffffff_0%,#f5f9ff_58%,#edf6ff_100%)] px-5 py-5 dark:border-slate-800 dark:bg-slate-950 sm:px-6 sm:py-6"
+            >
                 <div class="absolute -right-16 -top-20 size-56 rounded-full bg-blue-200/25 blur-3xl dark:bg-blue-500/10"></div>
                 <div class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                     <div class="flex min-w-0 items-start gap-3.5">
@@ -138,9 +151,11 @@ const versionClass = (version: Row['jenis_versi']) =>
                 </div>
             </div>
 
-            <div class="grid divide-y divide-slate-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0 dark:divide-slate-800">
+            <div class="grid divide-y divide-slate-200 dark:divide-slate-800 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
                 <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
-                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
+                    <div
+                        class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300"
+                    >
                         <FileClock class="size-4" />
                     </div>
                     <div>
@@ -149,7 +164,9 @@ const versionClass = (version: Row['jenis_versi']) =>
                     </div>
                 </article>
                 <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
-                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                    <div
+                        class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                    >
                         <CheckCircle2 class="size-4" />
                     </div>
                     <div>
@@ -158,7 +175,9 @@ const versionClass = (version: Row['jenis_versi']) =>
                     </div>
                 </article>
                 <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
-                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">
+                    <div
+                        class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                    >
                         <RefreshCcw class="size-4" />
                     </div>
                     <div>
@@ -175,7 +194,13 @@ const versionClass = (version: Row['jenis_versi']) =>
                     <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Temukan dokumen</h2>
                     <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Saring berdasarkan OPD, tahun, periode, atau status dokumen.</p>
                 </div>
-                <button type="button" class="h-9 self-start rounded-lg px-3 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 sm:self-auto dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100" @click="resetFilters">Reset filter</button>
+                <button
+                    type="button"
+                    class="h-9 self-start rounded-lg px-3 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 sm:self-auto"
+                    @click="resetFilters"
+                >
+                    Reset filter
+                </button>
             </div>
             <form class="grid gap-3 xl:grid-cols-[minmax(14rem,1.2fr)_140px_180px_minmax(12rem,1fr)_160px_110px]" @submit.prevent="applyFiltersNow">
                 <label class="relative">
@@ -187,7 +212,10 @@ const versionClass = (version: Row['jenis_versi']) =>
                         placeholder="Cari judul, nomor, atau OPD"
                     />
                 </label>
-                <select v-model="filterForm.status" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
+                <select
+                    v-model="filterForm.status"
+                    class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                >
                     <option value="">Semua status</option>
                     <option value="draft">Draft</option>
                     <option value="submitted">Diajukan</option>
@@ -197,13 +225,19 @@ const versionClass = (version: Row['jenis_versi']) =>
                     <option value="rejected">Ditolak</option>
                     <option value="locked">Terkunci</option>
                 </select>
-                <select v-model="filterForm.jenis_versi" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
+                <select
+                    v-model="filterForm.jenis_versi"
+                    class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                >
                     <option value="">Semua versi</option>
                     <option value="awal">RENJA Akhir Draft</option>
                     <option value="ditetapkan">RENJA Ditetapkan</option>
                     <option value="perubahan">RENJA Perubahan</option>
                 </select>
-                <select v-model="filterForm.opd_id" class="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]">
+                <select
+                    v-model="filterForm.opd_id"
+                    class="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                >
                     <option value="">Semua OPD</option>
                     <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                 </select>
@@ -214,24 +248,37 @@ const versionClass = (version: Row['jenis_versi']) =>
                     <option value="">Semua periode</option>
                     <option v-for="option in periodeOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                 </select>
-                <input v-model="filterForm.tahun" type="number" class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]" placeholder="Tahun" />
+                <input
+                    v-model="filterForm.tahun"
+                    type="number"
+                    class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                    placeholder="Tahun"
+                />
             </form>
         </section>
 
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
-            <div class="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-6 dark:border-slate-800">
+            <div
+                class="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 dark:border-slate-800 sm:flex-row sm:items-end sm:justify-between sm:px-6"
+            >
                 <div>
                     <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Daftar Renja OPD</h2>
-                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Menampilkan {{ items.from ?? 0 }}-{{ items.to ?? 0 }} dari {{ items.total }} dokumen.</p>
+                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        Menampilkan {{ items.from ?? 0 }}-{{ items.to ?? 0 }} dari {{ items.total }} dokumen.
+                    </p>
                 </div>
-                <span class="inline-flex w-fit items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                <span
+                    class="inline-flex w-fit items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                >
                     <FileText class="size-3.5" />
                     Riwayat per OPD
                 </span>
             </div>
 
             <div role="list">
-                <div class="hidden border-b border-slate-100 px-5 py-3 xl:grid xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center xl:gap-6 sm:px-6 dark:border-slate-800">
+                <div
+                    class="hidden border-b border-slate-100 px-5 py-3 dark:border-slate-800 sm:px-6 xl:grid xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center xl:gap-6"
+                >
                     <div class="grid max-w-[58rem] grid-cols-[minmax(12rem,0.8fr)_minmax(17rem,1.2fr)_auto_auto] items-center gap-x-6">
                         <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500">OPD</p>
                         <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500">Dokumen Renja</p>
@@ -246,13 +293,19 @@ const versionClass = (version: Row['jenis_versi']) =>
                         v-for="row in items.data"
                         :key="row.id"
                         role="listitem"
-                        class="grid gap-4 px-5 py-5 transition-colors hover:bg-slate-50/80 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center xl:gap-6 sm:px-6 dark:hover:bg-slate-900/45"
+                        class="grid gap-4 px-5 py-5 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-900/45 sm:px-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center xl:gap-6"
                     >
-                        <div class="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-[minmax(12rem,0.8fr)_minmax(16rem,1.2fr)_auto_auto] sm:items-center xl:max-w-[58rem]">
+                        <div
+                            class="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-[minmax(12rem,0.8fr)_minmax(16rem,1.2fr)_auto_auto] sm:items-center xl:max-w-[58rem]"
+                        >
                             <div class="min-w-0">
-                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 xl:hidden dark:text-slate-500">OPD</p>
-                                <p class="mt-1.5 font-bold text-slate-900 xl:mt-0 dark:text-slate-100">{{ row.opd?.singkatan || row.opd?.nama || '-' }}</p>
-                                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ row.opd_unit?.nama || row.opd?.kode || '-' }}</p>
+                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500 xl:hidden">OPD</p>
+                                <p class="mt-1.5 font-bold text-slate-900 dark:text-slate-100 xl:mt-0">
+                                    {{ row.opd?.singkatan || row.opd?.nama || '-' }}
+                                </p>
+                                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                    {{ row.opd_unit?.nama || row.opd?.kode || '-' }}
+                                </p>
                                 <div v-if="row.rkpd" class="mt-2.5 flex min-w-0 items-start gap-2 text-slate-500 dark:text-slate-400">
                                     <GitBranch class="mt-0.5 size-3.5 shrink-0 text-[#00336C] dark:text-blue-300" />
                                     <span class="text-xs leading-5">{{ row.rkpd.tahun }} · {{ row.rkpd.version_label }}</span>
@@ -260,10 +313,18 @@ const versionClass = (version: Row['jenis_versi']) =>
                             </div>
 
                             <div class="min-w-0">
-                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 xl:hidden dark:text-slate-500">Dokumen Renja</p>
+                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500 xl:hidden">
+                                    Dokumen Renja
+                                </p>
                                 <div class="mt-1.5 flex flex-wrap items-center gap-2 xl:mt-0">
-                                    <span class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold" :class="versionClass(row.jenis_versi)">{{ versionLabel(row) }}</span>
-                                    <span v-if="row.is_active_version" class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">Versi aktif</span>
+                                    <span
+                                        class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+                                        :class="versionClass(row.jenis_versi)"
+                                        >{{ versionLabel(row) }}</span
+                                    >
+                                    <span v-if="row.is_active_version" class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300"
+                                        >Versi aktif</span
+                                    >
                                     <span
                                         v-else-if="row.jenis_versi === 'awal' && ['approved', 'locked'].includes(row.status)"
                                         class="text-[11px] font-semibold text-slate-500 dark:text-slate-400"
@@ -271,24 +332,38 @@ const versionClass = (version: Row['jenis_versi']) =>
                                     >
                                 </div>
                                 <p class="mt-2 text-sm font-bold leading-5 text-slate-900 dark:text-slate-100">{{ row.judul }}</p>
-                                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ row.tahun }} · {{ row.nomor_dokumen || 'Nomor dokumen belum diisi' }}</p>
+                                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                    {{ row.tahun }} · {{ row.nomor_dokumen || 'Nomor dokumen belum diisi' }}
+                                </p>
                             </div>
 
                             <div class="flex flex-col items-start xl:items-center">
-                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 xl:hidden dark:text-slate-500">Sub kegiatan</p>
-                                <span class="mt-1.5 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-[#00336C] xl:mt-0 dark:bg-blue-950/50 dark:text-blue-300">{{ row.items_count }} sub kegiatan</span>
+                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500 xl:hidden">
+                                    Sub kegiatan
+                                </p>
+                                <span
+                                    class="mt-1.5 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-[#00336C] dark:bg-blue-950/50 dark:text-blue-300 xl:mt-0"
+                                    >{{ row.items_count }} sub kegiatan</span
+                                >
                             </div>
 
                             <div class="flex flex-col items-start xl:items-center">
-                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 xl:hidden dark:text-slate-500">Status</p>
-                                <span class="mt-1.5 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 xl:mt-0" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+                                <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500 xl:hidden">Status</p>
+                                <span
+                                    class="mt-1.5 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 xl:mt-0"
+                                    :class="statusClass(row.status)"
+                                    >{{ statusLabel(row.status) }}</span
+                                >
                             </div>
                         </div>
 
                         <div class="flex flex-col items-start xl:items-end">
-                            <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 xl:hidden dark:text-slate-500">Aksi</p>
+                            <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500 xl:hidden">Aksi</p>
                             <div class="mt-1.5 inline-flex gap-2 xl:mt-0">
-                                <Link :href="route('renja-opd.show', row.id)" class="inline-flex h-9 items-center gap-2 rounded-md bg-[#00336C] px-3 text-xs font-semibold text-white transition-colors hover:bg-[#0a4485]">
+                                <Link
+                                    :href="route('renja-opd.show', row.id)"
+                                    class="inline-flex h-9 items-center gap-2 rounded-md bg-[#00336C] px-3 text-xs font-semibold text-white transition-colors hover:bg-[#0a4485]"
+                                >
                                     Buka
                                     <ArrowRight class="size-3.5" />
                                 </Link>
@@ -322,15 +397,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                 </div>
             </div>
 
-            <div class="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-                <span>Halaman {{ items.current_page }} / {{ items.last_page }}</span>
-                <div class="flex gap-2">
-                    <Link v-if="items.prev_page_url" :href="items.prev_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted">Sebelumnya</Link>
-                    <span v-else class="rounded-md border px-3 py-1.5 opacity-50">Sebelumnya</span>
-                    <Link v-if="items.next_page_url" :href="items.next_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted">Berikutnya</Link>
-                    <span v-else class="rounded-md border px-3 py-1.5 opacity-50">Berikutnya</span>
-                </div>
-            </div>
+            <DataPagination v-model:per-page="filterForm.per_page" :paginator="items" item-label="dokumen RENJA" />
         </section>
     </div>
 </template>

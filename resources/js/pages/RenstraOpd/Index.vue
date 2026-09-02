@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DataPagination from '@/components/DataPagination.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDocumentDelete, promptTextArea } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -44,6 +45,7 @@ type Paginator<T> = {
     total: number;
     prev_page_url: string | null;
     next_page_url: string | null;
+    links?: Array<{ url: string | null; label: string; active: boolean }>;
 };
 
 const props = defineProps<{
@@ -54,6 +56,7 @@ const props = defineProps<{
         opd_id?: string;
         rpjmd_id?: string;
         periode_tahun_id?: string;
+        per_page?: string;
     };
     opdOptions: Option[];
     rpjmdOptions: Option[];
@@ -69,6 +72,7 @@ const filterForm = reactive({
     opd_id: props.filters.opd_id ?? '',
     rpjmd_id: props.filters.rpjmd_id ?? '',
     periode_tahun_id: props.filters.periode_tahun_id ?? '',
+    per_page: props.filters.per_page ?? '10',
 });
 
 const applyFilters = () => {
@@ -122,7 +126,11 @@ const destroy = async (renstra: RenstraRow) => {
         return;
     }
 
-    if (await confirmDocumentDelete(`Hapus Renstra ${renstra.opd?.singkatan || renstra.opd?.nama || ''} ${renstra.tahun_awal}-${renstra.tahun_akhir}?`)) {
+    if (
+        await confirmDocumentDelete(
+            `Hapus Renstra ${renstra.opd?.singkatan || renstra.opd?.nama || ''} ${renstra.tahun_awal}-${renstra.tahun_akhir}?`,
+        )
+    ) {
         router.delete(route('renstra-opd.destroy', renstra.id));
     }
 };
@@ -176,14 +184,10 @@ const versionClass = (renstra: RenstraRow) =>
         : 'bg-blue-50 text-[#00336C] ring-blue-200 dark:bg-blue-500/15 dark:text-blue-200 dark:ring-blue-500/30';
 
 const targetCoverageLabel = (renstra: RenstraRow) =>
-    renstra.progress.targets_total > 0
-        ? `${renstra.progress.targets_filled}/${renstra.progress.targets_total} target`
-        : 'Belum ada indikator';
+    renstra.progress.targets_total > 0 ? `${renstra.progress.targets_filled}/${renstra.progress.targets_total} target` : 'Belum ada indikator';
 
 const targetCoverageValue = (renstra: RenstraRow) =>
-    renstra.progress.targets_total > 0
-        ? `${renstra.progress.targets_filled}/${renstra.progress.targets_total}`
-        : '-';
+    renstra.progress.targets_total > 0 ? `${renstra.progress.targets_filled}/${renstra.progress.targets_total}` : '-';
 
 const indicatorCoverageLabel = (renstra: RenstraRow) => {
     const filled = Number(renstra.progress.indicators_filled ?? 0);
@@ -334,7 +338,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
             </div>
 
             <div class="hidden overflow-x-auto lg:block">
-                <table class="min-w-[1080px] w-full text-left text-sm">
+                <table class="w-full min-w-[1080px] text-left text-sm">
                     <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
                         <tr>
                             <th class="w-72 px-5 py-3">OPD</th>
@@ -361,7 +365,10 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                             <td class="min-w-[31rem] px-5 py-5">
                                 <h3 class="font-semibold leading-6 text-slate-950">
                                     {{ renstra.judul }}
-                                    <span class="ml-1.5 inline-flex translate-y-[-1px] rounded-full px-2.5 py-1 align-middle text-xs font-semibold ring-1" :class="versionClass(renstra)">
+                                    <span
+                                        class="ml-1.5 inline-flex translate-y-[-1px] rounded-full px-2.5 py-1 align-middle text-xs font-semibold ring-1"
+                                        :class="versionClass(renstra)"
+                                    >
                                         {{ versionLabel(renstra) }}
                                     </span>
                                 </h3>
@@ -379,7 +386,8 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                                     v-if="renstra.perlu_penyesuaian_rpjmd"
                                     class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900"
                                 >
-                                    RPJMD {{ renstra.rpjmd_perubahan_terbaru?.version_label || 'Perubahan' }} sudah disahkan. Buat Perubahan Renstra untuk menyesuaikan dokumen ini.
+                                    RPJMD {{ renstra.rpjmd_perubahan_terbaru?.version_label || 'Perubahan' }} sudah disahkan. Buat Perubahan Renstra
+                                    untuk menyesuaikan dokumen ini.
                                 </div>
                             </td>
                             <td class="w-64 px-4 py-5 align-middle">
@@ -395,7 +403,9 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                                 </div>
                                 <div class="mt-3 grid grid-cols-3 divide-x divide-slate-200 text-xs">
                                     <div class="pr-2">
-                                        <div class="font-semibold tabular-nums text-slate-800">{{ renstra.progress.stages_filled }}/{{ renstra.progress.stages_total }}</div>
+                                        <div class="font-semibold tabular-nums text-slate-800">
+                                            {{ renstra.progress.stages_filled }}/{{ renstra.progress.stages_total }}
+                                        </div>
                                         <div class="mt-0.5 text-muted-foreground">Tahap</div>
                                     </div>
                                     <div class="px-2">
@@ -527,20 +537,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                 </div>
             </div>
 
-            <div class="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-                <span>Menampilkan {{ renstras.from ?? 0 }}-{{ renstras.to ?? 0 }} dari {{ renstras.total }} data</span>
-                <div class="flex flex-wrap gap-2">
-                    <Link v-if="renstras.prev_page_url" :href="renstras.prev_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted">
-                        Sebelumnya
-                    </Link>
-                    <span v-else class="rounded-md border px-3 py-1.5 opacity-50">Sebelumnya</span>
-                    <span class="px-2 py-1.5">Halaman {{ renstras.current_page }} / {{ renstras.last_page }}</span>
-                    <Link v-if="renstras.next_page_url" :href="renstras.next_page_url" class="rounded-md border px-3 py-1.5 hover:bg-muted">
-                        Berikutnya
-                    </Link>
-                    <span v-else class="rounded-md border px-3 py-1.5 opacity-50">Berikutnya</span>
-                </div>
-            </div>
+            <DataPagination v-model:per-page="filterForm.per_page" :paginator="renstras" item-label="data RENSTRA" />
         </section>
     </div>
 </template>

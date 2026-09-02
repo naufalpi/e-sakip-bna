@@ -15,6 +15,7 @@ use App\Services\Penganggaran\DpaPreviewTableService;
 use App\Services\Penganggaran\DpaReadinessService;
 use App\Services\Penganggaran\DpaSignatoryService;
 use App\Services\Workflow\WorkflowDataService;
+use App\Support\Pagination\PerPagePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,12 +29,13 @@ class DpaOpdController extends Controller
     {
         $this->authorize('viewAny', DpaOpd::class);
         $user = $request->user();
-        $filters = $request->only(['search', 'status', 'opd_id', 'tahun', 'jenis_anggaran']);
+        $filters = $request->only(['search', 'status', 'opd_id', 'tahun', 'jenis_anggaran', 'per_page']);
+        $filters['per_page'] = PerPagePaginator::selection($request);
         $baseQuery = fn () => DpaOpd::query()
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($user->hasOpdUnitScope(), fn (Builder $query) => $query->where('opd_unit_id', $user->opd_unit_id));
 
-        $items = $baseQuery()
+        $itemsQuery = $baseQuery()
             ->with(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'rkaOpd:id,judul,jenis_anggaran,status'])
             ->withCount('items')
             ->withSum('items as total_pagu_dpa', 'pagu_dpa')
@@ -48,8 +50,10 @@ class DpaOpdController extends Controller
             ->when($filters['opd_id'] ?? null, fn (Builder $query, string $opdId) => $query->where('opd_id', $opdId))
             ->when($filters['tahun'] ?? null, fn (Builder $query, string $tahun) => $query->where('tahun', $tahun))
             ->when($filters['jenis_anggaran'] ?? null, fn (Builder $query, string $jenis) => $query->where('jenis_anggaran', $jenis))
-            ->orderByDesc('tahun')->orderByDesc('id')
-            ->paginate(10)->withQueryString()
+            ->orderByDesc('tahun')
+            ->orderByDesc('id');
+
+        $items = PerPagePaginator::paginate($itemsQuery, $request)
             ->through(fn (DpaOpd $dpa) => [
                 ...$this->serializeDpa($dpa),
                 'items_count' => $dpa->items_count,

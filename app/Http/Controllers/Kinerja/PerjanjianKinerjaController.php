@@ -25,6 +25,7 @@ use App\Services\Kinerja\KopDokumenService;
 use App\Services\Kinerja\PerjanjianKinerjaDocumentService;
 use App\Services\Kinerja\PerjanjianKinerjaSnapshotService;
 use App\Services\Reports\ReportDocumentRenderService;
+use App\Support\Pagination\PerPagePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -44,10 +45,11 @@ class PerjanjianKinerjaController extends Controller
     {
         $this->authorize('viewAny', PerjanjianKinerja::class);
 
-        $filters = $request->only(['search', 'status', 'level_pk', 'opd_id', 'periode_tahun_id', 'tahun']);
+        $filters = $request->only(['search', 'status', 'level_pk', 'opd_id', 'periode_tahun_id', 'tahun', 'per_page']);
+        $filters['per_page'] = PerPagePaginator::selection($request);
         $user = $request->user();
 
-        $items = PerjanjianKinerja::query()
+        $itemsQuery = PerjanjianKinerja::query()
             ->with(['opd:id,kode,nama,singkatan', 'periodeTahun:id,tahun,nama', 'pegawai:id,nama,nip'])
             ->withCount([
                 'items as items_count' => fn (Builder $query) => $query->where(fn (Builder $query) => $query
@@ -73,9 +75,9 @@ class PerjanjianKinerjaController extends Controller
             ->when($filters['periode_tahun_id'] ?? null, fn (Builder $query, string $periodeId) => $query->where('periode_tahun_id', $periodeId))
             ->when($filters['tahun'] ?? null, fn (Builder $query, string $tahun) => $query->where('tahun', $tahun))
             ->orderByDesc('tahun')
-            ->latest('id')
-            ->paginate(10)
-            ->withQueryString()
+            ->latest('id');
+
+        $items = PerPagePaginator::paginate($itemsQuery, $request)
             ->through(fn (PerjanjianKinerja $pk) => [
                 'id' => $pk->id,
                 'judul' => $pk->judul,

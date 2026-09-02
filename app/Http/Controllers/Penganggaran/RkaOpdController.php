@@ -15,6 +15,7 @@ use App\Services\Penganggaran\RkaPreviewExcelExportService;
 use App\Services\Penganggaran\RkaPreviewTableService;
 use App\Services\Penganggaran\RkaReadinessService;
 use App\Services\Workflow\WorkflowDataService;
+use App\Support\Pagination\PerPagePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,12 +31,13 @@ class RkaOpdController extends Controller
         $this->authorize('viewAny', RkaOpd::class);
 
         $user = $request->user();
-        $filters = $request->only(['search', 'status', 'opd_id', 'tahun', 'jenis_anggaran']);
+        $filters = $request->only(['search', 'status', 'opd_id', 'tahun', 'jenis_anggaran', 'per_page']);
+        $filters['per_page'] = PerPagePaginator::selection($request);
         $baseQuery = fn () => RkaOpd::query()
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($user->hasOpdUnitScope(), fn (Builder $query) => $query->where('opd_unit_id', $user->opd_unit_id));
 
-        $items = $baseQuery()
+        $itemsQuery = $baseQuery()
             ->with([
                 'opd:id,kode,nama,singkatan',
                 'opdUnit:id,kode,nama',
@@ -57,9 +59,9 @@ class RkaOpdController extends Controller
             ->when($filters['tahun'] ?? null, fn (Builder $query, string $tahun) => $query->where('tahun', $tahun))
             ->when($filters['jenis_anggaran'] ?? null, fn (Builder $query, string $jenis) => $query->where('jenis_anggaran', $jenis))
             ->orderByDesc('tahun')
-            ->orderByDesc('id')
-            ->paginate(10)
-            ->withQueryString()
+            ->orderByDesc('id');
+
+        $items = PerPagePaginator::paginate($itemsQuery, $request)
             ->through(fn (RkaOpd $rka) => $this->serializeListRow($rka, $user));
 
         return Inertia::render('RkaOpd/Index', [

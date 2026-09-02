@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DataPagination from '@/components/DataPagination.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -45,11 +46,12 @@ type Paginator<T> = {
     total: number;
     prev_page_url: string | null;
     next_page_url: string | null;
+    links?: Array<{ url: string | null; label: string; active: boolean }>;
 };
 
 const props = defineProps<{
     items: Paginator<Row>;
-    filters: { search?: string; status?: string; level_pk?: string; opd_id?: string; periode_tahun_id?: string; tahun?: string };
+    filters: { search?: string; status?: string; level_pk?: string; opd_id?: string; periode_tahun_id?: string; tahun?: string; per_page?: string };
     opdOptions: Option[];
     periodeOptions: Option[];
     can: { manage: boolean; manage_bupati: boolean };
@@ -62,6 +64,7 @@ const filterForm = reactive({
     opd_id: props.filters.opd_id ?? '',
     periode_tahun_id: props.filters.periode_tahun_id ?? '',
     tahun: props.filters.tahun ?? '',
+    per_page: props.filters.per_page ?? '10',
 });
 
 const applyFilters = () => router.get(route('perjanjian-kinerja.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
@@ -305,16 +308,9 @@ const visibleApproved = computed(() => props.items.data.filter((row) => ['approv
             <Link v-if="can.manage" :href="route('perjanjian-kinerja.create')" class="primary-action mt-4"><Plus class="size-4" /> Buat PK</Link>
         </div>
 
-        <footer v-if="items.total" class="pagination-bar">
-            <span>Menampilkan {{ items.from ?? 0 }}–{{ items.to ?? 0 }} dari {{ items.total }} dokumen</span>
-            <div class="flex items-center gap-2">
-                <Link v-if="items.prev_page_url" :href="items.prev_page_url" class="page-button">Sebelumnya</Link>
-                <span v-else class="page-button page-button--disabled">Sebelumnya</span>
-                <span class="page-position">{{ items.current_page }} / {{ items.last_page }}</span>
-                <Link v-if="items.next_page_url" :href="items.next_page_url" class="page-button">Berikutnya</Link>
-                <span v-else class="page-button page-button--disabled">Berikutnya</span>
-            </div>
-        </footer>
+        <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
+            <DataPagination v-model:per-page="filterForm.per_page" :paginator="items" item-label="dokumen PK" />
+        </div>
     </main>
 </template>
 
@@ -647,36 +643,6 @@ const visibleApproved = computed(() => props.items.data.filter((row) => ['approv
     color: hsl(var(--muted-foreground));
     font-size: 0.8rem;
 }
-.pagination-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-top: 1rem;
-    border-top: 1px solid hsl(var(--border));
-    padding: 0.85rem 0.2rem 0;
-    color: hsl(var(--muted-foreground));
-    font-size: 0.75rem;
-}
-.page-button {
-    border: 1px solid hsl(var(--border));
-    border-radius: 0.5rem;
-    background: hsl(var(--card));
-    padding: 0.45rem 0.7rem;
-    color: hsl(var(--foreground));
-    font-weight: 650;
-}
-.page-button:hover {
-    background: hsl(var(--muted));
-}
-.page-button--disabled {
-    opacity: 0.45;
-}
-.page-position {
-    padding-inline: 0.35rem;
-    color: hsl(var(--foreground));
-    font-weight: 700;
-}
 @media (max-width: 1320px) {
     .filter-panel {
         grid-template-columns: minmax(240px, 1.4fr) repeat(2, minmax(145px, 0.7fr)) minmax(180px, 1fr);
@@ -749,10 +715,6 @@ const visibleApproved = computed(() => props.items.data.filter((row) => ['approv
     }
     .document-actions {
         justify-content: flex-start;
-    }
-    .pagination-bar {
-        align-items: flex-start;
-        flex-direction: column;
     }
 }
 </style>

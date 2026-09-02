@@ -21,6 +21,7 @@ use App\Services\Perencanaan\RenjaInitialItemService;
 use App\Services\Perencanaan\RenjaProgramScopeService;
 use App\Services\Perencanaan\RenjaVersionService;
 use App\Services\Workflow\WorkflowDataService;
+use App\Support\Pagination\PerPagePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,10 +40,11 @@ class RenjaOpdController extends Controller
     {
         $this->authorize('viewAny', RenjaOpd::class);
 
-        $filters = $request->only(['search', 'status', 'opd_id', 'periode_tahun_id', 'tahun', 'jenis_versi']);
+        $filters = $request->only(['search', 'status', 'opd_id', 'periode_tahun_id', 'tahun', 'jenis_versi', 'per_page']);
+        $filters['per_page'] = PerPagePaginator::selection($request);
         $user = $request->user();
 
-        $items = RenjaOpd::query()
+        $itemsQuery = RenjaOpd::query()
             ->with(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'rkpd:id,judul,tahun,status,jenis_versi', 'periodeTahun:id,tahun,nama'])
             ->withCount('items')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
@@ -61,9 +63,9 @@ class RenjaOpdController extends Controller
             ->when($filters['jenis_versi'] ?? null, fn (Builder $query, string $jenisVersi) => $query->where('jenis_versi', $jenisVersi))
             ->orderByDesc('tahun')
             ->orderByDesc('nomor_versi')
-            ->latest('id')
-            ->paginate(10)
-            ->withQueryString()
+            ->latest('id');
+
+        $items = PerPagePaginator::paginate($itemsQuery, $request)
             ->through(fn (RenjaOpd $renja) => [
                 'id' => $renja->id,
                 'judul' => $renja->judul,

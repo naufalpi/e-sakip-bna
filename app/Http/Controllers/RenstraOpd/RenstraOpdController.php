@@ -38,6 +38,7 @@ use App\Services\Perencanaan\CancelDocumentRevisionService;
 use App\Services\Perencanaan\DocumentRevisionService;
 use App\Services\Renstra\RenstraPreviewExcelExportService;
 use App\Services\Workflow\WorkflowDataService;
+use App\Support\Pagination\PerPagePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -53,10 +54,11 @@ class RenstraOpdController extends Controller
     {
         $this->authorize('viewAny', RenstraOpd::class);
 
-        $filters = $request->only(['search', 'status', 'opd_id', 'rpjmd_id', 'periode_tahun_id']);
+        $filters = $request->only(['search', 'status', 'opd_id', 'rpjmd_id', 'periode_tahun_id', 'per_page']);
+        $filters['per_page'] = PerPagePaginator::selection($request);
         $user = $request->user();
 
-        $renstras = RenstraOpd::query()
+        $renstraQuery = RenstraOpd::query()
             ->with([
                 'opd:id,kode,nama,singkatan',
                 'rpjmd:id,judul,tahun_awal,tahun_akhir,status',
@@ -83,9 +85,9 @@ class RenstraOpdController extends Controller
             ->when($filters['rpjmd_id'] ?? null, fn (Builder $query, string $rpjmdId) => $query->where('rpjmd_id', $rpjmdId))
             ->when($filters['periode_tahun_id'] ?? null, fn (Builder $query, string $periodeId) => $query->where('periode_tahun_id', $periodeId))
             ->orderByDesc('tahun_awal')
-            ->latest('id')
-            ->paginate(10)
-            ->withQueryString()
+            ->latest('id');
+
+        $renstras = PerPagePaginator::paginate($renstraQuery, $request)
             ->through(fn (RenstraOpd $renstra) => [
                 'id' => $renstra->id,
                 'judul' => $renstra->judul,

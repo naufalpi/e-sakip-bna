@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { confirmAction } from '@/lib/sweetAlert';
 import { useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -43,6 +44,12 @@ const props = withDefaults(
 const isDialogOpen = ref(false);
 const selectedAction = ref<WorkflowActionItem | null>(null);
 const localNoteError = ref<string | null>(null);
+const submissionConfirmationModules: Record<string, string> = {
+    renstra_opd: 'RENSTRA',
+    renja_opd: 'RENJA',
+    rka_opd: 'RKA',
+    dpa_opd: 'DPA',
+};
 
 const form = useForm<{
     action: WorkflowAction;
@@ -67,7 +74,7 @@ const openTransitionDialog = (item: WorkflowActionItem) => {
     isDialogOpen.value = true;
 };
 
-const submitTransition = () => {
+const submitTransition = async () => {
     if (!selectedAction.value) {
         return;
     }
@@ -83,6 +90,28 @@ const submitTransition = () => {
     if (selectedAction.value.referenceRequired && !form.correction_reference.trim()) {
         form.setError('correction_reference', 'Acuan dokumen resmi wajib diisi.');
         return;
+    }
+
+    const submissionModuleLabel = submissionConfirmationModules[props.module];
+
+    if (selectedAction.value.action === 'submit' && submissionModuleLabel) {
+        const confirmed = await confirmAction({
+            title: `Pastikan data ${submissionModuleLabel} sudah valid`,
+            text: `Periksa kembali seluruh data yang telah diinput. Setelah ${submissionModuleLabel} diajukan, dokumen masuk ke proses pemeriksaan dan tidak dapat diedit selama berstatus Diajukan atau Terverifikasi.`,
+            icon: 'warning',
+            confirmButtonText: 'Ya, ajukan data',
+            cancelButtonText: 'Periksa kembali',
+            focusCancel: true,
+        });
+
+        if (!confirmed) {
+            isDialogOpen.value = false;
+            selectedAction.value = null;
+            form.reset();
+            form.action = 'submit';
+
+            return;
+        }
     }
 
     form.post(route('workflow.transition', { module: props.module, id: props.modelId }), {

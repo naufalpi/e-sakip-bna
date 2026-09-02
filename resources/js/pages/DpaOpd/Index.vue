@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DataPagination from '@/components/DataPagination.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDocumentDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -21,11 +22,21 @@ type Row = {
     opd?: { nama: string; singkatan?: string | null } | null;
     rka?: { judul: string; jenis_anggaran: string } | null;
 };
-type Paginator<T> = { data: T[]; current_page: number; last_page: number; total: number; prev_page_url: string | null; next_page_url: string | null };
+type Paginator<T> = {
+    data: T[];
+    current_page: number;
+    last_page: number;
+    from: number | null;
+    to: number | null;
+    total: number;
+    prev_page_url: string | null;
+    next_page_url: string | null;
+    links?: Array<{ url: string | null; label: string; active: boolean }>;
+};
 
 const props = defineProps<{
     items: Paginator<Row>;
-    filters: { search?: string; status?: string; opd_id?: string; tahun?: string; jenis_anggaran?: string };
+    filters: { search?: string; status?: string; opd_id?: string; tahun?: string; jenis_anggaran?: string; per_page?: string };
     opdOptions: Option[];
     stats: { documents: number; draft: number; process: number; official: number };
     can: { manage: boolean };
@@ -37,6 +48,7 @@ const filterForm = reactive({
     opd_id: props.filters.opd_id ?? '',
     tahun: props.filters.tahun ?? '',
     jenis_anggaran: props.filters.jenis_anggaran ?? '',
+    per_page: props.filters.per_page ?? '10',
 });
 const applyFilters = () => router.get(route('dpa-opd.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
 const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
@@ -258,23 +270,7 @@ const statusClass = (status: string) =>
                 <p class="mt-3 font-semibold text-slate-700 dark:text-slate-200">Belum ada DPA</p>
                 <p class="mt-1 text-sm text-slate-500">Buat DPA dari RKA yang sudah disetujui.</p>
             </div>
-            <footer class="flex items-center justify-between border-t border-slate-200 px-5 py-4 text-sm dark:border-slate-800 sm:px-6">
-                <span class="text-slate-500">Halaman {{ items.current_page }} / {{ items.last_page }}</span>
-                <div class="flex gap-2">
-                    <Link
-                        v-if="items.prev_page_url"
-                        :href="items.prev_page_url"
-                        class="rounded-lg border px-3 py-2 font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
-                        >Sebelumnya</Link
-                    ><span v-else class="rounded-lg border px-3 py-2 text-slate-300">Sebelumnya</span
-                    ><Link
-                        v-if="items.next_page_url"
-                        :href="items.next_page_url"
-                        class="rounded-lg border px-3 py-2 font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
-                        >Berikutnya</Link
-                    ><span v-else class="rounded-lg border px-3 py-2 text-slate-300">Berikutnya</span>
-                </div>
-            </footer>
+            <DataPagination v-model:per-page="filterForm.per_page" :paginator="items" item-label="dokumen DPA" />
         </section>
     </div>
 </template>
