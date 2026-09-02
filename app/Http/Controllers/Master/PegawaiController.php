@@ -124,12 +124,14 @@ class PegawaiController extends Controller
         $placementData = Arr::only($data, [
             'jabatan_organisasi_id',
             'jenis_penugasan',
-            'nomor_sk',
-            'tanggal_sk',
-            'tanggal_mulai',
-            'tanggal_selesai',
         ]);
         $data = Arr::except($data, array_keys($placementData));
+
+        if (($data['status'] ?? 'active') !== 'active') {
+            $placementData = [];
+        } elseif (filled($placementData['jabatan_organisasi_id'] ?? null)) {
+            $placementData['tanggal_mulai'] = now()->toDateString();
+        }
 
         $jabatan = null;
         if (filled($placementData['jabatan_organisasi_id'] ?? null)) {
@@ -205,15 +207,66 @@ class PegawaiController extends Controller
         PegawaiOrganizationSyncService $syncService,
     ): RedirectResponse {
         $this->abortUnlessInScope($request->user(), $pegawai);
+        $wasActive = $pegawai->status === 'active';
         $data = $this->normalizeScopedData($request->user(), $request->validated());
-        if ($currentOrganization = $syncService->currentOrganization($pegawai)) {
+        $placementData = Arr::only($data, ['jabatan_organisasi_id', 'jenis_penugasan']);
+        $data = Arr::except($data, array_keys($placementData));
+        $currentPlacement = $this->currentPlacement($pegawai);
+        $selectedJabatan = null;
+
+        if (($data['status'] ?? 'active') === 'active' && filled($placementData['jabatan_organisasi_id'] ?? null)) {
+            $selectedJabatan = $this->resolveInitialJabatan(
+                $request->user(),
+                $data,
+                (int) $placementData['jabatan_organisasi_id'],
+            );
+            $this->assertInitialPlacementAvailable(
+                $selectedJabatan,
+                [...$placementData, 'tanggal_mulai' => now()->toDateString()],
+                $currentPlacement?->id,
+            );
+            $data['opd_id'] = $selectedJabatan->opd_id;
+            $data['opd_unit_id'] = $selectedJabatan->opd_unit_id;
+        } elseif ($currentOrganization = $syncService->currentOrganization($pegawai)) {
             $data = [...$data, ...$currentOrganization];
         }
         $this->assertReferencesMatch($data);
-        $pegawai->update($data);
+        DB::transaction(function () use ($pegawai, $data, $placementData, $selectedJabatan, $currentPlacement, $wasActive): void {
+            $pegawai->update($data);
+
+            if ($wasActive && $pegawai->status === 'inactive') {
+                $this->closeCurrentPlacements($pegawai);
+                $pegawai->penugasanKinerja()->where('status', 'active')->update(['status' => 'inactive']);
+            } elseif ($selectedJabatan) {
+                if ($currentPlacement && (int) $currentPlacement->jabatan_organisasi_id === (int) $selectedJabatan->id) {
+                    $currentPlacement->update([
+                        'jenis_penugasan' => $placementData['jenis_penugasan'],
+                        'user_id' => $pegawai->user_id,
+                        'nama_pejabat' => $pegawai->nama,
+                        'nip' => $pegawai->nip,
+                        'pangkat_golongan' => $pegawai->pangkat_golongan,
+                    ]);
+                } else {
+                    $this->closeCurrentPlacements($pegawai);
+                    $pegawai->penempatan()->create([
+                        'jabatan_organisasi_id' => $selectedJabatan->id,
+                        'jenis_penugasan' => $placementData['jenis_penugasan'],
+                        'tanggal_mulai' => now()->toDateString(),
+                        'user_id' => $pegawai->user_id,
+                        'nama_pejabat' => $pegawai->nama,
+                        'nip' => $pegawai->nip,
+                        'pangkat_golongan' => $pegawai->pangkat_golongan,
+                    ]);
+                }
+            }
+        });
         $syncService->syncEmployee($pegawai);
 
-        return redirect()->route('master.pegawai.show', $pegawai)->with('success', 'Data pegawai berhasil diperbarui.');
+        $message = $wasActive && $pegawai->status === 'inactive'
+            ? 'Pegawai dinonaktifkan dan jabatan aktifnya telah ditutup. Akun aplikasi tidak diubah.'
+            : 'Data pegawai berhasil diperbarui.';
+
+        return redirect()->route('master.pegawai.show', $pegawai)->with('success', $message);
     }
 
     public function destroy(Request $request, Pegawai $pegawai): RedirectResponse
@@ -273,16 +326,16 @@ class PegawaiController extends Controller
 
     private function formProps(User $user, ?Pegawai $pegawai = null): array
     {
+        $currentPlacement = $pegawai ? $this->currentPlacement($pegawai) : null;
+
         return [
             'mode' => $pegawai ? 'edit' : 'create',
-            'item' => $pegawai ? $this->serialize($pegawai) : null,
+            'item' => $pegawai ? [
+                ...$this->serialize($pegawai),
+                'jabatan_organisasi_id' => $currentPlacement?->jabatan_organisasi_id,
+                'jenis_penugasan' => $currentPlacement?->jenis_penugasan ?? 'definitif',
+            ] : null,
             'opdOptions' => $this->opdOptions($user),
-            'unitOptions' => OpdUnit::query()
-                ->where('status', 'active')
-                ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
-                ->orderBy('opd_id')->orderBy('kode')
-                ->get(['id', 'opd_id', 'kode', 'nama'])
-                ->map(fn (OpdUnit $unit) => ['id' => $unit->id, 'opd_id' => $unit->opd_id, 'label' => "{$unit->kode} - {$unit->nama}"])->all(),
             'userOptions' => User::query()
                 ->where('status', 'active')
                 ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
@@ -292,11 +345,7 @@ class PegawaiController extends Controller
             'jabatanOptions' => $this->formJabatanOptions($user),
             'penugasanOptions' => RiwayatPejabatJabatan::penugasanOptions(),
             'scopeLocked' => $this->shouldLimitToUserOpd($user),
-            'isKepalaDaerah' => $pegawai?->penempatan()
-                ->whereDate('tanggal_mulai', '<=', now()->toDateString())
-                ->where(fn (Builder $query) => $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', now()->toDateString()))
-                ->whereHas('jabatanOrganisasi', fn (Builder $query) => $query->where('level_jabatan', 'kepala_daerah'))
-                ->exists() ?? false,
+            'isKepalaDaerah' => $currentPlacement?->jabatanOrganisasi?->level_jabatan === 'kepala_daerah',
             'canManageJobs' => $user->hasPermission('jabatan_organisasi.manage')
                 || $user->hasPermission('jabatan_organisasi.manage_opd'),
         ];
@@ -307,7 +356,9 @@ class PegawaiController extends Controller
         return JabatanOrganisasi::query()
             ->where('status', 'active')
             ->whereIn('verification_status', ['verified', 'pending'])
-            ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
+            ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query
+                ->where('opd_id', $user->opd_id)
+                ->where('level_jabatan', '!=', 'kepala_daerah'))
             ->orderByRaw("CASE level_jabatan WHEN 'kepala_daerah' THEN 0 WHEN 'jpt_pratama' THEN 1 WHEN 'administrator' THEN 2 WHEN 'pengawas' THEN 3 WHEN 'fungsional' THEN 4 ELSE 5 END")
             ->orderBy('opd_id')->orderBy('urutan')->orderBy('nama')
             ->get(['id', 'opd_id', 'opd_unit_id', 'nama', 'level_jabatan', 'verification_status'])
@@ -346,7 +397,7 @@ class PegawaiController extends Controller
         return $jabatan;
     }
 
-    private function assertInitialPlacementAvailable(JabatanOrganisasi $jabatan, array $data): void
+    private function assertInitialPlacementAvailable(JabatanOrganisasi $jabatan, array $data, ?int $ignorePlacementId = null): void
     {
         if ($jabatan->allowsMultipleHolders()) {
             return;
@@ -354,15 +405,52 @@ class PegawaiController extends Controller
 
         $overlap = RiwayatPejabatJabatan::query()
             ->where('jabatan_organisasi_id', $jabatan->id)
+            ->whereHas('pegawai', fn (Builder $query) => $query->where('status', 'active'))
+            ->when($ignorePlacementId, fn (Builder $query, int $id) => $query->whereKeyNot($id))
             ->when($data['tanggal_selesai'] ?? null, fn (Builder $query, string $end) => $query->whereDate('tanggal_mulai', '<=', $end))
             ->where(fn (Builder $query) => $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $data['tanggal_mulai']))
             ->exists();
 
         if ($overlap) {
             throw ValidationException::withMessages([
-                'tanggal_mulai' => 'Jabatan ini masih ditempati pegawai lain. Akhiri jabatan sebelumnya terlebih dahulu.',
+                'jabatan_organisasi_id' => 'Jabatan ini masih ditempati pegawai aktif lain. Akhiri jabatan sebelumnya terlebih dahulu.',
             ]);
         }
+    }
+
+    private function closeCurrentPlacements(Pegawai $pegawai): void
+    {
+        $today = now()->startOfDay();
+
+        $pegawai->penempatan()
+            ->whereDate('tanggal_mulai', '<=', $today->toDateString())
+            ->where(fn (Builder $query) => $query
+                ->whereNull('tanggal_selesai')
+                ->orWhereDate('tanggal_selesai', '>=', $today->toDateString()))
+            ->get()
+            ->each(function (RiwayatPejabatJabatan $placement) use ($today): void {
+                $endDate = $placement->tanggal_mulai?->startOfDay()->lt($today)
+                    ? $today->copy()->subDay()
+                    : $today;
+
+                $placement->update(['tanggal_selesai' => $endDate->toDateString()]);
+            });
+    }
+
+    private function currentPlacement(Pegawai $pegawai): ?RiwayatPejabatJabatan
+    {
+        $today = now()->toDateString();
+
+        return $pegawai->penempatan()
+            ->with('jabatanOrganisasi:id,opd_id,opd_unit_id,level_jabatan')
+            ->whereDate('tanggal_mulai', '<=', $today)
+            ->where(fn (Builder $query) => $query
+                ->whereNull('tanggal_selesai')
+                ->orWhereDate('tanggal_selesai', '>=', $today))
+            ->orderByRaw("CASE jenis_penugasan WHEN 'definitif' THEN 1 WHEN 'penjabat' THEN 2 WHEN 'plt' THEN 3 WHEN 'plh' THEN 4 ELSE 5 END")
+            ->orderByDesc('tanggal_mulai')
+            ->orderByDesc('id')
+            ->first();
     }
 
     private function opdOptions(User $user): array
@@ -423,7 +511,7 @@ class PegawaiController extends Controller
     private function serialize(Pegawai $pegawai, bool $detailed = false): array
     {
         $today = now()->startOfDay();
-        $currentPlacements = $pegawai->relationLoaded('penempatan')
+        $currentPlacements = $pegawai->status === 'active' && $pegawai->relationLoaded('penempatan')
             ? $pegawai->penempatan->filter(fn (RiwayatPejabatJabatan $placement) => $placement->tanggal_mulai?->startOfDay()->lte($today)
                 && (! $placement->tanggal_selesai || $placement->tanggal_selesai->startOfDay()->gte($today)))
             : collect();
@@ -476,8 +564,6 @@ class PegawaiController extends Controller
             ] : null,
             'jenis_penugasan' => $placement->jenis_penugasan,
             'jenis_penugasan_label' => collect(RiwayatPejabatJabatan::penugasanOptions())->pluck('label', 'value')[$placement->jenis_penugasan] ?? $placement->jenis_penugasan,
-            'nomor_sk' => $placement->nomor_sk,
-            'tanggal_sk' => $placement->tanggal_sk?->format('Y-m-d'),
             'tanggal_mulai' => $placement->tanggal_mulai?->format('Y-m-d'),
             'tanggal_selesai' => $placement->tanggal_selesai?->format('Y-m-d'),
         ];

@@ -23,7 +23,12 @@ class PenempatanPegawaiController extends Controller
         PegawaiOrganizationSyncService $syncService,
     ): RedirectResponse {
         $this->assertInScope($request->user(), $pegawai);
-        $data = $request->validated();
+        $this->assertEmployeeIsActive($pegawai);
+        $data = [
+            ...$request->validated(),
+            'tanggal_mulai' => now()->toDateString(),
+            'tanggal_selesai' => null,
+        ];
         $jabatan = $this->resolveJabatan($request->user(), $pegawai, (int) $data['jabatan_organisasi_id']);
         $this->assertPeriodAvailable($pegawai, $jabatan, $data);
 
@@ -40,8 +45,13 @@ class PenempatanPegawaiController extends Controller
         PegawaiOrganizationSyncService $syncService,
     ): RedirectResponse {
         $this->assertInScope($request->user(), $pegawai);
+        $this->assertEmployeeIsActive($pegawai);
         $this->assertBelongsToPegawai($pegawai, $penempatan);
-        $data = $request->validated();
+        $data = [
+            ...$request->validated(),
+            'tanggal_mulai' => $penempatan->tanggal_mulai?->toDateString() ?: now()->toDateString(),
+            'tanggal_selesai' => $penempatan->tanggal_selesai?->toDateString(),
+        ];
         $jabatan = $this->resolveJabatan($request->user(), $pegawai, (int) $data['jabatan_organisasi_id']);
         $this->assertPeriodAvailable($pegawai, $jabatan, $data, $penempatan);
 
@@ -49,6 +59,26 @@ class PenempatanPegawaiController extends Controller
         $syncService->syncEmployee($pegawai);
 
         return back()->with('success', 'Jabatan pegawai berhasil diperbarui.');
+    }
+
+    public function end(
+        Request $request,
+        Pegawai $pegawai,
+        RiwayatPejabatJabatan $penempatan,
+        PegawaiOrganizationSyncService $syncService,
+    ): RedirectResponse {
+        $this->assertInScope($request->user(), $pegawai);
+        $this->assertBelongsToPegawai($pegawai, $penempatan);
+
+        $today = now()->startOfDay();
+        $endDate = $penempatan->tanggal_mulai?->startOfDay()->lt($today)
+            ? $today->copy()->subDay()
+            : $today;
+
+        $penempatan->update(['tanggal_selesai' => $endDate->toDateString()]);
+        $syncService->syncEmployee($pegawai);
+
+        return back()->with('success', 'Jabatan pegawai berhasil diakhiri.');
     }
 
     public function destroy(
@@ -102,6 +132,7 @@ class PenempatanPegawaiController extends Controller
     ): void {
         $overlap = RiwayatPejabatJabatan::query()
             ->where('jabatan_organisasi_id', $jabatan->id)
+            ->whereHas('pegawai', fn (Builder $query) => $query->where('status', 'active'))
             ->when($jabatan->allowsMultipleHolders(), fn (Builder $query) => $query->where('pegawai_id', $pegawai->id))
             ->when($current, fn (Builder $query) => $query->whereKeyNot($current->id))
             ->when($data['tanggal_selesai'] ?? null, fn (Builder $query, string $end) => $query->whereDate('tanggal_mulai', '<=', $end))
@@ -113,7 +144,16 @@ class PenempatanPegawaiController extends Controller
                 ? 'Pegawai ini sudah memiliki riwayat yang bertumpang tindih pada jabatan tersebut.'
                 : 'Jabatan struktural ini sudah ditempati pada rentang tanggal tersebut. Akhiri jabatan pejabat sebelumnya terlebih dahulu.';
 
-            throw ValidationException::withMessages(['tanggal_mulai' => $message]);
+            throw ValidationException::withMessages(['jabatan_organisasi_id' => $message]);
+        }
+    }
+
+    private function assertEmployeeIsActive(Pegawai $pegawai): void
+    {
+        if ($pegawai->status !== 'active') {
+            throw ValidationException::withMessages([
+                'jabatan_organisasi_id' => 'Aktifkan pegawai terlebih dahulu sebelum memberikan jabatan.',
+            ]);
         }
     }
 

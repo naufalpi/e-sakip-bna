@@ -39,7 +39,6 @@ type Opd = {
     singkatan?: string | null;
     jenis?: string | null;
     email?: string | null;
-    nama_kepala?: string | null;
     status: string;
     units_count: number;
     units: OpdUnit[];

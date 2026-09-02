@@ -7,6 +7,7 @@ use App\Models\RealisasiKinerja;
 use App\Models\RealisasiProgram;
 use App\Models\RencanaAksi;
 use App\Models\RencanaAksiItem;
+use App\Services\Master\OpdLeaderResolver;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -15,6 +16,7 @@ class KinerjaReportContentService
 {
     public function __construct(
         private readonly PerjanjianKinerjaDocumentService $perjanjianKinerjaDocumentService,
+        private readonly OpdLeaderResolver $opdLeaderResolver,
     ) {}
 
     /**
@@ -337,6 +339,10 @@ class KinerjaReportContentService
      */
     private function metadata(Model $model, string $source, string $opdName, array $identity): array
     {
+        $leader = $model->opd
+            ? $this->opdLeaderResolver->resolve($model->opd)
+            : null;
+
         return [
             'source' => $source.'_official_report',
             'document_number' => $this->documentNumber($model, $source),
@@ -347,9 +353,11 @@ class KinerjaReportContentService
             'identity' => $identity,
             'signature' => [
                 'place_date' => 'Banjarnegara, '.now()->translatedFormat('d F Y'),
-                'title' => $model->opd?->nama ? 'Kepala '.$model->opd->nama : 'Kepala OPD',
-                'name' => $model->opd?->nama_kepala ?: '(nama pejabat)',
-                'nip' => $model->opd?->nip_kepala ?: '-',
+                'title' => $leader['position'] ?? 'Kepala OPD',
+                'name' => $leader['name'] ?? '(nama pejabat)',
+                'nip' => $leader['nip'] ?? '-',
+                'source' => $leader['source'] ?? 'unavailable',
+                'placement_id' => $leader['placement_id'] ?? null,
             ],
             'related_table' => $model->getTable(),
             'related_id' => $model->getKey(),

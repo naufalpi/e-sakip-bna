@@ -24,16 +24,12 @@ class StorePegawaiRequest extends FormRequest
             'pangkat_golongan' => ['nullable', 'string', 'max:120'],
             'jenis_pegawai' => ['required', Rule::in(['pejabat_negara', 'pns', 'pppk', 'non_asn'])],
             'status' => ['required', Rule::in(['active', 'inactive'])],
-            'jabatan_organisasi_id' => ['nullable', 'integer', 'exists:jabatan_organisasi,id'],
+            'jabatan_organisasi_id' => ['nullable', 'required_if:status,active', 'integer', 'exists:jabatan_organisasi,id'],
             'jenis_penugasan' => [
                 'nullable',
                 'required_with:jabatan_organisasi_id',
                 Rule::in(collect(RiwayatPejabatJabatan::penugasanOptions())->pluck('value')->all()),
             ],
-            'nomor_sk' => ['nullable', 'string', 'max:150'],
-            'tanggal_sk' => ['nullable', 'date'],
-            'tanggal_mulai' => ['nullable', 'required_with:jabatan_organisasi_id', 'date'],
-            'tanggal_selesai' => ['nullable', 'date', 'after_or_equal:tanggal_mulai'],
         ];
     }
 
@@ -49,7 +45,6 @@ class StorePegawaiRequest extends FormRequest
             'jenis_pegawai' => 'jenis pegawai',
             'jabatan_organisasi_id' => 'jabatan',
             'jenis_penugasan' => 'jenis jabatan',
-            'tanggal_mulai' => 'TMT jabatan',
         ];
     }
 }

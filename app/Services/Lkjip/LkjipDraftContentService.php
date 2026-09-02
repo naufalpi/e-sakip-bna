@@ -4,11 +4,16 @@ namespace App\Services\Lkjip;
 
 use App\Models\Lkjip;
 use App\Models\RealisasiProgram;
+use App\Services\Master\OpdLeaderResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class LkjipDraftContentService
 {
+    public function __construct(
+        private readonly OpdLeaderResolver $opdLeaderResolver,
+    ) {}
+
     /**
      * @return array{
      *     filename: string,
@@ -209,6 +214,10 @@ class LkjipDraftContentService
      */
     private function metadata(Lkjip $lkjip): array
     {
+        $leader = $lkjip->opd
+            ? $this->opdLeaderResolver->resolve($lkjip->opd)
+            : null;
+
         return [
             'source' => 'lkjip_auto_draft',
             'document_title' => 'Laporan Kinerja Instansi Pemerintah (LKJIP)',
@@ -227,9 +236,11 @@ class LkjipDraftContentService
             ],
             'signature' => [
                 'place_date' => 'Banjarnegara, '.now()->translatedFormat('d F Y'),
-                'title' => $lkjip->opd?->nama ? 'Kepala '.$lkjip->opd->nama : 'Kepala OPD',
-                'name' => $lkjip->opd?->nama_kepala ?: '(nama pejabat)',
-                'nip' => $lkjip->opd?->nip_kepala ?: '-',
+                'title' => $leader['position'] ?? 'Kepala OPD',
+                'name' => $leader['name'] ?? '(nama pejabat)',
+                'nip' => $leader['nip'] ?? '-',
+                'source' => $leader['source'] ?? 'unavailable',
+                'placement_id' => $leader['placement_id'] ?? null,
             ],
             'lkjip_id' => $lkjip->id,
             'opd_id' => $lkjip->opd_id,

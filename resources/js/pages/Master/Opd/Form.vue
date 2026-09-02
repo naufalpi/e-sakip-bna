@@ -11,8 +11,6 @@ type OpdForm = {
     alamat: string;
     telepon: string;
     email: string;
-    nama_kepala: string;
-    nip_kepala: string;
     status: string;
 };
 
@@ -31,8 +29,6 @@ const form = useForm<OpdForm>({
     alamat: props.opd?.alamat ?? '',
     telepon: props.opd?.telepon ?? '',
     email: props.opd?.email ?? '',
-    nama_kepala: props.opd?.nama_kepala ?? '',
-    nip_kepala: props.opd?.nip_kepala ?? '',
     status: props.opd?.status ?? 'active',
 });
 
@@ -102,7 +98,10 @@ const submit = () => {
         </section>
 
         <section class="rounded-lg border bg-card p-4">
-            <h2 class="text-sm font-semibold">Kontak dan Pimpinan</h2>
+            <h2 class="text-sm font-semibold">Alamat dan Kontak OPD</h2>
+            <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                Data Kepala OPD tidak diisi di sini. Pimpinan aktif diambil dari Struktur Organisasi dan penempatan aktif Pegawai.
+            </p>
             <div class="mt-4 grid gap-4 md:grid-cols-2">
                 <div class="grid gap-2 md:col-span-2">
                     <label class="text-sm font-medium" for="alamat">Alamat</label>
@@ -118,16 +117,6 @@ const submit = () => {
                     <label class="text-sm font-medium" for="email">Email</label>
                     <input id="email" v-model="form.email" type="email" class="h-9 rounded-md border bg-background px-3 text-sm" />
                     <InputError :message="form.errors.email" />
-                </div>
-                <div class="grid gap-2">
-                    <label class="text-sm font-medium" for="nama_kepala">Nama Kepala OPD</label>
-                    <input id="nama_kepala" v-model="form.nama_kepala" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                    <InputError :message="form.errors.nama_kepala" />
-                </div>
-                <div class="grid gap-2">
-                    <label class="text-sm font-medium" for="nip_kepala">NIP Kepala OPD</label>
-                    <input id="nip_kepala" v-model="form.nip_kepala" class="h-9 rounded-md border bg-background px-3 text-sm" />
-                    <InputError :message="form.errors.nip_kepala" />
                 </div>
             </div>
         </section>

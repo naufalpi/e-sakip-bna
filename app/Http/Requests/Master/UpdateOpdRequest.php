@@ -30,8 +30,6 @@ class UpdateOpdRequest extends FormRequest
             'alamat' => ['nullable', 'string'],
             'telepon' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:255'],
-            'nama_kepala' => ['nullable', 'string', 'max:255'],
-            'nip_kepala' => ['nullable', 'string', 'max:30'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ];
     }

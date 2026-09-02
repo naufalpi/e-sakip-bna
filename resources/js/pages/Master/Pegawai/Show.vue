@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
-import { confirmDelete } from '@/lib/sweetAlert';
+import { confirmAction, confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import ArrowLeft from 'lucide-vue-next/dist/esm/icons/arrow-left.js';
 import BriefcaseBusiness from 'lucide-vue-next/dist/esm/icons/briefcase-business.js';
-import CalendarRange from 'lucide-vue-next/dist/esm/icons/calendar-range.js';
+import CircleStop from 'lucide-vue-next/dist/esm/icons/circle-stop.js';
 import CircleUserRound from 'lucide-vue-next/dist/esm/icons/circle-user-round.js';
 import Pencil from 'lucide-vue-next/dist/esm/icons/pencil.js';
 import Plus from 'lucide-vue-next/dist/esm/icons/plus.js';
@@ -20,8 +20,6 @@ type Placement = {
     jabatan?: { id: number; nama: string; level_label: string; multiple: boolean; verification_status?: string } | null;
     jenis_penugasan: string;
     jenis_penugasan_label: string;
-    nomor_sk?: string | null;
-    tanggal_sk?: string | null;
     tanggal_mulai: string;
     tanggal_selesai?: string | null;
 };
@@ -51,10 +49,6 @@ const editingPlacementId = ref<number | null>(null);
 const placementForm = useForm({
     jabatan_organisasi_id: '' as number | '',
     jenis_penugasan: 'definitif',
-    nomor_sk: '',
-    tanggal_sk: '',
-    tanggal_mulai: new Date().toISOString().slice(0, 10),
-    tanggal_selesai: '',
 });
 
 const openPlacement = (placement?: Placement) => {
@@ -62,10 +56,6 @@ const openPlacement = (placement?: Placement) => {
     placementForm.defaults({
         jabatan_organisasi_id: placement?.jabatan_organisasi_id ?? '',
         jenis_penugasan: placement?.jenis_penugasan ?? 'definitif',
-        nomor_sk: placement?.nomor_sk ?? '',
-        tanggal_sk: placement?.tanggal_sk ?? '',
-        tanggal_mulai: placement?.tanggal_mulai ?? new Date().toISOString().slice(0, 10),
-        tanggal_selesai: placement?.tanggal_selesai ?? '',
     });
     placementForm.reset();
     placementForm.clearErrors();
@@ -90,15 +80,26 @@ const removePlacement = async (placement: Placement) => {
     if (await confirmDelete(`Hapus riwayat jabatan ${placement.jabatan?.nama}?`))
         router.delete(route('master.pegawai.penempatan.destroy', [props.item.id, placement.id]), { preserveScroll: true });
 };
+const endPlacement = async (placement: Placement) => {
+    const confirmed = await confirmAction({
+        title: 'Akhiri jabatan pegawai?',
+        text: 'Jabatan tidak lagi dianggap aktif, tetapi riwayatnya tetap tersimpan dan dapat dilihat kembali.',
+        icon: 'warning',
+        confirmButtonText: 'Ya, akhiri jabatan',
+        destructive: true,
+    });
+
+    if (confirmed) {
+        router.patch(route('master.pegawai.penempatan.end', [props.item.id, placement.id]), {}, { preserveScroll: true });
+    }
+};
 const removeEmployee = async () => {
     if (await confirmDelete(`Hapus pegawai ${props.item.nama}? Data yang sudah memiliki riwayat akan ditolak sistem.`))
         router.delete(route('master.pegawai.destroy', props.item.id));
 };
-const formatDate = (value?: string | null) =>
-    value ? new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`)) : 'Sekarang';
 const isCurrent = (placement: Placement) => {
     const today = new Date().toISOString().slice(0, 10);
-    return placement.tanggal_mulai <= today && (!placement.tanggal_selesai || placement.tanggal_selesai >= today);
+    return props.item.status === 'active' && placement.tanggal_mulai <= today && (!placement.tanggal_selesai || placement.tanggal_selesai >= today);
 };
 </script>
 
@@ -189,7 +190,7 @@ const isCurrent = (placement: Placement) => {
                     </p>
                 </div>
                 <button
-                    v-if="can.manage && !placementEditorOpen"
+                    v-if="can.manage && item.status === 'active' && !placementEditorOpen"
                     type="button"
                     class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-blue-800 px-3 text-sm font-semibold text-white hover:bg-blue-900 dark:bg-blue-600"
                     @click="openPlacement()"
@@ -198,11 +199,20 @@ const isCurrent = (placement: Placement) => {
                 </button>
             </div>
 
+            <div v-if="item.status !== 'active'" class="border-b bg-slate-50 px-5 py-4 text-sm dark:bg-slate-950/30">
+                <p class="font-semibold text-slate-800 dark:text-slate-200">Pegawai sedang nonaktif</p>
+                <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                    Riwayat jabatan tetap tersimpan. Aktifkan kembali pegawai melalui Edit Identitas sebelum memberikan jabatan baru.
+                </p>
+            </div>
+
             <form v-if="placementEditorOpen" class="border-b bg-muted/20 p-5" @submit.prevent="submitPlacement">
                 <div class="mb-4 flex items-center justify-between">
                     <div>
                         <h3 class="font-semibold">{{ editingPlacementId ? 'Edit jabatan' : 'Jabatan baru' }}</h3>
-                        <p class="mt-1 text-xs text-muted-foreground">TMT menjadi dasar posisi pegawai pada periode PK.</p>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Jabatan berlaku setelah disimpan. Gunakan tombol Akhiri Jabatan ketika penugasan sudah selesai.
+                        </p>
                     </div>
                     <button type="button" class="inline-flex size-8 items-center justify-center rounded-lg border bg-card" @click="closePlacement">
                         <X class="size-4" />
@@ -218,7 +228,7 @@ const isCurrent = (placement: Placement) => {
                             </option></select
                         ><InputError :message="placementForm.errors.jabatan_organisasi_id" />
                     </div>
-                    <div class="grid gap-2">
+                    <div class="grid gap-2 md:col-span-2">
                         <label for="jenis_penugasan" class="text-sm font-medium">Jenis penugasan</label
                         ><select
                             id="jenis_penugasan"
@@ -227,39 +237,6 @@ const isCurrent = (placement: Placement) => {
                         >
                             <option v-for="option in penugasanOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select
                         ><InputError :message="placementForm.errors.jenis_penugasan" />
-                    </div>
-                    <div class="grid gap-2">
-                        <label for="tmt" class="text-sm font-medium">TMT Jabatan <span class="text-red-600">*</span></label
-                        ><input
-                            id="tmt"
-                            v-model="placementForm.tanggal_mulai"
-                            type="date"
-                            class="h-10 rounded-lg border bg-background px-3 text-sm"
-                        /><InputError :message="placementForm.errors.tanggal_mulai" />
-                    </div>
-                    <div class="grid gap-2">
-                        <label for="selesai" class="text-sm font-medium">Tanggal selesai</label
-                        ><input
-                            id="selesai"
-                            v-model="placementForm.tanggal_selesai"
-                            type="date"
-                            class="h-10 rounded-lg border bg-background px-3 text-sm"
-                        /><InputError :message="placementForm.errors.tanggal_selesai" />
-                    </div>
-                    <div class="grid gap-2">
-                        <label for="nomor_sk" class="text-sm font-medium">Nomor SK / surat perintah</label
-                        ><input id="nomor_sk" v-model="placementForm.nomor_sk" class="h-10 rounded-lg border bg-background px-3 text-sm" /><InputError
-                            :message="placementForm.errors.nomor_sk"
-                        />
-                    </div>
-                    <div class="grid gap-2">
-                        <label for="tanggal_sk" class="text-sm font-medium">Tanggal SK</label
-                        ><input
-                            id="tanggal_sk"
-                            v-model="placementForm.tanggal_sk"
-                            type="date"
-                            class="h-10 rounded-lg border bg-background px-3 text-sm"
-                        /><InputError :message="placementForm.errors.tanggal_sk" />
                     </div>
                 </div>
                 <div class="mt-5 flex justify-end gap-2">
@@ -315,9 +292,11 @@ const isCurrent = (placement: Placement) => {
                         >
                             Jabatan perlu diperbaiki oleh Admin OPD
                         </p>
-                        <p class="mt-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <CalendarRange class="size-3.5" />TMT {{ formatDate(placement.tanggal_mulai) }} ·
-                            {{ placement.tanggal_selesai ? `selesai ${formatDate(placement.tanggal_selesai)}` : 'masih aktif' }}
+                        <p
+                            class="mt-3 text-xs font-medium"
+                            :class="isCurrent(placement) ? 'text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground'"
+                        >
+                            {{ isCurrent(placement) ? 'Jabatan aktif saat ini' : 'Riwayat jabatan telah berakhir' }}
                         </p>
                     </div>
                     <div v-if="can.manage" class="flex items-start gap-1">
@@ -328,6 +307,14 @@ const isCurrent = (placement: Placement) => {
                             @click="openPlacement(placement)"
                         >
                             <Pencil class="size-3.5" /></button
+                        ><button
+                            v-if="isCurrent(placement)"
+                            type="button"
+                            class="inline-flex size-8 items-center justify-center rounded-lg border text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30"
+                            title="Akhiri jabatan"
+                            @click="endPlacement(placement)"
+                        >
+                            <CircleStop class="size-3.5" /></button
                         ><button
                             v-if="can.delete"
                             type="button"

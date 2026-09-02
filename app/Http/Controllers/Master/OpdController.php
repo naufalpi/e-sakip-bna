@@ -140,8 +140,6 @@ class OpdController extends Controller
             'alamat' => $opd->alamat,
             'telepon' => $opd->telepon,
             'email' => $opd->email,
-            'nama_kepala' => $opd->nama_kepala,
-            'nip_kepala' => $opd->nip_kepala,
             'status' => $opd->status,
             'units_count' => $opd->units_count ?? $opd->units->count(),
             'units' => $opd->relationLoaded('units')

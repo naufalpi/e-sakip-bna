@@ -64,6 +64,8 @@ class PegawaiPenempatanTest extends TestCase
                 'pangkat_golongan' => null,
                 'jenis_pegawai' => 'pejabat_negara',
                 'status' => 'active',
+                'jabatan_organisasi_id' => $jabatan->id,
+                'jenis_penugasan' => 'definitif',
             ])
             ->assertRedirect()
             ->assertSessionDoesntHaveErrors();
@@ -97,9 +99,6 @@ class PegawaiPenempatanTest extends TestCase
                 'status' => 'active',
                 'jabatan_organisasi_id' => $jabatan->id,
                 'jenis_penugasan' => 'definitif',
-                'tanggal_mulai' => '2026-01-01',
-                'nomor_sk' => '800/01/2026',
-                'tanggal_sk' => '2025-12-30',
             ])
             ->assertRedirect()
             ->assertSessionDoesntHaveErrors();
@@ -108,9 +107,62 @@ class PegawaiPenempatanTest extends TestCase
         $this->assertDatabaseHas('riwayat_pejabat_jabatan', [
             'pegawai_id' => $pegawai->id,
             'jabatan_organisasi_id' => $jabatan->id,
-            'tanggal_mulai' => '2026-01-01 00:00:00',
-            'nomor_sk' => '800/01/2026',
+            'tanggal_mulai' => now()->startOfDay()->toDateTimeString(),
+            'nomor_sk' => null,
         ]);
+
+        $this->actingAs($adminOpd)
+            ->get(route('master.pegawai.edit', $pegawai))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Master/Pegawai/Form')
+                ->where('item.jabatan_organisasi_id', $jabatan->id)
+                ->where('item.jenis_penugasan', 'definitif'));
+    }
+
+    public function test_active_employee_requires_position_and_admin_opd_cannot_select_regent_position(): void
+    {
+        $this->seed();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $adminOpd = $this->userWithRole('admin_opd', $opd);
+        $regentJob = JabatanOrganisasi::create([
+            'nama' => 'Bupati Banjarnegara',
+            'level_jabatan' => 'kepala_daerah',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->get(route('master.pegawai.create'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Master/Pegawai/Form')
+                ->where('jabatanOptions', fn ($options) => collect($options)
+                    ->doesntContain(fn (array $option) => $option['level_jabatan'] === 'kepala_daerah')));
+
+        $this->actingAs($adminOpd)
+            ->post(route('master.pegawai.store'), [
+                'opd_id' => $opd->id,
+                'nama' => 'Pegawai Tanpa Jabatan',
+                'nip' => '198901012019011001',
+                'jenis_pegawai' => 'pns',
+                'status' => 'active',
+            ])
+            ->assertSessionHasErrors('jabatan_organisasi_id');
+
+        $this->assertDatabaseMissing('pegawai', ['nama' => 'Pegawai Tanpa Jabatan']);
+
+        $this->actingAs($adminOpd)
+            ->post(route('master.pegawai.store'), [
+                'opd_id' => $opd->id,
+                'nama' => 'Bupati dari Admin OPD',
+                'jenis_pegawai' => 'pejabat_negara',
+                'status' => 'active',
+                'jabatan_organisasi_id' => $regentJob->id,
+                'jenis_penugasan' => 'definitif',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('pegawai', ['nama' => 'Bupati dari Admin OPD']);
     }
 
     public function test_admin_opd_manages_own_employees_and_multiple_holder_positions(): void
@@ -119,6 +171,13 @@ class PegawaiPenempatanTest extends TestCase
         $opd = Opd::query()->where('status', 'active')->firstOrFail();
         $otherOpd = Opd::query()->where('status', 'active')->whereKeyNot($opd->id)->firstOrFail();
         $adminOpd = $this->userWithRole('admin_opd', $opd);
+        $functional = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Analis Kebijakan Ahli Pertama',
+            'level_jabatan' => 'fungsional',
+            'urutan' => 1,
+            'status' => 'active',
+        ]);
 
         $this->actingAs($adminOpd)
             ->post(route('master.pegawai.store'), [
@@ -127,6 +186,8 @@ class PegawaiPenempatanTest extends TestCase
                 'nip' => '199001012020011001',
                 'jenis_pegawai' => 'pns',
                 'status' => 'active',
+                'jabatan_organisasi_id' => $functional->id,
+                'jenis_penugasan' => 'definitif',
             ])
             ->assertRedirect();
 
@@ -140,15 +201,7 @@ class PegawaiPenempatanTest extends TestCase
             'jenis_pegawai' => 'pppk',
             'status' => 'active',
         ]);
-        $functional = JabatanOrganisasi::create([
-            'opd_id' => $opd->id,
-            'nama' => 'Analis Kebijakan Ahli Pertama',
-            'level_jabatan' => 'fungsional',
-            'urutan' => 1,
-            'status' => 'active',
-        ]);
-
-        foreach ([$first, $second] as $pegawai) {
+        foreach ([$second] as $pegawai) {
             $this->actingAs($adminOpd)
                 ->post(route('master.pegawai.penempatan.store', $pegawai), [
                     'jabatan_organisasi_id' => $functional->id,
@@ -268,9 +321,147 @@ class PegawaiPenempatanTest extends TestCase
 
         $this->actingAs($adminOpd)
             ->post(route('master.pegawai.penempatan.store', $second), $payload)
-            ->assertSessionHasErrors('tanggal_mulai');
+            ->assertSessionHasErrors('jabatan_organisasi_id');
 
         $this->assertSame(1, $structural->riwayatPejabat()->count());
+    }
+
+    public function test_deactivating_employee_closes_current_position_without_disabling_linked_account(): void
+    {
+        $this->seed();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $admin = $this->userWithRole('admin_opd', $opd);
+        $jabatan = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Kepala Bidang Status Pegawai',
+            'level_jabatan' => 'administrator',
+            'status' => 'active',
+        ]);
+        $pegawai = Pegawai::create([
+            'opd_id' => $opd->id,
+            'user_id' => $admin->id,
+            'nama' => 'Pegawai Akan Nonaktif',
+            'nip' => '198101012011011001',
+            'jenis_pegawai' => 'pns',
+            'status' => 'active',
+        ]);
+        $placement = $pegawai->penempatan()->create([
+            'jabatan_organisasi_id' => $jabatan->id,
+            'nama_pejabat' => $pegawai->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => now()->subMonth()->toDateString(),
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('master.pegawai.update', $pegawai), [
+                'opd_id' => $opd->id,
+                'user_id' => $admin->id,
+                'nama' => $pegawai->nama,
+                'nip' => $pegawai->nip,
+                'pangkat_golongan' => null,
+                'jenis_pegawai' => 'pns',
+                'status' => 'inactive',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('pegawai', ['id' => $pegawai->id, 'status' => 'inactive']);
+        $this->assertDatabaseHas('users', ['id' => $admin->id, 'status' => 'active']);
+        $this->assertDatabaseHas('riwayat_pejabat_jabatan', [
+            'id' => $placement->id,
+            'tanggal_selesai' => now()->subDay()->startOfDay()->toDateTimeString(),
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('master.pegawai.penempatan.store', $pegawai), [
+                'jabatan_organisasi_id' => $jabatan->id,
+                'jenis_penugasan' => 'definitif',
+            ])
+            ->assertSessionHasErrors('jabatan_organisasi_id');
+    }
+
+    public function test_active_position_can_be_ended_without_entering_an_end_date(): void
+    {
+        $this->seed();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $admin = $this->userWithRole('admin_opd', $opd);
+        $pegawai = $this->employee($opd, 'Pegawai Selesai Jabatan', '198201012012011001');
+        $jabatan = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Kepala Subbagian Selesai',
+            'level_jabatan' => 'pengawas',
+            'status' => 'active',
+        ]);
+        $placement = $pegawai->penempatan()->create([
+            'jabatan_organisasi_id' => $jabatan->id,
+            'nama_pejabat' => $pegawai->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => now()->subMonth()->toDateString(),
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('master.pegawai.penempatan.end', [$pegawai, $placement]))
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('riwayat_pejabat_jabatan', [
+            'id' => $placement->id,
+            'tanggal_selesai' => now()->subDay()->startOfDay()->toDateTimeString(),
+        ]);
+    }
+
+    public function test_changing_position_from_employee_edit_preserves_previous_position_history(): void
+    {
+        $this->seed();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $admin = $this->userWithRole('admin_opd', $opd);
+        $pegawai = $this->employee($opd, 'Pegawai Pindah Jabatan', '198301012013011001');
+        $oldJob = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Kepala Bidang Lama',
+            'level_jabatan' => 'administrator',
+            'status' => 'active',
+        ]);
+        $newJob = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Kepala Bidang Baru',
+            'level_jabatan' => 'administrator',
+            'status' => 'active',
+        ]);
+        $oldPlacement = $pegawai->penempatan()->create([
+            'jabatan_organisasi_id' => $oldJob->id,
+            'nama_pejabat' => $pegawai->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => now()->subMonth()->toDateString(),
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('master.pegawai.update', $pegawai), [
+                'opd_id' => $opd->id,
+                'user_id' => null,
+                'nama' => $pegawai->nama,
+                'nip' => $pegawai->nip,
+                'pangkat_golongan' => null,
+                'jenis_pegawai' => 'pns',
+                'status' => 'active',
+                'jabatan_organisasi_id' => $newJob->id,
+                'jenis_penugasan' => 'plt',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('riwayat_pejabat_jabatan', [
+            'id' => $oldPlacement->id,
+            'tanggal_selesai' => now()->subDay()->startOfDay()->toDateTimeString(),
+        ]);
+        $this->assertDatabaseHas('riwayat_pejabat_jabatan', [
+            'pegawai_id' => $pegawai->id,
+            'jabatan_organisasi_id' => $newJob->id,
+            'jenis_penugasan' => 'plt',
+            'tanggal_mulai' => now()->startOfDay()->toDateTimeString(),
+            'tanggal_selesai' => null,
+        ]);
+        $this->assertSame(2, $pegawai->penempatan()->count());
     }
 
     public function test_pending_job_can_be_used_but_rejected_job_cannot_receive_new_placement(): void
@@ -368,6 +559,8 @@ class PegawaiPenempatanTest extends TestCase
                 'pangkat_golongan' => 'Pembina / IV.a',
                 'jenis_pegawai' => 'pns',
                 'status' => 'active',
+                'jabatan_organisasi_id' => $jabatan->id,
+                'jenis_penugasan' => 'plt',
             ])
             ->assertRedirect()
             ->assertSessionDoesntHaveErrors();
@@ -377,6 +570,7 @@ class PegawaiPenempatanTest extends TestCase
             'nama_pejabat' => 'Nama Pegawai Terbaru',
             'nip' => '198001012010011099',
             'pangkat_golongan' => 'Pembina / IV.a',
+            'jenis_penugasan' => 'plt',
         ]);
         $this->assertDatabaseHas('perjanjian_kinerja', [
             'id' => $pk->id,

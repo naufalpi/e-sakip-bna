@@ -18,7 +18,7 @@ class PerjanjianKinerjaDocumentService
     public function build(PerjanjianKinerja $pk): array
     {
         $pk->loadMissing([
-            'opd:id,kode,nama,singkatan,alamat,telepon,email,nama_kepala,nip_kepala',
+            'opd:id,kode,nama,singkatan,alamat,telepon,email',
             'periodeTahun:id,tahun,nama',
             'pegawai:id,nama,nip,pangkat_golongan',
             'atasanPegawai:id,nama,nip,pangkat_golongan',

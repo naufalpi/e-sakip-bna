@@ -23,7 +23,7 @@ class LheDocumentContentService
     public function build(EvaluasiSakip $evaluasi): array
     {
         $evaluasi->loadMissing([
-            'opd:id,kode,nama,singkatan,nama_kepala,nip_kepala',
+            'opd:id,kode,nama,singkatan',
             'periodeTahun:id,tahun,nama',
             'evaluator:id,name',
             'items.kriteria.subKomponen.komponen',

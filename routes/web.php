@@ -233,6 +233,8 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
             ->name('pegawai.penempatan.store');
         Route::put('pegawai/{pegawai}/penempatan/{penempatan}', [PenempatanPegawaiController::class, 'update'])
             ->name('pegawai.penempatan.update');
+        Route::patch('pegawai/{pegawai}/penempatan/{penempatan}/end', [PenempatanPegawaiController::class, 'end'])
+            ->name('pegawai.penempatan.end');
         Route::delete('pegawai/{pegawai}/penempatan/{penempatan}', [PenempatanPegawaiController::class, 'destroy'])
             ->name('pegawai.penempatan.destroy');
         Route::post('pegawai/{pegawai}/pengampu-kinerja', [PenugasanPengampuKinerjaController::class, 'store'])
