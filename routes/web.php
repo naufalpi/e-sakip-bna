@@ -71,7 +71,8 @@ Route::get('publik/dokumen/{dokumen}/download', [PublicDokumenController::class,
 
 Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
-    Route::get('audit-log', AuditLogController::class)->name('audit-log.index');
+    Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
+    Route::delete('audit-log', [AuditLogController::class, 'destroyAll'])->name('audit-log.destroy-all');
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');

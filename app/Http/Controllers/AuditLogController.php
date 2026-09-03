@@ -3,18 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Support\Audit\ActivityLogPresenter;
+use App\Support\Pagination\PerPagePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class AuditLogController extends Controller
 {
-    public function __invoke(Request $request): Response
+    public function index(Request $request, ActivityLogPresenter $presenter): Response
     {
         abort_unless($request->user()->hasPermission('activity_logs.view'), 403);
 
-        $filters = $request->only(['search', 'action', 'model_type']);
+        $filters = $request->only(['search', 'action', 'model_type', 'per_page']);
+        $filters['per_page'] = PerPagePaginator::selection($request);
 
         $logs = ActivityLog::query()
             ->with('user:id,name,email')
@@ -28,27 +32,37 @@ class AuditLogController extends Controller
             ->when($filters['action'] ?? null, fn (Builder $query, string $action) => $query->where('action', $action))
             ->when($filters['model_type'] ?? null, fn (Builder $query, string $modelType) => $query->where('model_type', $modelType))
             ->latest('id')
-            ->paginate(20)
-            ->withQueryString()
-            ->through(fn (ActivityLog $log) => [
-                'id' => $log->id,
-                'action' => $log->action,
-                'model_type' => class_basename((string) $log->model_type),
-                'model_type_full' => $log->model_type,
-                'model_id' => $log->model_id,
-                'description' => $log->description,
-                'old_values' => $log->old_values,
-                'new_values' => $log->new_values,
-                'ip_address' => $log->ip_address,
-                'created_at' => $log->created_at?->toDateTimeString(),
-                'user' => $log->user,
-            ]);
+            ->pipe(fn (Builder $query) => PerPagePaginator::paginate($query, $request))
+            ->through(fn (ActivityLog $log) => $presenter->present($log));
+
+        $actions = ActivityLog::query()->distinct()->orderBy('action')->pluck('action')
+            ->map(fn (string $action): array => ['value' => $action, 'label' => $presenter->actionLabel($action)])
+            ->values();
+        $modelTypes = ActivityLog::query()->whereNotNull('model_type')->distinct()->orderBy('model_type')->pluck('model_type')
+            ->map(fn (string $modelType): array => ['value' => $modelType, 'label' => $presenter->modelLabel($modelType)])
+            ->values();
 
         return Inertia::render('AuditLog/Index', [
             'logs' => $logs,
             'filters' => $filters,
-            'actions' => ActivityLog::query()->distinct()->orderBy('action')->pluck('action')->values(),
-            'modelTypes' => ActivityLog::query()->whereNotNull('model_type')->distinct()->orderBy('model_type')->pluck('model_type')->values(),
+            'actions' => $actions,
+            'modelTypes' => $modelTypes,
+            'stats' => [
+                'total' => ActivityLog::query()->count(),
+                'today' => ActivityLog::query()->whereDate('created_at', today())->count(),
+                'users' => ActivityLog::query()->whereNotNull('user_id')->distinct()->count('user_id'),
+            ],
+            'canClear' => $request->user()->isSuperAdmin(),
         ]);
+    }
+
+    public function destroyAll(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->isSuperAdmin(), 403);
+
+        $deleted = ActivityLog::query()->delete();
+
+        return redirect()->route('audit-log.index')
+            ->with('success', number_format($deleted, 0, ',', '.').' audit log berhasil dihapus.');
     }
 }
