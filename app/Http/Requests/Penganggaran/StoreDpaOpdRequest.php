@@ -27,10 +27,6 @@ class StoreDpaOpdRequest extends FormRequest
             'judul' => ['required', 'string', 'max:255'],
             'nomor_dpa' => ['nullable', 'string', 'max:255'],
             'tanggal_pengesahan' => ['nullable', 'date'],
-            'nomor_perda_apbd' => ['nullable', 'string', 'max:255'],
-            'tanggal_perda_apbd' => ['nullable', 'date'],
-            'nomor_perkada_penjabaran' => ['nullable', 'string', 'max:255'],
-            'tanggal_perkada_penjabaran' => ['nullable', 'date'],
             'nama_pengguna_anggaran' => ['nullable', 'string', 'max:255'],
             'nip_pengguna_anggaran' => ['nullable', 'string', 'max:50'],
             'pengguna_anggaran_penempatan_id' => ['nullable', 'integer', 'exists:riwayat_pejabat_jabatan,id'],
@@ -69,7 +65,7 @@ class StoreDpaOpdRequest extends FormRequest
     private function normalizedHeader(): array
     {
         $payload = ['judul' => str($this->input('judul', ''))->trim()->upper()->toString()];
-        foreach (['nomor_dpa', 'nomor_perda_apbd', 'nomor_perkada_penjabaran'] as $field) {
+        foreach (['nomor_dpa'] as $field) {
             $payload[$field] = filled($this->input($field)) ? str($this->input($field))->trim()->upper()->toString() : null;
         }
         foreach (['nama_pengguna_anggaran', 'nip_pengguna_anggaran'] as $field) {

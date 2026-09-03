@@ -51,12 +51,6 @@ class RkaCreationService
                 'tahun' => $lockedRenja->tahun,
                 'jenis_anggaran' => $lockedRenja->jenis_versi === 'perubahan' ? 'perubahan' : 'murni',
                 'judul' => $header['judul'] ?: $this->defaultTitle($lockedRenja),
-                'nomor_dokumen' => $header['nomor_dokumen'] ?? null,
-                'tanggal_dokumen' => $header['tanggal_dokumen'] ?? null,
-                'nomor_kua' => $header['nomor_kua'] ?? null,
-                'tanggal_kua' => $header['tanggal_kua'] ?? null,
-                'nomor_ppas' => $header['nomor_ppas'] ?? null,
-                'tanggal_ppas' => $header['tanggal_ppas'] ?? null,
                 'status' => 'draft',
                 'catatan' => $header['catatan'] ?? null,
             ]);

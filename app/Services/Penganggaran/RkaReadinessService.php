@@ -12,18 +12,6 @@ class RkaReadinessService
     public function inspect(RkaOpd $rka): array
     {
         $issues = [];
-        $headerFields = [
-            'nomor_kua' => 'Nomor KUA',
-            'tanggal_kua' => 'Tanggal KUA',
-            'nomor_ppas' => 'Nomor PPAS',
-            'tanggal_ppas' => 'Tanggal PPAS',
-        ];
-
-        foreach ($headerFields as $field => $label) {
-            if (blank($rka->getAttribute($field))) {
-                $issues[] = "{$label} belum diisi";
-            }
-        }
 
         $rka->loadMissing('items');
         if ($rka->items->isEmpty()) {

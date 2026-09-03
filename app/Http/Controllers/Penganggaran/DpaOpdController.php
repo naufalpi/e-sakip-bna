@@ -114,7 +114,7 @@ class DpaOpdController extends Controller
         $this->authorize('view', $dpaOpd);
         $dpaOpd->load([
             'opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'periodeTahun:id,tahun,nama',
-            'rkaOpd:id,judul,nomor_dokumen,tahun,jenis_anggaran,status',
+            'rkaOpd:id,judul,tahun,jenis_anggaran,status',
             'renjaOpd:id,judul,nomor_dokumen,tahun,jenis_versi,status',
             'rkpd:id,judul,tahun,jenis_versi,status',
         ]);
@@ -243,9 +243,6 @@ class DpaOpdController extends Controller
             'id' => $dpa->id, 'rka_opd_id' => $dpa->rka_opd_id, 'tahun' => $dpa->tahun,
             'jenis_anggaran' => $dpa->jenis_anggaran, 'type_label' => $dpa->typeLabel(), 'judul' => $dpa->judul,
             'nomor_dpa' => $dpa->nomor_dpa, 'tanggal_pengesahan' => $dpa->tanggal_pengesahan?->toDateString(),
-            'nomor_perda_apbd' => $dpa->nomor_perda_apbd, 'tanggal_perda_apbd' => $dpa->tanggal_perda_apbd?->toDateString(),
-            'nomor_perkada_penjabaran' => $dpa->nomor_perkada_penjabaran,
-            'tanggal_perkada_penjabaran' => $dpa->tanggal_perkada_penjabaran?->toDateString(),
             'nama_pengguna_anggaran' => $dpa->nama_pengguna_anggaran, 'nip_pengguna_anggaran' => $dpa->nip_pengguna_anggaran,
             'pengguna_anggaran_pegawai_id' => $dpa->pengguna_anggaran_pegawai_id,
             'pengguna_anggaran_penempatan_id' => $dpa->pengguna_anggaran_penempatan_id,

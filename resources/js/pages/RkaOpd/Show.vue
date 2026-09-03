@@ -13,18 +13,12 @@ type Rka = {
     jenis_anggaran: 'murni' | 'perubahan';
     type_label: string;
     judul: string;
-    nomor_dokumen?: string | null;
-    tanggal_dokumen?: string | null;
-    nomor_kua?: string | null;
-    tanggal_kua?: string | null;
-    nomor_ppas?: string | null;
-    tanggal_ppas?: string | null;
     status: string;
     catatan?: string | null;
     opd?: { kode?: string | null; nama: string; singkatan?: string | null } | null;
     opd_unit?: { kode?: string | null; nama: string } | null;
     rkpd?: { judul: string; tahun: number; jenis_versi: string } | null;
-    renja?: { judul: string; nomor_dokumen?: string | null; tahun: number; jenis_versi: string } | null;
+    renja?: { judul: string; tahun: number; jenis_versi: string } | null;
 };
 type Row = {
     id: number;
@@ -222,12 +216,6 @@ const rupiahTable = (value?: string | number | null) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(
         Number(value || 0),
     );
-const formatDate = (value?: string | null) =>
-    value
-        ? new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(
-              new Date(`${value}T00:00:00+07:00`),
-          )
-        : '-';
 const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
@@ -269,9 +257,7 @@ const statusLabel = (status: string) =>
                             <h1 class="mt-2 max-w-4xl text-xl font-bold leading-tight tracking-tight text-slate-950 dark:text-white sm:text-2xl">
                                 {{ rka.judul }}
                             </h1>
-                            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                {{ rka.nomor_dokumen || 'Nomor dokumen belum diisi' }} · Tahun Anggaran {{ rka.tahun }}
-                            </p>
+                            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">RKA-BELANJA SKPD · Tahun Anggaran {{ rka.tahun }}</p>
                         </div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
@@ -347,10 +333,8 @@ const statusLabel = (status: string) =>
             </div>
         </section>
 
-        <section
-            class="grid gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-800 lg:grid-cols-[1.1fr_.9fr]"
-        >
-            <div class="bg-card p-5 sm:p-6">
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-card p-5 shadow-sm dark:border-slate-800 sm:p-6">
+            <div>
                 <div class="flex items-center gap-2">
                     <Landmark class="size-4 text-[#00336C] dark:text-blue-300" />
                     <h2 class="font-bold text-slate-900 dark:text-white">Organisasi</h2>
@@ -367,21 +351,6 @@ const statusLabel = (status: string) =>
                         <p class="mt-1 line-clamp-2 text-slate-700 dark:text-slate-200">{{ rka.rkpd?.judul || '-' }}</p>
                     </div>
                 </div>
-            </div>
-            <div class="bg-card p-5 sm:p-6">
-                <h2 class="font-bold text-slate-900 dark:text-white">Dasar KUA–PPAS</h2>
-                <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-                    <div>
-                        <dt class="text-[10px] font-bold uppercase tracking-wide text-slate-400">KUA</dt>
-                        <dd class="mt-1 font-medium text-slate-800 dark:text-slate-200">{{ rka.nomor_kua || 'Belum diisi' }}</dd>
-                        <dd class="text-xs text-slate-500">{{ formatDate(rka.tanggal_kua) }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-[10px] font-bold uppercase tracking-wide text-slate-400">PPAS</dt>
-                        <dd class="mt-1 font-medium text-slate-800 dark:text-slate-200">{{ rka.nomor_ppas || 'Belum diisi' }}</dd>
-                        <dd class="text-xs text-slate-500">{{ formatDate(rka.tanggal_ppas) }}</dd>
-                    </div>
-                </dl>
             </div>
         </section>
 

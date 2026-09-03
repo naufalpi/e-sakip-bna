@@ -48,7 +48,6 @@ class RkaOpdController extends Controller
             ->when($filters['search'] ?? null, function (Builder $query, string $search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('judul', 'ilike', "%{$search}%")
-                        ->orWhere('nomor_dokumen', 'ilike', "%{$search}%")
                         ->orWhereHas('opd', fn (Builder $query) => $query
                             ->where('nama', 'ilike', "%{$search}%")
                             ->orWhere('singkatan', 'ilike', "%{$search}%"));
@@ -113,7 +112,7 @@ class RkaOpdController extends Controller
             'opdUnit:id,kode,nama',
             'periodeTahun:id,tahun,nama',
             'rkpd:id,judul,tahun,jenis_versi,status',
-            'renjaOpd:id,judul,nomor_dokumen,tahun,jenis_versi,status',
+            'renjaOpd:id,judul,tahun,jenis_versi,status',
         ]);
 
         $items = $rkaOpd->items()
@@ -281,12 +280,6 @@ class RkaOpdController extends Controller
             'jenis_anggaran' => $rka->jenis_anggaran,
             'type_label' => $rka->typeLabel(),
             'judul' => $rka->judul,
-            'nomor_dokumen' => $rka->nomor_dokumen,
-            'tanggal_dokumen' => $rka->tanggal_dokumen?->toDateString(),
-            'nomor_kua' => $rka->nomor_kua,
-            'tanggal_kua' => $rka->tanggal_kua?->toDateString(),
-            'nomor_ppas' => $rka->nomor_ppas,
-            'tanggal_ppas' => $rka->tanggal_ppas?->toDateString(),
             'status' => $rka->status,
             'catatan' => $rka->catatan,
             'opd' => $rka->opd,

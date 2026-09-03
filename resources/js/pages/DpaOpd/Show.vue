@@ -16,10 +16,6 @@ type Dpa = {
     nomor_dpa?: string | null;
     tanggal_pengesahan?: string | null;
     status: string;
-    nomor_perda_apbd?: string | null;
-    tanggal_perda_apbd?: string | null;
-    nomor_perkada_penjabaran?: string | null;
-    tanggal_perkada_penjabaran?: string | null;
     nama_pengguna_anggaran?: string | null;
     nip_pengguna_anggaran?: string | null;
     nama_ppkd?: string | null;
@@ -28,7 +24,7 @@ type Dpa = {
     nip_sekretaris_daerah?: string | null;
     opd?: { kode?: string | null; nama: string; singkatan?: string | null } | null;
     opd_unit?: { kode?: string | null; nama: string } | null;
-    rka?: { judul: string; nomor_dokumen?: string | null } | null;
+    rka?: { judul: string } | null;
 };
 type Row = {
     id: number;
@@ -166,12 +162,6 @@ const rupiah = (value?: string | number | null) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0));
 const rupiahTable = (value?: string | number | null) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0));
-const formatDate = (value?: string | null) =>
-    value
-        ? new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(
-              new Date(`${value}T00:00:00+07:00`),
-          )
-        : '-';
 const statusLabel = (status: string) =>
     ({
         draft: 'Draft',
@@ -324,22 +314,13 @@ const destroyItem = async (item: Row) => {
             <div class="bg-card p-5 sm:p-6">
                 <div class="flex items-center gap-2">
                     <Landmark class="size-4 text-emerald-700 dark:text-emerald-300" />
-                    <h2 class="font-bold">Dasar Pelaksanaan Anggaran</h2>
+                    <h2 class="font-bold">Organisasi dan Dokumen Sumber</h2>
                 </div>
                 <p class="mt-3 font-bold">{{ dpa.opd?.kode }} · {{ dpa.opd?.nama }}</p>
-                <div class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                    <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Perda APBD</p>
-                        <p class="mt-1 text-slate-700 dark:text-slate-200">{{ dpa.nomor_perda_apbd || 'Belum diisi' }}</p>
-                        <p class="text-xs text-slate-500">{{ formatDate(dpa.tanggal_perda_apbd) }}</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Perkada Penjabaran APBD</p>
-                        <p class="mt-1 text-slate-700 dark:text-slate-200">{{ dpa.nomor_perkada_penjabaran || 'Belum diisi' }}</p>
-                        <p class="text-xs text-slate-500">{{ formatDate(dpa.tanggal_perkada_penjabaran) }}</p>
-                    </div>
+                <div class="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+                    <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">RKA sumber</p>
+                    <p class="mt-1 text-sm leading-5 text-slate-700 dark:text-slate-200">{{ dpa.rka?.judul || '-' }}</p>
                 </div>
-                <p class="mt-4 border-l-2 border-emerald-300 pl-3 text-xs leading-5 text-slate-500">Acuan: {{ dpa.rka?.judul || '-' }}</p>
             </div>
             <div class="bg-card p-5 sm:p-6">
                 <div class="flex items-center gap-2">

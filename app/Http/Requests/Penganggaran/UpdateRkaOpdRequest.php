@@ -19,9 +19,6 @@ class UpdateRkaOpdRequest extends FormRequest
     {
         $this->merge([
             'judul' => str($this->input('judul', ''))->trim()->upper()->toString(),
-            'nomor_dokumen' => $this->uppercaseNullable('nomor_dokumen'),
-            'nomor_kua' => $this->uppercaseNullable('nomor_kua'),
-            'nomor_ppas' => $this->uppercaseNullable('nomor_ppas'),
         ]);
     }
 
@@ -30,20 +27,7 @@ class UpdateRkaOpdRequest extends FormRequest
     {
         return [
             'judul' => ['required', 'string', 'max:255'],
-            'nomor_dokumen' => ['nullable', 'string', 'max:255'],
-            'tanggal_dokumen' => ['nullable', 'date'],
-            'nomor_kua' => ['nullable', 'string', 'max:255'],
-            'tanggal_kua' => ['nullable', 'date'],
-            'nomor_ppas' => ['nullable', 'string', 'max:255'],
-            'tanggal_ppas' => ['nullable', 'date'],
             'catatan' => ['nullable', 'string', 'max:5000'],
         ];
-    }
-
-    private function uppercaseNullable(string $key): ?string
-    {
-        return filled($this->input($key))
-            ? str($this->input($key))->trim()->upper()->toString()
-            : null;
     }
 }

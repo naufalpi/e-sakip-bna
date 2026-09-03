@@ -12,10 +12,6 @@ class DpaReadinessService
     {
         $issues = [];
         $requiredHeader = [
-            'nomor_perda_apbd' => 'Nomor Perda APBD',
-            'tanggal_perda_apbd' => 'Tanggal Perda APBD',
-            'nomor_perkada_penjabaran' => 'Nomor Perkada Penjabaran APBD',
-            'tanggal_perkada_penjabaran' => 'Tanggal Perkada Penjabaran APBD',
             'nama_pengguna_anggaran' => 'Nama Pengguna Anggaran',
             'nip_pengguna_anggaran' => 'NIP Pengguna Anggaran',
         ];

@@ -72,13 +72,15 @@ class DpaOpdTest extends TestCase
         app(DpaCreationService::class)->createFromRka($rka, ['judul' => 'DPA DUPLIKAT']);
     }
 
-    public function test_dpa_readiness_does_not_require_monthly_cash_plan(): void
+    public function test_dpa_readiness_does_not_require_apbd_legal_basis_or_monthly_cash_plan(): void
     {
         $dpa = $this->completeDpa();
 
         $readiness = app(DpaReadinessService::class)->inspect($dpa->fresh());
 
         $this->assertTrue($readiness['ready']);
+        $this->assertNull($dpa->nomor_perda_apbd);
+        $this->assertNull($dpa->nomor_perkada_penjabaran);
         $this->assertDatabaseCount('dpa_opd_cash_plans', 0);
     }
 
@@ -277,10 +279,6 @@ class DpaOpdTest extends TestCase
     {
         return app(DpaCreationService::class)->createFromRka($this->rka('murni', 'approved'), [
             'judul' => 'DPA DINAS PENGUJIAN TAHUN ANGGARAN 2027',
-            'nomor_perda_apbd' => 'PERDA 1 TAHUN 2026',
-            'tanggal_perda_apbd' => '2026-12-20',
-            'nomor_perkada_penjabaran' => 'PERBUP 2 TAHUN 2026',
-            'tanggal_perkada_penjabaran' => '2026-12-22',
             'nama_pengguna_anggaran' => 'Kepala Dinas Pengujian',
             'nip_pengguna_anggaran' => '198001012000011001',
         ]);

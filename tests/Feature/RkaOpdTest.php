@@ -32,8 +32,6 @@ class RkaOpdTest extends TestCase
 
         $rka = app(RkaCreationService::class)->createFromRenja($renja, [
             'judul' => 'RKA DINAS PENGUJIAN TAHUN ANGGARAN 2027',
-            'nomor_kua' => 'KUA/2027/01',
-            'nomor_ppas' => 'PPAS/2027/01',
         ]);
 
         $this->assertSame('murni', $rka->jenis_anggaran);
@@ -229,10 +227,6 @@ class RkaOpdTest extends TestCase
         [$renja] = $this->renja('ditetapkan', 'approved');
         $rka = app(RkaCreationService::class)->createFromRenja($renja, [
             'judul' => 'RKA DINAS PENGUJIAN 2027',
-            'nomor_kua' => 'KUA/2027/01',
-            'tanggal_kua' => '2026-11-01',
-            'nomor_ppas' => 'PPAS/2027/01',
-            'tanggal_ppas' => '2026-11-15',
         ]);
         $rka = $rka->fresh();
         $admin = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
@@ -297,15 +291,16 @@ class RkaOpdTest extends TestCase
     {
         [$renja] = $this->renja('ditetapkan', 'approved');
         $rka = app(RkaCreationService::class)->createFromRenja($renja, ['judul' => 'RKA BELUM LENGKAP']);
+        $rka->items()->update(['lokasi' => null]);
         $admin = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
         $role = Role::create(['name' => 'super_admin', 'label' => 'Super Admin', 'is_system' => true]);
         $admin->roles()->attach($role);
 
         try {
-            app(WorkflowTransitionService::class)->transition($rka, 'rka_opd', 'submit', $admin);
+            app(WorkflowTransitionService::class)->transition($rka->fresh(), 'rka_opd', 'submit', $admin);
             $this->fail('RKA yang belum lengkap seharusnya tidak dapat diajukan.');
         } catch (ValidationException $exception) {
-            $this->assertStringContainsString('Nomor KUA belum diisi', $exception->errors()['action'][0]);
+            $this->assertStringContainsString('lokasi', $exception->errors()['action'][0]);
         }
 
         $this->assertSame('draft', $rka->fresh()->status);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, Building2, FileCheck2, Landmark, Save, Scale, WalletCards } from 'lucide-vue-next';
+import { ArrowLeft, Building2, FileCheck2, Landmark, Save, WalletCards } from 'lucide-vue-next';
 import { computed, watch } from 'vue';
 
 type RkaOption = {
@@ -21,10 +21,6 @@ type Dpa = {
     judul: string;
     nomor_dpa?: string | null;
     tanggal_pengesahan?: string | null;
-    nomor_perda_apbd?: string | null;
-    tanggal_perda_apbd?: string | null;
-    nomor_perkada_penjabaran?: string | null;
-    tanggal_perkada_penjabaran?: string | null;
     nama_pengguna_anggaran?: string | null;
     nip_pengguna_anggaran?: string | null;
     pengguna_anggaran_penempatan_id?: number | null;
@@ -72,10 +68,6 @@ const form = useForm({
     judul: props.dpa?.judul ?? '',
     nomor_dpa: props.dpa?.nomor_dpa ?? '',
     tanggal_pengesahan: props.dpa?.tanggal_pengesahan ?? '',
-    nomor_perda_apbd: props.dpa?.nomor_perda_apbd ?? '',
-    tanggal_perda_apbd: props.dpa?.tanggal_perda_apbd ?? '',
-    nomor_perkada_penjabaran: props.dpa?.nomor_perkada_penjabaran ?? '',
-    tanggal_perkada_penjabaran: props.dpa?.tanggal_perkada_penjabaran ?? '',
     nama_pengguna_anggaran: props.dpa?.nama_pengguna_anggaran ?? '',
     nip_pengguna_anggaran: props.dpa?.nip_pengguna_anggaran ?? '',
     pengguna_anggaran_penempatan_id: props.dpa?.pengguna_anggaran_penempatan_id ?? ('' as number | string),
@@ -96,14 +88,9 @@ const budgetUserOptions = computed(() =>
 const selectedBudgetUser = computed(
     () => budgetUserOptions.value.find((option) => option.placement_id === Number(form.pengguna_anggaran_penempatan_id)) ?? null,
 );
-const selectedPpkd = computed(
-    () => props.signatoryOptions.ppkd.find((option) => option.placement_id === Number(form.ppkd_penempatan_id)) ?? null,
-);
+const selectedPpkd = computed(() => props.signatoryOptions.ppkd.find((option) => option.placement_id === Number(form.ppkd_penempatan_id)) ?? null);
 const selectedRegionalSecretary = computed(
-    () =>
-        props.signatoryOptions.regionalSecretaries.find(
-            (option) => option.placement_id === Number(form.sekretaris_daerah_penempatan_id),
-        ) ?? null,
+    () => props.signatoryOptions.regionalSecretaries.find((option) => option.placement_id === Number(form.sekretaris_daerah_penempatan_id)) ?? null,
 );
 watch(selectedRka, (rka) => {
     if (props.mode === 'create' && rka) form.judul = rka.default_title;
@@ -268,44 +255,6 @@ const backUrl = computed(() => (props.mode === 'edit' && props.dpa ? route('dpa-
                 <section class="rounded-2xl border border-slate-200 bg-card p-5 shadow-sm dark:border-slate-800 sm:p-6">
                     <div class="mb-5 flex items-center gap-3">
                         <div
-                            class="flex size-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
-                        >
-                            <Scale class="size-4" />
-                        </div>
-                        <div>
-                            <h2 class="font-bold text-slate-900 dark:text-white">Dasar Penetapan APBD</h2>
-                            <p class="text-xs text-slate-500">Perda APBD dan Perkada tentang Penjabaran APBD.</p>
-                        </div>
-                    </div>
-                    <fieldset :disabled="canVerify" class="grid gap-4 disabled:opacity-60 sm:grid-cols-2">
-                        <label
-                            ><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Nomor Perda APBD</span
-                            ><input v-model="form.nomor_perda_apbd" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" /></label
-                        ><label
-                            ><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Tanggal Perda APBD</span
-                            ><input
-                                v-model="form.tanggal_perda_apbd"
-                                type="date"
-                                class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm"
-                        /></label>
-                        <label
-                            ><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Nomor Perkada Penjabaran APBD</span
-                            ><input
-                                v-model="form.nomor_perkada_penjabaran"
-                                class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" /></label
-                        ><label
-                            ><span class="text-xs font-bold uppercase tracking-wide text-slate-500">Tanggal Perkada Penjabaran APBD</span
-                            ><input
-                                v-model="form.tanggal_perkada_penjabaran"
-                                type="date"
-                                class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm"
-                        /></label>
-                    </fieldset>
-                </section>
-
-                <section class="rounded-2xl border border-slate-200 bg-card p-5 shadow-sm dark:border-slate-800 sm:p-6">
-                    <div class="mb-5 flex items-center gap-3">
-                        <div
                             class="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
                         >
                             <Building2 class="size-4" />
@@ -349,11 +298,17 @@ const backUrl = computed(() => (props.mode === 'edit' && props.dpa ? route('dpa-
                             <div v-else-if="!budgetUserOptions.length && canUseManualSignatory" class="grid gap-4 sm:grid-cols-2">
                                 <label>
                                     <span class="text-xs font-bold uppercase tracking-wide text-slate-500">Nama Pengguna Anggaran</span>
-                                    <input v-model="form.nama_pengguna_anggaran" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" />
+                                    <input
+                                        v-model="form.nama_pengguna_anggaran"
+                                        class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm"
+                                    />
                                 </label>
                                 <label>
                                     <span class="text-xs font-bold uppercase tracking-wide text-slate-500">NIP Pengguna Anggaran</span>
-                                    <input v-model="form.nip_pengguna_anggaran" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" />
+                                    <input
+                                        v-model="form.nip_pengguna_anggaran"
+                                        class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm"
+                                    />
                                 </label>
                             </div>
                             <div
@@ -373,7 +328,9 @@ const backUrl = computed(() => (props.mode === 'edit' && props.dpa ? route('dpa-
                                             {{ option.label }}
                                         </option>
                                     </select>
-                                    <span v-if="form.errors.ppkd_penempatan_id" class="mt-1.5 block text-xs text-red-600">{{ form.errors.ppkd_penempatan_id }}</span>
+                                    <span v-if="form.errors.ppkd_penempatan_id" class="mt-1.5 block text-xs text-red-600">{{
+                                        form.errors.ppkd_penempatan_id
+                                    }}</span>
                                 </label>
                                 <div v-else-if="canUseManualSignatory" class="grid gap-3">
                                     <label>
@@ -413,11 +370,17 @@ const backUrl = computed(() => (props.mode === 'edit' && props.dpa ? route('dpa-
                                 <div v-else-if="canUseManualSignatory" class="grid gap-3">
                                     <label>
                                         <span class="text-xs font-bold uppercase tracking-wide text-slate-500">Nama Sekretaris Daerah</span>
-                                        <input v-model="form.nama_sekretaris_daerah" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" />
+                                        <input
+                                            v-model="form.nama_sekretaris_daerah"
+                                            class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm"
+                                        />
                                     </label>
                                     <label>
                                         <span class="text-xs font-bold uppercase tracking-wide text-slate-500">NIP Sekretaris Daerah</span>
-                                        <input v-model="form.nip_sekretaris_daerah" class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm" />
+                                        <input
+                                            v-model="form.nip_sekretaris_daerah"
+                                            class="mt-1.5 h-11 w-full rounded-xl border bg-background px-3 text-sm"
+                                        />
                                     </label>
                                 </div>
                                 <p v-else class="text-xs leading-5 text-amber-700">Sekretaris Daerah aktif belum tersedia di Master Pegawai.</p>

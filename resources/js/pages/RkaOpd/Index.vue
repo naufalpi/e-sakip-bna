@@ -10,7 +10,6 @@ type Option = { id: number; label: string };
 type Row = {
     id: number;
     judul: string;
-    nomor_dokumen?: string | null;
     tahun: number;
     jenis_anggaran: 'murni' | 'perubahan';
     type_label: string;
@@ -257,7 +256,7 @@ const statusClass = (status: string) =>
                             >
                         </div>
                         <p class="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">{{ row.judul }}</p>
-                        <p class="mt-1 text-xs text-slate-400">{{ row.nomor_dokumen || 'Nomor dokumen belum diisi' }} · {{ row.tahun }}</p>
+                        <p class="mt-1 text-xs text-slate-400">Tahun Anggaran {{ row.tahun }}</p>
                     </div>
                     <div class="min-w-0 border-l-2 border-blue-100 pl-3 dark:border-blue-900/60">
                         <p class="text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">Acuan RENJA</p>
