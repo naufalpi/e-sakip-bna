@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CancelEstablishmentButton from '@/components/CancelEstablishmentButton.vue';
 import PlanningSyncPreview from '@/components/PlanningSyncPreview.vue';
 import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
@@ -185,7 +186,7 @@ const props = defineProps<{
     syncPreview?: SyncPreview | null;
     workflow: Workflow;
     versionHistory: RkpdVersion[];
-    can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean; createRevision: boolean };
+    can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean; createRevision: boolean; cancelEstablishment: boolean };
 }>();
 
 const filterForm = reactive({
@@ -921,6 +922,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
+                        <CancelEstablishmentButton v-if="can.cancelEstablishment" module="rkpd" :model-id="rkpd.id" />
                         <button
                             v-if="can.createRevision"
                             type="button"

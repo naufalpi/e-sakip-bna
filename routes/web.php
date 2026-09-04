@@ -123,6 +123,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
 
     Route::resource('rkpd', RkpdController::class);
     Route::post('rkpd/{rkpd}/perubahan', [RkpdController::class, 'createRevision'])->name('rkpd.revisions.store');
+    Route::post('rkpd/{rkpd}/batalkan-penetapan', [RkpdController::class, 'cancelEstablishment'])->name('rkpd.establishment.cancel');
     Route::post('rkpd/{rkpd}/iku-targets', [RkpdIkuTargetController::class, 'store'])->name('rkpd.iku-targets.store');
     Route::put('rkpd/{rkpd}/iku-targets/{target}', [RkpdIkuTargetController::class, 'update'])->name('rkpd.iku-targets.update');
     Route::delete('rkpd/{rkpd}/iku-targets/{target}', [RkpdIkuTargetController::class, 'destroy'])->name('rkpd.iku-targets.destroy');
@@ -139,6 +140,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
 
     Route::resource('renja-opd', RenjaOpdController::class)->parameters(['renja-opd' => 'renja_opd']);
     Route::post('renja-opd/{renja_opd}/perubahan', [RenjaOpdController::class, 'createRevision'])->name('renja-opd.revisions.store');
+    Route::post('renja-opd/{renja_opd}/batalkan-penetapan', [RenjaOpdController::class, 'cancelEstablishment'])->name('renja-opd.establishment.cancel');
     Route::post('renja-opd/{renja_opd}/items', [RenjaOpdItemController::class, 'store'])->name('renja-opd.items.store');
     Route::put('renja-opd/{renja_opd}/items/{item}', [RenjaOpdItemController::class, 'update'])->name('renja-opd.items.update');
     Route::delete('renja-opd/{renja_opd}/items/{item}', [RenjaOpdItemController::class, 'destroy'])->name('renja-opd.items.destroy');

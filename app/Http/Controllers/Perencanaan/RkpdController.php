@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Perencanaan;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Perencanaan\CancelDocumentEstablishmentRequest;
 use App\Http\Requests\Perencanaan\StoreDocumentRevisionRequest;
 use App\Http\Requests\Perencanaan\StoreRkpdRequest;
 use App\Http\Requests\Perencanaan\UpdateRkpdRequest;
@@ -20,6 +21,7 @@ use App\Models\SubKegiatanPemerintahan;
 use App\Models\TargetIndikatorSasaranDaerah;
 use App\Models\TargetIndikatorTujuanDaerah;
 use App\Models\User;
+use App\Services\Perencanaan\DocumentEstablishmentCancellationService;
 use App\Services\Perencanaan\PlanningSyncService;
 use App\Services\Perencanaan\RkpdVersionService;
 use App\Services\Workflow\WorkflowDataService;
@@ -231,8 +233,14 @@ class RkpdController extends Controller
                 'manage' => $canManage,
                 'review' => ! $rkpd->isArchivedVersion() && $this->canReviewWorkflow($user),
                 'lock' => $rkpd->is_active_version && $this->canLockWorkflow($user),
-                'unlock' => $rkpd->is_active_version && $this->canUnlockWorkflow($user),
+                'unlock' => $rkpd->jenis_versi !== 'ditetapkan'
+                    && $rkpd->is_active_version
+                    && $this->canUnlockWorkflow($user),
                 'createRevision' => $user->can('createRevision', $rkpd),
+                'cancelEstablishment' => $user->isSuperAdmin()
+                    && $rkpd->jenis_versi === 'ditetapkan'
+                    && $rkpd->is_active_version
+                    && in_array($rkpd->status, ['approved', 'locked'], true),
             ],
         ]);
     }
@@ -283,6 +291,21 @@ class RkpdController extends Controller
 
         return redirect()->route('rkpd.show', $revision)
             ->with('success', 'RKPD Perubahan berhasil dibuat dari RKPD Ditetapkan.');
+    }
+
+    public function cancelEstablishment(
+        CancelDocumentEstablishmentRequest $request,
+        Rkpd $rkpd,
+        DocumentEstablishmentCancellationService $cancellationService,
+    ): RedirectResponse {
+        $restored = $cancellationService->cancelRkpd(
+            $rkpd,
+            $request->user(),
+            (string) $request->validated('alasan_pembatalan'),
+        );
+
+        return redirect()->route('rkpd.show', $restored)
+            ->with('success', 'Penetapan RKPD dibatalkan. RKPD Awal telah dikembalikan ke status Draft.');
     }
 
     private function shouldLimitToUserOpd(User $user): bool

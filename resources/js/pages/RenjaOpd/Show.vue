@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CancelEstablishmentButton from '@/components/CancelEstablishmentButton.vue';
 import PlanningSyncPreview from '@/components/PlanningSyncPreview.vue';
 import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
@@ -209,7 +210,7 @@ const props = defineProps<{
     syncPreview?: SyncPreview | null;
     workflow: Workflow;
     versionHistory: RenjaVersion[];
-    can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean; createRevision: boolean };
+    can: { manage: boolean; review: boolean; lock: boolean; unlock: boolean; createRevision: boolean; cancelEstablishment: boolean };
 }>();
 
 const renjaItemView = ref<'input' | 'preview'>('input');
@@ -814,6 +815,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
+                        <CancelEstablishmentButton v-if="can.cancelEstablishment" module="renja-opd" :model-id="renja.id" />
                         <button
                             v-if="can.createRevision"
                             type="button"

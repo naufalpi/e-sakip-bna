@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Perencanaan;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Perencanaan\CancelDocumentEstablishmentRequest;
 use App\Http\Requests\Perencanaan\StoreDocumentRevisionRequest;
 use App\Http\Requests\Perencanaan\StoreRenjaOpdRequest;
 use App\Http\Requests\Perencanaan\UpdateRenjaOpdRequest;
@@ -16,6 +17,7 @@ use App\Models\RenstraOpd;
 use App\Models\Rkpd;
 use App\Models\SubKegiatanPemerintahan;
 use App\Models\User;
+use App\Services\Perencanaan\DocumentEstablishmentCancellationService;
 use App\Services\Perencanaan\PlanningSyncService;
 use App\Services\Perencanaan\RenjaInitialItemService;
 use App\Services\Perencanaan\RenjaProgramScopeService;
@@ -249,8 +251,14 @@ class RenjaOpdController extends Controller
                 'manage' => $canManage,
                 'review' => ! $renjaOpd->isArchivedVersion() && $this->canReviewWorkflow($request->user()),
                 'lock' => $renjaOpd->is_active_version && $this->canLockWorkflow($request->user()),
-                'unlock' => $renjaOpd->is_active_version && $this->canUnlockWorkflow($request->user()),
+                'unlock' => $renjaOpd->jenis_versi !== 'ditetapkan'
+                    && $renjaOpd->is_active_version
+                    && $this->canUnlockWorkflow($request->user()),
                 'createRevision' => $request->user()->can('createRevision', $renjaOpd),
+                'cancelEstablishment' => $request->user()->isSuperAdmin()
+                    && $renjaOpd->jenis_versi === 'ditetapkan'
+                    && $renjaOpd->is_active_version
+                    && in_array($renjaOpd->status, ['approved', 'locked'], true),
             ],
         ]);
     }
@@ -300,6 +308,21 @@ class RenjaOpdController extends Controller
 
         return redirect()->route('renja-opd.show', $revision)
             ->with('success', 'RENJA Perubahan berhasil dibuat dari RENJA Ditetapkan.');
+    }
+
+    public function cancelEstablishment(
+        CancelDocumentEstablishmentRequest $request,
+        RenjaOpd $renjaOpd,
+        DocumentEstablishmentCancellationService $cancellationService,
+    ): RedirectResponse {
+        $restored = $cancellationService->cancelRenja(
+            $renjaOpd,
+            $request->user(),
+            (string) $request->validated('alasan_pembatalan'),
+        );
+
+        return redirect()->route('renja-opd.show', $restored)
+            ->with('success', 'Penetapan RENJA dibatalkan. RENJA Awal telah dikembalikan ke status Draft.');
     }
 
     private function shouldLimitToUserOpd(User $user): bool
