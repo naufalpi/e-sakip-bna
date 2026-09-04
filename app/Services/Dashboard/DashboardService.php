@@ -2,6 +2,7 @@
 
 namespace App\Services\Dashboard;
 
+use App\Models\DpaOpd;
 use App\Models\EvaluasiSakip;
 use App\Models\Lkjip;
 use App\Models\Opd;
@@ -10,7 +11,9 @@ use App\Models\PerjanjianKinerja;
 use App\Models\RealisasiKinerja;
 use App\Models\RekomendasiEvaluasi;
 use App\Models\RencanaAksi;
+use App\Models\RenjaOpd;
 use App\Models\RenstraOpd;
+use App\Models\RkaOpd;
 use App\Models\Rpjmd;
 use App\Models\User;
 use App\Models\WorkflowSubmission;
@@ -23,7 +26,7 @@ class DashboardService
 {
     private const CACHE_TTL_SECONDS = 300;
 
-    private const CACHE_SCHEMA_VERSION = 'v5';
+    private const CACHE_SCHEMA_VERSION = 'v6';
 
     /**
      * @param  array<string, mixed>  $filters
@@ -67,6 +70,9 @@ class DashboardService
             ->whereIn('opd_id', $opdIds)
             ->where('tahun_awal', '<=', $tahun)
             ->where('tahun_akhir', '>=', $tahun));
+        $renjaOpdIds = $this->distinctOpdIds(RenjaOpd::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun));
+        $rkaOpdIds = $this->distinctOpdIds(RkaOpd::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun));
+        $dpaOpdIds = $this->distinctOpdIds(DpaOpd::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun));
         $pkOpdIds = $this->distinctOpdIds(PerjanjianKinerja::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun));
         $rencanaAksiOpdIds = $this->distinctOpdIds(RencanaAksi::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun));
         $realisasiOpdIds = $this->distinctOpdIds(RealisasiKinerja::query()->whereIn('opd_id', $opdIds)->where('tahun', $tahun));
@@ -85,6 +91,9 @@ class DashboardService
             $visibleOpds,
             $rpjmdOpdIds,
             $renstraOpdIds,
+            $renjaOpdIds,
+            $rkaOpdIds,
+            $dpaOpdIds,
             $pkOpdIds,
             $rencanaAksiOpdIds,
             $realisasiOpdIds,
@@ -143,6 +152,9 @@ class DashboardService
                 'rpjmd_count' => Rpjmd::query()->where('tahun_awal', '<=', $tahun)->where('tahun_akhir', '>=', $tahun)->count(),
                 'rpjmd_linked_opd_count' => count($rpjmdOpdIds),
                 'renstra_opd_count' => count($renstraOpdIds),
+                'renja_opd_count' => count($renjaOpdIds),
+                'rka_opd_count' => count($rkaOpdIds),
+                'dpa_opd_count' => count($dpaOpdIds),
                 'perjanjian_kinerja_opd_count' => count($pkOpdIds),
                 'rencana_aksi_opd_count' => count($rencanaAksiOpdIds),
                 'realisasi_opd_count' => count($realisasiOpdIds),
@@ -163,6 +175,9 @@ class DashboardService
             'moduleCompletion' => [
                 $this->completionRow('rpjmd', 'Terhubung RPJMD', count($rpjmdOpdIds), $totalOpd),
                 $this->completionRow('renstra', 'Renstra OPD', count($renstraOpdIds), $totalOpd),
+                $this->completionRow('renja', 'Renja OPD', count($renjaOpdIds), $totalOpd),
+                $this->completionRow('rka', 'RKA OPD', count($rkaOpdIds), $totalOpd),
+                $this->completionRow('dpa', 'DPA OPD', count($dpaOpdIds), $totalOpd),
                 $this->completionRow('pk', 'Perjanjian Kinerja', count($pkOpdIds), $totalOpd),
                 $this->completionRow('rencana_aksi', 'Rencana Aksi', count($rencanaAksiOpdIds), $totalOpd),
                 $this->completionRow('realisasi', 'Realisasi Kinerja', count($realisasiOpdIds), $totalOpd),
@@ -373,6 +388,9 @@ class DashboardService
      * @param  Collection<int, Opd>  $opds
      * @param  array<int, int>  $rpjmdOpdIds
      * @param  array<int, int>  $renstraOpdIds
+     * @param  array<int, int>  $renjaOpdIds
+     * @param  array<int, int>  $rkaOpdIds
+     * @param  array<int, int>  $dpaOpdIds
      * @param  array<int, int>  $pkOpdIds
      * @param  array<int, int>  $rencanaAksiOpdIds
      * @param  array<int, int>  $realisasiOpdIds
@@ -386,6 +404,9 @@ class DashboardService
         Collection $opds,
         array $rpjmdOpdIds,
         array $renstraOpdIds,
+        array $renjaOpdIds,
+        array $rkaOpdIds,
+        array $dpaOpdIds,
         array $pkOpdIds,
         array $rencanaAksiOpdIds,
         array $realisasiOpdIds,
@@ -396,10 +417,13 @@ class DashboardService
         int $tahun,
     ): array {
         return $opds
-            ->map(function (Opd $opd) use ($rpjmdOpdIds, $renstraOpdIds, $pkOpdIds, $rencanaAksiOpdIds, $realisasiOpdIds, $lkjipOpdIds, $evaluasiByOpd, $rekomendasiTerbukaByOpd, $capaianByOpd, $tahun) {
+            ->map(function (Opd $opd) use ($rpjmdOpdIds, $renstraOpdIds, $renjaOpdIds, $rkaOpdIds, $dpaOpdIds, $pkOpdIds, $rencanaAksiOpdIds, $realisasiOpdIds, $lkjipOpdIds, $evaluasiByOpd, $rekomendasiTerbukaByOpd, $capaianByOpd, $tahun) {
                 $modules = [
                     'rpjmd' => in_array($opd->id, $rpjmdOpdIds, true),
                     'renstra' => in_array($opd->id, $renstraOpdIds, true),
+                    'renja' => in_array($opd->id, $renjaOpdIds, true),
+                    'rka' => in_array($opd->id, $rkaOpdIds, true),
+                    'dpa' => in_array($opd->id, $dpaOpdIds, true),
                     'pk' => in_array($opd->id, $pkOpdIds, true),
                     'rencana_aksi' => in_array($opd->id, $rencanaAksiOpdIds, true),
                     'realisasi' => in_array($opd->id, $realisasiOpdIds, true),
@@ -424,6 +448,9 @@ class DashboardService
                     'rekomendasi_terbuka_count' => $rekomendasiTerbukaByOpd[$opd->id] ?? 0,
                     'detail_url' => route('dashboard', ['tahun' => $tahun, 'opd_id' => $opd->id]),
                     'renstra_url' => route('renstra-opd.index', ['opd_id' => $opd->id]),
+                    'renja_url' => route('renja-opd.index', ['tahun' => $tahun, 'opd_id' => $opd->id]),
+                    'rka_url' => route('rka-opd.index', ['tahun' => $tahun, 'opd_id' => $opd->id]),
+                    'dpa_url' => route('dpa-opd.index', ['tahun' => $tahun, 'opd_id' => $opd->id]),
                     'pk_url' => route('perjanjian-kinerja.index', ['tahun' => $tahun, 'opd_id' => $opd->id]),
                     'rencana_aksi_url' => route('rencana-aksi.index', ['tahun' => $tahun, 'opd_id' => $opd->id]),
                     'realisasi_url' => route('realisasi-kinerja.index', ['tahun' => $tahun, 'opd_id' => $opd->id]),

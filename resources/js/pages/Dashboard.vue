@@ -89,6 +89,9 @@ type ProgressOpd = {
     rekomendasi_terbuka_count: number;
     detail_url?: string | null;
     renstra_url?: string | null;
+    renja_url?: string | null;
+    rka_url?: string | null;
+    dpa_url?: string | null;
     pk_url?: string | null;
     rencana_aksi_url?: string | null;
     realisasi_url?: string | null;
@@ -138,6 +141,9 @@ const props = defineProps<{
         opd_count: number;
         rpjmd_count: number;
         renstra_opd_count: number;
+        renja_opd_count: number;
+        rka_opd_count: number;
+        dpa_opd_count: number;
         perjanjian_kinerja_opd_count: number;
         rencana_aksi_opd_count: number;
         realisasi_opd_count: number;
@@ -181,12 +187,27 @@ const filterForm = reactive({
 const moduleLabels: Record<string, string> = {
     rpjmd: 'RPJMD',
     renstra: 'Renstra',
+    renja: 'Renja',
+    rka: 'RKA',
+    dpa: 'DPA',
     pk: 'PK',
     rencana_aksi: 'Rencana Aksi',
     realisasi: 'Realisasi',
     lkjip: 'LKJIP',
     evaluasi: 'Evaluasi',
 };
+
+const isOpdDashboard = computed(() => props.dashboard.type === 'opd');
+
+const opdOperationalModuleKeys = ['renstra', 'renja', 'rka', 'dpa', 'pk', 'rencana_aksi', 'realisasi', 'lkjip'];
+
+const visibleModuleCompletion = computed(() => {
+    if (isOpdDashboard.value) {
+        return props.moduleCompletion.filter((item) => opdOperationalModuleKeys.includes(item.key));
+    }
+
+    return props.moduleCompletion.slice(0, 5);
+});
 
 const selectedOpdLabel = computed(() => {
     if (!filterForm.opd_id) {
@@ -212,9 +233,13 @@ const priorityCards = computed(() => [
         tone: props.stats.rekomendasi_overdue_count > 0 ? 'red' : 'green',
     },
     {
-        label: 'Belum Realisasi',
+        label: isOpdDashboard.value ? 'Realisasi Belum Diisi' : 'Belum Realisasi',
         value: props.stats.opd_belum_realisasi_count,
-        helper: 'OPD belum input',
+        helper: isOpdDashboard.value
+            ? props.stats.opd_belum_realisasi_count > 0
+                ? 'Segera lengkapi realisasi'
+                : 'Realisasi sudah tersedia'
+            : 'OPD belum input',
         icon: Building2,
         tone: props.stats.opd_belum_realisasi_count > 0 ? 'amber' : 'green',
     },
@@ -242,17 +267,17 @@ const mainMetrics = computed(() => [
         label: 'Nilai Evaluasi',
         target: Number(props.stats.avg_evaluasi ?? 0),
         format: 'score',
-        helper: `${props.stats.evaluasi_opd_count} OPD dievaluasi`,
+        helper: isOpdDashboard.value ? 'Nilai evaluasi OPD' : `${props.stats.evaluasi_opd_count} OPD dievaluasi`,
         icon: FileCheck2,
         tone: 'violet',
     },
     {
         key: 'metric-realisasi-opd',
-        label: 'Realisasi OPD',
+        label: isOpdDashboard.value ? 'Dokumen Realisasi' : 'Realisasi OPD',
         target: Number(props.stats.realisasi_opd_count ?? 0),
         total: Number(props.stats.opd_count ?? 0),
-        format: 'ratio',
-        helper: 'OPD sudah input realisasi',
+        format: isOpdDashboard.value ? 'number' : 'ratio',
+        helper: isOpdDashboard.value ? 'Dokumen tersedia pada tahun ini' : 'OPD sudah input realisasi',
         icon: CheckCircle2,
         tone: 'green',
     },
@@ -267,21 +292,27 @@ const mainMetrics = computed(() => [
     },
 ]);
 
-const planningSummary = computed(() => [
-    { label: 'RPJMD', value: props.stats.rpjmd_count },
-    { label: 'Renstra', value: props.stats.renstra_opd_count },
-    { label: 'PK', value: props.stats.perjanjian_kinerja_opd_count },
-    { label: 'Rencana Aksi', value: props.stats.rencana_aksi_opd_count },
-    { label: 'Realisasi', value: props.stats.realisasi_opd_count },
-    { label: 'LKJIP', value: props.stats.lkjip_opd_count },
-]);
+const planningSummary = computed(() => {
+    const operationalDocuments = [
+        { label: 'Renstra', value: props.stats.renstra_opd_count },
+        { label: 'Renja', value: props.stats.renja_opd_count },
+        { label: 'RKA', value: props.stats.rka_opd_count },
+        { label: 'DPA', value: props.stats.dpa_opd_count },
+        { label: 'PK', value: props.stats.perjanjian_kinerja_opd_count },
+        { label: 'Rencana Aksi', value: props.stats.rencana_aksi_opd_count },
+        { label: 'Realisasi', value: props.stats.realisasi_opd_count },
+        { label: 'LKJIP', value: props.stats.lkjip_opd_count },
+    ];
+
+    return isOpdDashboard.value ? operationalDocuments : [{ label: 'RPJMD', value: props.stats.rpjmd_count }, ...operationalDocuments];
+});
 
 const averageCompletion = computed(() => {
-    if (props.moduleCompletion.length === 0) {
+    if (visibleModuleCompletion.value.length === 0) {
         return 0;
     }
 
-    return Math.round(props.moduleCompletion.reduce((sum, item) => sum + item.percent, 0) / props.moduleCompletion.length);
+    return Math.round(visibleModuleCompletion.value.reduce((sum, item) => sum + item.percent, 0) / visibleModuleCompletion.value.length);
 });
 
 const totalPlanningDocuments = computed(() => planningSummary.value.reduce((sum, item) => sum + item.value, 0));
@@ -302,7 +333,9 @@ const monitoringSummary = computed(() => {
     }
 
     if (props.stats.opd_belum_realisasi_count > 0) {
-        return `${props.stats.opd_belum_realisasi_count} OPD belum mengisi realisasi.`;
+        return isOpdDashboard.value
+            ? 'Realisasi kinerja OPD belum diisi.'
+            : `${props.stats.opd_belum_realisasi_count} OPD belum mengisi realisasi.`;
     }
 
     return 'Tidak ada perhatian mendesak pada cakupan saat ini.';
@@ -685,7 +718,7 @@ function booleanClass(value: boolean) {
                         </div>
                     </div>
                     <div class="dashboard-module-list">
-                        <div v-for="item in moduleCompletion.slice(0, 5)" :key="item.key" class="dashboard-module-row">
+                        <div v-for="item in visibleModuleCompletion" :key="item.key" class="dashboard-module-row">
                             <div class="dashboard-module-row__label">
                                 <span aria-hidden="true" />
                                 <p>{{ item.label }}</p>
@@ -713,7 +746,7 @@ function booleanClass(value: boolean) {
                         <strong>{{ animatedInteger(`document-${item.label}`, item.value) }}</strong>
                     </div>
                 </div>
-                <div class="dashboard-document-card__footer">
+                <div v-if="!isOpdDashboard" class="dashboard-document-card__footer">
                     <span>OPD aktif</span>
                     <strong>{{ animatedInteger('opdCount', stats.opd_count) }}</strong>
                 </div>
@@ -803,7 +836,7 @@ function booleanClass(value: boolean) {
             <i aria-hidden="true" />
         </div>
 
-        <section class="dashboard-detail-grid">
+        <section class="dashboard-detail-grid" :class="{ 'dashboard-detail-grid--single': isOpdDashboard }">
             <div class="dashboard-panel dashboard-panel--orange">
                 <div class="dashboard-panel__header">
                     <div class="dashboard-panel__heading">
@@ -882,7 +915,7 @@ function booleanClass(value: boolean) {
                 </div>
             </div>
 
-            <div class="dashboard-panel dashboard-panel--violet">
+            <div v-if="!isOpdDashboard" class="dashboard-panel dashboard-panel--violet">
                 <div class="dashboard-panel__header">
                     <div class="dashboard-panel__heading">
                         <span class="dashboard-panel__icon"><Trophy class="size-4" /></span>
@@ -1076,7 +1109,7 @@ function booleanClass(value: boolean) {
             </div>
         </section>
 
-        <section class="dashboard-panel dashboard-panel--blue dashboard-panel--wide">
+        <section v-if="!isOpdDashboard" class="dashboard-panel dashboard-panel--blue dashboard-panel--wide">
             <div class="dashboard-panel__header">
                 <div class="dashboard-panel__heading">
                     <span class="dashboard-panel__icon"><Building2 class="size-4" /></span>
@@ -1128,6 +1161,9 @@ function booleanClass(value: boolean) {
                                 </div>
                                 <div class="mt-2 flex flex-wrap gap-2 text-xs">
                                     <Link v-if="row.renstra_url" :href="row.renstra_url" class="dashboard-data-link dashboard-data-link--small">Renstra</Link>
+                                    <Link v-if="row.renja_url" :href="row.renja_url" class="dashboard-data-link dashboard-data-link--small">Renja</Link>
+                                    <Link v-if="row.rka_url" :href="row.rka_url" class="dashboard-data-link dashboard-data-link--small">RKA</Link>
+                                    <Link v-if="row.dpa_url" :href="row.dpa_url" class="dashboard-data-link dashboard-data-link--small">DPA</Link>
                                     <Link v-if="row.pk_url" :href="row.pk_url" class="dashboard-data-link dashboard-data-link--small">PK</Link>
                                     <Link v-if="row.rencana_aksi_url" :href="row.rencana_aksi_url" class="dashboard-data-link dashboard-data-link--small"
                                         >Rencana Aksi</Link
@@ -1189,8 +1225,8 @@ function booleanClass(value: boolean) {
             </footer>
         </section>
 
-        <section class="dashboard-detail-grid">
-            <div class="dashboard-panel dashboard-panel--violet">
+        <section class="dashboard-detail-grid" :class="{ 'dashboard-detail-grid--single': isOpdDashboard }">
+            <div v-if="!isOpdDashboard" class="dashboard-panel dashboard-panel--violet">
                 <div class="dashboard-panel__header">
                     <div class="dashboard-panel__heading">
                         <span class="dashboard-panel__icon"><TrendingUp class="size-4" /></span>
@@ -1245,8 +1281,8 @@ function booleanClass(value: boolean) {
                     <div class="dashboard-panel__heading">
                         <span class="dashboard-panel__icon"><FileCheck2 class="size-4" /></span>
                         <div>
-                            <h2>Evaluasi SAKIP</h2>
-                            <p>Nilai dan predikat perangkat daerah</p>
+                            <h2>{{ isOpdDashboard ? 'Hasil Evaluasi SAKIP' : 'Evaluasi SAKIP' }}</h2>
+                            <p>{{ isOpdDashboard ? 'Nilai dan predikat OPD Anda' : 'Nilai dan predikat perangkat daerah' }}</p>
                         </div>
                     </div>
                 </div>
@@ -1286,8 +1322,8 @@ function booleanClass(value: boolean) {
             </div>
         </section>
 
-        <section class="dashboard-detail-grid">
-            <div class="dashboard-panel dashboard-panel--red">
+        <section class="dashboard-detail-grid" :class="{ 'dashboard-detail-grid--single': isOpdDashboard }">
+            <div v-if="!isOpdDashboard" class="dashboard-panel dashboard-panel--red">
                 <div class="dashboard-panel__header">
                     <div class="dashboard-panel__heading">
                         <span class="dashboard-panel__icon"><AlertTriangle class="size-4" /></span>
@@ -2870,6 +2906,10 @@ function booleanClass(value: boolean) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.85rem;
+}
+
+.dashboard-detail-grid--single {
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .dashboard-panel {

@@ -99,6 +99,9 @@ class DashboardTest extends TestCase
                 ->where('stats.opd_count', $expectedOpdCount)
                 ->where('stats.rpjmd_linked_opd_count', 1)
                 ->where('stats.renstra_opd_count', 1)
+                ->where('stats.renja_opd_count', 0)
+                ->where('stats.rka_opd_count', 0)
+                ->where('stats.dpa_opd_count', 0)
                 ->where('stats.perjanjian_kinerja_opd_count', 1)
                 ->where('stats.rencana_aksi_opd_count', 1)
                 ->where('stats.realisasi_opd_count', 1)
@@ -180,8 +183,14 @@ class DashboardTest extends TestCase
                 ->where('dashboard.can_filter_opd', false)
                 ->where('stats.opd_count', 1)
                 ->where('stats.renstra_opd_count', 1)
+                ->where('stats.renja_opd_count', 0)
+                ->where('stats.rka_opd_count', 0)
+                ->where('stats.dpa_opd_count', 0)
                 ->where('stats.perjanjian_kinerja_opd_count', 1)
                 ->where('progressOpd.0.opd_id', $scenario['opd']->id)
+                ->where('progressOpd.0.modules.renja', false)
+                ->where('progressOpd.0.modules.rka', false)
+                ->where('progressOpd.0.modules.dpa', false)
             );
     }
 
