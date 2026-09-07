@@ -1086,7 +1086,14 @@ class RenstraOpdTest extends TestCase
             ->getJson(route('renstra-opd.nodes.sub-kegiatan-usage', $renstra))
             ->assertOk()
             ->assertJsonPath('items.0.opd_sub_kegiatan_id', $subKegiatanOpd->id)
-            ->assertJsonPath('items.0.sub_kegiatan_pemerintahan_id', $subKegiatanMaster->id);
+            ->assertJsonPath('items.0.sub_kegiatan_pemerintahan_id', $subKegiatanMaster->id)
+            ->assertJsonPath('items.0.opd_kegiatan_id', $kegiatanOpd->id)
+            ->assertJsonPath('items.0.opd_program_id', $programOpd->id)
+            ->assertJsonPath('items.0.nama', 'Sub Kegiatan Master Renstra')
+            ->assertJsonPath(
+                'items.0.context',
+                'Tujuan OPD: Tujuan OPD Referensi • Sasaran OPD: Sasaran OPD Referensi • Program: Program Master RPJMD • Kegiatan: Kegiatan Master Renstra',
+            );
 
         $this->actingAs($user)
             ->from(route('renstra-opd.show', $renstra))
@@ -1104,15 +1111,22 @@ class RenstraOpdTest extends TestCase
             ->from(route('renstra-opd.show', $renstra))
             ->post(route('renstra-opd.nodes.store', $renstra), [
                 'type' => 'sub_kegiatan',
-                'parent_id' => $kegiatanOpd->id,
+                'parent_id' => $kegiatanCabang->id,
                 'sub_kegiatan_pemerintahan_id' => $subKegiatanMaster->id,
                 'opd_unit_id' => $unit->id,
             ])
             ->assertRedirect(route('renstra-opd.show', $renstra))
             ->assertSessionHasNoErrors();
 
+        $restoredSubKegiatan = OpdSubKegiatan::whereHas('kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))
+            ->where('sub_kegiatan_pemerintahan_id', $subKegiatanMaster->id)
+            ->firstOrFail();
+
+        $this->assertSame($subKegiatanOpd->id, $restoredSubKegiatan->id);
+        $this->assertSame($kegiatanCabang->id, $restoredSubKegiatan->opd_kegiatan_id);
         $this->assertSame(1, OpdSubKegiatan::whereHas('kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->count());
-        $this->assertSame(2, OpdSubKegiatan::withTrashed()->whereHas('kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->count());
+        $this->assertSame(1, OpdSubKegiatan::withTrashed()->whereHas('kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->count());
+        $this->assertSame(2, $restoredSubKegiatan->indikator()->count());
     }
 
     public function test_renstra_node_autosave_updates_existing_cascading_data(): void

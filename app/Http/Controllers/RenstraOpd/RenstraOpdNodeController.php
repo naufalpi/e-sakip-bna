@@ -42,26 +42,43 @@ class RenstraOpdNodeController extends Controller
         $this->authorize('update', $renstraOpd);
 
         $items = OpdSubKegiatan::query()
-            ->with('kegiatan.program')
+            ->with('kegiatan.program.sasaran.tujuan')
             ->whereNotNull('sub_kegiatan_pemerintahan_id')
             ->whereHas('kegiatan.program', fn (Builder $query) => $query
                 ->where('renstra_opd_id', $renstraOpd->id))
             ->orderBy('id')
             ->get()
             ->map(function (OpdSubKegiatan $subKegiatan): array {
+                $kegiatan = $subKegiatan->kegiatan;
+                $program = $kegiatan?->program;
+                $sasaran = $program?->sasaran;
+                $tujuan = $sasaran?->tujuan;
                 $context = collect([
-                    $subKegiatan->kegiatan?->nama,
-                    filled($subKegiatan->kegiatan?->sasaran_kegiatan)
-                        ? 'Sasaran Kegiatan: '.$subKegiatan->kegiatan->sasaran_kegiatan
+                    filled($tujuan?->tujuan) ? 'Tujuan OPD: '.$tujuan->tujuan : null,
+                    filled($sasaran?->sasaran) ? 'Sasaran OPD: '.$sasaran->sasaran : null,
+                    filled($program?->nama) ? 'Program: '.$program->nama : null,
+                    filled($program?->sasaran_program)
+                        ? 'Sasaran Program: '.$program->sasaran_program
                         : null,
-                    filled($subKegiatan->kegiatan?->program?->sasaran_program)
-                        ? 'Sasaran Program: '.$subKegiatan->kegiatan->program->sasaran_program
+                    filled($kegiatan?->nama) ? 'Kegiatan: '.$kegiatan->nama : null,
+                    filled($kegiatan?->sasaran_kegiatan)
+                        ? 'Sasaran Kegiatan: '.$kegiatan->sasaran_kegiatan
                         : null,
                 ])->filter()->join(' • ');
 
                 return [
                     'opd_sub_kegiatan_id' => $subKegiatan->id,
                     'sub_kegiatan_pemerintahan_id' => $subKegiatan->sub_kegiatan_pemerintahan_id,
+                    'opd_kegiatan_id' => $kegiatan?->id,
+                    'opd_program_id' => $program?->id,
+                    'sasaran_opd_id' => $sasaran?->id,
+                    'tujuan_opd_id' => $tujuan?->id,
+                    'kode' => $subKegiatan->kode,
+                    'nama' => $subKegiatan->nama,
+                    'program' => $program?->nama,
+                    'kegiatan' => $kegiatan?->nama,
+                    'sasaran_program' => $program?->sasaran_program,
+                    'sasaran_kegiatan' => $kegiatan?->sasaran_kegiatan,
                     'context' => $context,
                 ];
             })
@@ -524,8 +541,25 @@ class RenstraOpdNodeController extends Controller
     private function createSubKegiatan(RenstraOpd $renstra, array $data): OpdSubKegiatan
     {
         $kegiatan = $this->kegiatan($renstra, $data['parent_id'] ?? null);
+        $payload = $this->subKegiatanPayload($renstra, $kegiatan, $data);
 
-        $subKegiatan = $kegiatan->subKegiatan()->create($this->subKegiatanPayload($renstra, $kegiatan, $data));
+        $subKegiatan = OpdSubKegiatan::onlyTrashed()
+            ->where('sub_kegiatan_pemerintahan_id', $payload['sub_kegiatan_pemerintahan_id'])
+            ->whereHas('kegiatan.program', fn (Builder $query) => $query
+                ->where('renstra_opd_id', $renstra->id))
+            ->latest('deleted_at')
+            ->lockForUpdate()
+            ->first();
+
+        if ($subKegiatan) {
+            $subKegiatan->fill([
+                'opd_kegiatan_id' => $kegiatan->id,
+                ...$payload,
+            ]);
+            $subKegiatan->restore();
+        } else {
+            $subKegiatan = $kegiatan->subKegiatan()->create($payload);
+        }
 
         $this->ensureSubKegiatanIndicatorSnapshot($subKegiatan);
 

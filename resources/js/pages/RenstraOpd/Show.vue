@@ -62,6 +62,16 @@ type Option = {
 type UsedSubKegiatan = {
     opd_sub_kegiatan_id: number;
     sub_kegiatan_pemerintahan_id: number;
+    opd_kegiatan_id: number;
+    opd_program_id: number;
+    sasaran_opd_id: number | null;
+    tujuan_opd_id: number | null;
+    kode: string | null;
+    nama: string;
+    program: string | null;
+    kegiatan: string | null;
+    sasaran_program: string | null;
+    sasaran_kegiatan: string | null;
     context: string;
 };
 type NodeType =
@@ -544,7 +554,9 @@ const formPanel = ref<HTMLElement | null>(null);
 const bulkRows = ref<BulkRow[]>([]);
 const freshUsedSubKegiatan = ref<UsedSubKegiatan[] | null>(null);
 const isRefreshingSubKegiatanUsage = ref(false);
+const subKegiatanUsageError = ref('');
 const subKegiatanUsageRequestId = ref(0);
+const highlightedSubKegiatanId = ref<number | null>(null);
 const expandedBulkSections = ref<string[]>([]);
 const expandedProgramSasaranIds = ref<number[]>([]);
 const selectedProgramFocusId = ref<number | null>(null);
@@ -948,6 +960,20 @@ const subKegiatanMasterOptions = computed(() => {
     const filteredOptions = kegiatanId ? options.filter((option) => Number(option.kegiatan_pemerintahan_id) === kegiatanId) : options;
 
     return uniqueOptions(filteredOptions, (option) => `${option.kegiatan_pemerintahan_id ?? ''}|${option.kode ?? option.label}`);
+});
+const relevantUsedSubKegiatan = computed(() => {
+    if (freshUsedSubKegiatan.value === null) {
+        return [];
+    }
+
+    const editingSubKegiatanId = editingNode.value?.type === 'sub_kegiatan' ? editingNode.value.id : null;
+    const availableMasterIds = new Set(
+        subKegiatanMasterOptions.value.map((option) => toNumberOrNull(option.id)).filter((id): id is number => id !== null),
+    );
+
+    return freshUsedSubKegiatan.value.filter(
+        (item) => item.opd_sub_kegiatan_id !== editingSubKegiatanId && availableMasterIds.has(item.sub_kegiatan_pemerintahan_id),
+    );
 });
 const usedSubKegiatanMasterContexts = computed(() => {
     const editingSubKegiatanId = editingNode.value?.type === 'sub_kegiatan' ? editingNode.value.id : null;
@@ -2111,6 +2137,7 @@ const closeNodeModal = () => {
     editingNode.value = null;
     subKegiatanUsageRequestId.value += 1;
     isRefreshingSubKegiatanUsage.value = false;
+    subKegiatanUsageError.value = '';
     freshUsedSubKegiatan.value = null;
     targetBatchRows.value = [];
     clearNodeForm();
@@ -2203,6 +2230,7 @@ const selectNodeType = (type: NodeType, parentId: number | string = '') => {
 const refreshSubKegiatanUsage = async () => {
     const requestId = ++subKegiatanUsageRequestId.value;
     isRefreshingSubKegiatanUsage.value = true;
+    subKegiatanUsageError.value = '';
 
     try {
         const response = await fetch(route('renstra-opd.nodes.sub-kegiatan-usage', props.renstra.id), {
@@ -2224,6 +2252,7 @@ const refreshSubKegiatanUsage = async () => {
     } catch {
         if (requestId === subKegiatanUsageRequestId.value) {
             freshUsedSubKegiatan.value = null;
+            subKegiatanUsageError.value = 'Lokasi penggunaan belum dapat diperiksa. Tutup lalu buka kembali form sebelum menyimpan.';
         }
     } finally {
         if (requestId === subKegiatanUsageRequestId.value) {
@@ -2234,6 +2263,7 @@ const refreshSubKegiatanUsage = async () => {
 
 const openSubKegiatanModal = (kegiatanId: number) => {
     freshUsedSubKegiatan.value = null;
+    subKegiatanUsageError.value = '';
     selectNodeType('sub_kegiatan', kegiatanId);
     void refreshSubKegiatanUsage();
 };
@@ -3578,6 +3608,47 @@ const selectSubKegiatanKegiatan = async (programId: number, kegiatanId: number) 
     await scrollToSubKegiatanDetail();
 };
 
+let subKegiatanHighlightTimer = 0;
+
+const focusUsedSubKegiatan = async (item: UsedSubKegiatan) => {
+    closeNodeModal();
+    viewMode.value = 'bulk';
+    subKegiatanFocusSearch.value = '';
+    highlightedSubKegiatanId.value = item.opd_sub_kegiatan_id;
+
+    await selectSubKegiatanKegiatan(item.opd_program_id, item.opd_kegiatan_id);
+    await nextTick();
+    await waitForAnimationFrame();
+
+    document.getElementById(`renstra-sub-kegiatan-${item.opd_sub_kegiatan_id}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+    });
+
+    window.clearTimeout(subKegiatanHighlightTimer);
+    subKegiatanHighlightTimer = window.setTimeout(() => {
+        highlightedSubKegiatanId.value = null;
+    }, 3500);
+};
+
+const removeUsedSubKegiatan = async (item: UsedSubKegiatan) => {
+    const confirmed = await confirmDelete(
+        `Hapus "${item.nama}" dari lokasi lama di RENSTRA ini? Indikator, target, dan pagunya tetap tersimpan sebagai riwayat dan akan dipulihkan saat sub kegiatan ditambahkan kembali.`,
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    router.delete(route('renstra-opd.nodes.destroy', [props.renstra.id, 'sub_kegiatan', item.opd_sub_kegiatan_id]), {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            void refreshSubKegiatanUsage();
+        },
+    });
+};
+
 const focusedSubKegiatanRows = (section: BulkInputSection): BulkRow[] => {
     const focus = activeSubKegiatanFocus.value;
 
@@ -3975,6 +4046,7 @@ const toggleBulkAutosave = () => {
 
 onUnmounted(() => {
     bulkSaveTimers.forEach((timer) => window.clearTimeout(timer));
+    window.clearTimeout(subKegiatanHighlightTimer);
 });
 
 const editNode = (type: NodeType, id: number, parentId: number | null, node: any) => {
@@ -5347,8 +5419,14 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 <article
                                     v-for="(parentRow, parentIndex) in group.rows"
                                     :key="`grouped-${section.key}-${parentRow.key}`"
+                                    :id="section.key === 'sub-kegiatan' ? `renstra-sub-kegiatan-${parentRow.id}` : undefined"
                                     class="relative overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm transition hover:border-blue-200 hover:shadow-md"
-                                    :class="sectionArticleClass(section)"
+                                    :class="[
+                                        sectionArticleClass(section),
+                                        section.key === 'sub-kegiatan' && highlightedSubKegiatanId === Number(parentRow.id)
+                                            ? 'ring-4 ring-amber-300 ring-offset-2'
+                                            : '',
+                                    ]"
                                 >
                             <div
                                 class="grid gap-3 border-b bg-gradient-to-r p-4 lg:grid-cols-[4rem_minmax(0,1fr)_auto] lg:items-start"
@@ -6421,7 +6499,13 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div v-for="sub in kegiatan.sub_kegiatan" :key="sub.id" class="mt-3 rounded-md border bg-white p-3">
+                                                <div
+                                                    v-for="sub in kegiatan.sub_kegiatan"
+                                                    :id="`renstra-sub-kegiatan-${sub.id}`"
+                                                    :key="sub.id"
+                                                    class="mt-3 rounded-md border bg-white p-3 transition"
+                                                    :class="highlightedSubKegiatanId === sub.id ? 'ring-4 ring-amber-300 ring-offset-2' : ''"
+                                                >
                                                     <div class="flex items-start justify-between gap-3">
                                                         <div>
                                                             <div class="text-xs font-semibold uppercase text-muted-foreground">Sub Kegiatan</div>
@@ -6708,6 +6792,59 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     <LoaderCircle class="size-3.5 animate-spin" aria-hidden="true" />
                                     Memeriksa penggunaan sub kegiatan terbaru.
                                 </p>
+                                <div
+                                    v-if="subKegiatanUsageError"
+                                    class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium leading-5 text-red-700"
+                                    role="alert"
+                                >
+                                    {{ subKegiatanUsageError }}
+                                </div>
+                                <div
+                                    v-if="relevantUsedSubKegiatan.length"
+                                    class="overflow-hidden rounded-xl border border-amber-200 bg-amber-50/70"
+                                >
+                                    <div class="border-b border-amber-200 px-3 py-2.5">
+                                        <p class="text-xs font-bold uppercase tracking-wide text-amber-900">Sudah terpasang dalam RENSTRA</p>
+                                        <p class="mt-1 text-xs leading-5 text-amber-800">
+                                            Data berikut masih aktif. Buka lokasinya untuk memeriksa, atau hapus dari lokasi lama sebelum memasangnya kembali.
+                                        </p>
+                                    </div>
+                                    <div class="max-h-52 divide-y divide-amber-200 overflow-y-auto">
+                                        <div v-for="item in relevantUsedSubKegiatan" :key="item.opd_sub_kegiatan_id" class="grid gap-2 px-3 py-3">
+                                            <div class="min-w-0">
+                                                <p class="text-sm font-semibold leading-5 text-slate-950">
+                                                    <span v-if="item.kode" class="text-amber-800">{{ item.kode }} · </span>{{ item.nama }}
+                                                </p>
+                                                <p class="mt-1 text-xs leading-5 text-slate-600">
+                                                    {{ item.program || 'Program tidak tersedia' }}
+                                                    <span class="mx-1 text-slate-300">/</span>
+                                                    {{ item.kegiatan || 'Kegiatan tidak tersedia' }}
+                                                </p>
+                                                <p v-if="item.sasaran_kegiatan" class="mt-1 text-xs leading-5 text-slate-500">
+                                                    Sasaran Kegiatan: {{ item.sasaran_kegiatan }}
+                                                </p>
+                                            </div>
+                                            <div class="flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-amber-300 bg-white px-2.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-100"
+                                                    @click="focusUsedSubKegiatan(item)"
+                                                >
+                                                    <Eye class="size-3.5" />
+                                                    Lihat lokasi
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-50"
+                                                    @click="removeUsedSubKegiatan(item)"
+                                                >
+                                                    <Trash2 class="size-3.5" />
+                                                    Hapus dari RENSTRA
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                                 <InputError :message="form.errors.sub_kegiatan_pemerintahan_id" />
                                 <div v-if="selectedSubKegiatanMaster" class="grid gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-3 text-sm">
                                     <div>
