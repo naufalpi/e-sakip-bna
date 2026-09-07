@@ -26,7 +26,7 @@ class DashboardService
 {
     private const CACHE_TTL_SECONDS = 300;
 
-    private const CACHE_SCHEMA_VERSION = 'v6';
+    private const CACHE_SCHEMA_VERSION = 'v7';
 
     /**
      * @param  array<string, mixed>  $filters
@@ -89,7 +89,6 @@ class DashboardService
         $capaianByOpd = $this->averageAchievementByOpd($opdIds, $tahun);
         $progressOpd = $this->progressByOpd(
             $visibleOpds,
-            $rpjmdOpdIds,
             $renstraOpdIds,
             $renjaOpdIds,
             $rkaOpdIds,
@@ -386,7 +385,6 @@ class DashboardService
 
     /**
      * @param  Collection<int, Opd>  $opds
-     * @param  array<int, int>  $rpjmdOpdIds
      * @param  array<int, int>  $renstraOpdIds
      * @param  array<int, int>  $renjaOpdIds
      * @param  array<int, int>  $rkaOpdIds
@@ -402,7 +400,6 @@ class DashboardService
      */
     private function progressByOpd(
         Collection $opds,
-        array $rpjmdOpdIds,
         array $renstraOpdIds,
         array $renjaOpdIds,
         array $rkaOpdIds,
@@ -417,9 +414,8 @@ class DashboardService
         int $tahun,
     ): array {
         return $opds
-            ->map(function (Opd $opd) use ($rpjmdOpdIds, $renstraOpdIds, $renjaOpdIds, $rkaOpdIds, $dpaOpdIds, $pkOpdIds, $rencanaAksiOpdIds, $realisasiOpdIds, $lkjipOpdIds, $evaluasiByOpd, $rekomendasiTerbukaByOpd, $capaianByOpd, $tahun) {
+            ->map(function (Opd $opd) use ($renstraOpdIds, $renjaOpdIds, $rkaOpdIds, $dpaOpdIds, $pkOpdIds, $rencanaAksiOpdIds, $realisasiOpdIds, $lkjipOpdIds, $evaluasiByOpd, $rekomendasiTerbukaByOpd, $capaianByOpd, $tahun) {
                 $modules = [
-                    'rpjmd' => in_array($opd->id, $rpjmdOpdIds, true),
                     'renstra' => in_array($opd->id, $renstraOpdIds, true),
                     'renja' => in_array($opd->id, $renjaOpdIds, true),
                     'rka' => in_array($opd->id, $rkaOpdIds, true),

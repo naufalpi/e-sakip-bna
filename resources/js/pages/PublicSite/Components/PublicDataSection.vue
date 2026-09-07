@@ -127,15 +127,42 @@ function updateSearch(event: Event): void {
 
             <div class="hidden overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm shadow-blue-950/5 lg:block">
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-slate-200 text-left">
+                    <table
+                        class="min-w-full divide-y divide-slate-200 text-left"
+                        :class="section.id === 'perencanaan' ? 'w-full table-fixed' : ''"
+                    >
+                        <colgroup v-if="section.id === 'perencanaan'">
+                            <col style="width: 5%" />
+                            <col style="width: 25%" />
+                            <col
+                                v-for="column in section.columns"
+                                :key="`col-${column.key}`"
+                                :style="{ width: `${70 / Math.max(section.columns.length, 1)}%` }"
+                            />
+                        </colgroup>
                         <thead class="bg-blue-50/80">
                             <tr>
-                                <th class="w-16 px-4 py-4 text-xs font-semibold uppercase text-slate-500">No</th>
-                                <th class="min-w-72 px-4 py-4 text-xs font-semibold uppercase text-slate-500">Perangkat Daerah</th>
+                                <th
+                                    class="text-xs font-semibold uppercase text-slate-500"
+                                    :class="section.id === 'perencanaan' ? 'px-3 py-3.5' : 'w-16 px-4 py-4'"
+                                >
+                                    No
+                                </th>
+                                <th
+                                    class="text-xs font-semibold uppercase text-slate-500"
+                                    :class="section.id === 'perencanaan' ? 'px-3 py-3.5' : 'min-w-72 px-4 py-4'"
+                                >
+                                    Perangkat Daerah
+                                </th>
                                 <th
                                     v-for="column in section.columns"
                                     :key="column.key"
-                                    class="min-w-36 px-4 py-4 text-xs font-semibold uppercase text-slate-500"
+                                    class="text-xs font-semibold uppercase text-slate-500"
+                                    :class="
+                                        section.id === 'perencanaan'
+                                            ? 'break-words px-2 py-3.5 text-center text-[11px] leading-4'
+                                            : 'min-w-36 px-4 py-4'
+                                    "
                                 >
                                     {{ column.label }}
                                 </th>
@@ -143,12 +170,24 @@ function updateSearch(event: Event): void {
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr v-for="row in section.rows" :key="`${section.id}-${row.opd.id}`" class="transition hover:bg-slate-50">
-                                <td class="px-4 py-4 text-sm font-medium text-slate-500">{{ row.no }}</td>
-                                <td class="px-4 py-4">
+                                <td
+                                    class="py-4 text-sm font-medium text-slate-500"
+                                    :class="section.id === 'perencanaan' ? 'px-3' : 'px-4'"
+                                >
+                                    {{ row.no }}
+                                </td>
+                                <td class="py-4" :class="section.id === 'perencanaan' ? 'px-3' : 'px-4'">
                                     <p class="text-sm font-semibold leading-6 text-slate-950">{{ row.opd.nama }}</p>
                                 </td>
-                                <td v-for="column in section.columns" :key="column.key" class="px-4 py-4 align-top">
-                                    <PublicDataCell :cell="row.cells[column.key]" :column-label="column.label" />
+                                <td
+                                    v-for="column in section.columns"
+                                    :key="column.key"
+                                    class="py-4 align-top"
+                                    :class="section.id === 'perencanaan' ? 'px-2' : 'px-4'"
+                                >
+                                    <div :class="section.id === 'perencanaan' ? 'flex justify-center' : ''">
+                                        <PublicDataCell :cell="row.cells[column.key]" :column-label="column.label" />
+                                    </div>
                                 </td>
                             </tr>
                             <tr v-if="section.rows.length === 0">

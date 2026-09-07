@@ -188,6 +188,7 @@ class DashboardTest extends TestCase
                 ->where('stats.dpa_opd_count', 0)
                 ->where('stats.perjanjian_kinerja_opd_count', 1)
                 ->where('progressOpd.0.opd_id', $scenario['opd']->id)
+                ->missing('progressOpd.0.modules.rpjmd')
                 ->where('progressOpd.0.modules.renja', false)
                 ->where('progressOpd.0.modules.rka', false)
                 ->where('progressOpd.0.modules.dpa', false)

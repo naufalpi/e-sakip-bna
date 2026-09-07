@@ -11,6 +11,7 @@ import ClipboardCheck from 'lucide-vue-next/dist/esm/icons/clipboard-check.js';
 import FileCheck2 from 'lucide-vue-next/dist/esm/icons/file-check-2.js';
 import Gauge from 'lucide-vue-next/dist/esm/icons/gauge.js';
 import ListChecks from 'lucide-vue-next/dist/esm/icons/list-checks.js';
+import Search from 'lucide-vue-next/dist/esm/icons/search.js';
 import TrendingUp from 'lucide-vue-next/dist/esm/icons/trending-up.js';
 import AlertTriangle from 'lucide-vue-next/dist/esm/icons/triangle-alert.js';
 import Trophy from 'lucide-vue-next/dist/esm/icons/trophy.js';
@@ -185,7 +186,6 @@ const filterForm = reactive({
 });
 
 const moduleLabels: Record<string, string> = {
-    rpjmd: 'RPJMD',
     renstra: 'Renstra',
     renja: 'Renja',
     rka: 'RKA',
@@ -352,7 +352,35 @@ const rankingPage = ref(1);
 const rankingPageSize = ref(5);
 const progressPage = ref(1);
 const progressPageSize = ref(10);
+const progressSearch = ref('');
+const progressStatusFilter = ref('all');
+const progressMissingModuleFilter = ref('all');
 const pageSizeOptions = [5, 10, 20, 0];
+const progressModuleKeys = ['renstra', 'renja', 'rka', 'dpa', 'pk', 'rencana_aksi', 'realisasi', 'lkjip', 'evaluasi'];
+
+const filteredProgressOpd = computed(() => {
+    const search = progressSearch.value.trim().toLocaleLowerCase('id-ID');
+
+    return props.progressOpd.filter((row) => {
+        const matchesSearch =
+            search === '' ||
+            [row.nama, row.singkatan, row.kode]
+                .filter((value): value is string => Boolean(value))
+                .some((value) => value.toLocaleLowerCase('id-ID').includes(search));
+        const matchesStatus =
+            progressStatusFilter.value === 'all' ||
+            (progressStatusFilter.value === 'complete' && row.progress_percent >= 100) ||
+            (progressStatusFilter.value === 'incomplete' && row.progress_percent < 100);
+        const matchesMissingModule =
+            progressMissingModuleFilter.value === 'all' || row.modules[progressMissingModuleFilter.value] === false;
+
+        return matchesSearch && matchesStatus && matchesMissingModule;
+    });
+});
+
+const hasProgressFilters = computed(
+    () => progressSearch.value.trim() !== '' || progressStatusFilter.value !== 'all' || progressMissingModuleFilter.value !== 'all',
+);
 
 const motionTargets = computed<Record<string, number>>(() => {
     const targets: Record<string, number> = {
@@ -395,13 +423,19 @@ const motionTargets = computed<Record<string, number>>(() => {
 const motionKey = computed(() => JSON.stringify(motionTargets.value));
 
 const rankingPageCount = computed(() => pageCount(props.opdPerformanceRanking.length, rankingPageSize.value));
-const progressPageCount = computed(() => pageCount(props.progressOpd.length, progressPageSize.value));
+const progressPageCount = computed(() => pageCount(filteredProgressOpd.value.length, progressPageSize.value));
 
 const paginatedRanking = computed(() => paginate(props.opdPerformanceRanking, rankingPage.value, rankingPageSize.value));
-const paginatedProgressOpd = computed(() => paginate(props.progressOpd, progressPage.value, progressPageSize.value));
+const paginatedProgressOpd = computed(() => paginate(filteredProgressOpd.value, progressPage.value, progressPageSize.value));
 
 const rankingPageSummary = computed(() => pageSummary(props.opdPerformanceRanking.length, rankingPage.value, rankingPageSize.value));
-const progressPageSummary = computed(() => pageSummary(props.progressOpd.length, progressPage.value, progressPageSize.value));
+const progressPageSummary = computed(() => pageSummary(filteredProgressOpd.value.length, progressPage.value, progressPageSize.value));
+
+const resetProgressFilters = () => {
+    progressSearch.value = '';
+    progressStatusFilter.value = 'all';
+    progressMissingModuleFilter.value = 'all';
+};
 
 const resetFilters = () => {
     filterForm.tahun = String(props.dashboard.tahun);
@@ -524,7 +558,7 @@ watch([rankingPageSize, () => props.opdPerformanceRanking.length], () => {
     rankingPage.value = 1;
 });
 
-watch([progressPageSize, () => props.progressOpd.length], () => {
+watch([progressPageSize, progressSearch, progressStatusFilter, progressMissingModuleFilter, () => props.progressOpd.length], () => {
     progressPage.value = 1;
 });
 
@@ -1125,6 +1159,34 @@ function booleanClass(value: boolean) {
                     </select>
                 </label>
             </div>
+            <div class="dashboard-progress-filters" aria-label="Filter progress per OPD">
+                <label class="dashboard-progress-filter dashboard-progress-filter--search">
+                    <span>Cari OPD</span>
+                    <div class="dashboard-progress-search">
+                        <Search class="size-4" aria-hidden="true" />
+                        <input v-model="progressSearch" type="search" placeholder="Nama, singkatan, atau kode OPD" />
+                    </div>
+                </label>
+                <label class="dashboard-progress-filter">
+                    <span>Status progres</span>
+                    <select v-model="progressStatusFilter">
+                        <option value="all">Semua status</option>
+                        <option value="incomplete">Belum lengkap</option>
+                        <option value="complete">Lengkap 100%</option>
+                    </select>
+                </label>
+                <label class="dashboard-progress-filter">
+                    <span>Modul belum lengkap</span>
+                    <select v-model="progressMissingModuleFilter">
+                        <option value="all">Semua modul</option>
+                        <option v-for="key in progressModuleKeys" :key="key" :value="key">{{ moduleLabels[key] }}</option>
+                    </select>
+                </label>
+                <button v-if="hasProgressFilters" type="button" class="dashboard-progress-filter__reset" @click="resetProgressFilters">
+                    Reset filter
+                </button>
+                <p class="dashboard-progress-filter__result">{{ filteredProgressOpd.length }} dari {{ progressOpd.length }} OPD</p>
+            </div>
             <div class="overflow-x-auto">
                 <table class="dashboard-data-table dashboard-data-table--wide">
                     <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
@@ -1151,10 +1213,10 @@ function booleanClass(value: boolean) {
                             <td class="px-4 py-3">
                                 <div class="flex flex-wrap gap-1">
                                     <span
-                                        v-for="(done, key) in row.modules"
+                                        v-for="key in progressModuleKeys"
                                         :key="key"
                                         class="rounded-full border px-2 py-1 text-xs"
-                                        :class="booleanClass(done)"
+                                        :class="booleanClass(Boolean(row.modules[key]))"
                                     >
                                         {{ moduleLabels[key] ?? key }}
                                     </span>
@@ -1200,13 +1262,15 @@ function booleanClass(value: boolean) {
                                 </span>
                             </td>
                         </tr>
-                        <tr v-if="progressOpd.length === 0">
-                            <td colspan="6" class="px-4 py-10 text-center text-muted-foreground">Belum ada OPD aktif pada cakupan dashboard ini.</td>
+                        <tr v-if="filteredProgressOpd.length === 0">
+                            <td colspan="6" class="px-4 py-10 text-center text-muted-foreground">
+                                {{ progressOpd.length === 0 ? 'Belum ada OPD aktif pada cakupan dashboard ini.' : 'Tidak ada OPD yang sesuai dengan filter.' }}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            <footer v-if="progressOpd.length > 0" class="dashboard-pagination">
+            <footer v-if="filteredProgressOpd.length > 0" class="dashboard-pagination">
                 <span>{{ progressPageSummary }}</span>
                 <div>
                     <button type="button" :disabled="progressPage === 1" aria-label="Halaman progress OPD sebelumnya" @click="progressPage -= 1">
@@ -3018,6 +3082,103 @@ function booleanClass(value: boolean) {
     background-color: #fff;
 }
 
+.dashboard-progress-filters {
+    display: grid;
+    grid-template-columns: minmax(15rem, 1.35fr) minmax(10rem, 0.7fr) minmax(12rem, 0.8fr) auto auto;
+    align-items: end;
+    gap: 0.7rem;
+    border-bottom: 1px solid #edf0f5;
+    padding: 0.8rem 1rem;
+    background: #fbfdff;
+}
+
+.dashboard-progress-filter {
+    display: grid;
+    min-width: 0;
+    gap: 0.3rem;
+}
+
+.dashboard-progress-filter > span {
+    color: #64748b;
+    font-size: 0.64rem;
+    font-weight: 750;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+}
+
+.dashboard-progress-search {
+    display: flex;
+    height: 2.75rem;
+    min-width: 0;
+    align-items: center;
+    gap: 0.55rem;
+    border: 1px solid #d9e2ef;
+    border-radius: 0.5rem;
+    padding: 0 0.7rem;
+    color: #8190a5;
+    background: #fff;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.dashboard-progress-search input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    color: #334155;
+    font-size: 0.78rem;
+    background: transparent;
+}
+
+.dashboard-progress-search input::placeholder {
+    color: #94a3b8;
+}
+
+.dashboard-progress-filter select,
+.dashboard-progress-filter__reset {
+    height: 2.75rem;
+    border: 1px solid #d9e2ef;
+    border-radius: 0.5rem;
+    outline: none;
+    color: #334155;
+    font-size: 0.78rem;
+    background: #fff;
+    transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.dashboard-progress-filter select {
+    width: 100%;
+    padding: 0 2rem 0 0.7rem;
+}
+
+.dashboard-progress-filter__reset {
+    padding: 0 0.85rem;
+    color: #526078;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.dashboard-progress-filter__result {
+    align-self: center;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.dashboard-progress-search:focus-within,
+.dashboard-progress-filter select:focus,
+.dashboard-progress-filter__reset:focus-visible {
+    border-color: #6aa4ef;
+    box-shadow: 0 0 0 3px rgb(59 130 246 / 0.11);
+}
+
+.dashboard-progress-filter select:hover,
+.dashboard-progress-filter__reset:hover {
+    border-color: #b9c9df;
+    background: #f8fbff;
+}
+
 .dashboard-pagination {
     display: flex;
     min-height: 2.9rem;
@@ -3619,6 +3780,35 @@ function booleanClass(value: boolean) {
     color: #f8fafc;
 }
 
+:global(.dark) .dashboard-progress-filters {
+    border-color: rgb(51 65 85 / 0.82);
+    background: rgb(15 23 42 / 0.72);
+}
+
+:global(.dark) .dashboard-progress-filter > span,
+:global(.dark) .dashboard-progress-filter__result {
+    color: #94a3b8;
+}
+
+:global(.dark) .dashboard-progress-search,
+:global(.dark) .dashboard-progress-filter select,
+:global(.dark) .dashboard-progress-filter__reset {
+    border-color: rgb(71 85 105 / 0.88);
+    color: #e2e8f0;
+    background: rgb(15 23 42 / 0.9);
+}
+
+:global(.dark) .dashboard-progress-search input {
+    color: #e2e8f0;
+}
+
+:global(.dark) .dashboard-progress-filter select:hover,
+:global(.dark) .dashboard-progress-filter__reset:hover {
+    border-color: rgb(96 165 250 / 0.78);
+    color: #f8fafc;
+    background: rgb(30 41 59 / 0.9);
+}
+
 @media (max-width: 1200px) {
     .dashboard-analytics-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3630,6 +3820,15 @@ function booleanClass(value: boolean) {
 
     .dashboard-detail-grid {
         grid-template-columns: 1fr;
+    }
+
+    .dashboard-progress-filters {
+        grid-template-columns: minmax(14rem, 1.5fr) repeat(2, minmax(10rem, 1fr));
+    }
+
+    .dashboard-progress-filter__reset,
+    .dashboard-progress-filter__result {
+        justify-self: start;
     }
 }
 
@@ -3656,6 +3855,14 @@ function booleanClass(value: boolean) {
     .dashboard-lower-grid {
         grid-template-columns: 1fr;
     }
+
+    .dashboard-progress-filters {
+        grid-template-columns: minmax(0, 1fr) minmax(10rem, 0.7fr);
+    }
+
+    .dashboard-progress-filter--search {
+        grid-column: 1 / -1;
+    }
 }
 
 @media (max-width: 640px) {
@@ -3680,6 +3887,15 @@ function booleanClass(value: boolean) {
 
     .dashboard-filterbar__reset {
         width: 100%;
+    }
+
+    .dashboard-progress-filters {
+        grid-template-columns: 1fr;
+        padding: 0.75rem;
+    }
+
+    .dashboard-progress-filter--search {
+        grid-column: auto;
     }
 
     .dashboard-kpi-grid,
