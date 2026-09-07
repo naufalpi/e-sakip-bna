@@ -17,6 +17,7 @@ import {
     GitBranch,
     Layers3,
     Link2,
+    LoaderCircle,
     Network,
     Pencil,
     Plus,
@@ -56,6 +57,12 @@ type Option = {
     satuan_indikator_id?: number | null;
     satuan_label?: string | null;
     definisi_operasional?: string | null;
+};
+
+type UsedSubKegiatan = {
+    opd_sub_kegiatan_id: number;
+    sub_kegiatan_pemerintahan_id: number;
+    context: string;
 };
 type NodeType =
     | 'tujuan'
@@ -535,6 +542,9 @@ const viewMode = ref<'table' | 'bulk'>(props.can.manage ? 'bulk' : 'table');
 const isNodeModalOpen = ref(false);
 const formPanel = ref<HTMLElement | null>(null);
 const bulkRows = ref<BulkRow[]>([]);
+const freshUsedSubKegiatan = ref<UsedSubKegiatan[] | null>(null);
+const isRefreshingSubKegiatanUsage = ref(false);
+const subKegiatanUsageRequestId = ref(0);
 const expandedBulkSections = ref<string[]>([]);
 const expandedProgramSasaranIds = ref<number[]>([]);
 const selectedProgramFocusId = ref<number | null>(null);
@@ -942,6 +952,14 @@ const subKegiatanMasterOptions = computed(() => {
 const usedSubKegiatanMasterContexts = computed(() => {
     const editingSubKegiatanId = editingNode.value?.type === 'sub_kegiatan' ? editingNode.value.id : null;
     const contexts = new Map<number, string>();
+
+    if (freshUsedSubKegiatan.value !== null) {
+        freshUsedSubKegiatan.value
+            .filter((item) => editingSubKegiatanId === null || item.opd_sub_kegiatan_id !== editingSubKegiatanId)
+            .forEach((item) => contexts.set(item.sub_kegiatan_pemerintahan_id, item.context));
+
+        return contexts;
+    }
 
     bulkRows.value
         .filter(
@@ -2091,6 +2109,9 @@ const resetNodeForm = () => {
 const closeNodeModal = () => {
     isNodeModalOpen.value = false;
     editingNode.value = null;
+    subKegiatanUsageRequestId.value += 1;
+    isRefreshingSubKegiatanUsage.value = false;
+    freshUsedSubKegiatan.value = null;
     targetBatchRows.value = [];
     clearNodeForm();
 };
@@ -2177,6 +2198,44 @@ const selectNodeType = (type: NodeType, parentId: number | string = '') => {
             prepareTargetBatchRows();
         }
     });
+};
+
+const refreshSubKegiatanUsage = async () => {
+    const requestId = ++subKegiatanUsageRequestId.value;
+    isRefreshingSubKegiatanUsage.value = true;
+
+    try {
+        const response = await fetch(route('renstra-opd.nodes.sub-kegiatan-usage', props.renstra.id), {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            throw new Error('Daftar penggunaan sub kegiatan tidak dapat dimuat.');
+        }
+
+        const payload = (await response.json()) as { items?: UsedSubKegiatan[] };
+        if (requestId === subKegiatanUsageRequestId.value) {
+            freshUsedSubKegiatan.value = Array.isArray(payload.items) ? payload.items : [];
+        }
+    } catch {
+        if (requestId === subKegiatanUsageRequestId.value) {
+            freshUsedSubKegiatan.value = null;
+        }
+    } finally {
+        if (requestId === subKegiatanUsageRequestId.value) {
+            isRefreshingSubKegiatanUsage.value = false;
+        }
+    }
+};
+
+const openSubKegiatanModal = (kegiatanId: number) => {
+    freshUsedSubKegiatan.value = null;
+    selectNodeType('sub_kegiatan', kegiatanId);
+    void refreshSubKegiatanUsage();
 };
 
 watch(
@@ -3599,7 +3658,7 @@ const openFocusedSubKegiatanModal = () => {
         return;
     }
 
-    selectNodeType('sub_kegiatan', focus.kegiatanId);
+    openSubKegiatanModal(focus.kegiatanId);
 };
 
 const indicatorTargetType = (row: BulkRow): NodeType | null => targetTypeByIndicatorType[row.type] ?? null;
@@ -4069,6 +4128,11 @@ const submitNode = () => {
         preserveScroll: true,
         onSuccess: () => {
             closeNodeModal();
+        },
+        onError: (errors: Record<string, string>) => {
+            if (form.type === 'sub_kegiatan' && errors.sub_kegiatan_pemerintahan_id) {
+                void refreshSubKegiatanUsage();
+            }
         },
     };
 
@@ -6272,7 +6336,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                         <button
                                                             type="button"
                                                             class="inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium text-sky-800 hover:bg-sky-50"
-                                                            @click="selectNodeType('sub_kegiatan', kegiatan.id)"
+                                                            @click="openSubKegiatanModal(kegiatan.id)"
                                                         >
                                                             <Plus class="size-3.5" />
                                                             Sub Kegiatan
@@ -6631,11 +6695,19 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     id="sub_kegiatan_pemerintahan_id"
                                     v-model="form.sub_kegiatan_pemerintahan_id"
                                     :options="subKegiatanMasterSelectOptions"
-                                    :disabled="needsParent && !form.parent_id"
+                                    :disabled="(needsParent && !form.parent_id) || isRefreshingSubKegiatanUsage"
                                     placement="bottom"
-                                    placeholder="Pilih sub kegiatan"
+                                    :placeholder="isRefreshingSubKegiatanUsage ? 'Memeriksa ketersediaan...' : 'Pilih sub kegiatan'"
                                     empty-text="Sub kegiatan belum tersedia"
                                 />
+                                <p
+                                    v-if="isRefreshingSubKegiatanUsage"
+                                    class="inline-flex items-center gap-2 text-xs font-medium text-blue-700"
+                                    role="status"
+                                >
+                                    <LoaderCircle class="size-3.5 animate-spin" aria-hidden="true" />
+                                    Memeriksa penggunaan sub kegiatan terbaru.
+                                </p>
                                 <InputError :message="form.errors.sub_kegiatan_pemerintahan_id" />
                                 <div v-if="selectedSubKegiatanMaster" class="grid gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-3 text-sm">
                                     <div>

@@ -14,11 +14,13 @@ use App\Models\SatuanIndikator;
 use App\Models\SubKegiatanPemerintahan;
 use App\Services\Master\CopyProgramKegiatanReferenceService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
@@ -102,32 +104,51 @@ class ProgramPemerintahanController extends Controller
     {
         $data = $request->validated();
 
-        DB::transaction(function () use ($data): void {
-            match ($data['type']) {
-                'program' => ProgramPemerintahan::create([
-                    'bidang_urusan_id' => $data['bidang_urusan_id'],
-                    'tahun_awal' => $data['tahun_awal'],
-                    'tahun_akhir' => $data['tahun_akhir'],
-                    'kode' => $data['kode'],
-                    'nama' => $data['nama'],
-                    'status' => $data['status'],
-                ]),
-                'kegiatan' => KegiatanPemerintahan::create([
-                    'periode_tahun_id' => $data['periode_tahun_id'],
-                    'program_pemerintahan_id' => $data['program_pemerintahan_id'],
-                    'kode' => $data['kode'],
-                    'nama' => $data['nama'],
-                    'status' => $data['status'],
-                ]),
-                'sub_kegiatan' => tap(SubKegiatanPemerintahan::create([
-                    'periode_tahun_id' => $data['periode_tahun_id'],
-                    'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
-                    'kode' => $data['kode'],
-                    'nama' => $data['nama'],
-                    ...$this->subKegiatanPayload($data),
-                ]), fn (SubKegiatanPemerintahan $subKegiatan) => $this->syncSubKegiatanIndicators($subKegiatan, $data)),
-            };
-        });
+        try {
+            DB::transaction(function () use ($data): void {
+                match ($data['type']) {
+                    'program' => $this->restoreOrCreateReference(
+                        ProgramPemerintahan::class,
+                        [
+                            'bidang_urusan_id' => $data['bidang_urusan_id'],
+                            'tahun_awal' => $data['tahun_awal'],
+                            'tahun_akhir' => $data['tahun_akhir'],
+                            'kode' => $data['kode'],
+                        ],
+                        ['nama' => $data['nama'], 'status' => $data['status']],
+                    ),
+                    'kegiatan' => $this->restoreOrCreateReference(
+                        KegiatanPemerintahan::class,
+                        [
+                            'periode_tahun_id' => $data['periode_tahun_id'],
+                            'program_pemerintahan_id' => $data['program_pemerintahan_id'],
+                            'kode' => $data['kode'],
+                        ],
+                        ['nama' => $data['nama'], 'status' => $data['status']],
+                    ),
+                    'sub_kegiatan' => tap($this->restoreOrCreateReference(
+                        SubKegiatanPemerintahan::class,
+                        [
+                            'periode_tahun_id' => $data['periode_tahun_id'],
+                            'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
+                            'kode' => $data['kode'],
+                        ],
+                        [
+                            'nama' => $data['nama'],
+                            ...$this->subKegiatanPayload($data),
+                        ],
+                    ), fn (SubKegiatanPemerintahan $subKegiatan) => $this->syncSubKegiatanIndicators($subKegiatan, $data)),
+                };
+            });
+        } catch (QueryException $exception) {
+            if (! $this->isReferenceCodeUniqueViolation($exception)) {
+                throw $exception;
+            }
+
+            throw ValidationException::withMessages([
+                'kode' => 'Kode sudah digunakan pada periode dan induk yang dipilih. Muat ulang halaman lalu periksa kembali datanya.',
+            ]);
+        }
 
         return $this->redirectToContext($request)->with('success', 'Referensi program/kegiatan berhasil disimpan.');
     }
@@ -164,37 +185,53 @@ class ProgramPemerintahanController extends Controller
             $data['periode_tahun_id'] = $this->resolvePeriodeTahunIdFromData($data);
         }
 
-        DB::transaction(function () use ($data, $rows) {
-            foreach ($rows as $row) {
-                match ($data['type']) {
-                    'program' => ProgramPemerintahan::updateOrCreate(
-                        [
-                            'tahun_awal' => $data['tahun_awal'],
-                            'tahun_akhir' => $data['tahun_akhir'],
-                            'bidang_urusan_id' => $data['bidang_urusan_id'],
-                            'kode' => $row['kode'],
-                        ],
-                        ['nama' => $row['nama'], 'status' => $data['status']],
-                    ),
-                    'kegiatan' => KegiatanPemerintahan::updateOrCreate(
-                        [
-                            'periode_tahun_id' => $data['periode_tahun_id'],
-                            'program_pemerintahan_id' => $data['program_pemerintahan_id'],
-                            'kode' => $row['kode'],
-                        ],
-                        ['nama' => $row['nama'], 'status' => $data['status']],
-                    ),
-                    'sub_kegiatan' => SubKegiatanPemerintahan::updateOrCreate(
-                        [
-                            'periode_tahun_id' => $data['periode_tahun_id'],
-                            'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
-                            'kode' => $row['kode'],
-                        ],
-                        ['nama' => $row['nama'], 'status' => $data['status']],
-                    ),
-                };
+        try {
+            DB::transaction(function () use ($data, $rows) {
+                foreach ($rows as $row) {
+                    match ($data['type']) {
+                        'program' => $this->restoreOrCreateReference(
+                            ProgramPemerintahan::class,
+                            [
+                                'tahun_awal' => $data['tahun_awal'],
+                                'tahun_akhir' => $data['tahun_akhir'],
+                                'bidang_urusan_id' => $data['bidang_urusan_id'],
+                                'kode' => $row['kode'],
+                            ],
+                            ['nama' => $row['nama'], 'status' => $data['status']],
+                            true,
+                        ),
+                        'kegiatan' => $this->restoreOrCreateReference(
+                            KegiatanPemerintahan::class,
+                            [
+                                'periode_tahun_id' => $data['periode_tahun_id'],
+                                'program_pemerintahan_id' => $data['program_pemerintahan_id'],
+                                'kode' => $row['kode'],
+                            ],
+                            ['nama' => $row['nama'], 'status' => $data['status']],
+                            true,
+                        ),
+                        'sub_kegiatan' => $this->restoreOrCreateReference(
+                            SubKegiatanPemerintahan::class,
+                            [
+                                'periode_tahun_id' => $data['periode_tahun_id'],
+                                'kegiatan_pemerintahan_id' => $data['kegiatan_pemerintahan_id'],
+                                'kode' => $row['kode'],
+                            ],
+                            ['nama' => $row['nama'], 'status' => $data['status']],
+                            true,
+                        ),
+                    };
+                }
+            });
+        } catch (QueryException $exception) {
+            if (! $this->isReferenceCodeUniqueViolation($exception)) {
+                throw $exception;
             }
-        });
+
+            throw ValidationException::withMessages([
+                'rows' => 'Salah satu kode sudah digunakan pada periode dan induk yang dipilih. Muat ulang halaman lalu periksa kembali datanya.',
+            ]);
+        }
 
         return $this->redirectToContext($request)->with('success', $rows->count().' baris referensi berhasil disimpan.');
     }
@@ -635,6 +672,62 @@ class ProgramPemerintahanController extends Controller
                     ),
                 ];
             });
+    }
+
+    /**
+     * Mengaktifkan kembali referensi yang pernah dihapus agar ID dan seluruh
+     * referensi dokumennya tetap utuh, atau membuat baris baru bila belum ada.
+     *
+     * @template TModel of Model
+     *
+     * @param  class-string<TModel>  $modelClass
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $values
+     * @return TModel
+     */
+    private function restoreOrCreateReference(
+        string $modelClass,
+        array $attributes,
+        array $values,
+        bool $updateActive = false,
+    ): Model {
+        /** @var TModel|null $reference */
+        $reference = $modelClass::withTrashed()
+            ->where($attributes)
+            ->lockForUpdate()
+            ->first();
+
+        if ($reference === null) {
+            /** @var TModel $reference */
+            $reference = $modelClass::create([...$attributes, ...$values]);
+
+            return $reference;
+        }
+
+        if (! $reference->trashed() && ! $updateActive) {
+            throw ValidationException::withMessages([
+                'kode' => 'Kode sudah digunakan pada periode dan induk yang dipilih.',
+            ]);
+        }
+
+        if ($reference->trashed()) {
+            $reference->restore();
+        }
+
+        $reference->fill($values)->save();
+
+        return $reference;
+    }
+
+    private function isReferenceCodeUniqueViolation(QueryException $exception): bool
+    {
+        $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
+        $message = $exception->getMessage();
+
+        return in_array($sqlState, ['23000', '23505'], true)
+            && (str_contains($message, 'program_pemerintahan_rpjmd_bidang_kode_unique')
+                || str_contains($message, 'kegiatan_pemerintahan_periode_program_kode_unique')
+                || str_contains($message, 'sub_kegiatan_pemerintahan_periode_kegiatan_kode_unique'));
     }
 
     private function findReference(string $type, int $id): Model

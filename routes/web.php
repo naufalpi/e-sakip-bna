@@ -112,6 +112,8 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
         ->where('section', 'tujuan|sasaran|program|kegiatan|sub-kegiatan')
         ->name('renstra-opd.manage');
     Route::resource('renstra-opd', RenstraOpdController::class);
+    Route::get('renstra-opd/{renstra_opd}/nodes/sub-kegiatan-usage', [RenstraOpdNodeController::class, 'subKegiatanUsage'])
+        ->name('renstra-opd.nodes.sub-kegiatan-usage');
     Route::post('renstra-opd/{renstra_opd}/nodes', [RenstraOpdNodeController::class, 'store'])->name('renstra-opd.nodes.store');
     Route::post('renstra-opd/{renstra_opd}/nodes/autosave', [RenstraOpdNodeController::class, 'autosaveStore'])->name('renstra-opd.nodes.autosave-store');
     Route::put('renstra-opd/{renstra_opd}/nodes/{type}/{id}', [RenstraOpdNodeController::class, 'update'])->name('renstra-opd.nodes.update');

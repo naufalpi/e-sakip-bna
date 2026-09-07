@@ -610,6 +610,150 @@ class MasterUmumTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_deleted_program_kegiatan_references_are_restored_when_added_again(): void
+    {
+        $this->seed();
+
+        $admin = $this->userWithRole('admin_kabupaten_dinkominfo');
+        $periode = PeriodeTahun::where('tahun', 2026)->firstOrFail();
+        $bidang = BidangUrusan::query()->firstOrFail();
+
+        $program = ProgramPemerintahan::create([
+            'bidang_urusan_id' => $bidang->id,
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'kode' => '9.99.01',
+            'nama' => 'Program Lama yang Dihapus',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('master.program-pemerintahan.destroy', ['type' => 'program', 'id' => $program->id]))
+            ->assertSessionHas('success');
+
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.store'), [
+                'type' => 'program',
+                'tahun_awal' => 2026,
+                'tahun_akhir' => 2030,
+                'bidang_urusan_id' => $bidang->id,
+                'kode' => '9.99.01',
+                'nama' => 'Program Dipulihkan',
+                'status' => 'active',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('master.program-pemerintahan.index'));
+
+        $this->assertDatabaseHas('program_pemerintahan', [
+            'id' => $program->id,
+            'nama' => 'Program Dipulihkan',
+            'deleted_at' => null,
+        ]);
+        $this->assertSame(1, ProgramPemerintahan::withTrashed()
+            ->where('tahun_awal', 2026)
+            ->where('tahun_akhir', 2030)
+            ->where('bidang_urusan_id', $bidang->id)
+            ->where('kode', '9.99.01')
+            ->count());
+
+        $kegiatan = KegiatanPemerintahan::create([
+            'periode_tahun_id' => $periode->id,
+            'program_pemerintahan_id' => $program->id,
+            'kode' => '9.99.01.2.01',
+            'nama' => 'Kegiatan Lama yang Dihapus',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('master.program-pemerintahan.destroy', ['type' => 'kegiatan', 'id' => $kegiatan->id]))
+            ->assertSessionHas('success');
+
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.store'), [
+                'type' => 'kegiatan',
+                'periode_tahun_id' => $periode->id,
+                'program_pemerintahan_id' => $program->id,
+                'kode' => '9.99.01.2.01',
+                'nama' => 'Kegiatan Dipulihkan',
+                'status' => 'active',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('master.program-pemerintahan.index'));
+
+        $this->assertDatabaseHas('kegiatan_pemerintahan', [
+            'id' => $kegiatan->id,
+            'nama' => 'Kegiatan Dipulihkan',
+            'deleted_at' => null,
+        ]);
+        $this->assertSame(1, KegiatanPemerintahan::withTrashed()
+            ->where('periode_tahun_id', $periode->id)
+            ->where('program_pemerintahan_id', $program->id)
+            ->where('kode', '9.99.01.2.01')
+            ->count());
+
+        $subKegiatan = SubKegiatanPemerintahan::create([
+            'periode_tahun_id' => $periode->id,
+            'kegiatan_pemerintahan_id' => $kegiatan->id,
+            'kode' => '9.99.01.2.01.0015',
+            'nama' => 'Sub Kegiatan Lama yang Dihapus',
+            'status' => 'active',
+        ]);
+        $subKegiatan->indikatorReferensi()->create([
+            'indikator' => 'Indikator Lama',
+            'is_utama' => true,
+            'urutan' => 1,
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('master.program-pemerintahan.destroy', ['type' => 'sub_kegiatan', 'id' => $subKegiatan->id]))
+            ->assertSessionHas('success');
+
+        $satuan = SatuanIndikator::query()->firstOrFail();
+
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.store'), [
+                'type' => 'sub_kegiatan',
+                'periode_tahun_id' => $periode->id,
+                'kegiatan_pemerintahan_id' => $kegiatan->id,
+                'kode' => '9.99.01.2.01.0015',
+                'nama' => 'Sub Kegiatan Dipulihkan',
+                'sasaran_sub_kegiatan' => 'Sasaran Sub Kegiatan Baru',
+                'indicators' => [[
+                    'indikator' => 'Indikator Baru',
+                    'satuan_indikator_id' => $satuan->id,
+                ]],
+                'definisi_operasional' => 'Definisi operasional baru.',
+                'status' => 'active',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('master.program-pemerintahan.index'));
+
+        $this->assertDatabaseHas('sub_kegiatan_pemerintahan', [
+            'id' => $subKegiatan->id,
+            'nama' => 'Sub Kegiatan Dipulihkan',
+            'sasaran_sub_kegiatan' => 'Sasaran Sub Kegiatan Baru',
+            'indikator_sub_kegiatan' => 'Indikator Baru',
+            'satuan_indikator_id' => $satuan->id,
+            'definisi_operasional' => 'Definisi operasional baru.',
+            'deleted_at' => null,
+        ]);
+        $this->assertSame(1, SubKegiatanPemerintahan::withTrashed()
+            ->where('periode_tahun_id', $periode->id)
+            ->where('kegiatan_pemerintahan_id', $kegiatan->id)
+            ->where('kode', '9.99.01.2.01.0015')
+            ->count());
+        $this->assertDatabaseMissing('indikator_sub_kegiatan_pemerintahan', [
+            'sub_kegiatan_pemerintahan_id' => $subKegiatan->id,
+            'indikator' => 'Indikator Lama',
+        ]);
+        $this->assertDatabaseHas('indikator_sub_kegiatan_pemerintahan', [
+            'sub_kegiatan_pemerintahan_id' => $subKegiatan->id,
+            'indikator' => 'Indikator Baru',
+            'is_utama' => true,
+            'urutan' => 1,
+        ]);
+    }
+
     public function test_program_kegiatan_summary_cards_follow_current_context(): void
     {
         $this->seed();

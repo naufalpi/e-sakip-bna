@@ -1081,6 +1081,38 @@ class RenstraOpdTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame(2, $subKegiatanOpd->indikator()->count());
+
+        $this->actingAs($user)
+            ->getJson(route('renstra-opd.nodes.sub-kegiatan-usage', $renstra))
+            ->assertOk()
+            ->assertJsonPath('items.0.opd_sub_kegiatan_id', $subKegiatanOpd->id)
+            ->assertJsonPath('items.0.sub_kegiatan_pemerintahan_id', $subKegiatanMaster->id);
+
+        $this->actingAs($user)
+            ->from(route('renstra-opd.show', $renstra))
+            ->delete(route('renstra-opd.nodes.destroy', [$renstra, 'sub_kegiatan', $subKegiatanOpd->id]))
+            ->assertRedirect(route('renstra-opd.show', $renstra));
+
+        $this->assertSoftDeleted('opd_sub_kegiatan', ['id' => $subKegiatanOpd->id]);
+
+        $this->actingAs($user)
+            ->getJson(route('renstra-opd.nodes.sub-kegiatan-usage', $renstra))
+            ->assertOk()
+            ->assertJsonCount(0, 'items');
+
+        $this->actingAs($user)
+            ->from(route('renstra-opd.show', $renstra))
+            ->post(route('renstra-opd.nodes.store', $renstra), [
+                'type' => 'sub_kegiatan',
+                'parent_id' => $kegiatanOpd->id,
+                'sub_kegiatan_pemerintahan_id' => $subKegiatanMaster->id,
+                'opd_unit_id' => $unit->id,
+            ])
+            ->assertRedirect(route('renstra-opd.show', $renstra))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, OpdSubKegiatan::whereHas('kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->count());
+        $this->assertSame(2, OpdSubKegiatan::withTrashed()->whereHas('kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->count());
     }
 
     public function test_renstra_node_autosave_updates_existing_cascading_data(): void

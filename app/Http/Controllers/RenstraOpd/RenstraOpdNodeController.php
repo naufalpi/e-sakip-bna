@@ -37,6 +37,41 @@ use Illuminate\Validation\ValidationException;
 
 class RenstraOpdNodeController extends Controller
 {
+    public function subKegiatanUsage(RenstraOpd $renstraOpd): JsonResponse
+    {
+        $this->authorize('update', $renstraOpd);
+
+        $items = OpdSubKegiatan::query()
+            ->with('kegiatan.program')
+            ->whereNotNull('sub_kegiatan_pemerintahan_id')
+            ->whereHas('kegiatan.program', fn (Builder $query) => $query
+                ->where('renstra_opd_id', $renstraOpd->id))
+            ->orderBy('id')
+            ->get()
+            ->map(function (OpdSubKegiatan $subKegiatan): array {
+                $context = collect([
+                    $subKegiatan->kegiatan?->nama,
+                    filled($subKegiatan->kegiatan?->sasaran_kegiatan)
+                        ? 'Sasaran Kegiatan: '.$subKegiatan->kegiatan->sasaran_kegiatan
+                        : null,
+                    filled($subKegiatan->kegiatan?->program?->sasaran_program)
+                        ? 'Sasaran Program: '.$subKegiatan->kegiatan->program->sasaran_program
+                        : null,
+                ])->filter()->join(' • ');
+
+                return [
+                    'opd_sub_kegiatan_id' => $subKegiatan->id,
+                    'sub_kegiatan_pemerintahan_id' => $subKegiatan->sub_kegiatan_pemerintahan_id,
+                    'context' => $context,
+                ];
+            })
+            ->values();
+
+        return response()
+            ->json(['items' => $items])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
     public function store(StoreRenstraOpdNodeRequest $request, RenstraOpd $renstraOpd): RedirectResponse
     {
         $this->authorize('update', $renstraOpd);
