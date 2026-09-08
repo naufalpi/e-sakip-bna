@@ -344,6 +344,7 @@ type BulkInputSection = {
     rows: BulkRow[];
 };
 type RenstraManagementSection = 'tujuan' | 'sasaran' | 'program' | 'kegiatan' | 'sub-kegiatan';
+type RenstraWorkspaceTab = 'manage' | 'reference' | 'history';
 type BulkSectionGroup = {
     key: string;
     label: string;
@@ -549,6 +550,7 @@ const hasSelectedMasterReference = computed(() =>
 );
 const editingNode = ref<{ type: NodeType; id: number } | null>(null);
 const viewMode = ref<'table' | 'bulk'>(props.can.manage ? 'bulk' : 'table');
+const activeWorkspaceTab = ref<RenstraWorkspaceTab>('manage');
 const isNodeModalOpen = ref(false);
 const formPanel = ref<HTMLElement | null>(null);
 const bulkRows = ref<BulkRow[]>([]);
@@ -4492,9 +4494,136 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
             </div>
         </section>
 
-        <WorkflowHistoryTimeline :workflow="workflow" />
+        <nav
+            class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_8px_24px_-22px_rgba(15,23,42,0.5)]"
+            aria-label="Navigasi RENSTRA"
+        >
+            <div class="grid sm:grid-cols-3" role="tablist" aria-label="Bagian dokumen RENSTRA">
+                <button
+                    type="button"
+                    role="tab"
+                    class="group relative flex min-h-16 items-center gap-3 border-b px-4 py-3 text-left transition sm:border-b-0 sm:border-r"
+                    :class="
+                        activeWorkspaceTab === 'manage'
+                            ? 'bg-[#00336C] text-white'
+                            : 'bg-white text-slate-600 hover:bg-blue-50/60 hover:text-[#00336C]'
+                    "
+                    :aria-selected="activeWorkspaceTab === 'manage'"
+                    @click="activeWorkspaceTab = 'manage'"
+                >
+                    <span
+                        class="flex size-9 shrink-0 items-center justify-center rounded-lg border transition"
+                        :class="
+                            activeWorkspaceTab === 'manage'
+                                ? 'border-white/20 bg-white/10 text-white'
+                                : 'border-blue-100 bg-blue-50 text-[#00336C] group-hover:bg-white'
+                        "
+                    >
+                        <Table2 class="size-4.5" />
+                    </span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-semibold">{{ can.manage ? 'Kelola RENSTRA' : 'Preview RENSTRA' }}</span>
+                        <span class="mt-0.5 block text-xs" :class="activeWorkspaceTab === 'manage' ? 'text-blue-100' : 'text-slate-400'">
+                            {{ can.manage ? 'Tujuan hingga sub kegiatan' : 'Lihat tabel perencanaan' }}
+                        </span>
+                    </span>
+                </button>
+
+                <button
+                    type="button"
+                    role="tab"
+                    class="group relative flex min-h-16 items-center gap-3 border-b px-4 py-3 text-left transition sm:border-b-0 sm:border-r"
+                    :class="
+                        activeWorkspaceTab === 'reference'
+                            ? 'bg-[#00336C] text-white'
+                            : 'bg-white text-slate-600 hover:bg-blue-50/60 hover:text-[#00336C]'
+                    "
+                    :aria-selected="activeWorkspaceTab === 'reference'"
+                    @click="activeWorkspaceTab = 'reference'"
+                >
+                    <span
+                        class="flex size-9 shrink-0 items-center justify-center rounded-lg border transition"
+                        :class="
+                            activeWorkspaceTab === 'reference'
+                                ? 'border-white/20 bg-white/10 text-white'
+                                : 'border-blue-100 bg-blue-50 text-[#00336C] group-hover:bg-white'
+                        "
+                    >
+                        <Network class="size-4.5" />
+                    </span>
+                    <span class="min-w-0 flex-1">
+                        <span class="block text-sm font-semibold">Acuan Perencanaan</span>
+                        <span
+                            class="mt-0.5 block truncate text-xs"
+                            :class="activeWorkspaceTab === 'reference' ? 'text-blue-100' : 'text-slate-400'"
+                        >
+                            {{ renstra.rpjmd ? `RPJMD ${renstra.rpjmd.tahun_awal}-${renstra.rpjmd.tahun_akhir}` : 'Belum terhubung ke RPJMD' }}
+                        </span>
+                    </span>
+                </button>
+
+                <button
+                    type="button"
+                    role="tab"
+                    class="group relative flex min-h-16 items-center gap-3 px-4 py-3 text-left transition"
+                    :class="
+                        activeWorkspaceTab === 'history'
+                            ? 'bg-[#00336C] text-white'
+                            : 'bg-white text-slate-600 hover:bg-blue-50/60 hover:text-[#00336C]'
+                    "
+                    :aria-selected="activeWorkspaceTab === 'history'"
+                    @click="activeWorkspaceTab = 'history'"
+                >
+                    <span
+                        class="flex size-9 shrink-0 items-center justify-center rounded-lg border transition"
+                        :class="
+                            activeWorkspaceTab === 'history'
+                                ? 'border-white/20 bg-white/10 text-white'
+                                : 'border-blue-100 bg-blue-50 text-[#00336C] group-hover:bg-white'
+                        "
+                    >
+                        <ClipboardList class="size-4.5" />
+                    </span>
+                    <span class="min-w-0 flex-1">
+                        <span class="flex items-center justify-between gap-2">
+                            <span class="text-sm font-semibold">Riwayat Persetujuan</span>
+                            <span
+                                class="inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums"
+                                :class="activeWorkspaceTab === 'history' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500'"
+                            >
+                                {{ workflow?.histories?.length || 0 }}
+                            </span>
+                        </span>
+                        <span class="mt-0.5 block text-xs" :class="activeWorkspaceTab === 'history' ? 'text-blue-100' : 'text-slate-400'">
+                            Status, catatan, dan keputusan
+                        </span>
+                    </span>
+                </button>
+            </div>
+        </nav>
+
+        <div
+            v-if="activeWorkspaceTab !== 'history' && ['revision', 'rejected'].includes(renstra.status)"
+            class="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"
+        >
+            <div>
+                <p class="font-semibold">Dokumen memerlukan perbaikan</p>
+                <p class="mt-0.5 text-xs leading-5 text-amber-800">Periksa catatan pemeriksa sebelum melanjutkan pengelolaan data.</p>
+            </div>
+            <button
+                type="button"
+                class="inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 sm:self-auto"
+                @click="activeWorkspaceTab = 'history'"
+            >
+                <ClipboardList class="size-4" />
+                Lihat catatan
+            </button>
+        </div>
+
+        <WorkflowHistoryTimeline v-if="activeWorkspaceTab === 'history'" :workflow="workflow" />
 
         <section
+            v-if="activeWorkspaceTab === 'reference'"
             class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_12px_36px_-28px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-900"
         >
             <header
@@ -4690,7 +4819,10 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
         </section>
         </template>
 
-        <section class="overflow-hidden rounded-xl border border-blue-100 bg-card shadow-sm">
+        <section
+            v-show="isDedicatedManagementPage || activeWorkspaceTab === 'manage'"
+            class="overflow-hidden rounded-xl border border-blue-100 bg-card shadow-sm"
+        >
             <div class="flex flex-col gap-3 bg-[linear-gradient(135deg,#f8fbff,#eaf4ff)] p-4 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex min-w-0 items-start gap-3">
                     <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#00336C] text-white">
@@ -4767,7 +4899,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
             </div>
         </section>
 
-        <div class="grid min-w-0 gap-4 pb-10">
+        <div v-show="isDedicatedManagementPage || activeWorkspaceTab === 'manage'" class="grid min-w-0 gap-4 pb-10">
             <section v-if="viewMode === 'bulk' && can.manage && !isDedicatedManagementPage" class="grid gap-4">
                 <div class="grid gap-3 md:grid-cols-2">
                     <Link
