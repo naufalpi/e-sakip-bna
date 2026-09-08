@@ -1000,16 +1000,21 @@ const relevantUsedSubKegiatan = computed(() => {
         (item) => item.opd_sub_kegiatan_id !== editingSubKegiatanId && availableMasterIds.has(item.sub_kegiatan_pemerintahan_id),
     );
 });
-const usedSubKegiatanMasterContexts = computed(() => {
+const usedSubKegiatanMasterLocations = computed(() => {
     const editingSubKegiatanId = editingNode.value?.type === 'sub_kegiatan' ? editingNode.value.id : null;
-    const contexts = new Map<number, string>();
+    const locations = new Map<number, { program: string | null; kegiatan: string | null }>();
 
     if (freshUsedSubKegiatan.value !== null) {
         freshUsedSubKegiatan.value
             .filter((item) => editingSubKegiatanId === null || item.opd_sub_kegiatan_id !== editingSubKegiatanId)
-            .forEach((item) => contexts.set(item.sub_kegiatan_pemerintahan_id, item.context));
+            .forEach((item) =>
+                locations.set(item.sub_kegiatan_pemerintahan_id, {
+                    program: item.program,
+                    kegiatan: item.kegiatan,
+                }),
+            );
 
-        return contexts;
+        return locations;
     }
 
     bulkRows.value
@@ -1032,18 +1037,13 @@ const usedSubKegiatanMasterContexts = computed(() => {
             const program = kegiatan
                 ? bulkRows.value.find((row) => row.type === 'program' && Number(row.id) === Number(kegiatan.parent_id))
                 : null;
-            const context = [
-                kegiatan ? plainNodeText(kegiatan.uraian || kegiatan.parent_label) : null,
-                kegiatan?.sasaran_level ? `Sasaran Kegiatan: ${kegiatan.sasaran_level}` : null,
-                program?.sasaran_level ? `Sasaran Program: ${program.sasaran_level}` : null,
-            ]
-                .filter(Boolean)
-                .join(' • ');
-
-            contexts.set(masterId, context);
+            locations.set(masterId, {
+                program: program ? plainNodeText(program.uraian || program.parent_label) : null,
+                kegiatan: kegiatan ? plainNodeText(kegiatan.uraian || kegiatan.parent_label) : null,
+            });
         });
 
-    return contexts;
+    return locations;
 });
 const programRpjmdSelectOptions = computed(() => withEmptyOption(props.rpjmdReferenceOptions.program_rpjmd ?? [], 'Tidak dihubungkan'));
 const programMasterSelectOptions = computed(() => withEmptyOption(programMasterOptions.value, 'Tidak memakai master'));
@@ -1052,20 +1052,21 @@ const subKegiatanMasterSelectOptions = computed(() =>
     subKegiatanMasterOptions.value.map((option) => {
         const optionId = toNumberOrNull(option.id);
 
-        if (!optionId || !usedSubKegiatanMasterContexts.value.has(optionId)) {
+        if (!optionId || !usedSubKegiatanMasterLocations.value.has(optionId)) {
             return option;
         }
 
-        const usedContext = usedSubKegiatanMasterContexts.value.get(optionId);
-        const usedMessage = `Sudah digunakan dalam RENSTRA ini${usedContext ? ` pada ${usedContext}` : ''}`;
-        const description = option.description?.includes('Sudah digunakan dalam RENSTRA ini')
-            ? option.description
-            : [option.description, usedMessage].filter(Boolean).join(' • ');
+        const location = usedSubKegiatanMasterLocations.value.get(optionId);
+        const context: NonNullable<Option['context']> = [
+            location?.program ? { label: 'Program', value: location.program, tone: 'program' as const } : null,
+            location?.kegiatan ? { label: 'Kegiatan', value: location.kegiatan, tone: 'kegiatan' as const } : null,
+        ].filter((item): item is NonNullable<typeof item> => item !== null);
 
         return {
             ...option,
             badge: 'Sudah digunakan',
-            description,
+            description: context.length ? null : 'Terpasang pada bagian lain dalam RENSTRA ini.',
+            context,
             disabled: true,
         };
     }),
