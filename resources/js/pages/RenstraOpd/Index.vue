@@ -1,12 +1,60 @@
 <script setup lang="ts">
 import DataPagination from '@/components/DataPagination.vue';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDocumentDelete, promptTextArea } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowRight, GitBranch, Layers3, Pencil, Plus, RotateCcw, Search, Trash2 } from 'lucide-vue-next';
-import { computed, reactive } from 'vue';
+import { AlertTriangle, ArrowRight, CircleCheck, GitBranch, Layers3, ListChecks, LoaderCircle, Pencil, Plus, RotateCcw, Search, Target, Trash2 } from 'lucide-vue-next';
+import { computed, reactive, ref } from 'vue';
 
 type Option = { id: number; label: string };
+
+type DiagnosticPath = { label: string; value: string };
+type MissingStage = { type: string; label: string; section: string };
+type MissingIndicator = {
+    id: number;
+    type: string;
+    type_label: string;
+    section: string;
+    code?: string | null;
+    name: string;
+    path: DiagnosticPath[];
+};
+type MissingTarget = {
+    id: number;
+    name: string;
+    parent_id: number;
+    parent_type: string;
+    parent_type_label: string;
+    parent_code?: string | null;
+    parent_name: string;
+    section: string;
+    path: DiagnosticPath[];
+    missing_years: number[];
+};
+type CompletenessAnomaly = {
+    id: number;
+    type: string;
+    type_label: string;
+    code?: string | null;
+    name: string;
+    reason: string;
+};
+type CompletenessDiagnostics = {
+    renstra: { id: number; title: string; opd?: string | null; period: string };
+    summary: RenstraRow['progress'];
+    expected_years: number[];
+    counts: {
+        missing_stages: number;
+        missing_indicators: number;
+        missing_targets: number;
+        anomalies: number;
+    };
+    missing_stages: MissingStage[];
+    missing_indicators: MissingIndicator[];
+    missing_targets: MissingTarget[];
+    anomalies: CompletenessAnomaly[];
+};
 
 type RenstraRow = {
     id: number;
@@ -63,8 +111,60 @@ const props = defineProps<{
     periodeOptions: Option[];
     can: {
         manage: boolean;
+        view_completeness_diagnostics: boolean;
     };
 }>();
+
+const diagnosticsOpen = ref(false);
+const diagnosticsLoading = ref(false);
+const diagnosticsError = ref('');
+const selectedDiagnosticRenstra = ref<RenstraRow | null>(null);
+const completenessDiagnostics = ref<CompletenessDiagnostics | null>(null);
+let diagnosticsRequestId = 0;
+
+const openCompletenessDiagnostics = async (renstra: RenstraRow) => {
+    const requestId = ++diagnosticsRequestId;
+    selectedDiagnosticRenstra.value = renstra;
+    completenessDiagnostics.value = null;
+    diagnosticsError.value = '';
+    diagnosticsLoading.value = true;
+    diagnosticsOpen.value = true;
+
+    try {
+        const response = await fetch(route('renstra-opd.completeness-diagnostics', renstra.id), {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            throw new Error(response.status === 403 ? 'Anda tidak memiliki akses untuk melihat detail ini.' : 'Detail kekurangan tidak dapat dimuat.');
+        }
+
+        const payload = (await response.json()) as CompletenessDiagnostics;
+
+        if (requestId === diagnosticsRequestId) {
+            completenessDiagnostics.value = payload;
+        }
+    } catch (error) {
+        if (requestId === diagnosticsRequestId) {
+            diagnosticsError.value = error instanceof Error ? error.message : 'Detail kekurangan tidak dapat dimuat.';
+        }
+    } finally {
+        if (requestId === diagnosticsRequestId) {
+            diagnosticsLoading.value = false;
+        }
+    }
+};
+
+const diagnosticPathLabel = (path: DiagnosticPath[]) => path.map((item) => `${item.label}: ${item.value}`).join(' · ');
+
+const diagnosticSectionUrl = (section: string) =>
+    selectedDiagnosticRenstra.value
+        ? route('renstra-opd.manage', { renstra_opd: selectedDiagnosticRenstra.value.id, section })
+        : route('renstra-opd.index');
 
 const filterForm = reactive({
     search: props.filters.search ?? '',
@@ -410,13 +510,22 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                                     </div>
                                     <div class="px-2">
                                         <div class="font-semibold tabular-nums text-slate-800">{{ indicatorCoverageLabel(renstra) }}</div>
-                                        <div class="mt-0.5 text-muted-foreground">Indikator</div>
+                                        <div class="mt-0.5 text-muted-foreground">Berindikator</div>
                                     </div>
                                     <div class="pl-2">
                                         <div class="font-semibold tabular-nums text-slate-800">{{ targetCoverageValue(renstra) }}</div>
                                         <div class="mt-0.5 text-muted-foreground">Target</div>
                                     </div>
                                 </div>
+                                <button
+                                    v-if="can.view_completeness_diagnostics && renstra.progress.percentage < 100"
+                                    type="button"
+                                    class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[#00336C] transition hover:text-blue-700 hover:underline"
+                                    @click="openCompletenessDiagnostics(renstra)"
+                                >
+                                    <ListChecks class="size-3.5" />
+                                    Lihat kekurangan
+                                </button>
                             </td>
                             <td class="w-32 px-4 py-5 align-middle">
                                 <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1" :class="statusClass(renstra.status)">
@@ -507,10 +616,19 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                         <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                             <span>{{ renstra.progress.stages_filled }}/{{ renstra.progress.stages_total }} tahap</span>
                             <span class="text-slate-300">|</span>
-                            <span>{{ indicatorCoverageLabel(renstra) }} indikator</span>
+                            <span>{{ indicatorCoverageLabel(renstra) }} item berindikator</span>
                             <span class="text-slate-300">|</span>
                             <span>{{ targetCoverageLabel(renstra) }}</span>
                         </div>
+                        <button
+                            v-if="can.view_completeness_diagnostics && renstra.progress.percentage < 100"
+                            type="button"
+                            class="inline-flex w-fit items-center gap-1.5 text-xs font-semibold text-[#00336C] hover:underline"
+                            @click="openCompletenessDiagnostics(renstra)"
+                        >
+                            <ListChecks class="size-3.5" />
+                            Lihat kekurangan
+                        </button>
                     </div>
 
                     <div class="mt-4 flex flex-wrap gap-2">
@@ -540,4 +658,232 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
             <DataPagination v-model:per-page="filterForm.per_page" :paginator="renstras" item-label="data RENSTRA" />
         </section>
     </div>
+
+    <Dialog v-model:open="diagnosticsOpen">
+        <DialogContent class="flex max-h-[92vh] flex-col overflow-hidden p-0 sm:max-w-4xl">
+            <DialogHeader class="shrink-0 border-b bg-[linear-gradient(135deg,#f8fbff,#edf6ff)] px-5 py-4 text-left sm:px-6">
+                <div class="flex items-start gap-3">
+                    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#00336C] text-white shadow-sm">
+                        <ListChecks class="size-5" />
+                    </span>
+                    <div class="min-w-0">
+                        <DialogTitle class="text-lg text-slate-950">Kekurangan Cascading RENSTRA</DialogTitle>
+                        <DialogDescription class="mt-1 line-clamp-2 leading-5 text-slate-600">
+                            {{ selectedDiagnosticRenstra?.opd?.singkatan || selectedDiagnosticRenstra?.opd?.nama || '-' }} ·
+                            {{ selectedDiagnosticRenstra?.judul || '-' }}
+                        </DialogDescription>
+                    </div>
+                </div>
+            </DialogHeader>
+
+            <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+                <div v-if="diagnosticsLoading" class="flex min-h-64 flex-col items-center justify-center text-center">
+                    <LoaderCircle class="size-8 animate-spin text-[#00336C]" />
+                    <p class="mt-3 text-sm font-semibold text-slate-800">Memeriksa seluruh cascading</p>
+                    <p class="mt-1 text-xs text-slate-500">Indikator, target tahunan, dan data tersembunyi sedang dicocokkan.</p>
+                </div>
+
+                <div v-else-if="diagnosticsError" class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                    <div class="flex items-start gap-3">
+                        <AlertTriangle class="mt-0.5 size-5 shrink-0" />
+                        <div>
+                            <p class="font-semibold">Pemeriksaan gagal</p>
+                            <p class="mt-1 leading-6">{{ diagnosticsError }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <template v-else-if="completenessDiagnostics">
+                    <div class="grid gap-3 sm:grid-cols-3">
+                        <div class="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5">
+                            <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700">Tanpa indikator</p>
+                            <p class="mt-1 text-2xl font-bold tabular-nums text-amber-950">
+                                {{ completenessDiagnostics.counts.missing_indicators }}
+                            </p>
+                            <p class="mt-0.5 text-xs text-amber-800">item cascading</p>
+                        </div>
+                        <div class="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5">
+                            <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-700">Target kosong</p>
+                            <p class="mt-1 text-2xl font-bold tabular-nums text-blue-950">
+                                {{ completenessDiagnostics.counts.missing_targets }}
+                            </p>
+                            <p class="mt-0.5 text-xs text-blue-800">indikator-tahun</p>
+                        </div>
+                        <div
+                            class="rounded-xl border p-3.5"
+                            :class="
+                                completenessDiagnostics.counts.anomalies
+                                    ? 'border-red-200 bg-red-50/70'
+                                    : 'border-emerald-200 bg-emerald-50/70'
+                            "
+                        >
+                            <p
+                                class="text-[10px] font-bold uppercase tracking-[0.12em]"
+                                :class="completenessDiagnostics.counts.anomalies ? 'text-red-700' : 'text-emerald-700'"
+                            >
+                                Anomali data
+                            </p>
+                            <p
+                                class="mt-1 text-2xl font-bold tabular-nums"
+                                :class="completenessDiagnostics.counts.anomalies ? 'text-red-950' : 'text-emerald-950'"
+                            >
+                                {{ completenessDiagnostics.counts.anomalies }}
+                            </p>
+                            <p
+                                class="mt-0.5 text-xs"
+                                :class="completenessDiagnostics.counts.anomalies ? 'text-red-800' : 'text-emerald-800'"
+                            >
+                                data tersembunyi
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="
+                            completenessDiagnostics.counts.missing_stages === 0 &&
+                            completenessDiagnostics.counts.missing_indicators === 0 &&
+                            completenessDiagnostics.counts.missing_targets === 0 &&
+                            completenessDiagnostics.counts.anomalies === 0
+                        "
+                        class="mt-5 flex min-h-48 flex-col items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50/60 p-6 text-center"
+                    >
+                        <CircleCheck class="size-10 text-emerald-600" />
+                        <h3 class="mt-3 font-semibold text-emerald-950">Cascading sudah lengkap</h3>
+                        <p class="mt-1 text-sm text-emerald-800">Tidak ditemukan indikator, target, atau data aktif yang tertinggal.</p>
+                    </div>
+
+                    <section v-if="completenessDiagnostics.missing_stages.length" class="mt-6">
+                        <div class="flex items-center gap-2">
+                            <AlertTriangle class="size-4 text-amber-600" />
+                            <h3 class="text-sm font-bold text-slate-950">Tahap cascading belum tersedia</h3>
+                            <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                                {{ completenessDiagnostics.missing_stages.length }}
+                            </span>
+                        </div>
+                        <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                            <article
+                                v-for="stage in completenessDiagnostics.missing_stages"
+                                :key="stage.type"
+                                class="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/40 px-4 py-3"
+                            >
+                                <div>
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Belum ada data</p>
+                                    <p class="mt-0.5 text-sm font-semibold text-slate-900">{{ stage.label }}</p>
+                                </div>
+                                <Link
+                                    v-if="can.manage"
+                                    :href="diagnosticSectionUrl(stage.section)"
+                                    class="shrink-0 text-xs font-semibold text-[#00336C] hover:underline"
+                                >
+                                    Buka bagian
+                                </Link>
+                            </article>
+                        </div>
+                    </section>
+
+                    <section v-if="completenessDiagnostics.missing_indicators.length" class="mt-6">
+                        <div class="flex items-center gap-2">
+                            <ListChecks class="size-4 text-amber-600" />
+                            <h3 class="text-sm font-bold text-slate-950">Item belum memiliki indikator</h3>
+                            <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                                {{ completenessDiagnostics.missing_indicators.length }}
+                            </span>
+                        </div>
+                        <div class="mt-3 divide-y overflow-hidden rounded-xl border bg-white">
+                            <article
+                                v-for="item in completenessDiagnostics.missing_indicators"
+                                :key="`${item.type}-${item.id}`"
+                                class="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between"
+                            >
+                                <div class="min-w-0">
+                                    <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700">{{ item.type_label }}</p>
+                                    <p class="mt-1 text-sm font-semibold leading-6 text-slate-950">
+                                        <span v-if="item.code" class="font-mono text-xs text-slate-500">{{ item.code }} · </span>{{ item.name }}
+                                    </p>
+                                    <p v-if="item.path.length" class="mt-1 line-clamp-2 text-xs leading-5 text-slate-500" :title="diagnosticPathLabel(item.path)">
+                                        {{ diagnosticPathLabel(item.path) }}
+                                    </p>
+                                </div>
+                                <Link
+                                    v-if="can.manage"
+                                    :href="diagnosticSectionUrl(item.section)"
+                                    class="inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-[#00336C] hover:bg-blue-100"
+                                >
+                                    Buka bagian
+                                    <ArrowRight class="size-3.5" />
+                                </Link>
+                            </article>
+                        </div>
+                    </section>
+
+                    <section v-if="completenessDiagnostics.missing_targets.length" class="mt-6">
+                        <div class="flex items-center gap-2">
+                            <Target class="size-4 text-blue-600" />
+                            <h3 class="text-sm font-bold text-slate-950">Target tahunan belum lengkap</h3>
+                            <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">
+                                {{ completenessDiagnostics.counts.missing_targets }}
+                            </span>
+                        </div>
+                        <div class="mt-3 divide-y overflow-hidden rounded-xl border bg-white">
+                            <article
+                                v-for="item in completenessDiagnostics.missing_targets"
+                                :key="`${item.parent_type}-${item.id}`"
+                                class="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between"
+                            >
+                                <div class="min-w-0">
+                                    <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-700">
+                                        Indikator {{ item.parent_type_label }}
+                                    </p>
+                                    <p class="mt-1 text-sm font-semibold leading-6 text-slate-950">{{ item.name }}</p>
+                                    <p class="mt-1 text-xs leading-5 text-slate-500">
+                                        Induk: <span v-if="item.parent_code" class="font-mono">{{ item.parent_code }} · </span>{{ item.parent_name }}
+                                    </p>
+                                    <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                                        <span class="mr-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">Tahun kosong</span>
+                                        <span
+                                            v-for="year in item.missing_years"
+                                            :key="year"
+                                            class="rounded-md bg-blue-50 px-2 py-1 text-xs font-bold tabular-nums text-[#00336C] ring-1 ring-blue-100"
+                                        >
+                                            {{ year }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <Link
+                                    v-if="can.manage"
+                                    :href="diagnosticSectionUrl(item.section)"
+                                    class="inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-[#00336C] hover:bg-blue-100"
+                                >
+                                    Lengkapi target
+                                    <ArrowRight class="size-3.5" />
+                                </Link>
+                            </article>
+                        </div>
+                    </section>
+
+                    <section v-if="completenessDiagnostics.anomalies.length" class="mt-6">
+                        <div class="flex items-center gap-2">
+                            <AlertTriangle class="size-4 text-red-600" />
+                            <h3 class="text-sm font-bold text-slate-950">Anomali data tersembunyi</h3>
+                            <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800">
+                                {{ completenessDiagnostics.anomalies.length }}
+                            </span>
+                        </div>
+                        <p class="mt-1 text-xs leading-5 text-slate-500">
+                            Data berikut tidak dihitung dalam kelengkapan karena induknya sudah dihapus. Data tidak dihapus otomatis oleh pemeriksaan ini.
+                        </p>
+                        <div class="mt-3 divide-y overflow-hidden rounded-xl border border-red-200 bg-red-50/30">
+                            <article v-for="item in completenessDiagnostics.anomalies" :key="`${item.type}-${item.id}`" class="p-4">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-red-700">{{ item.type_label }}</p>
+                                <p class="mt-1 text-sm font-semibold leading-6 text-slate-950">
+                                    <span v-if="item.code" class="font-mono text-xs text-slate-500">{{ item.code }} · </span>{{ item.name }}
+                                </p>
+                                <p class="mt-1 text-xs text-red-700">{{ item.reason }}</p>
+                            </article>
+                        </div>
+                    </section>
+                </template>
+            </div>
+        </DialogContent>
+    </Dialog>
 </template>

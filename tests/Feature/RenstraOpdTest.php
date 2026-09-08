@@ -141,6 +141,186 @@ class RenstraOpdTest extends TestCase
         $this->assertSame(3, $progress['targets_filled']);
     }
 
+    public function test_renstra_progress_excludes_active_descendants_below_a_deleted_ancestor(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '1.00.96', 'nama' => 'Dinas Uji Rantai Aktif', 'status' => 'active']);
+        $rpjmd = Rpjmd::create([
+            'judul' => 'RPJMD Uji Rantai Aktif',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'status' => 'approved',
+        ]);
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $rpjmd->id,
+            'judul' => 'RENSTRA Uji Rantai Aktif',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'status' => 'draft',
+        ]);
+        $tujuan = $renstra->tujuan()->create(['tujuan' => 'Tujuan aktif']);
+        $sasaran = $tujuan->sasaran()->create(['sasaran' => 'Sasaran yang dihapus']);
+        $program = $sasaran->programs()->create(['renstra_opd_id' => $renstra->id, 'nama' => 'Program tersembunyi']);
+        $kegiatan = $program->kegiatan()->create(['nama' => 'Kegiatan tersembunyi']);
+        $subKegiatan = $kegiatan->subKegiatan()->create(['nama' => 'Sub kegiatan tersembunyi']);
+        $period = PeriodeTahun::query()->where('tahun', 2026)->firstOrFail();
+
+        foreach ([$tujuan, $sasaran, $program, $kegiatan, $subKegiatan] as $node) {
+            $node->indikator()->create(['indikator' => "Indikator {$node->id}"])->targets()->create([
+                'periode_tahun_id' => $period->id,
+                'target' => 100,
+            ]);
+        }
+
+        $sasaran->delete();
+
+        $service = app(RenstraProgressSummaryService::class);
+        $progress = $service->summarize(collect([$renstra]))[$renstra->id];
+
+        $this->assertSame(1, $progress['stages_filled']);
+        $this->assertSame(1, $progress['indicators_filled']);
+        $this->assertSame(1, $progress['indicators_total']);
+        $this->assertSame(1, $progress['targets_filled']);
+        $this->assertSame(6, $progress['targets_total']);
+
+        $diagnostics = $service->diagnose($renstra->load('opd'));
+
+        $this->assertSame(4, $diagnostics['counts']['missing_stages']);
+        $this->assertSame(3, $diagnostics['counts']['anomalies']);
+        $this->assertEqualsCanonicalizing(
+            ['program', 'kegiatan', 'sub_kegiatan'],
+            collect($diagnostics['anomalies'])->pluck('type')->all(),
+        );
+    }
+
+    public function test_renstra_diagnostics_identifies_exact_missing_indicator_and_target_year(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '1.00.95', 'nama' => 'Dinas Uji Diagnosis', 'status' => 'active']);
+        $rpjmd = Rpjmd::create([
+            'judul' => 'RPJMD Uji Diagnosis',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'status' => 'approved',
+        ]);
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $rpjmd->id,
+            'judul' => 'RENSTRA Uji Diagnosis',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'status' => 'draft',
+        ]);
+        $tujuan = $renstra->tujuan()->create(['tujuan' => 'Tujuan lengkap']);
+        $sasaran = $tujuan->sasaran()->create(['sasaran' => 'Sasaran lengkap']);
+        $program = $sasaran->programs()->create(['renstra_opd_id' => $renstra->id, 'nama' => 'Program lengkap']);
+        $kegiatan = $program->kegiatan()->create(['nama' => 'Kegiatan tanpa indikator']);
+        $subKegiatan = $kegiatan->subKegiatan()->create(['nama' => 'Sub kegiatan target kurang']);
+        $years = collect(range(2026, 2031))->mapWithKeys(function (int $year): array {
+            $period = PeriodeTahun::firstOrCreate(
+                ['tahun' => $year],
+                ['nama' => (string) $year, 'status' => 'active'],
+            );
+
+            return [$year => $period->id];
+        });
+
+        $indicators = collect([$tujuan, $sasaran, $program, $subKegiatan])->map(
+            fn ($node) => $node->indikator()->create(['indikator' => "Indikator {$node->id}"]),
+        );
+        foreach ($indicators as $indicatorIndex => $indicator) {
+            foreach ($years as $year => $periodId) {
+                if ($indicatorIndex === 3 && $year === 2029) {
+                    continue;
+                }
+
+                $indicator->targets()->create([
+                    'periode_tahun_id' => $periodId,
+                    'target' => $year === 2026 ? 0 : 100,
+                ]);
+            }
+        }
+
+        $deletedSubKegiatan = $kegiatan->subKegiatan()->create(['nama' => 'Sub kegiatan yang dihapus']);
+        $deletedIndicator = $deletedSubKegiatan->indikator()->create(['indikator' => 'Indikator data terhapus']);
+        $deletedIndicator->targets()->create([
+            'periode_tahun_id' => $years[2026],
+            'target' => 100,
+        ]);
+        $deletedSubKegiatan->delete();
+
+        $diagnostics = app(RenstraProgressSummaryService::class)->diagnose($renstra->load('opd'));
+
+        $this->assertSame(5, $diagnostics['summary']['stages_filled']);
+        $this->assertSame(4, $diagnostics['summary']['indicators_filled']);
+        $this->assertSame(5, $diagnostics['summary']['indicators_total']);
+        $this->assertSame(23, $diagnostics['summary']['targets_filled']);
+        $this->assertSame(24, $diagnostics['summary']['targets_total']);
+        $this->assertSame(0, $diagnostics['counts']['missing_stages']);
+        $this->assertSame(1, $diagnostics['counts']['missing_indicators']);
+        $this->assertSame(1, $diagnostics['counts']['missing_targets']);
+        $this->assertSame(0, $diagnostics['counts']['anomalies']);
+        $this->assertSame($kegiatan->id, $diagnostics['missing_indicators'][0]['id']);
+        $this->assertSame('Kegiatan OPD', $diagnostics['missing_indicators'][0]['type_label']);
+        $this->assertSame([2029], $diagnostics['missing_targets'][0]['missing_years']);
+        $this->assertSame($subKegiatan->id, $diagnostics['missing_targets'][0]['parent_id']);
+        $this->assertFalse(
+            collect($diagnostics['missing_indicators'])->contains('id', $deletedSubKegiatan->id),
+        );
+    }
+
+    public function test_only_authorized_kabupaten_roles_can_view_renstra_completeness_diagnostics(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '1.00.94', 'nama' => 'Dinas Uji Hak Diagnosis', 'status' => 'active']);
+        $rpjmd = Rpjmd::create([
+            'judul' => 'RPJMD Uji Hak Diagnosis',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'status' => 'approved',
+        ]);
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $rpjmd->id,
+            'judul' => 'RENSTRA Uji Hak Diagnosis',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'status' => 'draft',
+        ]);
+
+        foreach (['super_admin', 'admin_kabupaten_bapperida', 'admin_kabupaten_bagian_organisasi'] as $role) {
+            $user = User::factory()->create();
+            $user->roles()->sync([Role::where('name', $role)->value('id')]);
+
+            $this->actingAs($user)
+                ->getJson(route('renstra-opd.completeness-diagnostics', $renstra))
+                ->assertOk()
+                ->assertHeader('Cache-Control', 'must-revalidate, no-cache, no-store, private')
+                ->assertJsonPath('renstra.id', $renstra->id)
+                ->assertJsonStructure([
+                    'summary',
+                    'counts',
+                    'missing_stages',
+                    'missing_indicators',
+                    'missing_targets',
+                    'anomalies',
+                ]);
+        }
+
+        foreach (['admin_opd', 'admin_kabupaten_inspektorat'] as $role) {
+            $user = User::factory()->create(['opd_id' => $role === 'admin_opd' ? $opd->id : null]);
+            $user->roles()->sync([Role::where('name', $role)->value('id')]);
+
+            $this->actingAs($user)
+                ->getJson(route('renstra-opd.completeness-diagnostics', $renstra))
+                ->assertForbidden();
+        }
+    }
+
     public function test_renstra_target_reload_skips_unrequested_reference_queries(): void
     {
         $this->seed();

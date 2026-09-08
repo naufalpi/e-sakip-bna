@@ -31,6 +31,15 @@ class RenstraOpdPolicy
         return $user->hasAnyPermission(['renstra.manage', 'manage_renstra_opd']);
     }
 
+    public function viewCompletenessDiagnostics(User $user): bool
+    {
+        return $user->hasAnyRole([
+            'super_admin',
+            'admin_kabupaten_bagian_organisasi',
+            'admin_kabupaten_bapperida',
+        ]);
+    }
+
     public function update(User $user, RenstraOpd $renstraOpd): bool
     {
         if ($renstraOpd->isArchivedVersion()) {

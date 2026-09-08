@@ -42,6 +42,7 @@ use App\Services\Workflow\WorkflowDataService;
 use App\Support\Pagination\PerPagePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -129,8 +130,23 @@ class RenstraOpdController extends Controller
             'periodeOptions' => $this->periodeOptions(),
             'can' => [
                 'manage' => $user->can('create', RenstraOpd::class),
+                'view_completeness_diagnostics' => $user->can('viewCompletenessDiagnostics', RenstraOpd::class),
             ],
         ]);
+    }
+
+    public function completenessDiagnostics(
+        RenstraOpd $renstraOpd,
+        RenstraProgressSummaryService $progressSummaryService,
+    ): JsonResponse {
+        $this->authorize('viewCompletenessDiagnostics', RenstraOpd::class);
+        $this->authorize('view', $renstraOpd);
+
+        $renstraOpd->loadMissing('opd:id,nama,singkatan');
+
+        return response()
+            ->json($progressSummaryService->diagnose($renstraOpd))
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
     public function create(Request $request): Response

@@ -106,6 +106,8 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('renstra-opd/import/{importBatch}/apply', [RenstraOpdImportController::class, 'apply'])->name('renstra-opd.import.apply');
     Route::get('renstra-opd/import/{importBatch}', [RenstraOpdImportController::class, 'show'])->name('renstra-opd.import.show');
     Route::get('renstra-opd/{renstra_opd}/preview/export', [RenstraOpdController::class, 'exportPreview'])->name('renstra-opd.preview.export');
+    Route::get('renstra-opd/{renstra_opd}/completeness-diagnostics', [RenstraOpdController::class, 'completenessDiagnostics'])
+        ->name('renstra-opd.completeness-diagnostics');
     Route::post('renstra-opd/{renstra_opd}/perubahan', [RenstraOpdController::class, 'storeRevision'])->name('renstra-opd.revisions.store');
     Route::post('renstra-opd/{renstra_opd}/perubahan/batalkan', [RenstraOpdController::class, 'cancelRevision'])->name('renstra-opd.revisions.cancel');
     Route::get('renstra-opd/{renstra_opd}/kelola/{section}', [RenstraOpdController::class, 'manage'])

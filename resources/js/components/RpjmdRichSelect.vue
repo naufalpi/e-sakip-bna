@@ -17,6 +17,7 @@ type SelectOption = {
     badge?: string | number | null;
     group?: string | null;
     context?: SelectContextItem[];
+    compactContext?: boolean;
     disabled?: boolean;
 };
 
@@ -310,7 +311,7 @@ onBeforeUnmount(() => {
                             v-for="option in group.options"
                             :key="String(optionValue(option))"
                             type="button"
-                            class="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:bg-white disabled:text-slate-300 disabled:opacity-75 dark:disabled:bg-slate-950 dark:disabled:text-slate-600"
+                            class="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:bg-white disabled:text-slate-300 disabled:opacity-50 dark:disabled:bg-slate-950 dark:disabled:text-slate-600"
                             :class="
                                 sameValue(optionValue(option), modelValue)
                                     ? 'bg-[#00336C] text-white shadow-sm'
@@ -330,17 +331,34 @@ onBeforeUnmount(() => {
                                 >
                                     {{ option.description }}
                                 </span>
-                                <span v-if="option.context?.length" class="mt-2 grid gap-1.5">
+                                <span
+                                    v-if="option.context?.length"
+                                    class="grid"
+                                    :class="option.compactContext ? 'mt-1 gap-0.5' : 'mt-2 gap-1.5'"
+                                >
                                     <span
                                         v-for="item in option.context"
                                         :key="`${item.label}-${item.value}`"
-                                        class="flex min-w-0 items-start gap-2 rounded-md border px-2 py-1.5 text-xs leading-4"
-                                        :class="contextToneClass(item.tone, sameValue(optionValue(option), modelValue))"
+                                        class="flex min-w-0 text-xs leading-4"
+                                        :class="
+                                            option.compactContext
+                                                ? 'items-baseline gap-1.5 text-slate-500'
+                                                : `items-start gap-2 rounded-md border px-2 py-1.5 ${contextToneClass(
+                                                      item.tone,
+                                                      sameValue(optionValue(option), modelValue),
+                                                  )}`
+                                        "
+                                        :title="option.compactContext ? `${item.label}: ${item.value}` : undefined"
                                     >
-                                        <span class="mt-px shrink-0 text-[9px] font-extrabold uppercase tracking-[0.1em] opacity-70">
+                                        <span
+                                            class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.1em] opacity-70"
+                                            :class="option.compactContext ? '' : 'mt-px'"
+                                        >
                                             {{ item.label }}
                                         </span>
-                                        <span class="min-w-0 flex-1 font-semibold">{{ item.value }}</span>
+                                        <span class="min-w-0 flex-1 font-semibold" :class="option.compactContext ? 'truncate' : ''">
+                                            {{ item.value }}
+                                        </span>
                                     </span>
                                 </span>
                             </span>

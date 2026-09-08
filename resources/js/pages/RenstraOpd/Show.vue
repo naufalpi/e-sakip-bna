@@ -41,6 +41,7 @@ type Option = {
         value: string;
         tone?: 'opd' | 'program' | 'kegiatan' | 'sub_kegiatan' | null;
     }>;
+    compactContext?: boolean;
     disabled?: boolean;
     kode?: string | null;
     nama?: string | null;
@@ -1067,6 +1068,7 @@ const subKegiatanMasterSelectOptions = computed(() =>
             badge: 'Sudah digunakan',
             description: context.length ? null : 'Terpasang pada bagian lain dalam RENSTRA ini.',
             context,
+            compactContext: true,
             disabled: true,
         };
     }),
