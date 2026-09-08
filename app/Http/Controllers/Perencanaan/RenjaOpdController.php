@@ -8,7 +8,6 @@ use App\Http\Requests\Perencanaan\StoreDocumentRevisionRequest;
 use App\Http\Requests\Perencanaan\StoreRenjaOpdRequest;
 use App\Http\Requests\Perencanaan\UpdateRenjaOpdRequest;
 use App\Models\Opd;
-use App\Models\OpdUnit;
 use App\Models\PeriodeTahun;
 use App\Models\PlanningSyncBatch;
 use App\Models\RenjaOpd;
@@ -127,7 +126,6 @@ class RenjaOpdController extends Controller
             'rkpdOptions' => $this->rkpdOptions(),
             'renstraOptions' => $this->renstraOptions($request->user()),
             'opdOptions' => $this->opdOptions($request->user()),
-            'opdUnitOptions' => $this->opdUnitOptions($request->user()),
             'periodeOptions' => $this->periodeOptions(),
         ]);
     }
@@ -273,7 +271,6 @@ class RenjaOpdController extends Controller
             'rkpdOptions' => $this->rkpdOptions(),
             'renstraOptions' => $this->renstraOptions($request->user()),
             'opdOptions' => $this->opdOptions($request->user()),
-            'opdUnitOptions' => $this->opdUnitOptions($request->user()),
             'periodeOptions' => $this->periodeOptions(),
         ]);
     }
@@ -402,26 +399,6 @@ class RenjaOpdController extends Controller
             ->map(fn (Opd $opd) => [
                 'id' => $opd->id,
                 'label' => $opd->singkatan ? "{$opd->singkatan} - {$opd->nama}" : $opd->nama,
-            ])
-            ->all();
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function opdUnitOptions(User $user): array
-    {
-        return OpdUnit::query()
-            ->with('opd:id,nama,singkatan')
-            ->where('status', 'active')
-            ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
-            ->when($user->hasOpdUnitScope(), fn (Builder $query) => $query->whereKey($user->opd_unit_id))
-            ->orderBy('nama')
-            ->get(['id', 'opd_id', 'kode', 'nama'])
-            ->map(fn (OpdUnit $unit) => [
-                'id' => $unit->id,
-                'opd_id' => $unit->opd_id,
-                'label' => "{$unit->nama} - ".($unit->opd?->singkatan ?: $unit->opd?->nama),
             ])
             ->all();
     }

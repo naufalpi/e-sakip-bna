@@ -36,7 +36,6 @@ const props = defineProps<{
     rkpdOptions: Option[];
     renstraOptions: Option[];
     opdOptions: Option[];
-    opdUnitOptions: Option[];
     periodeOptions: Option[];
 }>();
 
@@ -65,10 +64,6 @@ watch(
 watch(
     () => form.opd_id,
     () => {
-        if (form.opd_unit_id && !filteredUnitOptions.value.some((unit) => String(unit.id) === String(form.opd_unit_id))) {
-            form.opd_unit_id = '';
-        }
-
         if (form.renstra_opd_id && !filteredRenstraOptions.value.some((renstra) => String(renstra.id) === String(form.renstra_opd_id))) {
             form.renstra_opd_id = '';
         }
@@ -95,7 +90,6 @@ watch(
     },
 );
 
-const filteredUnitOptions = computed(() => props.opdUnitOptions.filter((unit) => String(unit.opd_id ?? '') === String(form.opd_id)));
 const filteredRenstraOptions = computed(() =>
     props.renstraOptions.filter(
         (option) =>
@@ -251,7 +245,7 @@ const confirmCreate = () => {
                         </div>
                     </div>
 
-                    <div class="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]">
+                    <div class="grid min-w-0 gap-4">
                         <label class="grid min-w-0 gap-1.5">
                             <span class="text-sm font-medium">OPD</span>
                             <select
@@ -262,18 +256,7 @@ const confirmCreate = () => {
                                 <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                             </select>
                             <span v-if="form.errors.opd_id" class="text-xs text-red-600">{{ form.errors.opd_id }}</span>
-                        </label>
-
-                        <label class="grid min-w-0 gap-1.5">
-                            <span class="text-sm font-medium">Unit OPD</span>
-                            <select
-                                v-model="form.opd_unit_id"
-                                class="h-11 w-full min-w-0 truncate rounded-xl border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-[#00336C]/25"
-                            >
-                                <option value="">Tidak memilih unit</option>
-                                <option v-for="option in filteredUnitOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                            </select>
-                            <span v-if="form.errors.opd_unit_id" class="text-xs text-red-600">{{ form.errors.opd_unit_id }}</span>
+                            <span class="text-xs text-muted-foreground">RENJA berlaku untuk keseluruhan perangkat daerah.</span>
                         </label>
                     </div>
                 </section>
