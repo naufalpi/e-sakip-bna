@@ -387,8 +387,8 @@ const typeOptions: Array<{ value: NodeType; label: string }> = [
     { value: 'tujuan', label: 'Tujuan OPD' },
     { value: 'indikator_tujuan', label: 'Indikator Tujuan OPD' },
     { value: 'target_tujuan', label: 'Target Indikator Tujuan' },
-    { value: 'sasaran', label: 'Sasaran OPD' },
-    { value: 'indikator_sasaran', label: 'Indikator Sasaran OPD' },
+    { value: 'sasaran', label: 'Sasaran Strategis OPD' },
+    { value: 'indikator_sasaran', label: 'Indikator Sasaran Strategis OPD' },
     { value: 'target_sasaran', label: 'Target Indikator Sasaran' },
     { value: 'program', label: 'Program OPD' },
     { value: 'indikator_program', label: 'Indikator Program OPD' },
@@ -630,7 +630,7 @@ const typeMeta: Record<NodeType, { stage: string; helper: string; primaryField: 
     },
     target_sasaran: {
         stage: 'Target',
-        helper: 'Target tahunan untuk indikator sasaran OPD.',
+        helper: 'Target tahunan untuk indikator sasaran strategis OPD.',
         primaryField: 'Nilai target',
     },
     program: {
@@ -697,7 +697,7 @@ const tujuanActions: BulkAction[] = [
     { type: 'target_tujuan', label: 'Target Tujuan', helper: 'Target 5 tahunan' },
 ];
 const sasaranActions: BulkAction[] = [
-    { type: 'sasaran', label: 'Sasaran OPD', helper: 'Turunan tujuan' },
+    { type: 'sasaran', label: 'Sasaran Strategis OPD', helper: 'Turunan tujuan' },
     { type: 'indikator_sasaran', label: 'Indikator Sasaran', helper: 'Ukuran sasaran' },
     { type: 'target_sasaran', label: 'Target Sasaran', helper: 'Target 5 tahunan' },
 ];
@@ -760,7 +760,7 @@ const parentContextTitle = computed(() => {
     const titleMap: Partial<Record<NodeType, string>> = {
         indikator_tujuan: 'Tujuan OPD',
         sasaran: 'Tujuan OPD',
-        indikator_sasaran: 'Sasaran OPD',
+        indikator_sasaran: 'Sasaran Strategis OPD',
         indikator_program: 'Program OPD',
         indikator_kegiatan: 'Kegiatan OPD',
         target_tujuan: 'Indikator Tujuan',
@@ -1219,12 +1219,12 @@ const bulkInputSections = computed<BulkInputSection[]>(() => [
     },
     {
         key: 'sasaran',
-        title: 'Sasaran OPD',
+        title: 'Sasaran Strategis OPD',
         helper: 'Sasaran strategis, indikator sasaran, dan target 5 tahunan.',
-        emptyTitle: 'Belum ada sasaran OPD',
+        emptyTitle: 'Belum ada sasaran strategis OPD',
         emptyDescription: 'Tambahkan sasaran setelah tujuan OPD tersedia.',
         primaryType: 'sasaran',
-        primaryLabel: 'Sasaran OPD',
+        primaryLabel: 'Sasaran Strategis OPD',
         indicatorType: 'indikator_sasaran',
         indicatorLabel: 'Indikator Sasaran',
         actions: sasaranActions,
@@ -1235,7 +1235,7 @@ const bulkInputSections = computed<BulkInputSection[]>(() => [
         title: 'Program OPD',
         helper: 'Sasaran program, indikator program, dan target 5 tahunan.',
         emptyTitle: 'Belum ada program OPD',
-        emptyDescription: 'Tambahkan program setelah sasaran OPD tersedia.',
+        emptyDescription: 'Tambahkan program setelah sasaran strategis OPD tersedia.',
         primaryType: 'program',
         primaryLabel: 'Program OPD',
         indicatorType: 'indikator_program',
@@ -1270,6 +1270,10 @@ const bulkInputSections = computed<BulkInputSection[]>(() => [
         rows: subKegiatanRows.value,
     },
 ]);
+const strategicInputSections = computed(() => bulkInputSections.value.filter((section) => ['tujuan', 'sasaran'].includes(section.key)));
+const operationalInputSections = computed(() =>
+    bulkInputSections.value.filter((section) => ['program', 'kegiatan', 'sub-kegiatan'].includes(section.key)),
+);
 
 const renstraManagementSectionKeys: RenstraManagementSection[] = ['tujuan', 'sasaran', 'program', 'kegiatan', 'sub-kegiatan'];
 const activeManagementSection = computed<RenstraManagementSection | null>(() =>
@@ -1356,7 +1360,15 @@ const bulkSectionSummary = (section: BulkInputSection): string => {
         return `${stats.primaryCount} sub kegiatan, ${stats.indicatorCount} indikator`;
     }
 
-    return `${stats.primaryCount} data utama, ${stats.indicatorCount} indikator, ${stats.targetCount} target`;
+    const primaryLabel =
+        {
+            tujuan: 'tujuan',
+            sasaran: 'sasaran strategis',
+            program: 'program',
+            kegiatan: 'kegiatan',
+        }[section.key] ?? 'data';
+
+    return `${stats.primaryCount} ${primaryLabel}, ${stats.indicatorCount} indikator, ${stats.targetCount} target`;
 };
 
 const renstraCascadingRows = computed<RenstraCascadingRow[]>(() => {
@@ -1521,7 +1533,7 @@ const renstraOutputRows = computed<RenstraOutputRow[]>(() => {
             appendRenstraOutputRows(rows, {
                 level: 'sasaran',
                 keyPrefix: `sasaran-${sasaran.id}`,
-                label: `Sasaran OPD: ${plainNodeText(sasaran.sasaran)}`,
+                label: `Sasaran Strategis OPD: ${plainNodeText(sasaran.sasaran)}`,
                 indicators: sasaran.indikator,
                 budgetResolver: () => 0,
             });
@@ -1880,7 +1892,7 @@ function buildBulkRows(): BulkRow[] {
                 makeBulkRow({
                     id: sasaran.id,
                     type: 'sasaran',
-                    level: 'Sasaran OPD',
+                    level: 'Sasaran Strategis OPD',
                     parent_label: plainNodeText(tujuan.tujuan),
                     parent_id: tujuan.id,
                     kode: valueText(sasaran.kode),
@@ -4756,35 +4768,90 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
         </section>
 
         <div class="grid min-w-0 gap-4 pb-10">
-            <section v-if="viewMode === 'bulk' && can.manage && !isDedicatedManagementPage" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <Link
-                    v-for="section in bulkInputSections"
-                    :key="`manage-${section.key}`"
-                    :href="route('renstra-opd.manage', { renstra_opd: renstra.id, section: section.key })"
-                    class="group flex min-h-40 flex-col justify-between rounded-xl border border-blue-100 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#00336C]/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/30"
-                >
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="min-w-0">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <h3 class="text-base font-semibold text-slate-950">{{ section.title }}</h3>
+            <section v-if="viewMode === 'bulk' && can.manage && !isDedicatedManagementPage" class="grid gap-4">
+                <div class="grid gap-3 md:grid-cols-2">
+                    <Link
+                        v-for="section in strategicInputSections"
+                        :key="`manage-${section.key}`"
+                        :href="route('renstra-opd.manage', { renstra_opd: renstra.id, section: section.key })"
+                        class="group relative flex min-h-44 overflow-hidden rounded-2xl border p-5 shadow-[0_6px_22px_rgba(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(15,23,42,0.09)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/25"
+                        :class="
+                            section.key === 'tujuan'
+                                ? 'border-blue-100 bg-[linear-gradient(140deg,#f3f8ff_0%,#ffffff_58%)] hover:border-[#00336C]/25'
+                                : 'border-sky-100 bg-[linear-gradient(140deg,#f2fbff_0%,#ffffff_58%)] hover:border-sky-300'
+                        "
+                    >
+                        <span
+                            class="pointer-events-none absolute -right-10 -top-12 size-32 rounded-full opacity-50 blur-2xl"
+                            :class="section.key === 'tujuan' ? 'bg-blue-100' : 'bg-sky-100'"
+                            aria-hidden="true"
+                        />
+                        <div class="relative flex min-w-0 flex-1 flex-col">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="flex min-w-0 items-center gap-3">
+                                    <span
+                                        class="flex size-11 shrink-0 items-center justify-center rounded-xl border bg-white shadow-sm"
+                                        :class="section.key === 'tujuan' ? 'border-blue-100 text-[#00336C]' : 'border-sky-100 text-sky-700'"
+                                    >
+                                        <Target v-if="section.key === 'tujuan'" class="size-5" />
+                                        <GitBranch v-else class="size-5" />
+                                    </span>
+                                    <h3 class="min-w-0 text-lg font-semibold tracking-[-0.01em] text-slate-950">{{ section.title }}</h3>
+                                </div>
                                 <span
-                                    class="rounded-full border px-2.5 py-1 text-xs font-semibold"
+                                    class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold"
                                     :class="bulkSectionStatus(section).className"
                                 >
                                     {{ bulkSectionStatus(section).label }}
                                 </span>
                             </div>
-                            <p class="mt-2 text-sm leading-6 text-slate-600">{{ bulkSectionSummary(section) }}</p>
+                            <p class="mt-5 text-sm leading-6 text-slate-600">{{ bulkSectionSummary(section) }}</p>
+                            <span
+                                class="mt-auto flex items-center justify-between border-t border-slate-200/70 pt-3 text-sm font-semibold text-[#00336C]"
+                            >
+                                Kelola {{ section.title }}
+                                <span
+                                    class="flex size-8 items-center justify-center rounded-full border border-slate-200 bg-white transition group-hover:border-[#00336C] group-hover:bg-[#00336C] group-hover:text-white"
+                                >
+                                    <ChevronsRight class="size-4 transition-transform group-hover:translate-x-0.5" />
+                                </span>
+                            </span>
                         </div>
-                        <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#00336C] transition group-hover:bg-[#00336C] group-hover:text-white">
-                            <ChevronsRight class="size-4" />
+                    </Link>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <Link
+                        v-for="section in operationalInputSections"
+                        :key="`manage-${section.key}`"
+                        :href="route('renstra-opd.manage', { renstra_opd: renstra.id, section: section.key })"
+                        class="group flex min-h-40 flex-col justify-between rounded-xl border border-blue-100 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#00336C]/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/30"
+                    >
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h3 class="text-base font-semibold text-slate-950">{{ section.title }}</h3>
+                                    <span
+                                        class="rounded-full border px-2.5 py-1 text-xs font-semibold"
+                                        :class="bulkSectionStatus(section).className"
+                                    >
+                                        {{ bulkSectionStatus(section).label }}
+                                    </span>
+                                </div>
+                                <p class="mt-2 text-sm leading-6 text-slate-600">{{ bulkSectionSummary(section) }}</p>
+                            </div>
+                            <span
+                                class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#00336C] transition group-hover:bg-[#00336C] group-hover:text-white"
+                            >
+                                <ChevronsRight class="size-4" />
+                            </span>
+                        </div>
+                        <span class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#00336C]">
+                            Kelola {{ section.title }}
+                            <ChevronsRight class="size-4 transition-transform group-hover:translate-x-0.5" />
                         </span>
-                    </div>
-                    <span class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#00336C]">
-                        Kelola {{ section.title }}
-                        <ChevronsRight class="size-4 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                </Link>
+                    </Link>
+                </div>
             </section>
 
             <section v-else-if="viewMode === 'bulk' && can.manage && isDedicatedManagementPage" class="grid gap-4">
@@ -4898,7 +4965,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                             <div v-if="section.key === 'program'" class="space-y-4">
                                 <div class="rounded-2xl border border-blue-100 bg-white shadow-sm">
                                     <div class="flex flex-col gap-3 border-b border-blue-100 p-4 lg:flex-row lg:items-center lg:justify-between">
-                                        <p class="text-sm font-semibold text-slate-950">Pilih sasaran OPD</p>
+                                        <p class="text-sm font-semibold text-slate-950">Pilih sasaran strategis OPD</p>
                                         <div class="relative w-full lg:w-80">
                                             <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                                             <input
@@ -5016,7 +5083,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     ref="programDetailRef"
                                     class="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3"
                                 >
-                                    <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">Sasaran OPD</p>
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">Sasaran Strategis OPD</p>
                                     <p class="mt-1 text-sm font-semibold text-slate-950">{{ activeProgramFocus.sasaranName }}</p>
                                     <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-[#00336C]/70">Program OPD</p>
                                     <p class="mt-1 text-base font-semibold leading-6 text-slate-950">{{ activeProgramFocus.programName }}</p>
@@ -5076,7 +5143,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                             :class="[sasaranBadgeBaseClass, sasaranInfoClass(program.sasaranId)]"
                                                         >
                                                             <GitBranch class="size-3 shrink-0 opacity-70" />
-                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran OPD</span>
+                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Strategis OPD</span>
                                                             <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
                                                             <span class="min-w-0 truncate font-semibold" :title="program.sasaranName">{{ program.sasaranName }}</span>
                                                         </span>
@@ -5243,7 +5310,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                             :class="[sasaranBadgeBaseClass, sasaranInfoClass(program.sasaranId)]"
                                                         >
                                                             <GitBranch class="size-3 shrink-0 opacity-70" />
-                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran OPD</span>
+                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Strategis OPD</span>
                                                             <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
                                                             <span class="min-w-0 truncate font-semibold" :title="program.sasaranName">{{ program.sasaranName }}</span>
                                                         </span>
@@ -6178,7 +6245,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <div class="flex flex-wrap items-center gap-2">
-                                            <span class="text-xs font-semibold uppercase text-muted-foreground">Sasaran OPD</span>
+                                            <span class="text-xs font-semibold uppercase text-muted-foreground">Sasaran Strategis OPD</span>
                                             <span class="rounded-full px-2 py-1 text-xs font-medium" :class="linkClass(sasaran.linked)">{{
                                                 linkLabel(sasaran.linked)
                                             }}</span>
