@@ -168,7 +168,7 @@ class ProgramRpjmd extends Model
             ->contains('id', $opdId);
     }
 
-    public function preferredProgramPemerintahanReferenceForOpd(?int $opdId = null): ?ProgramPemerintahan
+    public function preferredProgramPemerintahanReferenceForOpd(?int $opdId = null, ?Opd $opd = null): ?ProgramPemerintahan
     {
         $this->loadMissing([
             'programPemerintahan.bidangUrusan.opdPengampu',
@@ -190,7 +190,10 @@ class ProgramRpjmd extends Model
             return $references->first();
         }
 
-        $opd = Opd::query()->find($opdId, ['id', 'kode']);
+        // Reuse the OPD already loaded by callers that resolve many programs.
+        if (! $opd || (int) $opd->id !== $opdId) {
+            $opd = Opd::query()->find($opdId, ['id', 'kode']);
+        }
         $opdBidangCodes = $this->bidangCodesFromOpdCode($opd?->kode);
 
         if ($opdBidangCodes !== []) {

@@ -41,44 +41,67 @@ class RenstraOpdNodeController extends Controller
     {
         $this->authorize('update', $renstraOpd);
 
-        $items = OpdSubKegiatan::query()
-            ->with('kegiatan.program.sasaran.tujuan')
-            ->whereNotNull('sub_kegiatan_pemerintahan_id')
-            ->whereHas('kegiatan.program', fn (Builder $query) => $query
-                ->where('renstra_opd_id', $renstraOpd->id))
-            ->orderBy('id')
+        $items = DB::table('opd_sub_kegiatan as sub_kegiatan')
+            ->join('opd_kegiatan as kegiatan', function ($join): void {
+                $join->on('kegiatan.id', '=', 'sub_kegiatan.opd_kegiatan_id')->whereNull('kegiatan.deleted_at');
+            })
+            ->join('opd_program as program', function ($join): void {
+                $join->on('program.id', '=', 'kegiatan.opd_program_id')->whereNull('program.deleted_at');
+            })
+            ->leftJoin('sasaran_opd as sasaran', function ($join): void {
+                $join->on('sasaran.id', '=', 'program.sasaran_opd_id')->whereNull('sasaran.deleted_at');
+            })
+            ->leftJoin('tujuan_opd as tujuan', function ($join): void {
+                $join->on('tujuan.id', '=', 'sasaran.tujuan_opd_id')->whereNull('tujuan.deleted_at');
+            })
+            ->where('program.renstra_opd_id', $renstraOpd->id)
+            ->whereNull('sub_kegiatan.deleted_at')
+            ->whereNotNull('sub_kegiatan.sub_kegiatan_pemerintahan_id')
+            ->orderBy('sub_kegiatan.id')
+            ->select([
+                'sub_kegiatan.id as opd_sub_kegiatan_id',
+                'sub_kegiatan.sub_kegiatan_pemerintahan_id',
+                'sub_kegiatan.kode',
+                'sub_kegiatan.nama',
+                'kegiatan.id as opd_kegiatan_id',
+                'kegiatan.nama as kegiatan',
+                'kegiatan.sasaran_kegiatan',
+                'program.id as opd_program_id',
+                'program.nama as program',
+                'program.sasaran_program',
+                'sasaran.id as sasaran_opd_id',
+                'sasaran.sasaran as sasaran_opd',
+                'tujuan.id as tujuan_opd_id',
+                'tujuan.tujuan as tujuan_opd',
+            ])
             ->get()
-            ->map(function (OpdSubKegiatan $subKegiatan): array {
-                $kegiatan = $subKegiatan->kegiatan;
-                $program = $kegiatan?->program;
-                $sasaran = $program?->sasaran;
-                $tujuan = $sasaran?->tujuan;
+            ->map(function (object $subKegiatan): array {
                 $context = collect([
-                    filled($tujuan?->tujuan) ? 'Tujuan OPD: '.$tujuan->tujuan : null,
-                    filled($sasaran?->sasaran) ? 'Sasaran OPD: '.$sasaran->sasaran : null,
-                    filled($program?->nama) ? 'Program: '.$program->nama : null,
-                    filled($program?->sasaran_program)
-                        ? 'Sasaran Program: '.$program->sasaran_program
+                    filled($subKegiatan->tujuan_opd) ? 'Tujuan OPD: '.$subKegiatan->tujuan_opd : null,
+                    filled($subKegiatan->sasaran_opd) ? 'Sasaran OPD: '.$subKegiatan->sasaran_opd : null,
+                    filled($subKegiatan->program) ? 'Program: '.$subKegiatan->program : null,
+                    filled($subKegiatan->sasaran_program)
+                        ? 'Sasaran Program: '.$subKegiatan->sasaran_program
                         : null,
-                    filled($kegiatan?->nama) ? 'Kegiatan: '.$kegiatan->nama : null,
-                    filled($kegiatan?->sasaran_kegiatan)
-                        ? 'Sasaran Kegiatan: '.$kegiatan->sasaran_kegiatan
+                    filled($subKegiatan->kegiatan) ? 'Kegiatan: '.$subKegiatan->kegiatan : null,
+                    filled($subKegiatan->sasaran_kegiatan)
+                        ? 'Sasaran Kegiatan: '.$subKegiatan->sasaran_kegiatan
                         : null,
                 ])->filter()->join(' • ');
 
                 return [
-                    'opd_sub_kegiatan_id' => $subKegiatan->id,
+                    'opd_sub_kegiatan_id' => $subKegiatan->opd_sub_kegiatan_id,
                     'sub_kegiatan_pemerintahan_id' => $subKegiatan->sub_kegiatan_pemerintahan_id,
-                    'opd_kegiatan_id' => $kegiatan?->id,
-                    'opd_program_id' => $program?->id,
-                    'sasaran_opd_id' => $sasaran?->id,
-                    'tujuan_opd_id' => $tujuan?->id,
+                    'opd_kegiatan_id' => $subKegiatan->opd_kegiatan_id,
+                    'opd_program_id' => $subKegiatan->opd_program_id,
+                    'sasaran_opd_id' => $subKegiatan->sasaran_opd_id,
+                    'tujuan_opd_id' => $subKegiatan->tujuan_opd_id,
                     'kode' => $subKegiatan->kode,
                     'nama' => $subKegiatan->nama,
-                    'program' => $program?->nama,
-                    'kegiatan' => $kegiatan?->nama,
-                    'sasaran_program' => $program?->sasaran_program,
-                    'sasaran_kegiatan' => $kegiatan?->sasaran_kegiatan,
+                    'program' => $subKegiatan->program,
+                    'kegiatan' => $subKegiatan->kegiatan,
+                    'sasaran_program' => $subKegiatan->sasaran_program,
+                    'sasaran_kegiatan' => $subKegiatan->sasaran_kegiatan,
                     'context' => $context,
                 ];
             })

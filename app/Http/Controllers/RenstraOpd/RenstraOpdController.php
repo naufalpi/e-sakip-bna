@@ -37,6 +37,7 @@ use App\Models\WorkflowSubmission;
 use App\Services\Perencanaan\CancelDocumentRevisionService;
 use App\Services\Perencanaan\DocumentRevisionService;
 use App\Services\Renstra\RenstraPreviewExcelExportService;
+use App\Services\Renstra\RenstraProgressSummaryService;
 use App\Services\Workflow\WorkflowDataService;
 use App\Support\Pagination\PerPagePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -50,7 +51,7 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class RenstraOpdController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, RenstraProgressSummaryService $progressSummaryService): Response
     {
         $this->authorize('viewAny', RenstraOpd::class);
 
@@ -64,13 +65,6 @@ class RenstraOpdController extends Controller
                 'rpjmd:id,judul,tahun_awal,tahun_akhir,status',
                 'rpjmdPerubahanTerbaru:id,judul,jenis_versi,nomor_versi',
                 'periodeTahun:id,tahun,nama',
-            ])
-            ->with([
-                'tujuan.indikator.targets.periodeTahun:id,tahun',
-                'tujuan.sasaran.indikator.targets.periodeTahun:id,tahun',
-                'programs.indikator.targets.periodeTahun:id,tahun',
-                'programs.kegiatan.indikator.targets.periodeTahun:id,tahun',
-                'programs.kegiatan.subKegiatan.indikator.targets.periodeTahun:id,tahun',
             ])
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
@@ -87,43 +81,45 @@ class RenstraOpdController extends Controller
             ->orderByDesc('tahun_awal')
             ->latest('id');
 
-        $renstras = PerPagePaginator::paginate($renstraQuery, $request)
-            ->through(fn (RenstraOpd $renstra) => [
-                'id' => $renstra->id,
-                'judul' => $renstra->judul,
-                'nomor_dokumen' => $renstra->nomor_dokumen,
-                'tahun_awal' => $renstra->tahun_awal,
-                'tahun_akhir' => $renstra->tahun_akhir,
-                'status' => $renstra->status,
-                'jenis_versi' => $renstra->jenis_versi,
-                'nomor_versi' => $renstra->nomor_versi,
-                'is_active_version' => $renstra->is_active_version,
-                'version_label' => $renstra->versionLabel(),
-                'perlu_penyesuaian_rpjmd' => $renstra->perlu_penyesuaian_rpjmd,
-                'rpjmd_perubahan_terbaru' => $renstra->rpjmdPerubahanTerbaru ? [
-                    'id' => $renstra->rpjmdPerubahanTerbaru->id,
-                    'judul' => $renstra->rpjmdPerubahanTerbaru->judul,
-                    'version_label' => $renstra->rpjmdPerubahanTerbaru->versionLabel(),
-                ] : null,
-                'opd' => $renstra->opd ? [
-                    'id' => $renstra->opd->id,
-                    'kode' => $renstra->opd->kode,
-                    'nama' => $renstra->opd->nama,
-                    'singkatan' => $renstra->opd->singkatan,
-                ] : null,
-                'rpjmd' => $renstra->rpjmd ? [
-                    'id' => $renstra->rpjmd->id,
-                    'judul' => $renstra->rpjmd->judul,
-                    'tahun_awal' => $renstra->rpjmd->tahun_awal,
-                    'tahun_akhir' => $renstra->rpjmd->tahun_akhir,
-                ] : null,
-                'periode_tahun' => $renstra->periodeTahun ? [
-                    'id' => $renstra->periodeTahun->id,
-                    'tahun' => $renstra->periodeTahun->tahun,
-                    'nama' => $renstra->periodeTahun->nama,
-                ] : null,
-                'progress' => $this->cascadingProgress($renstra),
-            ]);
+        $renstras = PerPagePaginator::paginate($renstraQuery, $request);
+        $progressByRenstra = $progressSummaryService->summarize($renstras->getCollection());
+
+        $renstras->through(fn (RenstraOpd $renstra) => [
+            'id' => $renstra->id,
+            'judul' => $renstra->judul,
+            'nomor_dokumen' => $renstra->nomor_dokumen,
+            'tahun_awal' => $renstra->tahun_awal,
+            'tahun_akhir' => $renstra->tahun_akhir,
+            'status' => $renstra->status,
+            'jenis_versi' => $renstra->jenis_versi,
+            'nomor_versi' => $renstra->nomor_versi,
+            'is_active_version' => $renstra->is_active_version,
+            'version_label' => $renstra->versionLabel(),
+            'perlu_penyesuaian_rpjmd' => $renstra->perlu_penyesuaian_rpjmd,
+            'rpjmd_perubahan_terbaru' => $renstra->rpjmdPerubahanTerbaru ? [
+                'id' => $renstra->rpjmdPerubahanTerbaru->id,
+                'judul' => $renstra->rpjmdPerubahanTerbaru->judul,
+                'version_label' => $renstra->rpjmdPerubahanTerbaru->versionLabel(),
+            ] : null,
+            'opd' => $renstra->opd ? [
+                'id' => $renstra->opd->id,
+                'kode' => $renstra->opd->kode,
+                'nama' => $renstra->opd->nama,
+                'singkatan' => $renstra->opd->singkatan,
+            ] : null,
+            'rpjmd' => $renstra->rpjmd ? [
+                'id' => $renstra->rpjmd->id,
+                'judul' => $renstra->rpjmd->judul,
+                'tahun_awal' => $renstra->rpjmd->tahun_awal,
+                'tahun_akhir' => $renstra->rpjmd->tahun_akhir,
+            ] : null,
+            'periode_tahun' => $renstra->periodeTahun ? [
+                'id' => $renstra->periodeTahun->id,
+                'tahun' => $renstra->periodeTahun->tahun,
+                'nama' => $renstra->periodeTahun->nama,
+            ] : null,
+            'progress' => $progressByRenstra[$renstra->id],
+        ]);
 
         return Inertia::render('RenstraOpd/Index', [
             'renstras' => $renstras,
@@ -203,9 +199,11 @@ class RenstraOpdController extends Controller
             'tujuan.sasaran.programs.programRpjmd.programPemerintahan:id,kode,nama,bidang_urusan_id',
             'tujuan.sasaran.programs.programRpjmd.programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
             'tujuan.sasaran.programs.programRpjmd.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
+            'tujuan.sasaran.programs.programRpjmd.programPemerintahan.bidangUrusan.opdPengampu:id',
             'tujuan.sasaran.programs.programRpjmd.programPemerintahanReferences:id,kode,nama,bidang_urusan_id',
             'tujuan.sasaran.programs.programRpjmd.programPemerintahanReferences.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
             'tujuan.sasaran.programs.programRpjmd.programPemerintahanReferences.bidangUrusan.urusanPemerintahan:id,kode,nama',
+            'tujuan.sasaran.programs.programRpjmd.programPemerintahanReferences.bidangUrusan.opdPengampu:id',
             'tujuan.sasaran.programs.programPemerintahan:id,kode,nama,bidang_urusan_id',
             'tujuan.sasaran.programs.programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
             'tujuan.sasaran.programs.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
@@ -227,16 +225,18 @@ class RenstraOpdController extends Controller
         ]);
 
         return Inertia::render('RenstraOpd/Show', [
-            'renstra' => $this->serializeRenstra($renstraOpd),
-            'rpjmdContext' => $this->rpjmdContext($renstraOpd),
-            'nodeOptions' => $manage ? $this->nodeOptions($renstraOpd) : [],
-            'rpjmdReferenceOptions' => $manage ? $this->rpjmdReferenceOptions($renstraOpd) : [],
-            'masterReferenceOptions' => $manage ? $this->masterReferenceOptions($renstraOpd) : [],
+            'renstra' => fn () => $this->serializeRenstra($renstraOpd),
+            // Partial reloads after saving targets need only the current tree.
+            // Closures keep unrelated reference queries out of those requests.
+            'rpjmdContext' => fn () => $this->rpjmdContext($renstraOpd),
+            'nodeOptions' => fn () => $manage ? $this->nodeOptions($renstraOpd) : [],
+            'rpjmdReferenceOptions' => fn () => $manage ? $this->rpjmdReferenceOptions($renstraOpd) : [],
+            'masterReferenceOptions' => fn () => $manage ? $this->masterReferenceOptions($renstraOpd) : [],
             // Periode tahun juga dipakai oleh tabel preview untuk membentuk
             // kolom target dan pagu. Data ini harus tetap tersedia bagi
             // reviewer/viewer meskipun mereka tidak memiliki hak mengedit.
-            'periodeOptions' => $this->periodeOptions(),
-            'satuanOptions' => $manage ? $this->satuanOptions() : [],
+            'periodeOptions' => fn () => $this->periodeOptions(),
+            'satuanOptions' => fn () => $manage ? $this->satuanOptions() : [],
             'can' => [
                 'manage' => $manage,
                 'createRevision' => $request->user()->can('createRevision', $renstraOpd),
@@ -246,7 +246,7 @@ class RenstraOpdController extends Controller
                 'lock' => $this->canLockWorkflow($request->user()),
                 'unlock' => $renstraOpd->is_active_version && $request->user()->isSuperAdmin(),
             ],
-            'workflow' => $workflowDataService->forModel($renstraOpd, 'renstra_opd'),
+            'workflow' => fn () => $workflowDataService->forModel($renstraOpd, 'renstra_opd'),
             'activeSection' => $activeSection,
         ]);
     }
@@ -581,6 +581,7 @@ class RenstraOpdController extends Controller
                 ->map(function (ProgramRpjmd $item) use ($renstra) {
                     $preferredReference = $item->preferredProgramPemerintahanReferenceForOpd(
                         $this->shouldRestrictRpjmdProgramReferences($renstra) ? (int) $renstra->opd_id : null,
+                        $renstra->opd,
                     );
 
                     return [
@@ -788,6 +789,8 @@ class RenstraOpdController extends Controller
                 'sasaran.tujuan.misiTerkait:id,kode,misi,urutan',
                 'programPemerintahan:id,kode,nama,bidang_urusan_id',
                 'programPemerintahanReferences:id,kode,nama,bidang_urusan_id',
+                'programPemerintahan.bidangUrusan.opdPengampu:id',
+                'programPemerintahanReferences.bidangUrusan.opdPengampu:id',
             ])
             ->orderBy('urutan')
             ->get(['id', 'sasaran_daerah_id', 'program_pemerintahan_id', 'kode', 'nama', 'urutan']);
@@ -847,6 +850,7 @@ class RenstraOpdController extends Controller
                             ->map(function (ProgramRpjmd $program) use ($renstra) {
                                 $preferredReference = $program->preferredProgramPemerintahanReferenceForOpd(
                                     filled($renstra->opd_id) ? (int) $renstra->opd_id : null,
+                                    $renstra->opd,
                                 );
 
                                 return [
@@ -863,71 +867,6 @@ class RenstraOpdController extends Controller
                 })
                 ->values()
                 ->all(),
-        ];
-    }
-
-    /**
-     * Measure the actual cascading coverage instead of treating the presence of
-     * a tujuan and program as a completed Renstra.
-     *
-     * @return array<string, int|string>
-     */
-    private function cascadingProgress(RenstraOpd $renstra): array
-    {
-        $tujuan = $renstra->tujuan;
-        $sasaran = $tujuan->flatMap(fn (TujuanOpd $item) => $item->sasaran);
-        $programs = $renstra->programs;
-        $kegiatan = $programs->flatMap(fn (OpdProgram $item) => $item->kegiatan);
-        $subKegiatan = $kegiatan->flatMap(fn (OpdKegiatan $item) => $item->subKegiatan);
-
-        $stages = collect([
-            $tujuan,
-            $sasaran,
-            $programs,
-            $kegiatan,
-            $subKegiatan,
-        ]);
-
-        $stagesFilled = $stages->filter(fn (Collection $items) => $items->isNotEmpty())->count();
-        $indicatorParentsTotal = (int) $stages->sum(fn (Collection $items) => $items->count());
-        $indicatorParentsFilled = (int) $stages->sum(
-            fn (Collection $items) => $items->filter(fn ($item) => $item->indikator->isNotEmpty())->count(),
-        );
-
-        $indicators = $tujuan
-            ->flatMap(fn (TujuanOpd $item) => $item->indikator)
-            ->merge($sasaran->flatMap(fn (SasaranOpd $item) => $item->indikator))
-            ->merge($programs->flatMap(fn (OpdProgram $item) => $item->indikator))
-            ->merge($kegiatan->flatMap(fn (OpdKegiatan $item) => $item->indikator))
-            ->merge($subKegiatan->flatMap(fn (OpdSubKegiatan $item) => $item->indikator));
-
-        $targetYears = range((int) $renstra->tahun_awal, (int) $renstra->tahun_akhir + 1);
-        $targetsTotal = $indicators->count() * count($targetYears);
-        $targetsFilled = $indicators->sum(function ($indicator) use ($targetYears): int {
-            return $indicator->targets
-                ->filter(function ($target) use ($targetYears): bool {
-                    return in_array((int) $target->periodeTahun?->tahun, $targetYears, true)
-                        && ($target->target !== null || filled($target->target_text));
-                })
-                ->unique('periode_tahun_id')
-                ->count();
-        });
-
-        $percentage = (int) round(
-            (($stagesFilled / 5) * 40)
-            + ($indicatorParentsTotal > 0 ? (($indicatorParentsFilled / $indicatorParentsTotal) * 40) : 0)
-            + ($targetsTotal > 0 ? (($targetsFilled / $targetsTotal) * 20) : 0),
-        );
-
-        return [
-            'percentage' => min($percentage, 100),
-            'stages_filled' => $stagesFilled,
-            'stages_total' => 5,
-            'indicators_filled' => $indicatorParentsFilled,
-            'indicators_total' => $indicatorParentsTotal,
-            'targets_filled' => $targetsFilled,
-            'targets_total' => $targetsTotal,
-            'status' => $percentage === 100 ? 'terisi' : 'belum_lengkap',
         ];
     }
 
@@ -1094,7 +1033,7 @@ class RenstraOpdController extends Controller
         $opdId = filled($renstra->opd_id) ? (int) $renstra->opd_id : null;
 
         return $program->programPemerintahan
-            ?? $program->programRpjmd?->preferredProgramPemerintahanReferenceForOpd($opdId)
+            ?? $program->programRpjmd?->preferredProgramPemerintahanReferenceForOpd($opdId, $renstra->opd)
             ?? $this->programPemerintahanByCode($program->kode, $renstra)
             ?? $program->programRpjmd?->programPemerintahan;
     }

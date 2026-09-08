@@ -552,10 +552,33 @@ const viewMode = ref<'table' | 'bulk'>(props.can.manage ? 'bulk' : 'table');
 const isNodeModalOpen = ref(false);
 const formPanel = ref<HTMLElement | null>(null);
 const bulkRows = ref<BulkRow[]>([]);
+// Index structural keys only: editing a target value does not rebuild this map.
+// Rows remain reactive references so autosave and unsaved changes stay in sync.
+const bulkRowIndex = computed(() => {
+    const children = new Map<string, BulkRow[]>();
+    const targets = new Map<string, BulkRow>();
+
+    for (const row of bulkRows.value) {
+        const parentKey = `${row.type}:${Number(row.parent_id)}`;
+        const siblings = children.get(parentKey);
+        if (siblings) siblings.push(row);
+        else children.set(parentKey, [row]);
+
+        if (targetNodeTypes.includes(row.type)) {
+            const targetKey = `${parentKey}:${Number(row.periode_tahun_id)}`;
+            if (!targets.has(targetKey)) targets.set(targetKey, row);
+        }
+    }
+
+    return { children, targets };
+});
+const bulkChildren = (type: NodeType, parentId: number | string | null): BulkRow[] =>
+    bulkRowIndex.value.children.get(`${type}:${Number(parentId)}`) ?? [];
 const freshUsedSubKegiatan = ref<UsedSubKegiatan[] | null>(null);
 const isRefreshingSubKegiatanUsage = ref(false);
 const subKegiatanUsageError = ref('');
 const subKegiatanUsageRequestId = ref(0);
+const isUsedSubKegiatanExpanded = ref(false);
 const highlightedSubKegiatanId = ref<number | null>(null);
 const expandedBulkSections = ref<string[]>([]);
 const expandedProgramSasaranIds = ref<number[]>([]);
@@ -2139,6 +2162,7 @@ const closeNodeModal = () => {
     isRefreshingSubKegiatanUsage.value = false;
     subKegiatanUsageError.value = '';
     freshUsedSubKegiatan.value = null;
+    isUsedSubKegiatanExpanded.value = false;
     targetBatchRows.value = [];
     clearNodeForm();
 };
@@ -2264,6 +2288,7 @@ const refreshSubKegiatanUsage = async () => {
 const openSubKegiatanModal = (kegiatanId: number) => {
     freshUsedSubKegiatan.value = null;
     subKegiatanUsageError.value = '';
+    isUsedSubKegiatanExpanded.value = false;
     selectNodeType('sub_kegiatan', kegiatanId);
     void refreshSubKegiatanUsage();
 };
@@ -2499,7 +2524,7 @@ const targetRowsForIndicator = (row: BulkRow): BulkRow[] => {
         return [];
     }
 
-    return bulkRows.value.filter((targetRow) => targetRow.type === targetType && Number(targetRow.parent_id) === Number(row.id));
+    return bulkChildren(targetType, row.id);
 };
 const bulkRowsForSingleSave = (row: BulkRow): BulkRow[] => [row, ...targetRowsForIndicator(row)];
 const targetRowForIndicator = (row: BulkRow, periodeId: number | string): BulkRow | null => {
@@ -2509,14 +2534,7 @@ const targetRowForIndicator = (row: BulkRow, periodeId: number | string): BulkRo
         return null;
     }
 
-    return (
-        bulkRows.value.find(
-            (targetRow) =>
-                targetRow.type === targetType &&
-                Number(targetRow.parent_id) === Number(row.id) &&
-                Number(targetRow.periode_tahun_id) === Number(periodeId),
-        ) ?? null
-    );
+    return bulkRowIndex.value.targets.get(`${targetType}:${Number(row.id)}:${Number(periodeId)}`) ?? null;
 };
 const ensureTargetRowForIndicator = (row: BulkRow, periodeId: number | string): BulkRow | null => {
     const existingTarget = targetRowForIndicator(row, periodeId);
@@ -3066,7 +3084,7 @@ const sectionGroupProgramLabel = (section: BulkInputSection, group: BulkSectionG
 };
 
 const sectionIndicatorRows = (section: BulkInputSection, parentRow: BulkRow): BulkRow[] =>
-    sortBulkRowsByOrder(section.rows.filter((row) => row.type === section.indicatorType && Number(row.parent_id) === Number(parentRow.id)));
+    sortBulkRowsByOrder(bulkChildren(section.indicatorType, parentRow.id));
 
 type ProgramSasaranItem = {
     key: string;
@@ -3139,11 +3157,9 @@ const sasaranBadgeBaseClass =
 const programSasaranFolders = computed<ProgramSasaranFolder[]>(() =>
     sortBulkRowsByOrder(sasaranRows.value.filter((row) => row.type === 'sasaran' && Boolean(row.id))).map((sasaranRow) => {
         const programs = sortBulkRowsByOrder(
-            programRows.value.filter((row) => row.type === 'program' && Number(row.parent_id) === Number(sasaranRow.id) && Boolean(row.id)),
+            bulkChildren('program', sasaranRow.id).filter((row) => Boolean(row.id)),
         ).map((programRow) => {
-            const indicatorCount = programRows.value.filter(
-                (indicatorRow) => indicatorRow.type === 'indikator_program' && Number(indicatorRow.parent_id) === Number(programRow.id),
-            ).length;
+            const indicatorCount = bulkChildren('indikator_program', programRow.id).length;
 
             return {
                 key: `program-folder-program-${programRow.id}`,
@@ -3230,11 +3246,9 @@ const programFolderSources = computed<ProgramFolderSource[]>(() => {
 const kegiatanProgramFolders = computed<KegiatanProgramFolder[]>(() =>
     programFolderSources.value.map(({ programRow, sasaranId, sasaranName, sasaranProgram }) => {
         const kegiatan = sortBulkRowsByOrder(
-            kegiatanRows.value.filter((row) => row.type === 'kegiatan' && Number(row.parent_id) === Number(programRow.id) && Boolean(row.id)),
+            bulkChildren('kegiatan', programRow.id).filter((row) => Boolean(row.id)),
         ).map((kegiatanRow) => {
-            const indicatorCount = kegiatanRows.value.filter(
-                (indicatorRow) => indicatorRow.type === 'indikator_kegiatan' && Number(indicatorRow.parent_id) === Number(kegiatanRow.id),
-            ).length;
+            const indicatorCount = bulkChildren('indikator_kegiatan', kegiatanRow.id).length;
 
             return {
                 key: `kegiatan-folder-kegiatan-${kegiatanRow.id}`,
@@ -3327,18 +3341,11 @@ type SubKegiatanProgramFolder = {
 const subKegiatanProgramFolders = computed<SubKegiatanProgramFolder[]>(() =>
     programFolderSources.value.map(({ programRow, sasaranId, sasaranName, sasaranProgram }) => {
         const kegiatan = sortBulkRowsByOrder(
-            kegiatanRows.value.filter((row) => row.type === 'kegiatan' && Number(row.parent_id) === Number(programRow.id) && Boolean(row.id)),
+            bulkChildren('kegiatan', programRow.id).filter((row) => Boolean(row.id)),
         ).map((kegiatanRow) => {
-            const subRows = subKegiatanRows.value.filter(
-                (subRow) => subRow.type === 'sub_kegiatan' && Number(subRow.parent_id) === Number(kegiatanRow.id),
-            );
+            const subRows = bulkChildren('sub_kegiatan', kegiatanRow.id);
             const indicatorCount = subRows.reduce(
-                (total, subRow) =>
-                    total +
-                    subKegiatanRows.value.filter(
-                        (indicatorRow) =>
-                            indicatorRow.type === 'indikator_sub_kegiatan' && Number(indicatorRow.parent_id) === Number(subRow.id),
-                    ).length,
+                (total, subRow) => total + bulkChildren('indikator_sub_kegiatan', subRow.id).length,
                 0,
             );
 
@@ -4052,6 +4059,7 @@ onUnmounted(() => {
 const editNode = (type: NodeType, id: number, parentId: number | null, node: any) => {
     editingNode.value = { type, id };
     isNodeModalOpen.value = true;
+    isUsedSubKegiatanExpanded.value = false;
     form.type = type;
     clearNodeForm();
     form.parent_id = parentId ?? '';
@@ -4094,6 +4102,12 @@ const editNode = (type: NodeType, id: number, parentId: number | null, node: any
         form.target_text = valueText(target.target_text);
         form.pagu = currencyInputText(target.pagu);
         prepareTargetBatchRows();
+    }
+
+    if (type === 'sub_kegiatan') {
+        freshUsedSubKegiatan.value = null;
+        subKegiatanUsageError.value = '';
+        void refreshSubKegiatanUsage();
     }
 
     nextTick(() => formPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
@@ -6773,8 +6787,26 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 </p>
                             </div>
 
-                            <div v-if="form.type === 'sub_kegiatan'" class="grid gap-2 rounded-xl border bg-muted/20 p-3">
-                                <label class="text-sm font-medium" for="sub_kegiatan_pemerintahan_id">Pilih Sub Kegiatan</label>
+                            <div
+                                v-if="form.type === 'sub_kegiatan'"
+                                class="grid gap-3 rounded-2xl border-2 border-blue-300 bg-gradient-to-br from-blue-50 via-white to-sky-50/70 p-4 shadow-sm ring-4 ring-blue-50"
+                            >
+                                <div class="flex items-start gap-3">
+                                    <span
+                                        class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm"
+                                        aria-hidden="true"
+                                    >
+                                        <Target class="size-4.5" />
+                                    </span>
+                                    <div>
+                                        <label class="block text-base font-bold text-slate-950" for="sub_kegiatan_pemerintahan_id">
+                                            Pilih Sub Kegiatan yang akan ditambahkan <span class="text-red-500">*</span>
+                                        </label>
+                                        <p class="mt-0.5 text-xs leading-5 text-slate-600">
+                                            Klik kolom di bawah, lalu cari berdasarkan kode atau nama sub kegiatan.
+                                        </p>
+                                    </div>
+                                </div>
                                 <RpjmdRichSelect
                                     id="sub_kegiatan_pemerintahan_id"
                                     v-model="form.sub_kegiatan_pemerintahan_id"
@@ -6783,6 +6815,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     placement="bottom"
                                     :placeholder="isRefreshingSubKegiatanUsage ? 'Memeriksa ketersediaan...' : 'Pilih sub kegiatan'"
                                     empty-text="Sub kegiatan belum tersedia"
+                                    class="rounded-xl bg-white shadow-sm"
                                 />
                                 <p
                                     v-if="isRefreshingSubKegiatanUsage"
@@ -6799,21 +6832,43 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 >
                                     {{ subKegiatanUsageError }}
                                 </div>
-                                <div
-                                    v-if="relevantUsedSubKegiatan.length"
-                                    class="overflow-hidden rounded-xl border border-amber-200 bg-amber-50/70"
-                                >
-                                    <div class="border-b border-amber-200 px-3 py-2.5">
-                                        <p class="text-xs font-bold uppercase tracking-wide text-amber-900">Sudah terpasang dalam RENSTRA</p>
-                                        <p class="mt-1 text-xs leading-5 text-amber-800">
-                                            Data berikut masih aktif. Buka lokasinya untuk memeriksa, atau hapus dari lokasi lama sebelum memasangnya kembali.
-                                        </p>
+                                <div v-if="relevantUsedSubKegiatan.length" class="overflow-hidden rounded-xl border border-slate-200 bg-white/80">
+                                    <button
+                                        type="button"
+                                        class="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition hover:bg-slate-50"
+                                        :aria-expanded="isUsedSubKegiatanExpanded"
+                                        @click="isUsedSubKegiatanExpanded = !isUsedSubKegiatanExpanded"
+                                    >
+                                        <span class="min-w-0">
+                                            <span class="block text-xs font-semibold text-slate-700">
+                                                {{ relevantUsedSubKegiatan.length }} sub kegiatan lain sudah terpasang dalam RENSTRA
+                                            </span>
+                                            <span class="mt-0.5 block text-[11px] leading-4 text-slate-500">
+                                                Informasi tambahan—tidak perlu dibuka jika sub kegiatan yang dicari masih tersedia.
+                                            </span>
+                                        </span>
+                                        <span class="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-blue-700">
+                                            {{ isUsedSubKegiatanExpanded ? 'Tutup' : 'Tinjau' }}
+                                            <ChevronDown
+                                                class="size-4 transition-transform"
+                                                :class="isUsedSubKegiatanExpanded ? 'rotate-180' : ''"
+                                            />
+                                        </span>
+                                    </button>
+                                    <div
+                                        v-if="isUsedSubKegiatanExpanded"
+                                        class="border-t border-slate-200 bg-amber-50/40 px-3 py-2 text-xs leading-5 text-amber-900"
+                                    >
+                                        Gunakan daftar ini hanya untuk memeriksa lokasi lama atau melepas sub kegiatan yang ingin dipindahkan.
                                     </div>
-                                    <div class="max-h-52 divide-y divide-amber-200 overflow-y-auto">
+                                    <div
+                                        v-if="isUsedSubKegiatanExpanded"
+                                        class="max-h-44 divide-y divide-slate-200 overflow-y-auto border-t border-slate-200"
+                                    >
                                         <div v-for="item in relevantUsedSubKegiatan" :key="item.opd_sub_kegiatan_id" class="grid gap-2 px-3 py-3">
                                             <div class="min-w-0">
                                                 <p class="text-sm font-semibold leading-5 text-slate-950">
-                                                    <span v-if="item.kode" class="text-amber-800">{{ item.kode }} · </span>{{ item.nama }}
+                                                    <span v-if="item.kode" class="text-blue-700">{{ item.kode }} · </span>{{ item.nama }}
                                                 </p>
                                                 <p class="mt-1 text-xs leading-5 text-slate-600">
                                                     {{ item.program || 'Program tidak tersedia' }}
@@ -6827,7 +6882,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                             <div class="flex flex-wrap gap-2">
                                                 <button
                                                     type="button"
-                                                    class="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-amber-300 bg-white px-2.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-100"
+                                                    class="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800"
                                                     @click="focusUsedSubKegiatan(item)"
                                                 >
                                                     <Eye class="size-3.5" />

@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\BidangUrusan;
 use App\Models\ImportBatch;
 use App\Models\IndikatorOpdProgram;
 use App\Models\IndikatorProgramRpjmd;
 use App\Models\IndikatorSasaranDaerah;
 use App\Models\IndikatorTujuanDaerah;
+use App\Models\IndikatorTujuanOpd;
 use App\Models\KegiatanPemerintahan;
 use App\Models\Opd;
 use App\Models\OpdProgram;
@@ -29,12 +31,16 @@ use App\Models\StrategiDaerah;
 use App\Models\SubKegiatanPemerintahan;
 use App\Models\TargetIndikatorOpdProgram;
 use App\Models\TargetIndikatorProgramRpjmd;
+use App\Models\TargetIndikatorTujuanOpd;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
 use App\Models\User;
 use App\Services\Perencanaan\RenjaProgramScopeService;
+use App\Services\Renstra\RenstraProgressSummaryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -43,6 +49,147 @@ use ZipArchive;
 class RenstraOpdTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_renstra_index_calculates_progress_from_database_aggregates(): void
+    {
+        $this->seed();
+
+        $opd = Opd::create(['kode' => '1.00.98', 'nama' => 'Dinas Uji Progres', 'status' => 'active']);
+        $rpjmd = Rpjmd::create([
+            'judul' => 'RPJMD Uji Progres',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'status' => 'approved',
+        ]);
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $rpjmd->id,
+            'judul' => 'RENSTRA Uji Progres',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'status' => 'draft',
+        ]);
+        $tujuan = TujuanOpd::create([
+            'renstra_opd_id' => $renstra->id,
+            'tujuan' => 'Tujuan Uji Progres',
+            'urutan' => 1,
+        ]);
+        $indikator = IndikatorTujuanOpd::create([
+            'tujuan_opd_id' => $tujuan->id,
+            'indikator' => 'Indikator Uji Progres',
+            'urutan' => 1,
+        ]);
+        $periode = PeriodeTahun::query()->where('tahun', 2026)->firstOrFail();
+
+        TargetIndikatorTujuanOpd::create([
+            'indikator_tujuan_opd_id' => $indikator->id,
+            'periode_tahun_id' => $periode->id,
+            'target' => 0,
+        ]);
+
+        $user = User::factory()->create(['opd_id' => $opd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('renstras.data.0.progress.percentage', 51)
+                ->where('renstras.data.0.progress.stages_filled', 1)
+                ->where('renstras.data.0.progress.stages_total', 5)
+                ->where('renstras.data.0.progress.indicators_filled', 1)
+                ->where('renstras.data.0.progress.indicators_total', 1)
+                ->where('renstras.data.0.progress.targets_filled', 1)
+                ->where('renstras.data.0.progress.targets_total', 6)
+                ->where('renstras.data.0.progress.status', 'belum_lengkap'));
+
+        $sasaran = $tujuan->sasaran()->create(['sasaran' => 'Sasaran progres']);
+        $program = $sasaran->programs()->create(['renstra_opd_id' => $renstra->id, 'nama' => 'Program progres']);
+        $kegiatan = $program->kegiatan()->create(['nama' => 'Kegiatan progres']);
+        $subKegiatan = $kegiatan->subKegiatan()->create(['nama' => 'Sub kegiatan progres']);
+        foreach ([$sasaran, $program, $kegiatan, $subKegiatan] as $node) {
+            $node->indikator()->create(['indikator' => 'Indikator progres'])->targets()->create([
+                'periode_tahun_id' => $periode->id,
+                'target_text' => 'BB',
+            ]);
+        }
+        $lastPeriod = PeriodeTahun::firstOrCreate(['tahun' => 2031], ['nama' => '2031', 'status' => 'active']);
+        $indikator->targets()->create(['periode_tahun_id' => $lastPeriod->id, 'target_text' => 'Tercapai']);
+        $blankPeriod = PeriodeTahun::firstOrCreate(['tahun' => 2027], ['nama' => '2027', 'status' => 'active']);
+        $indikator->targets()->create(['periode_tahun_id' => $blankPeriod->id, 'target_text' => '   ']);
+        $baseline = PeriodeTahun::firstOrCreate(['tahun' => 2025], ['nama' => '2025', 'status' => 'active']);
+        $indikator->targets()->create(['periode_tahun_id' => $baseline->id, 'target' => 90]);
+        $deletedIndicator = $program->indikator()->create(['indikator' => 'Indikator dihapus']);
+        $deletedIndicator->targets()->create(['periode_tahun_id' => $periode->id, 'target' => 100]);
+        $deletedIndicator->delete();
+
+        $service = app(RenstraProgressSummaryService::class);
+        $progress = $service->summarize(collect([$renstra]))[$renstra->id];
+        $this->assertSame(5, $progress['stages_filled']);
+        $this->assertSame(5, $progress['indicators_total']);
+        $this->assertSame(30, $progress['targets_total']);
+        $this->assertSame(6, $progress['targets_filled']);
+        $this->assertSame(84, $progress['percentage']);
+
+        $lastPeriod->delete();
+        $this->assertSame(5, $service->summarize(collect([$renstra]))[$renstra->id]['targets_filled']);
+        $kegiatan->delete();
+        $progress = $service->summarize(collect([$renstra]))[$renstra->id];
+        $this->assertSame(3, $progress['stages_filled']);
+        $this->assertSame(3, $progress['indicators_total']);
+        $this->assertSame(18, $progress['targets_total']);
+        $this->assertSame(3, $progress['targets_filled']);
+    }
+
+    public function test_renstra_target_reload_skips_unrequested_reference_queries(): void
+    {
+        $this->seed();
+        $opd = Opd::create(['kode' => '1.00.97', 'nama' => 'Dinas Uji Reload', 'status' => 'active']);
+        $rpjmd = Rpjmd::create(['judul' => 'RPJMD Reload', 'tahun_awal' => 2026, 'tahun_akhir' => 2030, 'status' => 'approved']);
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id, 'rpjmd_id' => $rpjmd->id, 'judul' => 'RENSTRA Reload',
+            'tahun_awal' => 2026, 'tahun_akhir' => 2030, 'status' => 'draft',
+        ]);
+        $tujuan = $renstra->tujuan()->create(['tujuan' => 'Tujuan Reload']);
+        $indikator = $tujuan->indikator()->create(['indikator' => 'Indikator Reload']);
+        $indikator->targets()->create([
+            'periode_tahun_id' => PeriodeTahun::where('tahun', 2026)->value('id'),
+            'target' => 75,
+        ]);
+        $user = User::factory()->create(['opd_id' => $opd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+        $this->actingAs($user);
+        $headers = [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) app(HandleInertiaRequests::class)
+                ->version(Request::create('/')),
+        ];
+
+        DB::enableQueryLog();
+        try {
+            DB::flushQueryLog();
+            $full = $this->getJson(route('renstra-opd.show', $renstra), $headers)->assertOk();
+            $fullQueryCount = count(DB::getQueryLog());
+            DB::flushQueryLog();
+            $partial = $this->getJson(route('renstra-opd.show', $renstra), [...$headers,
+                'X-Inertia-Partial-Component' => 'RenstraOpd/Show',
+                'X-Inertia-Partial-Data' => 'renstra',
+            ])->assertOk();
+            $partialQueries = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+
+        $this->assertSame($full->json('props.renstra'), $partial->json('props.renstra'));
+        $partial->assertJsonMissingPath('props.masterReferenceOptions')
+            ->assertJsonMissingPath('props.rpjmdReferenceOptions')
+            ->assertJsonMissingPath('props.nodeOptions');
+        $this->assertLessThan($fullQueryCount, count($partialQueries));
+        $this->assertFalse(collect($partialQueries)->contains(
+            fn (array $query): bool => str_contains($query['query'], 'from "sub_kegiatan_pemerintahan"'),
+        ), 'Reload target tidak boleh memuat seluruh master sub kegiatan.');
+    }
 
     public function test_kabupaten_viewer_receives_period_columns_for_renstra_preview(): void
     {
@@ -555,6 +702,25 @@ class RenstraOpdTest extends TestCase
                     return data_get($program, 'program_pemerintahan.bidang_urusan.kode') === '2.16';
                 })
             );
+
+        $programRpjmd->load([
+            'programPemerintahan.bidangUrusan.opdPengampu',
+            'programPemerintahanReferences.bidangUrusan.opdPengampu',
+        ]);
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        try {
+            for ($i = 0; $i < 5; $i++) {
+                $this->assertSame(
+                    $programKominfo->id,
+                    $programRpjmd->preferredProgramPemerintahanReferenceForOpd($kominfo->id, $kominfo)?->id,
+                );
+            }
+            $this->assertCount(0, DB::getQueryLog(), 'Referensi dan OPD yang sudah dimuat tidak perlu dibaca ulang.');
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
     }
 
     public function test_selecting_rpjmd_program_snapshots_program_indicators_and_targets_to_renstra(): void
