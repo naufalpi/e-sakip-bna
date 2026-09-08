@@ -443,7 +443,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                         <tr>
                             <th class="w-72 px-5 py-3">OPD</th>
                             <th class="min-w-[31rem] px-5 py-3">Dokumen Renstra</th>
-                            <th class="w-64 px-4 py-3">Kelengkapan Cascading</th>
+                            <th class="w-64 min-w-[16rem] px-4 py-3">Kelengkapan Cascading</th>
                             <th class="w-32 px-4 py-3">Status</th>
                             <th class="w-44 px-5 py-3 text-right">Aksi</th>
                         </tr>
@@ -490,7 +490,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                                     untuk menyesuaikan dokumen ini.
                                 </div>
                             </td>
-                            <td class="w-64 px-4 py-5 align-middle">
+                            <td class="w-64 min-w-[16rem] px-4 py-5 align-middle">
                                 <div class="flex items-baseline justify-between gap-2">
                                     <span class="text-xs font-medium text-muted-foreground">Kelengkapan</span>
                                     <span class="text-sm font-semibold tabular-nums text-[#00336C]">{{ renstra.progress.percentage }}%</span>
@@ -501,20 +501,20 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                                         :style="{ width: `${renstra.progress.percentage}%` }"
                                     ></div>
                                 </div>
-                                <div class="mt-3 grid grid-cols-3 divide-x divide-slate-200 text-xs">
-                                    <div class="pr-2">
-                                        <div class="font-semibold tabular-nums text-slate-800">
+                                <div class="mt-3 grid grid-cols-[0.82fr_1.25fr_0.93fr] gap-1.5 text-center">
+                                    <div class="min-w-0 rounded-md bg-slate-50 px-1 py-1.5">
+                                        <div class="text-xs font-semibold tabular-nums text-slate-800">
                                             {{ renstra.progress.stages_filled }}/{{ renstra.progress.stages_total }}
                                         </div>
-                                        <div class="mt-0.5 text-muted-foreground">Tahap</div>
+                                        <div class="mt-0.5 text-[10px] leading-4 text-muted-foreground">Tahap</div>
                                     </div>
-                                    <div class="px-2">
-                                        <div class="font-semibold tabular-nums text-slate-800">{{ indicatorCoverageLabel(renstra) }}</div>
-                                        <div class="mt-0.5 text-muted-foreground">Berindikator</div>
+                                    <div class="min-w-0 rounded-md bg-slate-50 px-1 py-1.5">
+                                        <div class="text-xs font-semibold tabular-nums text-slate-800">{{ indicatorCoverageLabel(renstra) }}</div>
+                                        <div class="mt-0.5 whitespace-normal text-[10px] leading-4 text-muted-foreground">Berindikator</div>
                                     </div>
-                                    <div class="pl-2">
-                                        <div class="font-semibold tabular-nums text-slate-800">{{ targetCoverageValue(renstra) }}</div>
-                                        <div class="mt-0.5 text-muted-foreground">Target</div>
+                                    <div class="min-w-0 rounded-md bg-slate-50 px-1 py-1.5">
+                                        <div class="text-xs font-semibold tabular-nums text-slate-800">{{ targetCoverageValue(renstra) }}</div>
+                                        <div class="mt-0.5 text-[10px] leading-4 text-muted-foreground">Target</div>
                                     </div>
                                 </div>
                                 <button
