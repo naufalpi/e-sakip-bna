@@ -7,6 +7,7 @@ use App\Http\Requests\Perencanaan\CancelDocumentEstablishmentRequest;
 use App\Http\Requests\Perencanaan\StoreDocumentRevisionRequest;
 use App\Http\Requests\Perencanaan\StoreRenjaOpdRequest;
 use App\Http\Requests\Perencanaan\UpdateRenjaOpdRequest;
+use App\Models\IndikatorSubKegiatan;
 use App\Models\Opd;
 use App\Models\PeriodeTahun;
 use App\Models\PlanningSyncBatch;
@@ -187,7 +188,13 @@ class RenjaOpdController extends Controller
                 'programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
                 'programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
                 'kegiatanPemerintahan:id,program_pemerintahan_id,kode,nama',
-                'subKegiatanPemerintahan:id,kegiatan_pemerintahan_id,kode,nama',
+                'subKegiatanPemerintahan:id,kegiatan_pemerintahan_id,satuan_indikator_id,kode,nama',
+                'subKegiatanPemerintahan.satuanIndikator:id,nama,simbol',
+                'indikatorSubKegiatan:id,satuan_indikator_id',
+                'indikatorSubKegiatan.satuanIndikator:id,nama,simbol',
+                'subKegiatanRenstra:id',
+                'subKegiatanRenstra.indikator:id,opd_sub_kegiatan_id,satuan_indikator_id,indikator,urutan',
+                'subKegiatanRenstra.indikator.satuanIndikator:id,nama,simbol',
             ])
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
@@ -544,6 +551,19 @@ class RenjaOpdController extends Controller
         $program = $item->programPemerintahan;
         $bidang = $program?->bidangUrusan;
         $urusan = $bidang?->urusanPemerintahan;
+        $renstraSatuanLabels = $item->subKegiatanRenstra?->indikator
+            ->filter(fn (IndikatorSubKegiatan $indikator) => filled(trim((string) $indikator->indikator)))
+            ->unique(fn (IndikatorSubKegiatan $indikator) => trim((string) $indikator->indikator))
+            ->map(fn (IndikatorSubKegiatan $indikator) => $indikator->satuanIndikator?->simbol
+                ?: $indikator->satuanIndikator?->nama
+                ?: '-')
+            ->values();
+        $satuanLabel = $renstraSatuanLabels?->isNotEmpty()
+            ? $renstraSatuanLabels->implode("\n")
+            : ($item->indikatorSubKegiatan?->satuanIndikator?->simbol
+                ?: $item->indikatorSubKegiatan?->satuanIndikator?->nama
+                ?: $item->subKegiatanPemerintahan?->satuanIndikator?->simbol
+                ?: $item->subKegiatanPemerintahan?->satuanIndikator?->nama);
 
         return [
             'id' => $item->id,
@@ -559,6 +579,7 @@ class RenjaOpdController extends Controller
             'kode' => $item->kode,
             'nama_sub_kegiatan' => $item->nama_sub_kegiatan,
             'indikator' => $item->indikator,
+            'satuan_label' => $satuanLabel,
             'target_akhir_renstra' => $item->target_akhir_renstra,
             'realisasi_capaian_renja_tahun_lalu' => $item->realisasi_capaian_renja_tahun_lalu,
             'prakiraan_capaian_target_renja_tahun_berjalan' => $item->prakiraan_capaian_target_renja_tahun_berjalan,

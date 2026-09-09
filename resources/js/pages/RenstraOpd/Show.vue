@@ -1362,7 +1362,7 @@ const bulkSectionSummary = (section: BulkInputSection): string => {
     const stats = bulkSectionStats(section);
 
     if (section.key === 'sub-kegiatan') {
-        return `${stats.primaryCount} sub kegiatan, ${stats.indicatorCount} indikator`;
+        return `${stats.primaryCount} sub kegiatan, ${stats.indicatorCount} indikator, ${stats.targetCount} target`;
     }
 
     const primaryLabel =

@@ -74,6 +74,7 @@ type Row = {
     kode?: string | null;
     nama_sub_kegiatan?: string | null;
     indikator?: string | null;
+    satuan_label?: string | null;
     target_akhir_renstra?: string | null;
     realisasi_capaian_renja_tahun_lalu?: string | null;
     prakiraan_capaian_target_renja_tahun_berjalan?: string | null;
@@ -120,6 +121,7 @@ type OfficialPreviewRow = {
     kode?: string;
     label?: string;
     indikator?: string | null;
+    satuan?: string | null;
     targetAkhir?: string | null;
     realisasiLalu?: string | null;
     prakiraanBerjalan?: string | null;
@@ -221,6 +223,7 @@ const formSection = ref<HTMLElement | null>(null);
 const selectedProgramId = ref<string | number>('');
 const selectedKegiatanPemerintahanId = ref<string | number>('');
 const isHydratingForm = ref(false);
+const editingSatuanLabel = ref<string | null>(null);
 const isRevisionDialogOpen = ref(false);
 const revisionForm = useForm({
     alasan_perubahan: '',
@@ -337,6 +340,7 @@ const subKegiatanOptionsForSelectedKegiatan = computed(() =>
 const selectedSubKegiatan = computed(() =>
     props.subKegiatanOptions.find((option) => String(option.id) === String(form.sub_kegiatan_pemerintahan_id)),
 );
+const formSatuanLabel = computed(() => editingSatuanLabel.value || selectedSubKegiatan.value?.satuan_label || null);
 
 const groupedPrograms = computed(() => {
     const programs = new Map<
@@ -391,6 +395,7 @@ watch(
         selectedKegiatanPemerintahanId.value = '';
         form.sub_kegiatan_pemerintahan_id = '';
         form.indikator = '';
+        editingSatuanLabel.value = null;
     },
 );
 
@@ -403,12 +408,17 @@ watch(
 
         form.sub_kegiatan_pemerintahan_id = '';
         form.indikator = '';
+        editingSatuanLabel.value = null;
     },
 );
 
 watch(
     () => form.sub_kegiatan_pemerintahan_id,
     () => {
+        if (!isHydratingForm.value) {
+            editingSatuanLabel.value = null;
+        }
+
         if (!form.indikator && selectedSubKegiatan.value?.indikator_sub_kegiatan) {
             form.indikator = selectedSubKegiatan.value.indikator_sub_kegiatan;
         }
@@ -437,6 +447,7 @@ const resetFilters = () => {
 const resetForm = () => {
     editingId.value = null;
     editingFromRenstra.value = false;
+    editingSatuanLabel.value = null;
     isHydratingForm.value = true;
     selectedProgramId.value = '';
     selectedKegiatanPemerintahanId.value = '';
@@ -474,6 +485,7 @@ const editItem = (row: Row) => {
     form.sub_kegiatan_pemerintahan_id = String(row.sub_kegiatan_pemerintahan_id ?? '');
     form.indikator_sub_kegiatan_id = String(row.indikator_sub_kegiatan_id ?? '');
     form.indikator = row.indikator ?? '';
+    editingSatuanLabel.value = row.satuan_label ?? null;
     form.target_akhir_renstra = row.target_akhir_renstra ?? '';
     form.realisasi_capaian_renja_tahun_lalu = row.realisasi_capaian_renja_tahun_lalu ?? '';
     form.prakiraan_capaian_target_renja_tahun_berjalan = row.prakiraan_capaian_target_renja_tahun_berjalan ?? '';
@@ -573,6 +585,30 @@ const formatMoneyPlain = (value?: number | string | null) => {
     return amount > 0 ? new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(amount) : '-';
 };
 const cellValue = (value?: string | number | null) => (value === null || value === undefined || String(value).trim() === '' ? '-' : value);
+const targetWithSatuan = (value?: string | number | null, satuan?: string | null) => {
+    const target = String(cellValue(value));
+    const units = String(satuan ?? '')
+        .split(/\r?\n/)
+        .map((unit) => unit.trim());
+
+    if (target === '-' || units.every((unit) => !unit || unit === '-')) {
+        return target;
+    }
+
+    return target
+        .split(/\r?\n/)
+        .map((targetLine, index) => {
+            const line = targetLine.trim();
+            const unit = units[index] || (units.length === 1 ? units[0] : '');
+
+            if (!line || line === '-' || !unit || unit === '-' || line.toLocaleLowerCase('id-ID').endsWith(unit.toLocaleLowerCase('id-ID'))) {
+                return targetLine;
+            }
+
+            return `${targetLine} ${unit}`;
+        })
+        .join('\n');
+};
 const previewKey = (...parts: Array<string | number | null | undefined>) => parts.map((part) => String(part ?? '-')).join('::');
 const addPreviewSum = (map: Map<string, PreviewSum>, key: string, item: Row) => {
     const current = map.get(key) ?? { pagu: 0, prakiraanMajuPagu: 0 };
@@ -741,6 +777,7 @@ const officialPreviewRows = computed<OfficialPreviewRow[]>(() => {
             kode: '',
             label: nameFromLabel(item.sub_kegiatan) || item.nama_sub_kegiatan || '-',
             indikator: item.indikator,
+            satuan: item.satuan_label,
             targetAkhir: item.target_akhir_renstra,
             realisasiLalu: item.realisasi_capaian_renja_tahun_lalu,
             prakiraanBerjalan: item.prakiraan_capaian_target_renja_tahun_berjalan,
@@ -1076,7 +1113,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                     <div class="grid gap-4 p-4 sm:p-5">
                         <label class="grid gap-1.5">
                             <span class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                                Indikator Program / Kegiatan / Sub Kegiatan
+                                Indikator Sub Kegiatan
                                 <span
                                     v-if="editingFromRenstra"
                                     class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-300"
@@ -1095,6 +1132,26 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             ></textarea>
                             <span v-if="form.errors.indikator" class="text-xs text-red-600">{{ form.errors.indikator }}</span>
                         </label>
+
+                        <div class="grid w-full max-w-md gap-1.5">
+                            <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Satuan Indikator</span>
+                            <div
+                                class="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+                                aria-readonly="true"
+                                role="textbox"
+                            >
+                                <span class="whitespace-pre-line font-medium">{{ formSatuanLabel || 'Satuan belum tersedia' }}</span>
+                                <span
+                                    v-if="editingFromRenstra"
+                                    class="inline-flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-300"
+                                >
+                                    <LockKeyhole class="size-3" /> Acuan RENSTRA
+                                </span>
+                            </div>
+                            <span class="text-xs text-slate-500 dark:text-slate-400">
+                                Diambil otomatis dari indikator RENSTRA dan tidak dapat diubah pada RENJA.
+                            </span>
+                        </div>
 
                         <label class="grid w-full max-w-md gap-1.5">
                             <span class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -1518,7 +1575,9 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             <td class="border border-slate-700 px-2 py-2 text-center">{{ cellValue(row.targetAkhir) }}</td>
                             <td class="border border-slate-700 px-2 py-2 text-center">{{ cellValue(row.realisasiLalu) }}</td>
                             <td class="border border-slate-700 px-2 py-2 text-center">{{ cellValue(row.prakiraanBerjalan) }}</td>
-                            <td class="border border-slate-700 px-2 py-2 text-center">{{ cellValue(row.target) }}</td>
+                            <td class="whitespace-pre-line border border-slate-700 px-2 py-2 text-center">
+                                {{ targetWithSatuan(row.target, row.satuan) }}
+                            </td>
                             <td class="border border-slate-700 px-2 py-2 text-right font-semibold">{{ formatMoneyPlain(row.pagu) }}</td>
                             <td class="border border-slate-700 px-2 py-2">{{ cellValue(row.lokasi) }}</td>
                             <td class="border border-slate-700 px-2 py-2">{{ cellValue(row.sumberDana) }}</td>

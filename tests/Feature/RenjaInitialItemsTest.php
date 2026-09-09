@@ -20,6 +20,7 @@ use App\Models\RkpdItem;
 use App\Models\Role;
 use App\Models\Rpjmd;
 use App\Models\SasaranOpd;
+use App\Models\SatuanIndikator;
 use App\Models\SubKegiatanPemerintahan;
 use App\Models\TargetIndikatorSubKegiatan;
 use App\Models\TujuanOpd;
@@ -29,6 +30,7 @@ use App\Services\Perencanaan\RenjaInitialItemService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class RenjaInitialItemsTest extends TestCase
@@ -38,6 +40,10 @@ class RenjaInitialItemsTest extends TestCase
     public function test_new_renja_copies_unique_renstra_sub_kegiatan_and_locks_its_renstra_reference(): void
     {
         $data = $this->planningData();
+        $satuanLayanan = SatuanIndikator::create(['nama' => 'Layanan', 'simbol' => 'layanan', 'status' => 'active']);
+        $satuanPersen = SatuanIndikator::create(['nama' => 'Persen', 'simbol' => '%', 'status' => 'active']);
+        $data['source_sub_opd']->indikator()->orderBy('urutan')->first()->update(['satuan_indikator_id' => $satuanLayanan->id]);
+        $data['source_sub_opd']->indikator()->orderBy('urutan')->skip(1)->first()->update(['satuan_indikator_id' => $satuanPersen->id]);
 
         $this->actingAs($data['user'])
             ->post(route('renja-opd.store'), [
@@ -61,6 +67,14 @@ class RenjaInitialItemsTest extends TestCase
         $this->assertSame("25 layanan\n90%", $copied->target_akhir_renstra);
         $this->assertNull($copied->target);
         $this->assertNull($copied->pagu_indikatif);
+
+        $this->actingAs($data['user'])
+            ->get(route('renja-opd.show', $renja))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('RenjaOpd/Show')
+                ->where('items.data.0.satuan_label', "layanan\n%")
+                ->where('previewItems.0.satuan_label', "layanan\n%"));
 
         $this->actingAs($data['user'])
             ->put(route('renja-opd.items.update', [$renja, $copied]), [
