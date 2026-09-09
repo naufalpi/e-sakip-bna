@@ -118,7 +118,7 @@ const versionClass = (version: Row['jenis_versi']) =>
 </script>
 
 <template>
-    <Head title="Renja OPD" />
+    <Head title="RENJA OPD" />
 
     <div class="flex flex-col gap-5 p-4 sm:p-5">
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
@@ -133,7 +133,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                         </div>
                         <div class="min-w-0">
                             <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5276a0] dark:text-blue-300">Perencanaan tahunan</p>
-                            <h1 class="mt-1 text-xl font-bold tracking-tight text-slate-950 dark:text-slate-50 sm:text-2xl">Renja OPD</h1>
+                            <h1 class="mt-1 text-xl font-bold tracking-tight text-slate-950 dark:text-slate-50 sm:text-2xl">RENJA OPD</h1>
                             <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
                                 Kelola RENJA Akhir Draft, dokumen yang telah ditetapkan, dan RENJA Perubahan dalam satu riwayat tahunan per OPD.
                             </p>

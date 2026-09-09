@@ -978,7 +978,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                 </div>
             </div>
 
-            <form class="grid gap-4 p-5" @submit.prevent="submitItem">
+            <form class="grid gap-5 p-5" @submit.prevent="submitItem">
                 <div class="rounded-xl border bg-white p-4 dark:bg-slate-950">
                     <div class="mb-4">
                         <h3 class="font-semibold">Identitas Baris</h3>
@@ -1068,13 +1068,16 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                     </div>
                 </div>
 
-                <div class="rounded-xl border bg-white p-4 dark:bg-slate-950">
-                    <div class="mb-4">
-                        <h3 class="font-semibold">Target dan Capaian</h3>
+                <section class="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm dark:border-blue-900/70 dark:bg-slate-950">
+                    <div class="border-b border-blue-100 bg-blue-50/70 px-4 py-3.5 dark:border-blue-900/60 dark:bg-blue-950/30 sm:px-5">
+                        <h3 class="text-base font-bold tracking-tight text-slate-950 dark:text-slate-50">Target dan Capaian</h3>
+                        <p class="mt-0.5 text-xs leading-5 text-slate-600 dark:text-slate-400">
+                            Lengkapi indikator, capaian sebelumnya, dan target kinerja tahun berjalan.
+                        </p>
                     </div>
-                    <div class="grid gap-4">
+                    <div class="grid gap-4 p-4 sm:p-5">
                         <label class="grid gap-1.5">
-                            <span class="flex items-center gap-2 text-sm font-medium">
+                            <span class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                                 Indikator Program / Kegiatan / Sub Kegiatan
                                 <span
                                     v-if="editingFromRenstra"
@@ -1095,8 +1098,8 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             <span v-if="form.errors.indikator" class="text-xs text-red-600">{{ form.errors.indikator }}</span>
                         </label>
 
-                        <label class="grid gap-1.5">
-                            <span class="flex items-center gap-2 text-sm font-medium">
+                        <label class="grid w-full max-w-md gap-1.5">
+                            <span class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                                 Target Akhir Periode Renstra OPD
                                 <span
                                     v-if="editingFromRenstra"
@@ -1115,8 +1118,10 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             />
                         </label>
 
-                        <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Realisasi Capaian Renja OPD Tahun {{ previousRealisasiYear }}</span>
+                        <label class="grid w-full max-w-md gap-1.5">
+                            <span class="text-sm font-semibold leading-5 text-slate-700 dark:text-slate-200"
+                                >Realisasi Capaian RENJA OPD Tahun {{ previousRealisasiYear }}</span
+                            >
                             <input
                                 v-model="form.realisasi_capaian_renja_tahun_lalu"
                                 type="text"
@@ -1124,8 +1129,10 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             />
                         </label>
 
-                        <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Prakiraan Capaian Target Renja OPD Tahun {{ previousTargetYear }}</span>
+                        <label class="grid w-full max-w-md gap-1.5">
+                            <span class="text-sm font-semibold leading-5 text-slate-700 dark:text-slate-200"
+                                >Prakiraan Capaian Target RENJA OPD Tahun {{ previousTargetYear }}</span
+                            >
                             <input
                                 v-model="form.prakiraan_capaian_target_renja_tahun_berjalan"
                                 type="text"
@@ -1133,8 +1140,10 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             />
                         </label>
 
-                        <label class="grid gap-1.5">
-                            <span class="text-sm font-medium">Target {{ renja.tahun }}</span>
+                        <label
+                            class="grid w-full max-w-md gap-1.5 rounded-xl border border-blue-100 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20"
+                        >
+                            <span class="text-sm font-bold text-[#00336C] dark:text-blue-200">Target Utama Tahun {{ renja.tahun }}</span>
                             <input
                                 v-model="form.target"
                                 type="text"
@@ -1142,14 +1151,19 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             />
                         </label>
                     </div>
-                </div>
+                </section>
 
-                <div class="rounded-xl border bg-white p-4">
-                    <div class="mb-4">
-                        <h3 class="font-semibold">Capaian Kinerja dan Kerangka Pendanaan</h3>
+                <section class="overflow-hidden rounded-2xl border border-indigo-200 bg-white shadow-sm dark:border-indigo-900/70 dark:bg-slate-950">
+                    <div class="border-b border-indigo-100 bg-indigo-50/60 px-4 py-3.5 dark:border-indigo-900/60 dark:bg-indigo-950/25 sm:px-5">
+                        <h3 class="text-base font-bold tracking-tight text-slate-950 dark:text-slate-50">Capaian Kinerja dan Kerangka Pendanaan</h3>
+                        <p class="mt-0.5 text-xs leading-5 text-slate-600 dark:text-slate-400">
+                            Isi kebutuhan anggaran, lokasi pelaksanaan, sumber dana, prioritas, dan penerima manfaat.
+                        </p>
                     </div>
-                    <div class="grid gap-4">
-                        <label class="grid gap-1.5">
+                    <div
+                        class="grid gap-4 p-4 sm:p-5 [&_label>span:first-child]:font-semibold [&_label>span:first-child]:text-slate-700 dark:[&_label>span:first-child]:text-slate-200"
+                    >
+                        <label class="grid w-full max-w-md gap-1.5">
                             <span class="text-sm font-medium">Pagu Indikatif (Rp)</span>
                             <input
                                 v-model="form.pagu_indikatif"
@@ -1170,7 +1184,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             ></textarea>
                         </label>
 
-                        <label class="grid gap-1.5">
+                        <label class="grid w-full max-w-md gap-1.5">
                             <span class="text-sm font-medium">Sumber Dana</span>
                             <input
                                 v-model="form.sumber_dana"
@@ -1181,11 +1195,11 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
 
                         <label class="grid gap-1.5">
                             <span class="text-sm font-medium">Prioritas Nasional</span>
-                            <input
+                            <textarea
                                 v-model="form.prioritas_nasional"
-                                type="text"
-                                class="h-11 rounded-xl border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
-                            />
+                                rows="3"
+                                class="rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
+                            ></textarea>
                         </label>
 
                         <label class="grid gap-1.5">
@@ -1197,7 +1211,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             ></textarea>
                         </label>
 
-                        <label class="grid gap-1.5">
+                        <label class="grid w-full max-w-2xl gap-1.5">
                             <span class="text-sm font-medium">Kelompok Sasaran</span>
                             <input
                                 v-model="form.kelompok_sasaran"
@@ -1206,14 +1220,21 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             />
                         </label>
                     </div>
-                </div>
+                </section>
 
-                <div class="rounded-xl border bg-white p-4">
-                    <div class="mb-4">
-                        <h3 class="font-semibold">Prakiraan Maju Rencana Tahun {{ nextPlanYear }}</h3>
+                <section class="overflow-hidden rounded-2xl border border-sky-200 bg-white shadow-sm dark:border-sky-900/70 dark:bg-slate-950">
+                    <div class="border-b border-sky-100 bg-sky-50/70 px-4 py-3.5 dark:border-sky-900/60 dark:bg-sky-950/25 sm:px-5">
+                        <h3 class="text-base font-bold tracking-tight text-slate-950 dark:text-slate-50">
+                            Prakiraan Maju Rencana Tahun {{ nextPlanYear }}
+                        </h3>
+                        <p class="mt-0.5 text-xs leading-5 text-slate-600 dark:text-slate-400">
+                            Masukkan target dan kebutuhan anggaran indikatif untuk satu tahun berikutnya.
+                        </p>
                     </div>
-                    <div class="grid gap-4">
-                        <label class="grid gap-1.5">
+                    <div
+                        class="grid gap-4 p-4 sm:p-5 [&_label>span:first-child]:font-semibold [&_label>span:first-child]:text-slate-700 dark:[&_label>span:first-child]:text-slate-200"
+                    >
+                        <label class="grid w-full max-w-md gap-1.5">
                             <span class="text-sm font-medium">Target</span>
                             <input
                                 v-model="form.prakiraan_maju_target"
@@ -1222,7 +1243,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             />
                         </label>
 
-                        <label class="grid gap-1.5">
+                        <label class="grid w-full max-w-md gap-1.5">
                             <span class="text-sm font-medium">Pagu Indikatif (Rp)</span>
                             <input
                                 v-model="form.prakiraan_maju_pagu_indikatif"
@@ -1234,7 +1255,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             />
                         </label>
 
-                        <label class="grid gap-1.5">
+                        <label class="grid w-full max-w-32 gap-1.5">
                             <span class="text-sm font-medium">Urutan</span>
                             <input
                                 v-model="form.urutan"
@@ -1244,7 +1265,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             />
                         </label>
                     </div>
-                </div>
+                </section>
 
                 <div class="flex justify-end rounded-xl border bg-slate-50 px-4 py-3">
                     <button

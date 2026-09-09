@@ -193,6 +193,10 @@ const resetFilters = () => {
     applyFiltersNow();
 };
 
+const originalCount = computed(() => props.renstras.data.filter((renstra) => renstra.jenis_versi !== 'perubahan').length);
+const revisionCount = computed(() => props.renstras.data.filter((renstra) => renstra.jenis_versi === 'perubahan').length);
+const completeCount = computed(() => props.renstras.data.filter((renstra) => renstra.progress.percentage === 100).length);
+
 const cancelableRevisionStatuses = ['draft', 'revision', 'rejected'];
 
 const canCancelRevision = (renstra: RenstraRow) => renstra.jenis_versi === 'perubahan' && cancelableRevisionStatuses.includes(renstra.status);
@@ -300,33 +304,71 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
 <template>
     <Head title="Renstra OPD" />
     <div class="flex flex-col gap-5 p-4">
-        <section class="overflow-hidden rounded-lg border border-blue-100 bg-card shadow-sm">
-            <div class="border-b bg-[linear-gradient(135deg,#f8fbff,#eaf4ff)] px-4 py-5 sm:px-5">
-                <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div class="min-w-0">
-                        <div
-                            class="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-semibold uppercase text-[#00336C]"
-                        >
-                            <Layers3 class="size-3.5" />
-                            Perencanaan OPD
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
+            <div
+                class="relative overflow-hidden border-b border-slate-200 bg-[linear-gradient(118deg,#ffffff_0%,#f5f9ff_58%,#edf6ff_100%)] px-5 py-5 dark:border-slate-800 dark:bg-slate-950 sm:px-6 sm:py-6"
+            >
+                <div class="absolute -right-16 -top-20 size-56 rounded-full bg-blue-200/25 blur-3xl dark:bg-blue-500/10"></div>
+                <div class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="flex min-w-0 items-start gap-3.5">
+                        <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#00336C] text-white shadow-sm">
+                            <Layers3 class="size-5" />
                         </div>
-                        <h1 class="mt-3 text-2xl font-semibold tracking-normal text-slate-950">Renstra OPD</h1>
-                        <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                            Kelola Renstra OPD dan lanjutkan pengisian cascading tujuan, sasaran, program, kegiatan, sub kegiatan, indikator, serta
-                            target.
-                        </p>
+                        <div class="min-w-0">
+                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5276a0] dark:text-blue-300">
+                                Perencanaan jangka menengah
+                            </p>
+                            <h1 class="mt-1 text-xl font-bold tracking-tight text-slate-950 dark:text-slate-50 sm:text-2xl">RENSTRA OPD</h1>
+                            <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+                                Kelola dokumen RENSTRA dan cascading tujuan, sasaran strategis, program, kegiatan, sub kegiatan, indikator, serta
+                                target OPD.
+                            </p>
+                        </div>
                     </div>
 
-                    <div v-if="can.manage" class="flex flex-col gap-2 sm:flex-row">
-                        <Link
-                            :href="route('renstra-opd.create')"
-                            class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[#00336C] px-3 text-sm font-semibold text-white shadow-sm hover:bg-[#0a4485]"
-                        >
-                            <Plus class="size-4" />
-                            Tambah Renstra
-                        </Link>
-                    </div>
+                    <Link
+                        v-if="can.manage"
+                        :href="route('renstra-opd.create')"
+                        class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#00336C] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#002855] focus:outline-none focus:ring-2 focus:ring-[#00336C] focus:ring-offset-2 dark:focus:ring-offset-slate-950"
+                    >
+                        <Plus class="size-4" />
+                        Tambah RENSTRA
+                    </Link>
                 </div>
+            </div>
+
+            <div class="grid divide-y divide-slate-200 dark:divide-slate-800 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
+                    <div
+                        class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300"
+                    >
+                        <Layers3 class="size-4" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">RENSTRA Murni</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ originalCount }}</p>
+                    </div>
+                </article>
+                <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
+                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">
+                        <GitBranch class="size-4" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">RENSTRA Perubahan</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-amber-700 dark:text-amber-300">{{ revisionCount }}</p>
+                    </div>
+                </article>
+                <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
+                    <div
+                        class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                    >
+                        <CircleCheck class="size-4" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Cascading Lengkap</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ completeCount }}</p>
+                    </div>
+                </article>
             </div>
         </section>
 
