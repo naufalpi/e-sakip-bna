@@ -209,7 +209,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                         v-model="filterForm.search"
                         type="search"
                         class="h-10 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
-                        placeholder="Cari judul, nomor, atau OPD"
+                        placeholder="Cari judul atau OPD"
                     />
                 </label>
                 <select
@@ -332,9 +332,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                                     >
                                 </div>
                                 <p class="mt-2 text-sm font-bold leading-5 text-slate-900 dark:text-slate-100">{{ row.judul }}</p>
-                                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                    {{ row.tahun }} · {{ row.nomor_dokumen || 'Nomor dokumen belum diisi' }}
-                                </p>
+                                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Tahun {{ row.tahun }}</p>
                             </div>
 
                             <div class="flex flex-col items-start xl:items-center">

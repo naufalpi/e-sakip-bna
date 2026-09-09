@@ -335,17 +335,7 @@ const confirmCreate = () => {
                         </label>
                     </div>
 
-                    <div class="grid gap-4 lg:grid-cols-[minmax(260px,0.55fr)_minmax(0,1fr)]">
-                        <label class="grid min-w-0 gap-1.5">
-                            <span class="text-sm font-medium">Nomor Dokumen</span>
-                            <input
-                                v-model="form.nomor_dokumen"
-                                type="text"
-                                class="h-11 w-full rounded-xl border bg-background px-3 text-sm uppercase outline-none transition focus:ring-2 focus:ring-[#00336C]/25"
-                                placeholder="NOMOR DOKUMEN"
-                            />
-                        </label>
-
+                    <div class="grid gap-4">
                         <label class="grid min-w-0 gap-1.5">
                             <span class="text-sm font-medium">Catatan</span>
                             <textarea

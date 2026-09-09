@@ -288,17 +288,6 @@ const readinessItems = computed(() => [
                             <InputError :message="form.errors.judul" />
                         </label>
 
-                        <label class="grid gap-2 md:max-w-xl" for="nomor_dokumen">
-                            <span class="text-sm font-medium text-slate-900">Nomor Dokumen</span>
-                            <input
-                                id="nomor_dokumen"
-                                v-model="form.nomor_dokumen"
-                                class="min-h-11 rounded-md border bg-background px-3 text-sm uppercase outline-none focus:ring-2 focus:ring-emerald-700"
-                                placeholder="Opsional"
-                            />
-                            <InputError :message="form.errors.nomor_dokumen" />
-                        </label>
-
                         <label class="grid gap-2" for="keterangan">
                             <span class="text-sm font-medium text-slate-900">Catatan atau Keterangan</span>
                             <textarea

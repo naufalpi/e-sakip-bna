@@ -806,9 +806,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                                 <Check class="size-3.5" /> Versi aktif
                             </span>
                         </div>
-                        <p class="mt-1 text-sm text-muted-foreground">
-                            {{ opdLabel }} - Tahun {{ renja.tahun }} - {{ renja.nomor_dokumen || 'Nomor belum diisi' }}
-                        </p>
+                        <p class="mt-1 text-sm text-muted-foreground">{{ opdLabel }} - Tahun {{ renja.tahun }}</p>
                         <p v-if="renja.rkpd" class="mt-2 text-sm text-muted-foreground">
                             Acuan {{ renja.rkpd.version_label }} Tahun {{ renja.rkpd.tahun }}
                         </p>

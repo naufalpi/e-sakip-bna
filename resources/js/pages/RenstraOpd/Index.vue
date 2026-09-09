@@ -399,7 +399,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                             v-model="filterForm.search"
                             type="search"
                             class="h-10 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]/30"
-                            placeholder="Cari judul, nomor dokumen, atau OPD"
+                            placeholder="Cari judul atau OPD"
                         />
                     </span>
                 </label>
@@ -514,7 +514,6 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                                         {{ versionLabel(renstra) }}
                                     </span>
                                 </h3>
-                                <div class="mt-1.5 text-xs text-muted-foreground">{{ renstra.nomor_dokumen || 'Nomor dokumen belum diisi' }}</div>
                                 <p v-if="renstra.is_active_version === false" class="mt-1 text-xs text-muted-foreground">Versi arsip</p>
                                 <div class="mt-3 flex flex-wrap items-center gap-2">
                                     <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
@@ -641,7 +640,6 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
 
                     <div class="mt-4">
                         <p class="font-medium">{{ renstra.judul }}</p>
-                        <p class="mt-1 text-xs text-muted-foreground">{{ renstra.nomor_dokumen || 'Nomor dokumen belum diisi' }}</p>
                     </div>
 
                     <div class="mt-4 grid gap-3 rounded-md border bg-card p-3">
