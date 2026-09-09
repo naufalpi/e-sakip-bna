@@ -88,6 +88,7 @@ class ActivityLogPresenter
         'StrategiDaerah' => 'Strategi daerah',
         'SubKegiatanPemerintahan' => 'Sub kegiatan',
         'SystemSetting' => 'Pengaturan sistem',
+        'SystemAnnouncement' => 'Pengumuman sistem',
         'TargetRevision' => 'Usulan perubahan target',
         'TargetTriwulanIndikator' => 'Target triwulan',
         'TindakLanjutRekomendasi' => 'Tindak lanjut rekomendasi',
@@ -108,6 +109,8 @@ class ActivityLogPresenter
         'description' => 'Keterangan',
         'email' => 'Email',
         'indikator' => 'Indikator',
+        'is_active' => 'Status aktif',
+        'is_dismissible' => 'Dapat ditutup pengguna',
         'is_active_version' => 'Versi aktif',
         'jabatan' => 'Jabatan',
         'jenis_anggaran' => 'Jenis anggaran',
@@ -128,6 +131,16 @@ class ActivityLogPresenter
         'periode_tahun_id' => 'Periode tahun',
         'role_ids' => 'Peran pengguna',
         'status' => 'Status',
+        'starts_at' => 'Mulai tayang',
+        'ends_at' => 'Selesai tayang',
+        'title' => 'Judul',
+        'message' => 'Isi pengumuman',
+        'type' => 'Jenis pengumuman',
+        'audience' => 'Sasaran pengguna',
+        'target_roles' => 'Role tujuan',
+        'target_opd_ids' => 'OPD tujuan',
+        'link_label' => 'Teks tombol',
+        'link_url' => 'Tautan',
         'tahun' => 'Tahun',
         'target' => 'Target',
         'urutan' => 'Urutan',
@@ -149,6 +162,12 @@ class ActivityLogPresenter
         'perubahan' => 'Perubahan APBD',
         'awal' => 'RENJA Akhir Draft',
         'ditetapkan' => 'Ditetapkan',
+        'info' => 'Informasi',
+        'warning' => 'Perhatian',
+        'important' => 'Penting',
+        'all' => 'Semua pengguna',
+        'roles' => 'Role tertentu',
+        'opds' => 'OPD tertentu',
     ];
 
     /** @return array<string, mixed> */
@@ -195,7 +214,7 @@ class ActivityLogPresenter
     {
         $values = [...($log->old_values ?? []), ...($log->new_values ?? [])];
 
-        foreach (['judul', 'nama', 'nama_sub_kegiatan', 'nama_kegiatan', 'nama_program', 'kode', 'email'] as $field) {
+        foreach (['judul', 'title', 'nama', 'nama_sub_kegiatan', 'nama_kegiatan', 'nama_program', 'kode', 'email'] as $field) {
             if (filled($values[$field] ?? null) && is_scalar($values[$field])) {
                 return Str::limit((string) $values[$field], 120);
             }

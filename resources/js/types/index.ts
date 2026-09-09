@@ -42,6 +42,7 @@ export interface SharedData {
     notifications: {
         unread_count: number;
     };
+    system_announcements: SystemAnnouncement[];
     ziggy: {
         location: string;
         url: string;
@@ -49,6 +50,16 @@ export interface SharedData {
         defaults: Record<string, unknown>;
         routes: Record<string, string>;
     };
+}
+
+export interface SystemAnnouncement {
+    id: number;
+    title: string;
+    message: string;
+    type: 'info' | 'warning' | 'important';
+    link_label?: string | null;
+    link_url?: string | null;
+    is_dismissible: boolean;
 }
 
 export interface User {

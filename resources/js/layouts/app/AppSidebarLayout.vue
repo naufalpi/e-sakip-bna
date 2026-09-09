@@ -3,6 +3,7 @@ import AppContent from '@/components/AppContent.vue';
 import AppShell from '@/components/AppShell.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
 import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
+import SystemAnnouncementBar from '@/components/SystemAnnouncementBar.vue';
 import { useInertiaNavigationIndicator } from '@/composables/useInertiaNavigationIndicator';
 import type { BreadcrumbItemType } from '@/types';
 import { usePage } from '@inertiajs/vue3';
@@ -26,6 +27,7 @@ const { isNavigating } = useInertiaNavigationIndicator();
         <AppSidebar />
         <AppContent variant="sidebar" class="admin-main-shell">
             <AppSidebarHeader class="admin-topbar" :breadcrumbs="breadcrumbs" />
+            <SystemAnnouncementBar />
             <div class="admin-route-loader" :class="{ 'is-visible': isNavigating }" aria-hidden="true">
                 <span />
             </div>

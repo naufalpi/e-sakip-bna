@@ -34,6 +34,7 @@ use App\Http\Controllers\Master\RiwayatPejabatJabatanController;
 use App\Http\Controllers\Master\RolePermissionController;
 use App\Http\Controllers\Master\SatuanIndikatorController;
 use App\Http\Controllers\Master\StrategiDaerahController;
+use App\Http\Controllers\Master\SystemAnnouncementController;
 use App\Http\Controllers\Master\SystemSettingController;
 use App\Http\Controllers\Master\UrusanPemerintahanController;
 use App\Http\Controllers\Master\UserController;
@@ -279,6 +280,11 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
             ->whereIn('type', ['program', 'kegiatan', 'sub_kegiatan'])
             ->name('program-pemerintahan.destroy');
         Route::resource('system-settings', SystemSettingController::class)->parameters(['system-settings' => 'systemSetting'])->except(['show']);
+        Route::patch('system-announcements/{systemAnnouncement}/toggle', [SystemAnnouncementController::class, 'toggle'])
+            ->name('system-announcements.toggle');
+        Route::resource('system-announcements', SystemAnnouncementController::class)
+            ->parameters(['system-announcements' => 'systemAnnouncement'])
+            ->only(['index', 'store', 'update', 'destroy']);
         Route::resource('users', UserController::class)->except(['show']);
         Route::get('role-permission', RolePermissionController::class)->name('role-permission.index');
         Route::patch('role-permission/{role}', [RolePermissionController::class, 'update'])->name('role-permission.update');

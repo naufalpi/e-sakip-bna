@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Notification;
+use App\Services\SystemAnnouncementService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -94,6 +95,9 @@ class HandleInertiaRequests extends Middleware
                         ->count()
                     : 0,
             ],
+            'system_announcements' => fn () => $user
+                ? app(SystemAnnouncementService::class)->visibleFor($user)
+                : [],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

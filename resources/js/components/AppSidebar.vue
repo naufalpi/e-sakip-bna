@@ -18,8 +18,8 @@ import Building2 from 'lucide-vue-next/dist/esm/icons/building-2.js';
 import CalendarDays from 'lucide-vue-next/dist/esm/icons/calendar-days.js';
 import BarChart3 from 'lucide-vue-next/dist/esm/icons/chart-column.js';
 import ClipboardList from 'lucide-vue-next/dist/esm/icons/clipboard-list.js';
-import FileCheck2 from 'lucide-vue-next/dist/esm/icons/file-check-2.js';
 import FileBadge2 from 'lucide-vue-next/dist/esm/icons/file-badge-2.js';
+import FileCheck2 from 'lucide-vue-next/dist/esm/icons/file-check-2.js';
 import FileSpreadsheet from 'lucide-vue-next/dist/esm/icons/file-spreadsheet.js';
 import FileText from 'lucide-vue-next/dist/esm/icons/file-text.js';
 import GitBranch from 'lucide-vue-next/dist/esm/icons/git-branch.js';
@@ -27,6 +27,7 @@ import Inbox from 'lucide-vue-next/dist/esm/icons/inbox.js';
 import Landmark from 'lucide-vue-next/dist/esm/icons/landmark.js';
 import Layers3 from 'lucide-vue-next/dist/esm/icons/layers.js';
 import LayoutDashboard from 'lucide-vue-next/dist/esm/icons/layout-dashboard.js';
+import Megaphone from 'lucide-vue-next/dist/esm/icons/megaphone.js';
 import Network from 'lucide-vue-next/dist/esm/icons/network.js';
 import Ruler from 'lucide-vue-next/dist/esm/icons/ruler.js';
 import ScrollText from 'lucide-vue-next/dist/esm/icons/scroll-text.js';
@@ -279,6 +280,12 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     href: '/master/role-permission',
                     pageComponent: 'Master/RolePermission/Index',
                     icon: ShieldCheck,
+                },
+                hasRole('super_admin') && {
+                    title: 'Pengumuman Sistem',
+                    href: '/master/system-announcements',
+                    pageComponent: 'Master/SystemAnnouncement/Index',
+                    icon: Megaphone,
                 },
                 hasPermission('activity_logs.view') && {
                     title: 'Audit Log',
