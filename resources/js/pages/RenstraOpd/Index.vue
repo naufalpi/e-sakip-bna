@@ -98,6 +98,11 @@ type Paginator<T> = {
 
 const props = defineProps<{
     renstras: Paginator<RenstraRow>;
+    summary: {
+        original_count: number;
+        revision_count: number;
+        complete_count: number;
+    };
     filters: {
         search?: string;
         status?: string;
@@ -192,10 +197,6 @@ const resetFilters = () => {
     filterForm.periode_tahun_id = '';
     applyFiltersNow();
 };
-
-const originalCount = computed(() => props.renstras.data.filter((renstra) => renstra.jenis_versi !== 'perubahan').length);
-const revisionCount = computed(() => props.renstras.data.filter((renstra) => renstra.jenis_versi === 'perubahan').length);
-const completeCount = computed(() => props.renstras.data.filter((renstra) => renstra.progress.percentage === 100).length);
 
 const cancelableRevisionStatuses = ['draft', 'revision', 'rejected'];
 
@@ -303,7 +304,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
 
 <template>
     <Head title="Renstra OPD" />
-    <div class="flex flex-col gap-5 p-4">
+    <div class="flex flex-col gap-5 p-4 sm:p-5">
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
             <div
                 class="relative overflow-hidden border-b border-slate-200 bg-[linear-gradient(118deg,#ffffff_0%,#f5f9ff_58%,#edf6ff_100%)] px-5 py-5 dark:border-slate-800 dark:bg-slate-950 sm:px-6 sm:py-6"
@@ -346,7 +347,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                     </div>
                     <div>
                         <p class="text-xs font-medium text-slate-500 dark:text-slate-400">RENSTRA Murni</p>
-                        <p class="mt-0.5 text-xl font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ originalCount }}</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ summary.original_count }}</p>
                     </div>
                 </article>
                 <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
@@ -355,7 +356,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                     </div>
                     <div>
                         <p class="text-xs font-medium text-slate-500 dark:text-slate-400">RENSTRA Perubahan</p>
-                        <p class="mt-0.5 text-xl font-bold tabular-nums text-amber-700 dark:text-amber-300">{{ revisionCount }}</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-amber-700 dark:text-amber-300">{{ summary.revision_count }}</p>
                     </div>
                 </article>
                 <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
@@ -366,7 +367,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                     </div>
                     <div>
                         <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Cascading Lengkap</p>
-                        <p class="mt-0.5 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ completeCount }}</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ summary.complete_count }}</p>
                     </div>
                 </article>
             </div>

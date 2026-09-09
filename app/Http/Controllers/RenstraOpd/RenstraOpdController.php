@@ -82,8 +82,14 @@ class RenstraOpdController extends Controller
             ->orderByDesc('tahun_awal')
             ->latest('id');
 
+        $summaryQuery = clone $renstraQuery;
+        $summaryQuery->setEagerLoads([]);
+        $summaryRenstras = $summaryQuery
+            ->reorder()
+            ->get(['id', 'tahun_awal', 'tahun_akhir', 'jenis_versi']);
+        $progressByRenstra = $progressSummaryService->summarize($summaryRenstras);
+
         $renstras = PerPagePaginator::paginate($renstraQuery, $request);
-        $progressByRenstra = $progressSummaryService->summarize($renstras->getCollection());
 
         $renstras->through(fn (RenstraOpd $renstra) => [
             'id' => $renstra->id,
@@ -124,6 +130,13 @@ class RenstraOpdController extends Controller
 
         return Inertia::render('RenstraOpd/Index', [
             'renstras' => $renstras,
+            'summary' => [
+                'original_count' => $summaryRenstras->where('jenis_versi', '!=', 'perubahan')->count(),
+                'revision_count' => $summaryRenstras->where('jenis_versi', 'perubahan')->count(),
+                'complete_count' => $summaryRenstras->filter(
+                    fn (RenstraOpd $renstra): bool => ($progressByRenstra[$renstra->id]['percentage'] ?? 0) === 100,
+                )->count(),
+            ],
             'filters' => $filters,
             'opdOptions' => $this->opdOptions($user),
             'rpjmdOptions' => $this->rpjmdOptions(),

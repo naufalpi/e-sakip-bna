@@ -1633,6 +1633,50 @@ class RenstraOpdTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_renstra_header_summary_counts_all_filtered_rows_across_pages(): void
+    {
+        $this->seed();
+
+        $rpjmd = Rpjmd::create(['judul' => 'RPJMD Ringkasan Pagination', 'tahun_awal' => 2026, 'tahun_akhir' => 2031, 'status' => 'approved']);
+
+        foreach (range(1, 12) as $index) {
+            $opd = Opd::create([
+                'kode' => "8.88.{$index}",
+                'nama' => "OPD Ringkasan {$index}",
+                'status' => 'active',
+            ]);
+
+            RenstraOpd::create([
+                'opd_id' => $opd->id,
+                'rpjmd_id' => $rpjmd->id,
+                'judul' => "RENSTRA Ringkasan {$index}",
+                'tahun_awal' => 2026,
+                'tahun_akhir' => 2031,
+                'jenis_versi' => $index === 12 ? 'perubahan' : 'murni',
+                'status' => 'draft',
+            ]);
+        }
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::where('name', 'admin_kabupaten_bagian_organisasi')->value('id')]);
+
+        foreach ([1, 2] as $pageNumber) {
+            $this->actingAs($user)
+                ->get(route('renstra-opd.index', [
+                    'rpjmd_id' => $rpjmd->id,
+                    'per_page' => 10,
+                    'page' => $pageNumber,
+                ]))
+                ->assertOk()
+                ->assertInertia(fn (Assert $page) => $page
+                    ->where('renstras.total', 12)
+                    ->where('renstras.current_page', $pageNumber)
+                    ->where('summary.original_count', 11)
+                    ->where('summary.revision_count', 1)
+                    ->where('summary.complete_count', 0));
+        }
+    }
+
     public function test_admin_opd_can_export_renstra_preview_excel(): void
     {
         $this->seed();
