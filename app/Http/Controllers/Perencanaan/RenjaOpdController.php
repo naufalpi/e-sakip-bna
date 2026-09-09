@@ -479,7 +479,7 @@ class RenjaOpdController extends Controller
                     'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
                     'indikator_sub_kegiatan' => $subKegiatan->indikator_sub_kegiatan,
                     'satuan_indikator_id' => $subKegiatan->satuan_indikator_id,
-                    'satuan_label' => $subKegiatan->satuanIndikator?->simbol ?: $subKegiatan->satuanIndikator?->nama,
+                    'satuan_label' => $subKegiatan->satuanIndikator?->nama ?: $subKegiatan->satuanIndikator?->simbol,
                     'definisi_operasional' => $subKegiatan->definisi_operasional,
                     'label' => "{$subKegiatan->kode} - {$subKegiatan->nama}",
                     'description' => $this->label($kegiatan?->kode, $kegiatan?->nama),
@@ -554,16 +554,16 @@ class RenjaOpdController extends Controller
         $renstraSatuanLabels = $item->subKegiatanRenstra?->indikator
             ->filter(fn (IndikatorSubKegiatan $indikator) => filled(trim((string) $indikator->indikator)))
             ->unique(fn (IndikatorSubKegiatan $indikator) => trim((string) $indikator->indikator))
-            ->map(fn (IndikatorSubKegiatan $indikator) => $indikator->satuanIndikator?->simbol
-                ?: $indikator->satuanIndikator?->nama
+            ->map(fn (IndikatorSubKegiatan $indikator) => $indikator->satuanIndikator?->nama
+                ?: $indikator->satuanIndikator?->simbol
                 ?: '-')
             ->values();
         $satuanLabel = $renstraSatuanLabels?->isNotEmpty()
             ? $renstraSatuanLabels->implode("\n")
-            : ($item->indikatorSubKegiatan?->satuanIndikator?->simbol
-                ?: $item->indikatorSubKegiatan?->satuanIndikator?->nama
-                ?: $item->subKegiatanPemerintahan?->satuanIndikator?->simbol
-                ?: $item->subKegiatanPemerintahan?->satuanIndikator?->nama);
+            : ($item->indikatorSubKegiatan?->satuanIndikator?->nama
+                ?: $item->indikatorSubKegiatan?->satuanIndikator?->simbol
+                ?: $item->subKegiatanPemerintahan?->satuanIndikator?->nama
+                ?: $item->subKegiatanPemerintahan?->satuanIndikator?->simbol);
 
         return [
             'id' => $item->id,

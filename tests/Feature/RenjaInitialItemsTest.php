@@ -73,8 +73,8 @@ class RenjaInitialItemsTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('RenjaOpd/Show')
-                ->where('items.data.0.satuan_label', "layanan\n%")
-                ->where('previewItems.0.satuan_label', "layanan\n%"));
+                ->where('items.data.0.satuan_label', "Layanan\nPersen")
+                ->where('previewItems.0.satuan_label', "Layanan\nPersen"));
 
         $this->actingAs($data['user'])
             ->put(route('renja-opd.items.update', [$renja, $copied]), [
