@@ -17,6 +17,7 @@ const isPaused = ref(false);
 const reduceMotion = ref(false);
 const viewport = ref<HTMLElement | null>(null);
 const movingContent = ref<HTMLElement | null>(null);
+const contentOverflows = ref(false);
 const overflowDistance = ref(0);
 const animationDuration = ref(18);
 let rotationTimer: ReturnType<typeof window.setTimeout> | null = null;
@@ -28,7 +29,7 @@ const announcements = computed<SystemAnnouncement[]>(() =>
 );
 const current = computed(() => announcements.value[activeIndex.value] ?? null);
 const isExternalLink = computed(() => current.value?.link_url?.startsWith('http://') || current.value?.link_url?.startsWith('https://'));
-const needsMarquee = computed(() => overflowDistance.value > 8 && !reduceMotion.value);
+const needsMarquee = computed(() => contentOverflows.value && !reduceMotion.value);
 const marqueeStyle = computed(() => ({
     '--announcement-distance': `${overflowDistance.value}px`,
     '--announcement-duration': `${animationDuration.value}s`,
@@ -69,8 +70,9 @@ const measure = async () => {
     await nextTick();
     const viewportWidth = viewport.value?.clientWidth ?? 0;
     const contentWidth = movingContent.value?.scrollWidth ?? 0;
-    overflowDistance.value = Math.max(0, contentWidth - viewportWidth);
-    animationDuration.value = Math.min(42, Math.max(14, (overflowDistance.value + viewportWidth * 0.35) / 48));
+    contentOverflows.value = contentWidth > viewportWidth + 8;
+    overflowDistance.value = contentOverflows.value ? contentWidth + 24 : 0;
+    animationDuration.value = Math.min(48, Math.max(14, overflowDistance.value / 48));
     restartRotation();
 };
 
@@ -186,18 +188,18 @@ onBeforeUnmount(() => {
     >
         <div class="relative flex min-h-12 items-center gap-2.5 overflow-hidden px-3 py-2 sm:px-5">
             <span
-                class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-extrabold uppercase tracking-[0.14em]"
+                class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-extrabold uppercase leading-none tracking-[0.14em]"
                 :class="theme.badge"
             >
                 <component :is="theme.icon" class="size-4" aria-hidden="true" />
                 <span>{{ theme.label }}</span>
             </span>
 
-            <div ref="viewport" class="min-w-0 flex-1 overflow-hidden">
+            <div ref="viewport" class="flex h-8 min-w-0 flex-1 items-center overflow-hidden">
                 <div
                     :key="current.id"
                     ref="movingContent"
-                    class="announcement-moving-content inline-flex max-w-none items-center gap-2 whitespace-nowrap text-[13px] sm:text-sm"
+                    class="announcement-moving-content inline-flex h-8 max-w-none items-center gap-2 whitespace-nowrap text-[13px] leading-none sm:text-sm"
                     :class="{ 'is-running': needsMarquee, 'is-rotating': needsMarquee && announcements.length > 1 }"
                     :style="marqueeStyle"
                     @animationend="handleMarqueeEnd"
