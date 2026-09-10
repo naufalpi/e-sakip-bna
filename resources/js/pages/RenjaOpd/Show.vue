@@ -882,7 +882,7 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                 </div>
             </div>
 
-            <div class="border-b bg-white px-5 py-3 dark:bg-slate-950">
+            <div id="riwayat-versi" class="scroll-mt-28 border-b bg-white px-5 py-3 dark:bg-slate-950">
                 <div class="flex flex-wrap items-center gap-2">
                     <span class="mr-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Riwayat versi</span>
                     <Link

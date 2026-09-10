@@ -3,8 +3,8 @@ import DataPagination from '@/components/DataPagination.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDocumentDelete } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowRight, CheckCircle2, FileClock, FileText, GitBranch, Pencil, Plus, RefreshCcw, Search, Trash2 } from 'lucide-vue-next';
-import { computed, reactive } from 'vue';
+import { Archive, ArrowRight, CheckCircle2, FileClock, FileText, GitBranch, Pencil, Plus, RefreshCcw, Search, Trash2 } from 'lucide-vue-next';
+import { reactive } from 'vue';
 
 type Option = { id: number; label: string; tahun?: number };
 type Row = {
@@ -17,6 +17,14 @@ type Row = {
     version_label: string;
     nomor_versi: number;
     is_active_version: boolean;
+    is_working_version: boolean;
+    is_archived_version: boolean;
+    active_version?: {
+        id: number;
+        jenis_versi: 'awal' | 'ditetapkan' | 'perubahan';
+        version_label: string;
+        status: string;
+    } | null;
     can_update: boolean;
     can_delete: boolean;
     items_count: number;
@@ -39,6 +47,11 @@ type Paginator<T> = {
 
 const props = defineProps<{
     items: Paginator<Row>;
+    summary: {
+        awal: number;
+        ditetapkan: number;
+        perubahan: number;
+    };
     filters: {
         search?: string;
         status?: string;
@@ -59,7 +72,7 @@ const filterForm = reactive({
     opd_id: props.filters.opd_id ?? '',
     periode_tahun_id: props.filters.periode_tahun_id ?? '',
     tahun: props.filters.tahun ?? '',
-    jenis_versi: props.filters.jenis_versi ?? '',
+    jenis_versi: props.filters.jenis_versi ?? 'aktif',
     per_page: props.filters.per_page ?? '10',
 });
 
@@ -72,19 +85,16 @@ const resetFilters = () => {
     filterForm.opd_id = '';
     filterForm.periode_tahun_id = '';
     filterForm.tahun = '';
-    filterForm.jenis_versi = '';
+    filterForm.jenis_versi = 'aktif';
     applyFiltersNow();
 };
 
 const destroy = async (row: Row) => {
     if (await confirmDocumentDelete(`Hapus Renja ${row.tahun} - ${row.opd?.singkatan || row.opd?.nama || row.judul}?`)) {
-        router.delete(route('renja-opd.destroy', row.id));
+        router.delete(route('renja-opd.destroy', { renja_opd: row.id }));
     }
 };
 
-const initialCount = computed(() => props.items.data.filter((row) => row.jenis_versi === 'awal').length);
-const establishedCount = computed(() => props.items.data.filter((row) => row.jenis_versi === 'ditetapkan').length);
-const changeCount = computed(() => props.items.data.filter((row) => row.jenis_versi === 'perubahan').length);
 const versionLabel = (row: Pick<Row, 'jenis_versi' | 'version_label'>) => (row.jenis_versi === 'awal' ? 'RENJA Akhir Draft' : row.version_label);
 
 const statusLabel = (status: string) =>
@@ -160,7 +170,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                     </div>
                     <div>
                         <p class="text-xs font-medium text-slate-500 dark:text-slate-400">RENJA Akhir Draft</p>
-                        <p class="mt-0.5 text-xl font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ initialCount }}</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ summary.awal }}</p>
                     </div>
                 </article>
                 <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
@@ -171,7 +181,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                     </div>
                     <div>
                         <p class="text-xs font-medium text-slate-500 dark:text-slate-400">RENJA Ditetapkan</p>
-                        <p class="mt-0.5 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ establishedCount }}</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ summary.ditetapkan }}</p>
                     </div>
                 </article>
                 <article class="flex items-center gap-3 px-5 py-4 sm:px-6">
@@ -182,7 +192,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                     </div>
                     <div>
                         <p class="text-xs font-medium text-slate-500 dark:text-slate-400">RENJA Perubahan</p>
-                        <p class="mt-0.5 text-xl font-bold tabular-nums text-amber-700 dark:text-amber-300">{{ changeCount }}</p>
+                        <p class="mt-0.5 text-xl font-bold tabular-nums text-amber-700 dark:text-amber-300">{{ summary.perubahan }}</p>
                     </div>
                 </article>
             </div>
@@ -229,7 +239,8 @@ const versionClass = (version: Row['jenis_versi']) =>
                     v-model="filterForm.jenis_versi"
                     class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-[#00336C]"
                 >
-                    <option value="">Semua versi</option>
+                    <option value="aktif">Versi aktif</option>
+                    <option value="semua">Semua versi</option>
                     <option value="awal">RENJA Akhir Draft</option>
                     <option value="ditetapkan">RENJA Ditetapkan</option>
                     <option value="perubahan">RENJA Perubahan</option>
@@ -264,14 +275,14 @@ const versionClass = (version: Row['jenis_versi']) =>
                 <div>
                     <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Daftar Renja OPD</h2>
                     <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        Menampilkan {{ items.from ?? 0 }}-{{ items.to ?? 0 }} dari {{ items.total }} dokumen.
+                        Menampilkan {{ items.from ?? 0 }}-{{ items.to ?? 0 }} dari {{ items.total }} dokumen sesuai filter.
                     </p>
                 </div>
                 <span
                     class="inline-flex w-fit items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                 >
-                    <FileText class="size-3.5" />
-                    Riwayat per OPD
+                    <Archive class="size-3.5" />
+                    Arsip tersedia pada Semua versi
                 </span>
             </div>
 
@@ -279,7 +290,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                 <div
                     class="hidden border-b border-slate-100 px-5 py-3 dark:border-slate-800 sm:px-6 xl:grid xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center xl:gap-6"
                 >
-                    <div class="grid max-w-[58rem] grid-cols-[minmax(12rem,0.8fr)_minmax(17rem,1.2fr)_auto_auto] items-center gap-x-6">
+                    <div class="grid max-w-[58rem] grid-cols-[minmax(12rem,0.8fr)_minmax(16rem,1.2fr)_auto_auto] items-center gap-x-6">
                         <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500">OPD</p>
                         <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500">Dokumen Renja</p>
                         <p class="text-center text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500">Sub kegiatan</p>
@@ -316,23 +327,35 @@ const versionClass = (version: Row['jenis_versi']) =>
                                 <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500 xl:hidden">
                                     Dokumen Renja
                                 </p>
-                                <div class="mt-1.5 flex flex-wrap items-center gap-2 xl:mt-0">
+                                <p class="mt-1.5 text-sm font-bold leading-5 text-slate-900 dark:text-slate-100 xl:mt-0">{{ row.judul }}</p>
+                                <div class="mt-2 flex flex-wrap items-center gap-2">
                                     <span
                                         class="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold"
                                         :class="versionClass(row.jenis_versi)"
                                         >{{ versionLabel(row) }}</span
                                     >
                                     <span v-if="row.is_active_version" class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300"
-                                        >Versi aktif</span
+                                        >Aktif</span
                                     >
                                     <span
-                                        v-else-if="row.jenis_versi === 'awal' && ['approved', 'locked'].includes(row.status)"
-                                        class="text-[11px] font-semibold text-slate-500 dark:text-slate-400"
-                                        >Arsip proses</span
+                                        v-else-if="row.is_working_version"
+                                        class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-200"
+                                        >Sedang diproses</span
+                                    >
+                                    <span
+                                        v-else-if="row.is_archived_version"
+                                        class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                        >Arsip</span
                                     >
                                 </div>
-                                <p class="mt-2 text-sm font-bold leading-5 text-slate-900 dark:text-slate-100">{{ row.judul }}</p>
                                 <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Tahun {{ row.tahun }}</p>
+                                <div
+                                    v-if="row.is_working_version && row.active_version"
+                                    class="mt-2 flex items-start gap-1.5 text-xs leading-5 text-emerald-700 dark:text-emerald-300"
+                                >
+                                    <CheckCircle2 class="mt-0.5 size-3.5 shrink-0" />
+                                    <span>{{ versionLabel(row.active_version) }} masih berlaku sampai perubahan disetujui.</span>
+                                </div>
                             </div>
 
                             <div class="flex flex-col items-start xl:items-center">
@@ -359,7 +382,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                             <p class="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400 dark:text-slate-500 xl:hidden">Aksi</p>
                             <div class="mt-1.5 inline-flex gap-2 xl:mt-0">
                                 <Link
-                                    :href="route('renja-opd.show', row.id)"
+                                    :href="route('renja-opd.show', { renja_opd: row.id })"
                                     class="inline-flex h-9 items-center gap-2 rounded-md bg-[#00336C] px-3 text-xs font-semibold text-white transition-colors hover:bg-[#0a4485]"
                                 >
                                     Buka
@@ -367,7 +390,7 @@ const versionClass = (version: Row['jenis_versi']) =>
                                 </Link>
                                 <Link
                                     v-if="row.can_update"
-                                    :href="route('renja-opd.edit', row.id)"
+                                    :href="route('renja-opd.edit', { renja_opd: row.id })"
                                     class="inline-flex h-9 items-center justify-center rounded-md border px-2 text-muted-foreground transition-colors hover:bg-muted"
                                     aria-label="Edit Renja"
                                     title="Edit Renja"

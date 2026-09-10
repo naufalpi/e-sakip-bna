@@ -6,6 +6,7 @@ use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class RenjaOpd extends Model
@@ -121,6 +122,18 @@ class RenjaOpd extends Model
     public function rootVersion(): BelongsTo
     {
         return $this->belongsTo(self::class, 'root_version_id');
+    }
+
+    public function lineageVersions(): HasMany
+    {
+        return $this->hasMany(self::class, 'root_version_id', 'root_version_id');
+    }
+
+    public function activeLineageVersion(): HasOne
+    {
+        return $this->hasOne(self::class, 'root_version_id', 'root_version_id')
+            ->where('is_active_version', true)
+            ->orderByDesc('nomor_versi');
     }
 
     public function approvedBy(): BelongsTo

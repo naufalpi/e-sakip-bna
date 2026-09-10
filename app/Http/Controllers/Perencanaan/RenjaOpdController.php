@@ -44,11 +44,14 @@ class RenjaOpdController extends Controller
 
         $filters = $request->only(['search', 'status', 'opd_id', 'periode_tahun_id', 'tahun', 'jenis_versi', 'per_page']);
         $filters['per_page'] = PerPagePaginator::selection($request);
+        $allowedVersionFilters = ['aktif', 'semua', 'awal', 'ditetapkan', 'perubahan'];
+        $filters['jenis_versi'] = in_array((string) ($filters['jenis_versi'] ?? 'aktif'), $allowedVersionFilters, true)
+            ? (string) ($filters['jenis_versi'] ?? 'aktif')
+            : 'aktif';
         $user = $request->user();
+        $workingVersionStatuses = ['draft', 'submitted', 'revision', 'verified', 'rejected'];
 
         $itemsQuery = RenjaOpd::query()
-            ->with(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'rkpd:id,judul,tahun,status,jenis_versi', 'periodeTahun:id,tahun,nama'])
-            ->withCount('items')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
             ->when($user->hasOpdUnitScope(), fn (Builder $query) => $query->where('opd_unit_id', $user->opd_unit_id))
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
@@ -61,8 +64,51 @@ class RenjaOpdController extends Controller
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($filters['opd_id'] ?? null, fn (Builder $query, string $opdId) => $query->where('opd_id', $opdId))
             ->when($filters['periode_tahun_id'] ?? null, fn (Builder $query, string $periodeId) => $query->where('periode_tahun_id', $periodeId))
-            ->when($filters['tahun'] ?? null, fn (Builder $query, string $tahun) => $query->where('tahun', $tahun))
-            ->when($filters['jenis_versi'] ?? null, fn (Builder $query, string $jenisVersi) => $query->where('jenis_versi', $jenisVersi))
+            ->when($filters['tahun'] ?? null, fn (Builder $query, string $tahun) => $query->where('tahun', $tahun));
+
+        if ($filters['jenis_versi'] === 'aktif') {
+            $itemsQuery->where(function (Builder $query) use ($workingVersionStatuses): void {
+                $query
+                    ->where(function (Builder $workingVersion) use ($workingVersionStatuses): void {
+                        $workingVersion
+                            ->where('jenis_versi', 'perubahan')
+                            ->where('is_active_version', false)
+                            ->whereIn('status', $workingVersionStatuses);
+                    })
+                    ->orWhere(function (Builder $activeVersion) use ($workingVersionStatuses): void {
+                        $activeVersion
+                            ->where('is_active_version', true)
+                            ->whereDoesntHave('lineageVersions', function (Builder $lineage) use ($workingVersionStatuses): void {
+                                $lineage
+                                    ->where('jenis_versi', 'perubahan')
+                                    ->where('is_active_version', false)
+                                    ->whereIn('status', $workingVersionStatuses);
+                            });
+                    });
+            });
+        } elseif ($filters['jenis_versi'] !== 'semua') {
+            $itemsQuery->where('jenis_versi', $filters['jenis_versi']);
+        }
+
+        $summaryByVersion = (clone $itemsQuery)
+            ->selectRaw('jenis_versi, COUNT(*) AS aggregate')
+            ->groupBy('jenis_versi')
+            ->pluck('aggregate', 'jenis_versi');
+        $summary = [
+            'awal' => (int) $summaryByVersion->get('awal', 0),
+            'ditetapkan' => (int) $summaryByVersion->get('ditetapkan', 0),
+            'perubahan' => (int) $summaryByVersion->get('perubahan', 0),
+        ];
+
+        $itemsQuery
+            ->with([
+                'opd:id,kode,nama,singkatan',
+                'opdUnit:id,kode,nama',
+                'rkpd:id,judul,tahun,status,jenis_versi',
+                'periodeTahun:id,tahun,nama',
+                'activeLineageVersion:id,root_version_id,jenis_versi,status,nomor_versi,is_active_version',
+            ])
+            ->withCount('items')
             ->orderByDesc('tahun')
             ->orderByDesc('nomor_versi')
             ->latest('id');
@@ -78,6 +124,16 @@ class RenjaOpdController extends Controller
                 'version_label' => $renja->versionLabel(),
                 'nomor_versi' => $renja->nomor_versi,
                 'is_active_version' => $renja->is_active_version,
+                'is_working_version' => ! $renja->is_active_version
+                    && $renja->jenis_versi === 'perubahan'
+                    && in_array($renja->status, $workingVersionStatuses, true),
+                'is_archived_version' => $renja->isArchivedVersion(),
+                'active_version' => $renja->activeLineageVersion ? [
+                    'id' => $renja->activeLineageVersion->id,
+                    'jenis_versi' => $renja->activeLineageVersion->jenis_versi,
+                    'version_label' => $renja->activeLineageVersion->versionLabel(),
+                    'status' => $renja->activeLineageVersion->status,
+                ] : null,
                 'can_update' => $user->can('update', $renja),
                 'can_delete' => $user->can('delete', $renja),
                 'items_count' => $renja->items_count,
@@ -108,6 +164,7 @@ class RenjaOpdController extends Controller
 
         return Inertia::render('RenjaOpd/Index', [
             'items' => $items,
+            'summary' => $summary,
             'filters' => $filters,
             'opdOptions' => $this->opdOptions($user),
             'periodeOptions' => $this->periodeOptions(),
