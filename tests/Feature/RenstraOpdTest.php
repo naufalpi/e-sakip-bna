@@ -1167,6 +1167,8 @@ class RenstraOpdTest extends TestCase
     {
         $this->seed();
 
+        $longSubKegiatanName = 'Penyelenggaraan Penerbitan Persetujuan Bangunan Gedung (PBG), Sertifikat Laik Fungsi (SLF), Surat Bukti Kepemilikan Bangunan Gedung (SBKBG), Rencana Teknis Pembongkaran Bangunan Gedung (RTB), Tim Profesi Ahli (TPA), Tim Penilai Teknis (TPT), Penilik, dan Pendataan Bangunan Gedung melalui SIMBG';
+
         $opd = Opd::create(['kode' => '2.02', 'nama' => 'Dinas Referensi Renstra', 'status' => 'active']);
         $unit = OpdUnit::create([
             'opd_id' => $opd->id,
@@ -1201,7 +1203,7 @@ class RenstraOpdTest extends TestCase
             'periode_tahun_id' => $periode->id,
             'kegiatan_pemerintahan_id' => $kegiatanMaster->id,
             'kode' => '9.99.01.2.01.0001',
-            'nama' => 'Sub Kegiatan Master Renstra',
+            'nama' => $longSubKegiatanName,
             'indikator_sub_kegiatan' => 'Jumlah keluaran baku sub kegiatan',
             'satuan_indikator_id' => $satuan->id,
             'definisi_operasional' => 'Keluaran yang diselesaikan sesuai standar.',
@@ -1315,7 +1317,7 @@ class RenstraOpdTest extends TestCase
             'sub_kegiatan_pemerintahan_id' => $subKegiatanMaster->id,
             'opd_unit_id' => $unit->id,
             'kode' => '9.99.01.2.01.0001',
-            'nama' => 'Sub Kegiatan Master Renstra',
+            'nama' => $longSubKegiatanName,
         ]);
 
         $subKegiatanOpd = OpdSubKegiatan::where('opd_kegiatan_id', $kegiatanOpd->id)
@@ -1435,7 +1437,7 @@ class RenstraOpdTest extends TestCase
             ->assertJsonPath('items.0.sub_kegiatan_pemerintahan_id', $subKegiatanMaster->id)
             ->assertJsonPath('items.0.opd_kegiatan_id', $kegiatanOpd->id)
             ->assertJsonPath('items.0.opd_program_id', $programOpd->id)
-            ->assertJsonPath('items.0.nama', 'Sub Kegiatan Master Renstra')
+            ->assertJsonPath('items.0.nama', $longSubKegiatanName)
             ->assertJsonPath(
                 'items.0.context',
                 'Tujuan OPD: Tujuan OPD Referensi • Sasaran OPD: Sasaran OPD Referensi • Program: Program Master RPJMD • Kegiatan: Kegiatan Master Renstra',

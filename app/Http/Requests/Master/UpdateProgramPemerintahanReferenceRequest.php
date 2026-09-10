@@ -59,7 +59,7 @@ class UpdateProgramPemerintahanReferenceRequest extends FormRequest
                 'max:80',
                 $uniqueRule,
             ],
-            'nama' => ['required', 'string', 'max:255'],
+            'nama' => ['required', 'string', 'max:10000'],
             'sasaran_sub_kegiatan' => ['nullable', 'string', 'max:10000'],
             'indikator_sub_kegiatan' => ['nullable', 'string', 'max:10000'],
             'satuan_indikator_id' => [
@@ -76,6 +76,16 @@ class UpdateProgramPemerintahanReferenceRequest extends FormRequest
             ],
             'definisi_operasional' => ['nullable', 'string', 'max:100000'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'nama.max' => 'Nama program, kegiatan, atau sub kegiatan maksimal 10.000 karakter.',
         ];
     }
 

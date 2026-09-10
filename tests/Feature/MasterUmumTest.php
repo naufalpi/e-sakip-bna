@@ -754,6 +754,67 @@ class MasterUmumTest extends TestCase
         ]);
     }
 
+    public function test_master_sub_kegiatan_accepts_long_official_name_and_definition(): void
+    {
+        $this->seed();
+
+        $admin = $this->userWithRole('admin_kabupaten_dinkominfo');
+        $periode = PeriodeTahun::where('tahun', 2026)->firstOrFail();
+        $program = ProgramPemerintahan::query()
+            ->where('tahun_awal', '<=', $periode->tahun)
+            ->where('tahun_akhir', '>=', $periode->tahun)
+            ->firstOrFail();
+        $kegiatan = KegiatanPemerintahan::create([
+            'periode_tahun_id' => $periode->id,
+            'program_pemerintahan_id' => $program->id,
+            'kode' => '9.99.99.2.01',
+            'nama' => 'Kegiatan untuk pengujian nama sub kegiatan panjang',
+            'status' => 'active',
+        ]);
+        $nama = 'Penyelenggaraan Penerbitan Persetujuan Bangunan Gedung (PBG), Sertifikat Laik Fungsi (SLF), Surat Bukti Kepemilikan Bangunan Gedung (SBKBG), Rencana Teknis Pembongkaran Bangunan Gedung (RTB), Tim Profesi Ahli (TPA), Tim Penilai Teknis (TPT), Penilik, dan Pendataan Bangunan Gedung melalui SIMBG';
+        $definisiOperasional = trim(str_repeat('Definisi operasional penyelenggaraan bangunan gedung. ', 100));
+
+        $this->assertGreaterThan(255, mb_strlen($nama));
+
+        $this->actingAs($admin)
+            ->post(route('master.program-pemerintahan.store'), [
+                'type' => 'sub_kegiatan',
+                'periode_tahun_id' => $periode->id,
+                'kegiatan_pemerintahan_id' => $kegiatan->id,
+                'kode' => '9.99.99.2.01.0001',
+                'nama' => $nama,
+                'definisi_operasional' => $definisiOperasional,
+                'status' => 'active',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('master.program-pemerintahan.index'));
+
+        $subKegiatan = SubKegiatanPemerintahan::query()
+            ->where('kegiatan_pemerintahan_id', $kegiatan->id)
+            ->where('kode', '9.99.99.2.01.0001')
+            ->firstOrFail();
+
+        $this->assertSame($nama, $subKegiatan->nama);
+        $this->assertSame($definisiOperasional, $subKegiatan->definisi_operasional);
+
+        $this->actingAs($admin)
+            ->put(route('master.program-pemerintahan.update', ['type' => 'sub_kegiatan', 'id' => $subKegiatan->id]), [
+                'periode_tahun_id' => $periode->id,
+                'kegiatan_pemerintahan_id' => $kegiatan->id,
+                'kode' => $subKegiatan->kode,
+                'nama' => $nama.' (Pembaruan)',
+                'definisi_operasional' => $definisiOperasional,
+                'status' => 'active',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('master.program-pemerintahan.index'));
+
+        $this->assertDatabaseHas('sub_kegiatan_pemerintahan', [
+            'id' => $subKegiatan->id,
+            'nama' => $nama.' (Pembaruan)',
+        ]);
+    }
+
     public function test_program_kegiatan_summary_cards_follow_current_context(): void
     {
         $this->seed();

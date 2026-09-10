@@ -1009,7 +1009,7 @@ const destroyProgramPeriod = async () => {
                             </div>
                             <div class="grid gap-2 lg:col-span-2">
                                 <label class="text-sm font-medium" for="single-nama">Nama {{ meta.noun }}</label>
-                                <textarea id="single-nama" v-model="singleForm.nama" rows="3" class="rounded-xl border bg-background px-3 py-2 text-sm" />
+                                <textarea id="single-nama" v-model="singleForm.nama" rows="3" maxlength="10000" class="rounded-xl border bg-background px-3 py-2 text-sm" />
                                 <InputError :message="singleForm.errors.nama" />
                             </div>
 
