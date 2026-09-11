@@ -334,8 +334,18 @@ html {
     }
 
     .app-sidebar-badge {
+        display: inline-flex;
+        min-width: 1.25rem;
+        align-items: center;
+        justify-content: center;
+        margin-left: auto;
+        border-radius: 999px;
         background: rgb(250 204 21);
+        padding: 0.125rem 0.375rem;
         color: rgb(7 30 56);
+        font-size: 0.625rem;
+        font-weight: 650;
+        line-height: 1;
         box-shadow: 0 0 0 1px rgb(203 213 225);
     }
 
@@ -386,22 +396,35 @@ html {
     }
 
     .group[data-collapsible='icon'] .app-sidebar-admin [data-sidebar='sidebar'] {
-        border-radius: 1rem;
+        border-radius: 0;
     }
 
     .group[data-collapsible='icon'] .app-sidebar-header,
     .group[data-collapsible='icon'] .app-sidebar-footer {
-        padding-inline: 0.45rem;
+        padding-inline: 0.25rem;
+    }
+
+    .group[data-collapsible='icon'] .app-sidebar-header [data-sidebar='menu'],
+    .group[data-collapsible='icon'] .app-sidebar-footer [data-sidebar='menu'] {
+        align-items: center;
+    }
+
+    .group[data-collapsible='icon'] .app-sidebar-header [data-sidebar='menu-item'],
+    .group[data-collapsible='icon'] .app-sidebar-footer [data-sidebar='menu-item'] {
+        display: flex;
+        width: 100%;
+        justify-content: center;
     }
 
     .group[data-collapsible='icon'] .app-sidebar-content {
-        align-items: center;
-        padding-inline: 0.4rem;
+        align-items: stretch;
+        padding-inline: 0.25rem;
     }
 
     .group[data-collapsible='icon'] .app-sidebar-brand {
         justify-content: center;
         min-height: 2.6rem !important;
+        margin-inline: auto;
     }
 
     .group[data-collapsible='icon'] .app-sidebar-logo-mark {
@@ -421,11 +444,30 @@ html {
         padding-inline: 0;
     }
 
+    .group[data-collapsible='icon'] .app-sidebar-group-label,
+    .group[data-collapsible='icon'] .app-sidebar-menu-label {
+        display: none;
+    }
+
+    .group[data-collapsible='icon'] .app-sidebar-menu-item {
+        display: flex;
+        width: 100%;
+        justify-content: center;
+    }
+
     .group[data-collapsible='icon'] .app-sidebar-menu-button {
         justify-content: center;
         width: 2.35rem !important;
         height: 2.35rem !important;
+        margin-inline: auto;
         padding: 0 !important;
+        overflow: visible !important;
+        transform: none;
+    }
+
+    .group[data-collapsible='icon'] .app-sidebar-menu-button > svg {
+        width: 1.1rem;
+        height: 1.1rem;
     }
 
     .group[data-collapsible='icon'] .app-sidebar-menu-button::before {
@@ -444,13 +486,20 @@ html {
 
     .group[data-collapsible='icon'] .app-sidebar-badge {
         position: absolute;
-        top: 0.18rem;
-        right: 0.18rem;
-        width: 0.45rem;
-        min-width: 0;
-        height: 0.45rem;
-        padding: 0;
-        color: transparent;
+        top: -0.2rem;
+        right: 0;
+        width: auto;
+        min-width: 1.125rem;
+        height: 1.125rem;
+        margin: 0;
+        padding: 0 0.2rem;
+        color: rgb(7 30 56);
+        font-size: 0.625rem;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+        box-shadow:
+            0 0 0 2px hsl(var(--sidebar-background)),
+            0 0.18rem 0.42rem rgb(15 23 42 / 0.16);
     }
 
     .group[data-collapsible='icon'] .app-sidebar-user-button {
@@ -458,6 +507,7 @@ html {
         width: 2.5rem !important;
         height: 2.5rem !important;
         min-height: 2.5rem !important;
+        margin-inline: auto;
         padding: 0 !important;
     }
 
@@ -720,8 +770,14 @@ html {
         height: 5px;
     }
 
+    [data-collapsible='icon'] [data-sidebar='content'].sidebar-thin-scrollbar {
+        scrollbar-gutter: auto;
+        scrollbar-width: none;
+    }
+
     [data-collapsible='icon'] [data-sidebar='content'].sidebar-thin-scrollbar::-webkit-scrollbar {
-        width: 4px;
+        width: 0;
+        height: 0;
     }
 
     .sidebar-thin-scrollbar::-webkit-scrollbar-track {

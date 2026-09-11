@@ -27,20 +27,23 @@ const isActive = (item: NavItem) => {
         <SidebarGroupLabel class="app-sidebar-group-label">{{ label ?? 'Platform' }}</SidebarGroupLabel>
         <SidebarMenu class="space-y-1">
             <SidebarMenuItem v-for="item in items" :key="item.title" class="app-sidebar-menu-item">
-                <SidebarMenuButton as-child :is-active="isActive(item)" class="app-sidebar-menu-button">
+                <SidebarMenuButton
+                    as-child
+                    :is-active="isActive(item)"
+                    :tooltip="item.badge ? `${item.title} (${item.badge})` : item.title"
+                    class="app-sidebar-menu-button"
+                >
                     <Link
                         :href="item.href"
                         prefetch="hover"
                         cache-for="5m"
+                        :aria-label="item.badge ? `${item.title}, ${item.badge}` : item.title"
                         @focus="warmAppPageComponent(item.pageComponent)"
                         @pointerenter="warmAppPageComponent(item.pageComponent)"
                     >
                         <component :is="item.icon" />
-                        <span>{{ item.title }}</span>
-                        <span
-                            v-if="item.badge"
-                            class="app-sidebar-badge ml-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
-                        >
+                        <span class="app-sidebar-menu-label">{{ item.title }}</span>
+                        <span v-if="item.badge" class="app-sidebar-badge" aria-hidden="true">
                             {{ item.badge }}
                         </span>
                     </Link>
