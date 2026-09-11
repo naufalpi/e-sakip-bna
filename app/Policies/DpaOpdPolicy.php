@@ -17,19 +17,15 @@ class DpaOpdPolicy
 
     public function view(User $user, DpaOpd $dpaOpd): bool
     {
-        if ($user->isSuperAdmin() || $user->hasAnyRole([
-            'admin_kabupaten_bagian_organisasi',
-            'admin_kabupaten_bapperida',
-            'admin_kabupaten_bpkad',
-            'admin_kabupaten_inspektorat',
-            'pimpinan',
-        ])) {
-            return $user->hasAnyPermission(['dpa.view', 'dpa.manage', 'dpa.verify']);
+        if (! $this->viewAny($user)) {
+            return false;
         }
 
-        return $user->hasRole('admin_opd')
-            && $user->hasAnyPermission(['dpa.view', 'dpa.manage'])
-            && $user->canAccessOpd($dpaOpd->opd_id)
+        if (! $user->hasRole('admin_opd')) {
+            return true;
+        }
+
+        return $user->canAccessOpd($dpaOpd->opd_id)
             && $user->canAccessOpdUnit($dpaOpd->opd_unit_id);
     }
 
@@ -46,12 +42,11 @@ class DpaOpdPolicy
             return false;
         }
 
-        if ($user->isSuperAdmin()) {
+        if (! $user->hasRole('admin_opd')) {
             return true;
         }
 
-        return $user->hasRole('admin_opd')
-            && $user->canAccessOpd($dpaOpd->opd_id)
+        return $user->canAccessOpd($dpaOpd->opd_id)
             && $user->canAccessOpdUnit($dpaOpd->opd_unit_id);
     }
 

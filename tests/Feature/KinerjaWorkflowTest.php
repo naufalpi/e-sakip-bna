@@ -755,6 +755,7 @@ class KinerjaWorkflowTest extends TestCase
             ->assertSessionDoesntHaveErrors();
 
         $matrix = RencanaAksi::query()->where('perjanjian_kinerja_id', $headPk->id)->firstOrFail();
+        $this->assertSame('RENCANA AKSI MATRIKS', $matrix->judul);
         $this->assertSame(2, $matrix->format_version);
         $this->assertSame(5, $matrix->items()->count());
         $this->assertSame('Nilai hasil evaluasi tata kelola', $matrix->items()->orderBy('urutan')->value('formula'));

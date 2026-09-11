@@ -17,19 +17,21 @@ class EvaluasiSakipPolicy
 
     public function view(User $user, EvaluasiSakip $evaluasiSakip): bool
     {
-        if ($this->canViewAll($user)) {
+        if (! $this->viewAny($user)) {
+            return false;
+        }
+
+        if (! $user->hasRole('admin_opd')) {
             return true;
         }
 
-        return $user->hasRole('admin_opd')
-            && filled($user->opd_id)
+        return filled($user->opd_id)
             && (int) $evaluasiSakip->opd_id === (int) $user->opd_id;
     }
 
     public function create(User $user): bool
     {
-        return $user->hasAnyPermission(['evaluasi.manage', 'manage_evaluasi'])
-            && $user->hasAnyRole(['super_admin', 'admin_kabupaten_inspektorat']);
+        return $user->hasAnyPermission(['evaluasi.manage', 'manage_evaluasi']);
     }
 
     public function update(User $user, EvaluasiSakip $evaluasiSakip): bool
@@ -55,14 +57,5 @@ class EvaluasiSakipPolicy
         return $user->hasRole('admin_opd')
             && filled($user->opd_id)
             && (int) $evaluasiSakip->opd_id === (int) $user->opd_id;
-    }
-
-    private function canViewAll(User $user): bool
-    {
-        return $user->hasAnyRole([
-            'super_admin',
-            'admin_kabupaten_inspektorat',
-            'admin_kabupaten_bagian_organisasi',
-        ]);
     }
 }

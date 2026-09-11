@@ -316,6 +316,7 @@ class RencanaAksiController extends Controller
                     'tahun' => $pk->tahun,
                     'label' => "{$pk->tahun} - {$pk->judul}",
                     'opd_label' => $pk->opd?->singkatan ?: $pk->opd?->nama,
+                    'opd_name' => $pk->opd?->nama,
                     'renstra_label' => $pk->renstraOpd?->judul,
                     'dpa_label' => $pk->dpaOpd ? $pk->dpaOpd->typeLabel().' - '.$pk->dpaOpd->judul : null,
                     'readiness' => null,

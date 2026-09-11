@@ -21,8 +21,8 @@ class LkjipPolicy
             return false;
         }
 
-        return $this->canViewAll($user)
-            || ((int) $lkjip->opd_id === (int) $user->opd_id && $user->hasRole('admin_opd'));
+        return ! $user->hasRole('admin_opd')
+            || (int) $lkjip->opd_id === (int) $user->opd_id;
     }
 
     public function create(User $user): bool
@@ -40,23 +40,12 @@ class LkjipPolicy
             return false;
         }
 
-        return $user->hasRole('super_admin')
-            || ((int) $lkjip->opd_id === (int) $user->opd_id && $user->hasRole('admin_opd'));
+        return ! $user->hasRole('admin_opd')
+            || (int) $lkjip->opd_id === (int) $user->opd_id;
     }
 
     public function delete(User $user, Lkjip $lkjip): bool
     {
         return $this->update($user, $lkjip);
-    }
-
-    private function canViewAll(User $user): bool
-    {
-        return $user->hasAnyRole([
-            'super_admin',
-            'admin_kabupaten_bagian_organisasi',
-            'admin_kabupaten_bapperida',
-            'admin_kabupaten_inspektorat',
-            'pimpinan',
-        ]);
     }
 }

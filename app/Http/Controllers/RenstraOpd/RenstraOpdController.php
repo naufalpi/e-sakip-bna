@@ -126,6 +126,9 @@ class RenstraOpdController extends Controller
                 'nama' => $renstra->periodeTahun->nama,
             ] : null,
             'progress' => $progressByRenstra[$renstra->id],
+            'can_update' => $user->can('update', $renstra),
+            'can_delete' => $user->can('delete', $renstra),
+            'can_cancel_revision' => $user->can('cancelRevision', $renstra),
         ]);
 
         return Inertia::render('RenstraOpd/Index', [

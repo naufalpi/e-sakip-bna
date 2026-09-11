@@ -24,15 +24,11 @@ class RolePolicy
 
     private function canViewRolePermissions(User $user): bool
     {
-        return $user->isSuperAdmin()
-            || ($user->hasRole('admin_kabupaten_dinkominfo')
-                && $user->hasAnyPermission(['roles.view', 'roles.manage', 'manage_roles']));
+        return $user->hasAnyPermission(['roles.view', 'roles.manage', 'manage_roles']);
     }
 
     private function canManageRolePermissions(User $user): bool
     {
-        return $user->isSuperAdmin()
-            || ($user->hasRole('admin_kabupaten_dinkominfo')
-                && $user->hasAnyPermission(['roles.manage', 'manage_roles']));
+        return $user->hasAnyPermission(['roles.manage', 'manage_roles']);
     }
 }

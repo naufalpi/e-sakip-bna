@@ -72,6 +72,9 @@ type RenstraRow = {
     opd?: { id: number; kode: string; nama: string; singkatan?: string | null } | null;
     rpjmd?: { id: number; judul: string; tahun_awal: number; tahun_akhir: number } | null;
     periode_tahun?: { id: number; tahun: number; nama: string } | null;
+    can_update: boolean;
+    can_delete: boolean;
+    can_cancel_revision: boolean;
     progress: {
         percentage: number;
         stages_filled: number;
@@ -200,7 +203,8 @@ const resetFilters = () => {
 
 const cancelableRevisionStatuses = ['draft', 'revision', 'rejected'];
 
-const canCancelRevision = (renstra: RenstraRow) => renstra.jenis_versi === 'perubahan' && cancelableRevisionStatuses.includes(renstra.status);
+const canCancelRevision = (renstra: RenstraRow) =>
+    renstra.can_cancel_revision && renstra.jenis_versi === 'perubahan' && cancelableRevisionStatuses.includes(renstra.status);
 const deleteActionTitle = (renstra: RenstraRow) => (canCancelRevision(renstra) ? 'Batalkan Perubahan Renstra' : 'Hapus Renstra');
 const deleteActionClass = (renstra: RenstraRow) =>
     canCancelRevision(renstra)
@@ -584,7 +588,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                                         <ArrowRight class="size-3.5" />
                                     </Link>
                                     <Link
-                                        v-if="can.manage"
+                                        v-if="renstra.can_update"
                                         :href="route('renstra-opd.edit', renstra.id)"
                                         class="inline-flex h-9 items-center justify-center rounded-md border px-2 text-muted-foreground hover:bg-muted"
                                         title="Edit Renstra"
@@ -593,7 +597,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                                         <Pencil class="size-4" />
                                     </Link>
                                     <button
-                                        v-if="can.manage"
+                                        v-if="renstra.can_delete || renstra.can_cancel_revision"
                                         type="button"
                                         class="inline-flex h-9 items-center justify-center rounded-md border px-2 transition"
                                         :class="deleteActionClass(renstra)"
@@ -681,7 +685,7 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                             <ArrowRight class="size-4" />
                         </Link>
                         <Link
-                            v-if="can.manage"
+                            v-if="renstra.can_update"
                             :href="route('renstra-opd.edit', renstra.id)"
                             class="inline-flex min-h-10 items-center justify-center rounded-md border px-3 text-sm"
                             aria-label="Edit Renstra"

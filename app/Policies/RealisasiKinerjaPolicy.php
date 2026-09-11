@@ -17,8 +17,12 @@ class RealisasiKinerjaPolicy
 
     public function view(User $user, RealisasiKinerja $realisasiKinerja): bool
     {
-        return $this->canViewAll($user)
-            || ((int) $realisasiKinerja->opd_id === (int) $user->opd_id && $user->hasRole('admin_opd'));
+        if (! $this->viewAny($user)) {
+            return false;
+        }
+
+        return ! $user->hasRole('admin_opd')
+            || (int) $realisasiKinerja->opd_id === (int) $user->opd_id;
     }
 
     public function create(User $user): bool
@@ -36,22 +40,12 @@ class RealisasiKinerjaPolicy
             return false;
         }
 
-        return $user->hasRole('super_admin')
-            || ((int) $realisasiKinerja->opd_id === (int) $user->opd_id && $user->hasRole('admin_opd'));
+        return ! $user->hasRole('admin_opd')
+            || (int) $realisasiKinerja->opd_id === (int) $user->opd_id;
     }
 
     public function delete(User $user, RealisasiKinerja $realisasiKinerja): bool
     {
         return $this->update($user, $realisasiKinerja);
-    }
-
-    private function canViewAll(User $user): bool
-    {
-        return $user->hasAnyRole([
-            'super_admin',
-            'admin_kabupaten_bagian_organisasi',
-            'admin_kabupaten_bapperida',
-            'admin_kabupaten_inspektorat',
-        ]);
     }
 }

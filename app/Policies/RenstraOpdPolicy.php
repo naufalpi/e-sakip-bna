@@ -17,12 +17,15 @@ class RenstraOpdPolicy
 
     public function view(User $user, RenstraOpd $renstraOpd): bool
     {
-        if ($this->canViewAllRenstra($user)) {
+        if (! $this->viewAny($user)) {
+            return false;
+        }
+
+        if (! $user->hasRole('admin_opd')) {
             return true;
         }
 
-        return $user->hasRole('admin_opd')
-            && filled($user->opd_id)
+        return filled($user->opd_id)
             && (int) $renstraOpd->opd_id === (int) $user->opd_id;
     }
 
@@ -54,12 +57,11 @@ class RenstraOpdPolicy
             return false;
         }
 
-        if ($this->canManageAllRenstra($user)) {
+        if (! $user->hasRole('admin_opd')) {
             return true;
         }
 
-        return $user->hasRole('admin_opd')
-            && filled($user->opd_id)
+        return filled($user->opd_id)
             && (int) $renstraOpd->opd_id === (int) $user->opd_id;
     }
 
@@ -74,12 +76,15 @@ class RenstraOpdPolicy
             return false;
         }
 
-        if ($user->isSuperAdmin()) {
+        if (! $user->hasAnyPermission(['renstra.manage', 'manage_renstra_opd'])) {
+            return false;
+        }
+
+        if (! $user->hasRole('admin_opd')) {
             return true;
         }
 
-        return $user->hasAnyPermission(['renstra.manage', 'manage_renstra_opd'])
-            && filled($user->opd_id)
+        return filled($user->opd_id)
             && (int) $renstraOpd->opd_id === (int) $user->opd_id;
     }
 
@@ -88,22 +93,5 @@ class RenstraOpdPolicy
         return $renstraOpd->jenis_versi === 'perubahan'
             && in_array((string) $renstraOpd->status, ['draft', 'revision', 'rejected'], true)
             && $this->update($user, $renstraOpd);
-    }
-
-    private function canViewAllRenstra(User $user): bool
-    {
-        return $user->hasAnyRole([
-            'super_admin',
-            'admin_kabupaten_bagian_organisasi',
-            'admin_kabupaten_bapperida',
-            'admin_kabupaten_inspektorat',
-        ]);
-    }
-
-    private function canManageAllRenstra(User $user): bool
-    {
-        return $user->hasAnyRole([
-            'super_admin',
-        ]);
     }
 }

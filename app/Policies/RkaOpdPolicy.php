@@ -17,18 +17,15 @@ class RkaOpdPolicy
 
     public function view(User $user, RkaOpd $rkaOpd): bool
     {
-        if ($user->isSuperAdmin() || $user->hasAnyRole([
-            'admin_kabupaten_bagian_organisasi',
-            'admin_kabupaten_bapperida',
-            'admin_kabupaten_inspektorat',
-            'pimpinan',
-        ])) {
-            return $user->hasAnyPermission(['rka.view', 'rka.manage', 'rka.verify']);
+        if (! $this->viewAny($user)) {
+            return false;
         }
 
-        return $user->hasRole('admin_opd')
-            && $user->hasAnyPermission(['rka.view', 'rka.manage'])
-            && $user->canAccessOpd($rkaOpd->opd_id)
+        if (! $user->hasRole('admin_opd')) {
+            return true;
+        }
+
+        return $user->canAccessOpd($rkaOpd->opd_id)
             && $user->canAccessOpdUnit($rkaOpd->opd_unit_id);
     }
 
@@ -45,12 +42,11 @@ class RkaOpdPolicy
             return false;
         }
 
-        if ($user->isSuperAdmin()) {
+        if (! $user->hasRole('admin_opd')) {
             return true;
         }
 
-        return $user->hasRole('admin_opd')
-            && $user->canAccessOpd($rkaOpd->opd_id)
+        return $user->canAccessOpd($rkaOpd->opd_id)
             && $user->canAccessOpdUnit($rkaOpd->opd_unit_id);
     }
 

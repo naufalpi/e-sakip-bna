@@ -16,6 +16,7 @@ use App\Models\OpdProgram;
 use App\Models\OpdSubKegiatan;
 use App\Models\OpdUnit;
 use App\Models\PeriodeTahun;
+use App\Models\Permission;
 use App\Models\ProgramPemerintahan;
 use App\Models\ProgramRpjmd;
 use App\Models\RenjaOpd;
@@ -1651,6 +1652,74 @@ class RenstraOpdTest extends TestCase
         $this->actingAs($user)
             ->get(route('renstra-opd.create'))
             ->assertForbidden();
+    }
+
+    public function test_kabupaten_role_with_manage_permission_can_manage_all_draft_renstra(): void
+    {
+        $this->seed();
+
+        $rpjmd = Rpjmd::create(['judul' => 'RPJMD Uji Permission', 'tahun_awal' => 2026, 'tahun_akhir' => 2031, 'status' => 'approved']);
+        $opd = Opd::create(['kode' => '3.03', 'nama' => 'Dinas Uji Permission', 'status' => 'active']);
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $rpjmd->id,
+            'judul' => 'RENSTRA Uji Permission',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'draft',
+        ]);
+
+        $role = Role::where('name', 'admin_kabupaten_bagian_organisasi')->firstOrFail();
+        $role->permissions()->syncWithoutDetaching([
+            Permission::where('name', 'renstra.manage')->value('id'),
+        ]);
+
+        $user = User::factory()->create();
+        $user->roles()->sync([$role->id]);
+
+        $this->assertTrue($user->can('update', $renstra));
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('renstras.data.0.can_update', true)
+            );
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.show', $renstra))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('RenstraOpd/Show')
+                ->where('can.manage', true)
+            );
+    }
+
+    public function test_kabupaten_manage_permission_can_create_renstra_revision(): void
+    {
+        $this->seed();
+
+        $rpjmd = Rpjmd::create(['judul' => 'RPJMD Uji Revisi', 'tahun_awal' => 2026, 'tahun_akhir' => 2031, 'status' => 'approved']);
+        $opd = Opd::create(['kode' => '3.04', 'nama' => 'Dinas Uji Revisi', 'status' => 'active']);
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $rpjmd->id,
+            'judul' => 'RENSTRA Uji Revisi',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2031,
+            'status' => 'approved',
+            'is_active_version' => true,
+        ]);
+
+        $role = Role::where('name', 'admin_kabupaten_bagian_organisasi')->firstOrFail();
+        $role->permissions()->syncWithoutDetaching([
+            Permission::where('name', 'renstra.manage')->value('id'),
+        ]);
+
+        $user = User::factory()->create();
+        $user->roles()->sync([$role->id]);
+
+        $this->assertTrue($user->can('createRevision', $renstra));
     }
 
     public function test_renstra_header_summary_counts_all_filtered_rows_across_pages(): void

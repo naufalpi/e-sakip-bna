@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Concerns\LogsActivity;
+use App\Support\PermissionAliases;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -149,14 +150,16 @@ class User extends Authenticatable
             return true;
         }
 
+        $equivalentPermissions = PermissionAliases::equivalents($permission);
+
         if ($this->relationLoaded('roles')) {
             return $this->roles
                 ->flatMap(fn (Role $role) => $role->permissions)
-                ->contains('name', $permission);
+                ->contains(fn (Permission $permission): bool => in_array($permission->name, $equivalentPermissions, true));
         }
 
         return $this->roles()
-            ->whereHas('permissions', fn ($query) => $query->where('name', $permission))
+            ->whereHas('permissions', fn ($query) => $query->whereIn('name', $equivalentPermissions))
             ->exists();
     }
 
@@ -169,10 +172,12 @@ class User extends Authenticatable
             return true;
         }
 
+        $equivalentPermissions = PermissionAliases::expand($permissions);
+
         return $this->roles
             ->flatMap(fn (Role $role) => $role->permissions)
             ->pluck('name')
-            ->intersect($permissions)
+            ->intersect($equivalentPermissions)
             ->isNotEmpty();
     }
 }

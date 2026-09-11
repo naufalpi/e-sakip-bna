@@ -17,18 +17,15 @@ class RenjaOpdPolicy
 
     public function view(User $user, RenjaOpd $renjaOpd): bool
     {
-        if ($user->hasAnyRole([
-            'super_admin',
-            'admin_kabupaten_bagian_organisasi',
-            'admin_kabupaten_bapperida',
-            'admin_kabupaten_inspektorat',
-            'pimpinan',
-        ])) {
-            return $user->hasPermission('renja.view') || $user->hasPermission('renja.manage');
+        if (! $this->viewAny($user)) {
+            return false;
         }
 
-        return $user->hasRole('admin_opd')
-            && $user->canAccessOpd($renjaOpd->opd_id)
+        if (! $user->hasRole('admin_opd')) {
+            return true;
+        }
+
+        return $user->canAccessOpd($renjaOpd->opd_id)
             && $user->canAccessOpdUnit($renjaOpd->opd_unit_id);
     }
 
@@ -47,13 +44,15 @@ class RenjaOpdPolicy
             return false;
         }
 
-        if ($user->isSuperAdmin()) {
+        if (! $user->hasPermission('renja.manage')) {
+            return false;
+        }
+
+        if (! $user->hasRole('admin_opd')) {
             return true;
         }
 
-        return $user->hasPermission('renja.manage')
-            && $user->hasRole('admin_opd')
-            && $user->canAccessOpd($renjaOpd->opd_id)
+        return $user->canAccessOpd($renjaOpd->opd_id)
             && $user->canAccessOpdUnit($renjaOpd->opd_unit_id);
     }
 
@@ -71,12 +70,11 @@ class RenjaOpdPolicy
             return false;
         }
 
-        if ($user->isSuperAdmin()) {
+        if (! $user->hasRole('admin_opd')) {
             return true;
         }
 
-        return $user->hasRole('admin_opd')
-            && $user->canAccessOpd($renjaOpd->opd_id)
+        return $user->canAccessOpd($renjaOpd->opd_id)
             && $user->canAccessOpdUnit($renjaOpd->opd_unit_id);
     }
 }

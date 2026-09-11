@@ -464,11 +464,6 @@ class DokumenController extends Controller
 
     private function canViewAll(User $user): bool
     {
-        return $user->hasAnyRole([
-            'super_admin',
-            'admin_kabupaten_bagian_organisasi',
-            'admin_kabupaten_bapperida',
-            'admin_kabupaten_inspektorat',
-        ]);
+        return ! $user->hasRole('admin_opd');
     }
 }

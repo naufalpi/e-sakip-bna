@@ -17,8 +17,12 @@ class PerjanjianKinerjaPolicy
 
     public function view(User $user, PerjanjianKinerja $perjanjianKinerja): bool
     {
-        return $this->canViewAll($user)
-            || ((int) $perjanjianKinerja->opd_id === (int) $user->opd_id && $user->hasRole('admin_opd'));
+        if (! $this->viewAny($user)) {
+            return false;
+        }
+
+        return ! $user->hasRole('admin_opd')
+            || (int) $perjanjianKinerja->opd_id === (int) $user->opd_id;
     }
 
     public function create(User $user): bool
@@ -36,23 +40,12 @@ class PerjanjianKinerjaPolicy
             return false;
         }
 
-        return $user->hasRole('super_admin')
-            || (! $user->hasRole('admin_opd') && $user->hasAnyPermission(['kinerja.manage', 'manage_perjanjian_kinerja']))
-            || ((int) $perjanjianKinerja->opd_id === (int) $user->opd_id && $user->hasRole('admin_opd'));
+        return ! $user->hasRole('admin_opd')
+            || (int) $perjanjianKinerja->opd_id === (int) $user->opd_id;
     }
 
     public function delete(User $user, PerjanjianKinerja $perjanjianKinerja): bool
     {
         return $this->update($user, $perjanjianKinerja);
-    }
-
-    private function canViewAll(User $user): bool
-    {
-        return $user->hasAnyRole([
-            'super_admin',
-            'admin_kabupaten_bagian_organisasi',
-            'admin_kabupaten_bapperida',
-            'admin_kabupaten_inspektorat',
-        ]);
     }
 }

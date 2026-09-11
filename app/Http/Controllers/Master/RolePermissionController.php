@@ -7,6 +7,7 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\ActivityLogService;
+use App\Support\PermissionAliases;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -19,34 +20,47 @@ class RolePermissionController extends Controller
     {
         $this->authorize('viewAny', Role::class);
 
+        $permissions = Permission::query()
+            ->whereNotIn('name', PermissionAliases::legacyNames())
+            ->orderBy('module')
+            ->orderBy('label')
+            ->get(['id', 'name', 'label', 'module', 'description']);
+        $permissionsByName = $permissions->keyBy('name');
+
         $roles = Role::query()
             ->with(['permissions' => fn ($query) => $query->orderBy('module')->orderBy('label')])
             ->orderBy('label')
             ->get()
-            ->map(fn (Role $role) => [
-                'id' => $role->id,
-                'name' => $role->name,
-                'label' => $role->label,
-                'description' => $role->description,
-                'permission_ids' => $role->permissions->pluck('id')->values(),
-                'can_edit' => $role->name !== 'super_admin',
-                'permissions' => $role->permissions
-                    ->groupBy('module')
-                    ->map(fn ($permissions, string $module) => [
-                        'module' => $module,
-                        'items' => $permissions->map(fn ($permission) => [
-                            'id' => $permission->id,
-                            'name' => $permission->name,
-                            'label' => $permission->label,
-                        ])->values(),
-                    ])
-                    ->values(),
-            ]);
+            ->map(function (Role $role) use ($permissionsByName): array {
+                $normalizedPermissions = $role->permissions
+                    ->map(fn (Permission $permission) => $permissionsByName->get(PermissionAliases::canonical($permission->name)))
+                    ->filter()
+                    ->unique('id')
+                    ->sortBy(fn (Permission $permission) => "{$permission->module}.{$permission->label}")
+                    ->values();
 
-        $permissionGroups = Permission::query()
-            ->orderBy('module')
-            ->orderBy('label')
-            ->get(['id', 'name', 'label', 'module', 'description'])
+                return [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'label' => $role->label,
+                    'description' => $role->description,
+                    'permission_ids' => $normalizedPermissions->pluck('id')->values(),
+                    'can_edit' => $role->name !== 'super_admin',
+                    'permissions' => $normalizedPermissions
+                        ->groupBy('module')
+                        ->map(fn ($permissions, string $module) => [
+                            'module' => $module,
+                            'items' => $permissions->map(fn (Permission $permission) => [
+                                'id' => $permission->id,
+                                'name' => $permission->name,
+                                'label' => $permission->label,
+                            ])->values(),
+                        ])
+                        ->values(),
+                ];
+            });
+
+        $permissionGroups = $permissions
             ->groupBy('module')
             ->map(fn ($permissions, string $module) => [
                 'module' => $module,
@@ -88,8 +102,16 @@ class RolePermissionController extends Controller
             ->sort()
             ->values()
             ->all();
-        $newPermissionIds = collect($data['permission_ids'] ?? [])
+        $requestedPermissions = Permission::query()
+            ->whereKey($data['permission_ids'] ?? [])
+            ->get(['id', 'name']);
+        $canonicalNames = $requestedPermissions
+            ->map(fn (Permission $permission): string => PermissionAliases::canonical($permission->name))
             ->unique()
+            ->values();
+        $newPermissionIds = Permission::query()
+            ->whereIn('name', $canonicalNames)
+            ->pluck('id')
             ->sort()
             ->values()
             ->all();
@@ -109,8 +131,6 @@ class RolePermissionController extends Controller
 
     private function canAccessRolePermissions(User $user): bool
     {
-        return $user->isSuperAdmin()
-            || ($user->hasRole('admin_kabupaten_dinkominfo')
-                && $user->hasAnyPermission(['roles.manage', 'manage_roles']));
+        return $user->hasAnyPermission(['roles.manage', 'manage_roles']);
     }
 }

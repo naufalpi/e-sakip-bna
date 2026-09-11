@@ -151,6 +151,57 @@ class MasterAccessTest extends TestCase
         ]);
     }
 
+    public function test_role_permission_page_merges_legacy_permission_aliases(): void
+    {
+        $this->seed();
+
+        $admin = User::factory()->create();
+        $admin->roles()->sync([Role::where('name', 'admin_kabupaten_dinkominfo')->value('id')]);
+
+        $role = Role::where('name', 'admin_kabupaten_bagian_organisasi')->firstOrFail();
+        $canonical = Permission::where('name', 'renstra.manage')->firstOrFail();
+        $legacy = Permission::where('name', 'manage_renstra_opd')->firstOrFail();
+        $role->permissions()->detach($canonical->id);
+        $role->permissions()->syncWithoutDetaching([$legacy->id]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('master.role-permission.index'))
+            ->assertOk();
+
+        $permissionGroups = collect($response->viewData('page')['props']['permissionGroups']);
+        $renstraPermissions = collect($permissionGroups->firstWhere('module', 'renstra')['items']);
+        $organizationRole = collect($response->viewData('page')['props']['roles'])->firstWhere('id', $role->id);
+
+        $this->assertSame(1, $renstraPermissions->where('name', 'renstra.manage')->count());
+        $this->assertFalse($renstraPermissions->contains('name', 'manage_renstra_opd'));
+        $this->assertContains($canonical->id, $organizationRole['permission_ids']);
+
+        $legacyUser = User::factory()->create();
+        $legacyUser->roles()->sync([$role->id]);
+        $this->assertTrue($legacyUser->hasPermission('renstra.manage'));
+    }
+
+    public function test_saving_legacy_permission_id_stores_its_canonical_permission(): void
+    {
+        $this->seed();
+
+        $admin = User::factory()->create();
+        $admin->roles()->sync([Role::where('name', 'admin_kabupaten_dinkominfo')->value('id')]);
+
+        $role = Role::where('name', 'admin_kabupaten_bagian_organisasi')->firstOrFail();
+        $canonical = Permission::where('name', 'renstra.manage')->firstOrFail();
+        $legacy = Permission::where('name', 'manage_renstra_opd')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->patch(route('master.role-permission.update', $role), [
+                'permission_ids' => [$legacy->id],
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue($role->fresh()->permissions()->whereKey($canonical->id)->exists());
+        $this->assertFalse($role->fresh()->permissions()->whereKey($legacy->id)->exists());
+    }
+
     public function test_role_permissions_cannot_be_updated_by_read_only_role(): void
     {
         $this->seed();

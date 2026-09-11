@@ -135,7 +135,9 @@ const saveSelectedRole = () => {
         <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
                 <h1 class="text-2xl font-semibold tracking-normal">Role Permission</h1>
-                <p class="mt-1 text-sm text-muted-foreground">Pilih satu role, lalu atur hak akses modul yang diperlukan.</p>
+                <p class="mt-1 text-sm text-muted-foreground">
+                    Pilih satu role, lalu atur hak akses modul yang diperlukan. Permission lama yang setara digabung otomatis.
+                </p>
             </div>
             <div class="grid grid-cols-2 gap-2 text-sm sm:flex">
                 <div class="rounded-md border bg-card px-3 py-2">

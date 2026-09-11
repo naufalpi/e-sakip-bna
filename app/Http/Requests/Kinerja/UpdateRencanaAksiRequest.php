@@ -3,10 +3,18 @@
 namespace App\Http\Requests\Kinerja;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class UpdateRencanaAksiRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('judul'))) {
+            $this->merge(['judul' => Str::upper(trim($this->input('judul')))]);
+        }
+    }
+
     public function authorize(): bool
     {
         if (! $this->user()->can('update', $this->route('rencana_aksi'))) {

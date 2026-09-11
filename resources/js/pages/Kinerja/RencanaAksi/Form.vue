@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { AlertCircle, ArrowLeft, CheckCircle2, FileCheck2, Layers3 } from 'lucide-vue-next';
+import { AlertCircle, ArrowLeft, CheckCircle2, ClipboardList, FileCheck2, Layers3 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
 type Readiness = { ready: boolean; issues: string[]; warnings: string[]; counts: Record<string, number> };
@@ -12,6 +12,7 @@ type PkOption = {
     periode_tahun_id: number;
     tahun: number;
     opd_label?: string | null;
+    opd_name?: string | null;
     renstra_label?: string | null;
     dpa_label?: string | null;
     readiness: Readiness | null;
@@ -45,7 +46,7 @@ const form = useForm<FormData>({
     perjanjian_kinerja_id: props.item?.perjanjian_kinerja_id ?? '',
     periode_tahun_id: props.item?.periode_tahun_id ?? '',
     tahun: props.item?.tahun ?? new Date().getFullYear(),
-    judul: props.item?.judul ?? '',
+    judul: props.item?.judul?.toLocaleUpperCase('id-ID') ?? '',
     status: props.item?.status ?? 'draft',
     catatan: props.item?.catatan ?? '',
 });
@@ -54,6 +55,13 @@ const selectedPk = computed(() => props.perjanjianKinerjaOptions.find((option) =
 const selectedReadiness = ref<Readiness | null>(null);
 const readinessLoading = ref(false);
 let readinessRequest = 0;
+
+const rencanaAksiTitle = (pk: PkOption) => {
+    const opdName = (pk.opd_name || pk.opd_label || 'OPD').trim().toLocaleUpperCase('id-ID');
+    const regionSuffix = opdName.includes('KABUPATEN BANJARNEGARA') ? '' : ' KABUPATEN BANJARNEGARA';
+
+    return `RENCANA AKSI TAHUN ${pk.tahun} ${opdName}${regionSuffix}`;
+};
 
 watch(selectedPk, async (pk) => {
     const requestId = ++readinessRequest;
@@ -66,7 +74,7 @@ watch(selectedPk, async (pk) => {
     form.periode_tahun_id = pk.periode_tahun_id;
     form.tahun = pk.tahun;
     form.status = 'draft';
-    form.judul = `RENCANA AKSI ${pk.opd_label || 'OPD'} TAHUN ${pk.tahun}`;
+    form.judul = rencanaAksiTitle(pk);
     readinessLoading.value = true;
     try {
         const response = await fetch(route('rencana-aksi.pk-readiness', { perjanjianKinerja: pk.id }), {
@@ -89,6 +97,14 @@ watch(selectedPk, async (pk) => {
     }
 });
 
+watch(
+    () => form.judul,
+    (value) => {
+        const uppercase = value.toLocaleUpperCase('id-ID');
+        if (value !== uppercase) form.judul = uppercase;
+    },
+);
+
 const submit = () => {
     if (props.mode === 'create') form.post(route('rencana-aksi.store'));
     else if (props.item) form.put(route('rencana-aksi.update', { rencana_aksi: props.item.id }));
@@ -97,35 +113,47 @@ const submit = () => {
 
 <template>
     <Head :title="mode === 'create' ? 'Buat Rencana Aksi' : 'Edit Rencana Aksi'" />
-    <main class="mx-auto flex w-full max-w-[1400px] flex-col gap-5 p-4 sm:p-6">
-        <header class="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-950 to-blue-800 px-5 py-6 text-white shadow-sm sm:px-7">
-            <Link
-                :href="route('rencana-aksi.index')"
-                class="mb-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/25 px-3 text-sm font-medium hover:bg-white/10"
-            >
-                <ArrowLeft class="size-4" /> Kembali
-            </Link>
-            <h1 class="text-2xl font-bold tracking-tight">{{ mode === 'create' ? 'Buat Rencana Aksi OPD' : 'Edit Rencana Aksi OPD' }}</h1>
-            <p class="mt-1 max-w-3xl text-sm leading-6 text-blue-100">
-                Matriks dibentuk dari PK Kepala OPD yang sudah resmi, lalu dilengkapi dengan cascading RENSTRA dan anggaran DPA/DPPA.
-            </p>
+    <main class="mx-auto flex w-full max-w-[1280px] flex-col gap-4 p-4 sm:p-6">
+        <header class="rounded-xl border bg-card px-5 py-5 shadow-sm sm:px-6">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div class="flex min-w-0 items-start gap-3.5">
+                    <span class="grid size-11 shrink-0 place-items-center rounded-lg border bg-muted/40 text-foreground">
+                        <ClipboardList class="size-5" />
+                    </span>
+                    <div class="min-w-0">
+                        <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Rencana Aksi OPD</p>
+                        <h1 class="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
+                            {{ mode === 'create' ? 'Buat Rencana Aksi' : 'Edit Rencana Aksi' }}
+                        </h1>
+                        <p class="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                            Pilih PK Kepala OPD sebagai sumber, periksa kelengkapannya, kemudian lengkapi identitas dokumen.
+                        </p>
+                    </div>
+                </div>
+                <Link
+                    :href="route('rencana-aksi.index')"
+                    class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border bg-background px-3.5 text-sm font-semibold transition-colors hover:bg-muted"
+                >
+                    <ArrowLeft class="size-4" /> Kembali
+                </Link>
+            </div>
         </header>
 
-        <form class="flex flex-col gap-5" @submit.prevent="submit">
-            <section v-if="mode === 'create'" class="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+        <form class="flex flex-col gap-4" @submit.prevent="submit">
+            <section v-if="mode === 'create'" class="rounded-xl border bg-card p-5 shadow-sm sm:p-6">
                 <div class="flex items-start gap-3">
-                    <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-800"><FileCheck2 class="size-5" /></span>
+                    <span class="grid size-10 shrink-0 place-items-center rounded-lg border bg-muted/40 text-foreground"><FileCheck2 class="size-5" /></span>
                     <div>
-                        <h2 class="font-semibold">Pilih PK Kepala OPD</h2>
+                        <h2 class="font-bold">Pilih PK Kepala OPD</h2>
                         <p class="mt-1 text-sm text-muted-foreground">Hanya PK berstatus disetujui atau terkunci yang dapat digunakan.</p>
                     </div>
                 </div>
-                <div class="mt-5 grid max-w-4xl gap-2">
+                <div class="mt-5 grid max-w-5xl gap-2">
                     <label for="perjanjian_kinerja_id" class="text-sm font-semibold">Perjanjian Kinerja <span class="text-red-600">*</span></label>
                     <select
                         id="perjanjian_kinerja_id"
                         v-model="form.perjanjian_kinerja_id"
-                        class="min-h-11 rounded-lg border bg-background px-3 text-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                        class="min-h-11 rounded-lg border bg-background px-3 text-sm outline-none transition-shadow focus:border-slate-500 focus:ring-2 focus:ring-slate-200/70 dark:focus:ring-slate-700"
                     >
                         <option value="">Pilih PK Kepala OPD</option>
                         <option v-for="option in perjanjianKinerjaOptions" :key="option.id" :value="option.id">
@@ -143,13 +171,14 @@ const submit = () => {
 
                 <div
                     v-if="selectedPk && readinessLoading"
-                    class="mt-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm font-medium text-blue-900"
+                    class="mt-5 flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3.5 text-sm font-medium text-foreground"
                 >
+                    <span class="size-2 animate-pulse rounded-full bg-slate-500" aria-hidden="true"></span>
                     Memeriksa keterhubungan PK, RENSTRA, RENJA, dan DPA/DPPA…
                 </div>
                 <div
                     v-else-if="selectedPk && selectedReadiness"
-                    class="mt-5 overflow-hidden rounded-xl border"
+                    class="mt-5 overflow-hidden rounded-lg border"
                     :class="selectedReadiness.ready ? 'border-emerald-200' : 'border-red-200'"
                 >
                     <div
@@ -192,9 +221,9 @@ const submit = () => {
                 </div>
             </section>
 
-            <section v-else class="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+            <section v-else class="rounded-xl border bg-card p-5 shadow-sm sm:p-6">
                 <div class="flex items-start gap-3">
-                    <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><Layers3 class="size-5" /></span>
+                    <span class="grid size-10 shrink-0 place-items-center rounded-lg border bg-muted/40 text-foreground"><Layers3 class="size-5" /></span>
                     <div>
                         <h2 class="font-semibold">Sumber snapshot</h2>
                         <p class="mt-1 text-sm text-muted-foreground">Sumber tidak dapat diganti setelah matriks dibentuk.</p>
@@ -216,16 +245,22 @@ const submit = () => {
                 </dl>
             </section>
 
-            <section class="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
-                <h2 class="font-semibold">Identitas dokumen</h2>
-                <div class="mt-5 grid max-w-4xl gap-5">
+            <section class="rounded-xl border bg-card p-5 shadow-sm sm:p-6">
+                <div>
+                    <h2 class="font-bold">Identitas dokumen</h2>
+                    <p class="mt-1 text-sm text-muted-foreground">Judul disiapkan otomatis dan masih dapat disesuaikan sebelum disimpan.</p>
+                </div>
+                <div class="mt-5 grid max-w-5xl gap-5">
                     <div class="grid gap-2">
                         <label for="judul" class="text-sm font-semibold">Judul <span class="text-red-600">*</span></label
                         ><input
                             id="judul"
                             v-model="form.judul"
-                            class="min-h-11 rounded-lg border bg-background px-3 text-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                        /><InputError :message="form.errors.judul" />
+                            placeholder="RENCANA AKSI TAHUN 2026 DINAS KOMUNIKASI DAN INFORMATIKA KABUPATEN BANJARNEGARA"
+                            class="min-h-11 rounded-lg border bg-background px-3 text-sm outline-none transition-shadow focus:border-slate-500 focus:ring-2 focus:ring-slate-200/70 dark:focus:ring-slate-700"
+                        />
+                        <p class="text-xs text-muted-foreground">Diisi otomatis dari tahun dan nama lengkap OPD. Seluruh judul disimpan dengan huruf kapital.</p>
+                        <InputError :message="form.errors.judul" />
                     </div>
                     <div class="grid gap-2">
                         <label for="catatan" class="text-sm font-semibold"
@@ -234,22 +269,22 @@ const submit = () => {
                             id="catatan"
                             v-model="form.catatan"
                             rows="4"
-                            class="rounded-lg border bg-background px-3 py-2 text-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                            class="rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-shadow focus:border-slate-500 focus:ring-2 focus:ring-slate-200/70 dark:focus:ring-slate-700"
                         /><InputError :message="form.errors.catatan" />
                     </div>
                 </div>
             </section>
 
-            <div class="flex justify-end gap-3">
+            <div class="flex flex-col-reverse justify-end gap-3 rounded-xl border bg-card p-4 shadow-sm sm:flex-row">
                 <Link
                     :href="route('rencana-aksi.index')"
-                    class="inline-flex min-h-11 items-center rounded-lg border px-4 text-sm font-semibold hover:bg-muted"
+                    class="inline-flex min-h-11 items-center justify-center rounded-lg border bg-background px-4 text-sm font-semibold transition-colors hover:bg-muted"
                     >Batal</Link
                 >
                 <button
                     type="submit"
                     :disabled="form.processing || readinessLoading || (mode === 'create' && !selectedReadiness?.ready)"
-                    class="min-h-11 rounded-lg bg-blue-800 px-5 text-sm font-semibold text-white hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="min-h-11 rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
                 >
                     {{ form.processing ? 'Menyimpan…' : mode === 'create' ? 'Buat Matriks Rencana Aksi' : 'Simpan Perubahan' }}
                 </button>
