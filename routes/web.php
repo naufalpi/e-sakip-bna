@@ -171,9 +171,11 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::put('perjanjian-kinerja/{perjanjian_kinerja}/items/{item}', [PerjanjianKinerjaItemController::class, 'update'])->name('perjanjian-kinerja.items.update');
     Route::delete('perjanjian-kinerja/{perjanjian_kinerja}/items/{item}', [PerjanjianKinerjaItemController::class, 'destroy'])->name('perjanjian-kinerja.items.destroy');
 
+    Route::get('rencana-aksi/pk-readiness/{perjanjianKinerja}', [RencanaAksiController::class, 'sourceReadiness'])->name('rencana-aksi.pk-readiness');
     Route::resource('rencana-aksi', RencanaAksiController::class);
     Route::post('rencana-aksi/{rencana_aksi}/export', [RencanaAksiController::class, 'export'])->name('rencana-aksi.export');
     Route::post('rencana-aksi/{rencana_aksi}/items', [RencanaAksiItemController::class, 'store'])->name('rencana-aksi.items.store');
+    Route::put('rencana-aksi/{rencana_aksi}/matrix', [RencanaAksiItemController::class, 'updateMatrix'])->name('rencana-aksi.matrix.update');
     Route::put('rencana-aksi/{rencana_aksi}/items/{item}', [RencanaAksiItemController::class, 'update'])->name('rencana-aksi.items.update');
     Route::delete('rencana-aksi/{rencana_aksi}/items/{item}', [RencanaAksiItemController::class, 'destroy'])->name('rencana-aksi.items.destroy');
 

@@ -4,6 +4,7 @@ namespace App\Services\Workflow;
 
 use App\Models\DpaOpd;
 use App\Models\PerjanjianKinerja;
+use App\Models\RencanaAksi;
 use App\Models\RenjaOpd;
 use App\Models\RenstraOpd;
 use App\Models\RkaOpd;
@@ -13,6 +14,7 @@ use App\Models\User;
 use App\Models\WorkflowHistory;
 use App\Models\WorkflowSubmission;
 use App\Services\Kinerja\PerjanjianKinerjaReadinessService;
+use App\Services\Kinerja\RencanaAksiReadinessService;
 use App\Services\Penganggaran\DpaReadinessService;
 use App\Services\Penganggaran\RkaReadinessService;
 use App\Services\Perencanaan\DocumentVersionActivationService;
@@ -34,6 +36,7 @@ class WorkflowTransitionService
         private readonly RkaReadinessService $rkaReadinessService,
         private readonly DpaReadinessService $dpaReadinessService,
         private readonly PerjanjianKinerjaReadinessService $perjanjianKinerjaReadinessService,
+        private readonly RencanaAksiReadinessService $rencanaAksiReadinessService,
         private readonly DocumentCorrectionService $documentCorrectionService,
     ) {}
 
@@ -73,6 +76,10 @@ class WorkflowTransitionService
 
         if ($model instanceof PerjanjianKinerja && in_array($action, ['submit', 'verify', 'approve'], true)) {
             $this->perjanjianKinerjaReadinessService->ensureReady($model);
+        }
+
+        if ($model instanceof RencanaAksi && in_array($action, ['submit', 'verify', 'approve'], true)) {
+            $this->rencanaAksiReadinessService->ensureReady($model);
         }
 
         $relatedTable = $model->getTable();

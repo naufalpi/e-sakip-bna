@@ -661,10 +661,11 @@ class PerjanjianKinerjaController extends Controller
             }
         }
 
-        $workUnit = $placement?->jabatanOrganisasi?->opdUnit?->nama
+        $submittedWorkUnit = trim((string) ($data['unit_kerja_snapshot'] ?? ''));
+        $workUnit = $submittedWorkUnit
+            ?: $placement?->jabatanOrganisasi?->opdUnit?->nama
             ?: $placement?->jabatanOrganisasi?->parent?->opdUnit?->nama
-            ?: $pegawai->opdUnit?->nama
-            ?: trim((string) ($data['unit_kerja_snapshot'] ?? ''));
+            ?: $pegawai->opdUnit?->nama;
         if ($isManualIndividual && $placement && blank($workUnit)) {
             throw ValidationException::withMessages([
                 'unit_kerja_snapshot' => 'Unit Kerja belum tersedia otomatis. Isi nama Bidang/Bagian untuk dokumen PK ini.',

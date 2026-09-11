@@ -12,10 +12,14 @@ use App\Models\RencanaAksi;
 use App\Models\RencanaAksiItem;
 use App\Models\User;
 use App\Models\WorkflowSubmission;
+use App\Services\Kinerja\RencanaAksiSnapshotService;
 use App\Services\Perencanaan\PerencanaanHierarchyValidationService;
+use App\Support\Pagination\PerPagePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -29,10 +33,11 @@ class RencanaAksiController extends Controller
     {
         $this->authorize('viewAny', RencanaAksi::class);
 
-        $filters = $request->only(['search', 'status', 'opd_id', 'periode_tahun_id', 'tahun']);
+        $filters = $request->only(['search', 'status', 'opd_id', 'periode_tahun_id', 'tahun', 'per_page']);
+        $filters['per_page'] = PerPagePaginator::selection($request);
         $user = $request->user();
 
-        $items = RencanaAksi::query()
+        $itemsQuery = RencanaAksi::query()
             ->with(['opd:id,kode,nama,singkatan', 'periodeTahun:id,tahun,nama', 'perjanjianKinerja:id,judul,tahun'])
             ->withCount('items')
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
@@ -47,14 +52,15 @@ class RencanaAksiController extends Controller
             ->when($filters['periode_tahun_id'] ?? null, fn (Builder $query, string $periodeId) => $query->where('periode_tahun_id', $periodeId))
             ->when($filters['tahun'] ?? null, fn (Builder $query, string $tahun) => $query->where('tahun', $tahun))
             ->orderByDesc('tahun')
-            ->latest('id')
-            ->paginate(10)
-            ->withQueryString()
+            ->latest('id');
+
+        $items = PerPagePaginator::paginate($itemsQuery, $request)
             ->through(fn (RencanaAksi $rencanaAksi) => [
                 'id' => $rencanaAksi->id,
                 'judul' => $rencanaAksi->judul,
                 'tahun' => $rencanaAksi->tahun,
                 'status' => $rencanaAksi->status,
+                'format_version' => $rencanaAksi->format_version,
                 'items_count' => $rencanaAksi->items_count,
                 'opd' => $rencanaAksi->opd,
                 'periode_tahun' => $rencanaAksi->periodeTahun,
@@ -81,17 +87,55 @@ class RencanaAksiController extends Controller
             'item' => null,
             'opdOptions' => $this->opdOptions($request->user()),
             'periodeOptions' => $this->periodeOptions(),
-            'perjanjianKinerjaOptions' => $this->perjanjianKinerjaOptions($request->user()),
+            'perjanjianKinerjaOptions' => $this->rencanaAksiSourceOptions($request),
         ]);
     }
 
-    public function store(StoreRencanaAksiRequest $request, PerencanaanHierarchyValidationService $hierarchyValidation): RedirectResponse
+    public function sourceReadiness(Request $request, PerjanjianKinerja $perjanjianKinerja, RencanaAksiSnapshotService $snapshotService): JsonResponse
     {
-        $data = $request->validated();
-        $this->assertPerjanjianKinerjaBelongsToOpd($data['perjanjian_kinerja_id'] ?? null, (int) $data['opd_id']);
-        $hierarchyValidation->ensureRencanaAksiCanBeCreated($this->findPerjanjianKinerja($data['perjanjian_kinerja_id'] ?? null));
+        $this->authorize('create', RencanaAksi::class);
+        if ($this->shouldLimitToUserOpd($request->user()) && (int) $perjanjianKinerja->opd_id !== (int) $request->user()->opd_id) {
+            abort(403);
+        }
 
-        $rencanaAksi = RencanaAksi::create($data);
+        return response()->json($snapshotService->inspect($perjanjianKinerja));
+    }
+
+    public function store(
+        StoreRencanaAksiRequest $request,
+        RencanaAksiSnapshotService $snapshotService,
+        PerencanaanHierarchyValidationService $hierarchyValidation,
+    ): RedirectResponse {
+        $data = $request->validated();
+        $pk = PerjanjianKinerja::query()->findOrFail($data['perjanjian_kinerja_id']);
+        $this->assertPerjanjianKinerjaBelongsToOpd($pk->id, (int) $data['opd_id']);
+        $rencanaAksi = DB::transaction(function () use ($data, $pk, $snapshotService, $hierarchyValidation): RencanaAksi {
+            $pk = PerjanjianKinerja::query()->lockForUpdate()->findOrFail($pk->id);
+            if (RencanaAksi::query()->where('perjanjian_kinerja_id', $pk->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'perjanjian_kinerja_id' => 'Rencana Aksi untuk PK Kepala OPD ini sudah tersedia.',
+                ]);
+            }
+
+            if ($pk->level_pk !== 'kepala_opd') {
+                $hierarchyValidation->ensureRencanaAksiCanBeCreated($pk);
+
+                return RencanaAksi::create([...$data, 'status' => 'draft']);
+            }
+
+            $snapshotService->ensureReady($pk);
+            $rencanaAksi = RencanaAksi::create([
+                ...$data,
+                'opd_id' => $pk->opd_id,
+                'periode_tahun_id' => $pk->periode_tahun_id,
+                'tahun' => $pk->tahun,
+                'status' => 'draft',
+                'format_version' => 2,
+            ]);
+            $snapshotService->populate($rencanaAksi, $pk);
+
+            return $rencanaAksi;
+        });
 
         return redirect()->route('rencana-aksi.show', $rencanaAksi)->with('success', 'Rencana Aksi berhasil ditambahkan.');
     }
@@ -104,16 +148,19 @@ class RencanaAksiController extends Controller
             'opd:id,kode,nama,singkatan',
             'periodeTahun:id,tahun,nama',
             'perjanjianKinerja:id,judul,tahun,status',
+            'renstraOpd:id,judul,tahun_awal,tahun_akhir',
+            'dpaOpd:id,judul,jenis_anggaran,nomor_dpa',
             'items.perjanjianKinerjaItem:id,kode,indikator',
             'items.opdProgram:id,kode,nama',
             'items.opdKegiatan:id,kode,nama',
             'items.opdSubKegiatan:id,kode,nama',
+            'items.targetTriwulan:id,rencana_aksi_item_id,triwulan,target,target_text',
         ]);
 
         return Inertia::render('Kinerja/RencanaAksi/Show', [
             'item' => $this->serializeRencanaAksi($rencanaAksi),
-            'nodeOptions' => $request->user()->can('update', $rencanaAksi) ? $this->nodeOptionsForOpd((int) $rencanaAksi->opd_id) : [],
-            'perjanjianKinerjaItemOptions' => $request->user()->can('update', $rencanaAksi) ? $this->perjanjianKinerjaItemOptions((int) $rencanaAksi->opd_id) : [],
+            'nodeOptions' => (int) $rencanaAksi->format_version < 2 && $request->user()->can('update', $rencanaAksi) ? $this->nodeOptionsForOpd((int) $rencanaAksi->opd_id) : [],
+            'perjanjianKinerjaItemOptions' => (int) $rencanaAksi->format_version < 2 && $request->user()->can('update', $rencanaAksi) ? $this->perjanjianKinerjaItemOptions((int) $rencanaAksi->opd_id) : [],
             'workflow' => $this->workflowData($rencanaAksi, 'rencana_aksi'),
             'can' => [
                 'manage' => $request->user()->can('update', $rencanaAksi),
@@ -143,6 +190,7 @@ class RencanaAksiController extends Controller
     public function edit(Request $request, RencanaAksi $rencanaAksi): Response
     {
         $this->authorize('update', $rencanaAksi);
+        $rencanaAksi->load(['opd:id,nama,singkatan', 'perjanjianKinerja:id,judul', 'renstraOpd:id,judul', 'dpaOpd:id,judul,jenis_anggaran']);
 
         return Inertia::render('Kinerja/RencanaAksi/Form', [
             'mode' => 'edit',
@@ -155,20 +203,24 @@ class RencanaAksiController extends Controller
                 'judul' => $rencanaAksi->judul,
                 'status' => $rencanaAksi->status,
                 'catatan' => $rencanaAksi->catatan,
+                'perjanjian_kinerja_label' => $rencanaAksi->perjanjianKinerja?->judul,
+                'opd_label' => $rencanaAksi->opd?->singkatan ?: $rencanaAksi->opd?->nama,
+                'renstra_label' => $rencanaAksi->renstraOpd?->judul,
+                'dpa_label' => $rencanaAksi->dpaOpd ? $rencanaAksi->dpaOpd->typeLabel().' - '.$rencanaAksi->dpaOpd->judul : null,
             ],
             'opdOptions' => $this->opdOptions($request->user()),
             'periodeOptions' => $this->periodeOptions(),
-            'perjanjianKinerjaOptions' => $this->perjanjianKinerjaOptions($request->user()),
+            'perjanjianKinerjaOptions' => [],
         ]);
     }
 
-    public function update(UpdateRencanaAksiRequest $request, RencanaAksi $rencanaAksi, PerencanaanHierarchyValidationService $hierarchyValidation): RedirectResponse
+    public function update(UpdateRencanaAksiRequest $request, RencanaAksi $rencanaAksi): RedirectResponse
     {
         $data = $request->validated();
-        $this->assertPerjanjianKinerjaBelongsToOpd($data['perjanjian_kinerja_id'] ?? null, (int) $data['opd_id']);
-        $hierarchyValidation->ensureRencanaAksiCanBeCreated($this->findPerjanjianKinerja($data['perjanjian_kinerja_id'] ?? null));
-
-        $rencanaAksi->update($data);
+        $rencanaAksi->update([
+            'judul' => $data['judul'],
+            'catatan' => $data['catatan'] ?? null,
+        ]);
 
         return redirect()->route('rencana-aksi.show', $rencanaAksi)->with('success', 'Rencana Aksi berhasil diperbarui.');
     }
@@ -190,9 +242,19 @@ class RencanaAksiController extends Controller
             'tahun' => $rencanaAksi->tahun,
             'status' => $rencanaAksi->status,
             'catatan' => $rencanaAksi->catatan,
+            'format_version' => $rencanaAksi->format_version,
+            'snapshot_dibuat_pada' => $rencanaAksi->snapshot_dibuat_pada?->toIso8601String(),
             'opd' => $rencanaAksi->opd,
             'periode_tahun' => $rencanaAksi->periodeTahun,
             'perjanjian_kinerja' => $rencanaAksi->perjanjianKinerja,
+            'renstra_opd' => $rencanaAksi->renstraOpd,
+            'dpa_opd' => $rencanaAksi->dpaOpd ? [
+                'id' => $rencanaAksi->dpaOpd->id,
+                'judul' => $rencanaAksi->dpaOpd->judul,
+                'jenis_anggaran' => $rencanaAksi->dpaOpd->jenis_anggaran,
+                'nomor_dpa' => $rencanaAksi->dpaOpd->nomor_dpa,
+                'label' => $rencanaAksi->dpaOpd->typeLabel(),
+            ] : null,
             'items' => $rencanaAksi->items->map(fn (RencanaAksiItem $item) => [
                 'id' => $item->id,
                 'perjanjian_kinerja_item_id' => $item->perjanjian_kinerja_item_id,
@@ -210,12 +272,55 @@ class RencanaAksiController extends Controller
                 'penanggung_jawab' => $item->penanggung_jawab,
                 'status' => $item->status,
                 'urutan' => $item->urutan,
+                'level' => $item->level,
+                'kode_snapshot' => $item->kode_snapshot,
+                'uraian_snapshot' => $item->uraian_snapshot,
+                'formula_snapshot' => $item->formula_snapshot,
+                'formula' => $item->formula,
+                'satuan_snapshot' => $item->satuan_snapshot,
+                'tipe_perhitungan_snapshot' => $item->tipe_perhitungan_snapshot,
+                'is_snapshot' => $item->is_snapshot,
+                'target_triwulan' => $item->targetTriwulan->map(fn ($target) => [
+                    'triwulan' => $target->triwulan,
+                    'target' => $target->target,
+                    'target_text' => $target->target_text,
+                ])->values(),
                 'perjanjian_kinerja_item' => $item->perjanjianKinerjaItem,
                 'opd_program' => $item->opdProgram,
                 'opd_kegiatan' => $item->opdKegiatan,
                 'opd_sub_kegiatan' => $item->opdSubKegiatan,
             ]),
         ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function rencanaAksiSourceOptions(Request $request): array
+    {
+        $user = $request->user();
+
+        return PerjanjianKinerja::query()
+            ->with(['opd:id,nama,singkatan', 'renstraOpd:id,judul', 'dpaOpd:id,judul,jenis_anggaran'])
+            ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
+            ->where('level_pk', 'kepala_opd')
+            ->where('tipe_pk', 'cascading')
+            ->whereIn('status', ['approved', 'locked'])
+            ->whereHas('items')
+            ->whereDoesntHave('rencanaAksi')
+            ->orderByDesc('tahun')->orderByDesc('id')
+            ->get()
+            ->map(function (PerjanjianKinerja $pk): array {
+                return [
+                    'id' => $pk->id,
+                    'opd_id' => $pk->opd_id,
+                    'periode_tahun_id' => $pk->periode_tahun_id,
+                    'tahun' => $pk->tahun,
+                    'label' => "{$pk->tahun} - {$pk->judul}",
+                    'opd_label' => $pk->opd?->singkatan ?: $pk->opd?->nama,
+                    'renstra_label' => $pk->renstraOpd?->judul,
+                    'dpa_label' => $pk->dpaOpd ? $pk->dpaOpd->typeLabel().' - '.$pk->dpaOpd->judul : null,
+                    'readiness' => null,
+                ];
+            })->values()->all();
     }
 
     private function workflowData(RencanaAksi $rencanaAksi, string $module): ?array

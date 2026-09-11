@@ -61,9 +61,10 @@ class ReportDocumentRenderService
             : $this->html($report);
 
         $dompdf->loadHtml($html, 'UTF-8');
+        $isLandscape = data_get($report, 'metadata.orientation') === 'landscape';
         $dompdf->setPaper($isPerformanceAgreement
             ? [0, 0, 595.2756, 935.4331]
-            : 'A4');
+            : 'A4', $isLandscape ? 'landscape' : 'portrait');
         $dompdf->render();
 
         return $dompdf->output();
@@ -98,6 +99,11 @@ class ReportDocumentRenderService
             'marginBottom' => 900,
             'marginLeft' => 1100,
         ];
+        if (data_get($report, 'metadata.orientation') === 'landscape') {
+            $sectionSettings['orientation'] = 'landscape';
+            $sectionSettings['marginRight'] = 700;
+            $sectionSettings['marginLeft'] = 700;
+        }
 
         $section = $phpWord->addSection($sectionSettings);
 
@@ -467,14 +473,18 @@ class ReportDocumentRenderService
         $sections = collect($report['sections'])
             ->map(fn (array $section) => '<section class="chapter"><h2>'.e($section['heading']).'</h2>'.$this->paragraphsHtml($section['content']).'</section>')
             ->implode('');
+        $pageCss = data_get($report, 'metadata.orientation') === 'landscape'
+            ? '@page { size: A4 landscape; margin: 15mm 12mm; }'
+            : '@page { margin: 24mm 20mm 22mm 20mm; }';
+        $bodyFontSize = data_get($report, 'metadata.orientation') === 'landscape' ? 8 : 11;
 
         return '<!doctype html>
 <html lang="id">
 <head>
     <meta charset="utf-8">
     <style>
-        @page { margin: 24mm 20mm 22mm 20mm; }
-        body { color: #111827; font-family: "DejaVu Sans", sans-serif; font-size: 11px; line-height: 1.55; }
+        '.$pageCss.'
+        body { color: #111827; font-family: "DejaVu Sans", sans-serif; font-size: '.$bodyFontSize.'px; line-height: 1.55; }
         h1, h2, h3 { color: #0f172a; }
         h1 { font-size: 20px; margin: 0 0 6px; text-align: center; text-transform: uppercase; }
         h2 { border-bottom: 1px solid #64748b; font-size: 14px; margin: 22px 0 10px; padding-bottom: 4px; text-transform: uppercase; }
@@ -580,11 +590,14 @@ class ReportDocumentRenderService
         return collect($tables)
             ->map(function (array $table) {
                 $headers = collect($table['headers'])->map(fn (string $header) => '<th>'.e($header).'</th>')->implode('');
+                $rawWidths = collect($table['widths'] ?? [])->map(fn (int $width) => max(1, $width));
+                $totalWidth = max(1, $rawWidths->sum());
+                $widths = $rawWidths->map(fn (int $width) => '<col style="width: '.round(($width / $totalWidth) * 100, 2).'%">')->implode('');
                 $rows = collect($table['rows'])->map(function (array $row) {
                     return '<tr>'.collect($row)->map(fn (string $cell) => '<td>'.e($cell).'</td>')->implode('').'</tr>';
                 })->implode('');
 
-                return '<section><h2>'.e($table['title']).'</h2><table><thead><tr>'.$headers.'</tr></thead><tbody>'.$rows.'</tbody></table></section>';
+                return '<section><h2>'.e($table['title']).'</h2><table>'.($widths ? '<colgroup>'.$widths.'</colgroup>' : '').'<thead><tr>'.$headers.'</tr></thead><tbody>'.$rows.'</tbody></table></section>';
             })
             ->implode('');
     }
@@ -699,15 +712,17 @@ class ReportDocumentRenderService
             $table = $section->addTable('OfficialTable');
             $table->addRow();
 
-            foreach ($tableData['headers'] as $header) {
-                $table->addCell(1800)->addText($header, ['bold' => true]);
+            foreach ($tableData['headers'] as $index => $header) {
+                $width = (int) ($tableData['widths'][$index] ?? 1800);
+                $table->addCell($width)->addText($header, ['bold' => true]);
             }
 
             foreach ($tableData['rows'] as $row) {
                 $table->addRow();
 
-                foreach ($row as $cell) {
-                    $table->addCell(1800)->addText($cell, ['size' => 9]);
+                foreach ($row as $index => $cell) {
+                    $width = (int) ($tableData['widths'][$index] ?? 1800);
+                    $table->addCell($width)->addText($cell, ['size' => count($tableData['headers']) > 8 ? 7 : 9]);
                 }
             }
 

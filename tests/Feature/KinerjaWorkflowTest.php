@@ -9,6 +9,7 @@ use App\Models\IndikatorOpdKegiatan;
 use App\Models\IndikatorOpdProgram;
 use App\Models\IndikatorSasaranOpd;
 use App\Models\IndikatorSubKegiatan;
+use App\Models\IndikatorTujuanOpd;
 use App\Models\JabatanOrganisasi;
 use App\Models\Opd;
 use App\Models\OpdKegiatan;
@@ -31,8 +32,11 @@ use App\Models\TargetIndikatorOpdKegiatan;
 use App\Models\TargetIndikatorOpdProgram;
 use App\Models\TargetIndikatorSasaranOpd;
 use App\Models\TargetIndikatorSubKegiatan;
+use App\Models\TargetIndikatorTujuanOpd;
 use App\Models\TujuanOpd;
 use App\Models\User;
+use App\Services\Kinerja\KinerjaReportContentService;
+use App\Services\Reports\ReportDocumentRenderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -163,12 +167,14 @@ class KinerjaWorkflowTest extends TestCase
             'periode_tahun_id' => $periode->id,
             'tahun' => $periode->tahun,
             'tanggal_dokumen' => now()->toDateString(),
+            'unit_kerja_snapshot' => 'Unit Kerja yang Disesuaikan',
         ]);
 
         $this->assertSame($owner->nama, $data['nama_pegawai_snapshot']);
         $this->assertSame($head->nama, $data['nama_atasan_snapshot']);
         $this->assertSame($childJob->nama, $data['jabatan_snapshot']);
         $this->assertSame($headJob->nama, $data['jabatan_atasan_snapshot']);
+        $this->assertSame('Unit Kerja yang Disesuaikan', $data['unit_kerja_snapshot']);
     }
 
     public function test_pk_edit_keeps_saved_inactive_subjects_available(): void
@@ -669,6 +675,142 @@ class KinerjaWorkflowTest extends TestCase
                 ->where('documentPreview.activity_budget_groups.0.sub_activities.0.name', 'Sub Kegiatan Layanan')
                 ->where('documentPreview.activity_budget_groups.0.sub_activities.0.budget', 100000)
             );
+
+        $indikatorTujuan = IndikatorTujuanOpd::create([
+            'tujuan_opd_id' => $tujuan->id,
+            'indikator' => 'Indeks tata kelola',
+            'formula' => 'Nilai hasil evaluasi tata kelola',
+            'urutan' => 1,
+        ]);
+        TargetIndikatorTujuanOpd::create([
+            'indikator_tujuan_opd_id' => $indikatorTujuan->id,
+            'periode_tahun_id' => $periode->id,
+            'target' => 88,
+            'target_text' => '88 poin',
+        ]);
+        $headPk = PerjanjianKinerja::create([
+            'opd_id' => $opd->id,
+            'renstra_opd_id' => $renstra->id,
+            'renja_opd_id' => $renja->id,
+            'dpa_opd_id' => $dpa->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'tipe_pk' => 'cascading',
+            'level_pk' => 'kepala_opd',
+            'sumber_data' => 'renstra_dpa',
+            'unit_kerja_snapshot' => $opd->nama,
+            'judul' => 'PK Kepala OPD Sumber Rencana Aksi',
+            'status' => 'approved',
+        ]);
+        foreach ([
+            [$indikatorTujuan, $tujuan->tujuan, '88 poin', 88, 'tujuan_opd'],
+            [$indikator, $sasaran->sasaran, '95 persen', 95, 'sasaran_opd'],
+        ] as [$sourceIndicator, $performance, $targetText, $targetValue, $type]) {
+            $headPk->items()->create([
+                'sumber_item' => 'snapshot',
+                'jenis_item' => $type,
+                'level_cascading' => $type,
+                'cascading_source_type' => $sourceIndicator->getTable(),
+                'cascading_source_id' => $sourceIndicator->id,
+                'sasaran' => $performance,
+                'indikator' => $sourceIndicator->indikator,
+                'target' => $targetValue,
+                'target_text' => $targetText,
+                'is_readonly' => true,
+                'urutan' => $type === 'tujuan_opd' ? 1 : 2,
+            ]);
+        }
+        $headPk->programs()->create([
+            'opd_program_id' => $program->id,
+            'kode' => $program->kode,
+            'nama_program' => $program->nama,
+            'anggaran' => 100000,
+            'urutan' => 1,
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->get(route('rencana-aksi.create'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Kinerja/RencanaAksi/Form')
+                ->where('perjanjianKinerjaOptions.0.id', $headPk->id)
+                ->where('perjanjianKinerjaOptions.0.readiness', null)
+            );
+        $this->actingAs($adminOpd)
+            ->getJson(route('rencana-aksi.pk-readiness', $headPk))
+            ->assertOk()
+            ->assertJsonPath('ready', true)
+            ->assertJsonPath('counts.baris', 5);
+
+        $this->actingAs($adminOpd)
+            ->post(route('rencana-aksi.store'), [
+                'opd_id' => $opd->id,
+                'perjanjian_kinerja_id' => $headPk->id,
+                'periode_tahun_id' => $periode->id,
+                'tahun' => $periode->tahun,
+                'judul' => 'Rencana Aksi Matriks',
+                'status' => 'draft',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $matrix = RencanaAksi::query()->where('perjanjian_kinerja_id', $headPk->id)->firstOrFail();
+        $this->assertSame(2, $matrix->format_version);
+        $this->assertSame(5, $matrix->items()->count());
+        $this->assertSame('Nilai hasil evaluasi tata kelola', $matrix->items()->orderBy('urutan')->value('formula'));
+        $this->assertDatabaseHas('rencana_aksi_items', [
+            'rencana_aksi_id' => $matrix->id,
+            'level' => 'sub_kegiatan_opd',
+            'kode_snapshot' => 'SK1',
+            'anggaran' => 100000,
+            'is_snapshot' => true,
+        ]);
+
+        $matrixRows = $matrix->items()->with('targetTriwulan')->get();
+        $this->actingAs($adminOpd)
+            ->post(route('workflow.transition', ['module' => 'rencana_aksi', 'id' => $matrix->id]), [
+                'action' => 'submit',
+            ])
+            ->assertSessionHasErrors('action');
+
+        $this->actingAs($adminOpd)
+            ->put(route('rencana-aksi.matrix.update', $matrix), [
+                'items' => $matrixRows->map(fn (RencanaAksiItem $row) => [
+                    'id' => $row->id,
+                    'formula' => "Formula Rencana Aksi {$row->id}",
+                    'penanggung_jawab' => 'Bidang Pengujian',
+                    'target_triwulan' => collect(range(1, 4))->map(fn (int $quarter) => [
+                        'triwulan' => $quarter,
+                        'target_text' => (string) ($quarter * 25),
+                    ])->all(),
+                ])->all(),
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+        $this->assertDatabaseHas('rencana_aksi_target_triwulan', [
+            'rencana_aksi_item_id' => $matrixRows->first()->id,
+            'triwulan' => 4,
+            'target_text' => '100',
+        ]);
+        $this->assertDatabaseHas('rencana_aksi_items', [
+            'id' => $matrixRows->first()->id,
+            'formula' => "Formula Rencana Aksi {$matrixRows->first()->id}",
+            'formula_snapshot' => 'Nilai hasil evaluasi tata kelola',
+        ]);
+        $matrixReport = app(KinerjaReportContentService::class)->build($matrix->fresh(), 'rencana_aksi');
+        $this->assertSame('landscape', data_get($matrixReport, 'metadata.orientation'));
+        $this->assertCount(12, data_get($matrixReport, 'tables.0.headers'));
+        $this->assertSame("Formula Rencana Aksi {$matrixRows->first()->id}", data_get($matrixReport, 'tables.0.rows.0.3'));
+        $this->assertSame('Bidang Pengujian', data_get($matrixReport, 'tables.0.rows.0.11'));
+        $matrixPdf = app(ReportDocumentRenderService::class)->render($matrixReport, 'pdf');
+        $this->assertStringStartsWith('%PDF-', $matrixPdf['contents']);
+        $this->actingAs($adminOpd)
+            ->post(route('workflow.transition', ['module' => 'rencana_aksi', 'id' => $matrix->id]), [
+                'action' => 'submit',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+        $this->assertSame('submitted', $matrix->refresh()->status);
     }
 
     public function test_rencana_aksi_and_realisasi_items_can_be_saved(): void

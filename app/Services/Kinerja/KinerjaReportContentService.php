@@ -135,6 +135,7 @@ class KinerjaReportContentService
             'items.opdProgram:id,kode,nama',
             'items.opdKegiatan:id,kode,nama',
             'items.opdSubKegiatan:id,kode,nama',
+            'items.targetTriwulan:id,rencana_aksi_item_id,triwulan,target,target_text',
         ]);
 
         $opdName = $this->opdName($rencanaAksi);
@@ -162,25 +163,36 @@ class KinerjaReportContentService
                     'content' => 'Lampiran rencana aksi memuat daftar aksi, indikator, target, periode realisasi, anggaran, dan unit/pejabat penanggung jawab.',
                 ],
             ],
-            'tables' => [
-                [
-                    'title' => 'Lampiran 1. Matriks Rencana Aksi',
-                    'headers' => ['No', 'Aksi', 'Indikator', 'Periode', 'Target', 'Anggaran', 'Program/Kegiatan/Sub Kegiatan', 'Penanggung Jawab'],
-                    'rows' => $this->rencanaAksiRows($rencanaAksi),
+            'tables' => (int) $rencanaAksi->format_version >= 2
+                ? [[
+                    'title' => 'Lampiran. Matriks Rencana Aksi',
+                    'headers' => [
+                        'No', 'Tujuan / Sasaran Strategis / Program / Kegiatan / Sub Kegiatan',
+                        'Indikator Kinerja', 'Formula', 'Satuan', 'Target', 'Anggaran',
+                        'TW I', 'TW II', 'TW III', 'TW IV', 'Penanggung Jawab',
+                    ],
+                    'widths' => [350, 2300, 1800, 1500, 700, 700, 1000, 650, 650, 650, 650, 1500],
+                    'rows' => $this->rencanaAksiMatrixRows($rencanaAksi),
+                ]]
+                : [
+                    [
+                        'title' => 'Lampiran 1. Matriks Rencana Aksi',
+                        'headers' => ['No', 'Aksi', 'Indikator', 'Periode', 'Target', 'Anggaran', 'Program/Kegiatan/Sub Kegiatan', 'Penanggung Jawab'],
+                        'rows' => $this->rencanaAksiRows($rencanaAksi),
+                    ],
+                    [
+                        'title' => 'Lampiran 2. Rekap Target dan Anggaran per Triwulan',
+                        'headers' => ['Triwulan', 'Jumlah Aksi', 'Total Anggaran'],
+                        'rows' => $this->rencanaAksiTriwulanRows($rencanaAksi),
+                    ],
                 ],
-                [
-                    'title' => 'Lampiran 2. Rekap Target dan Anggaran per Triwulan',
-                    'headers' => ['Triwulan', 'Jumlah Aksi', 'Total Anggaran'],
-                    'rows' => $this->rencanaAksiTriwulanRows($rencanaAksi),
-                ],
-            ],
-            'metadata' => $this->metadata($rencanaAksi, 'rencana_aksi', $opdName, [
+            'metadata' => array_merge($this->metadata($rencanaAksi, 'rencana_aksi', $opdName, [
                 ['label' => 'Nama Dokumen', 'value' => $rencanaAksi->judul],
                 ['label' => 'OPD', 'value' => $opdName],
                 ['label' => 'Tahun', 'value' => (string) $rencanaAksi->tahun],
                 ['label' => 'Perjanjian Kinerja', 'value' => $rencanaAksi->perjanjianKinerja?->judul ?: '-'],
                 ['label' => 'Status', 'value' => $this->statusLabel($rencanaAksi->status)],
-            ]),
+            ]), (int) $rencanaAksi->format_version >= 2 ? ['orientation' => 'landscape'] : []),
         ];
     }
 
@@ -268,6 +280,36 @@ class KinerjaReportContentService
                 $item->penanggung_jawab ?: '-',
             ])
             ->all();
+    }
+
+    /**
+     * @return array<int, array<int, string>>
+     */
+    private function rencanaAksiMatrixRows(RencanaAksi $rencanaAksi): array
+    {
+        if ($rencanaAksi->items->isEmpty()) {
+            return [array_pad(['-', 'Belum ada item rencana aksi.'], 12, '-')];
+        }
+
+        return $rencanaAksi->items->values()->map(function (RencanaAksiItem $item, int $index): array {
+            $quarters = $item->targetTriwulan->keyBy('triwulan');
+            $description = collect([$item->kode_snapshot, $item->uraian_snapshot ?: $item->aksi])->filter()->implode(' - ');
+
+            return [
+                (string) ($index + 1),
+                $description,
+                $item->indikator ?: '-',
+                $item->formula ?: ($item->formula_snapshot ?: '-'),
+                $item->satuan_snapshot ?: '-',
+                $this->targetText($item->target, $item->target_text),
+                $this->money($item->anggaran),
+                $this->targetText($quarters->get(1)?->target, $quarters->get(1)?->target_text),
+                $this->targetText($quarters->get(2)?->target, $quarters->get(2)?->target_text),
+                $this->targetText($quarters->get(3)?->target, $quarters->get(3)?->target_text),
+                $this->targetText($quarters->get(4)?->target, $quarters->get(4)?->target_text),
+                $item->penanggung_jawab ?: '-',
+            ];
+        })->all();
     }
 
     /**

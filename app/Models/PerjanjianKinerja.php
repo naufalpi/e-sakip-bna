@@ -121,6 +121,11 @@ class PerjanjianKinerja extends Model
         return $this->hasMany(PerjanjianKinerjaProgram::class)->orderBy('urutan')->orderBy('id');
     }
 
+    public function rencanaAksi(): HasMany
+    {
+        return $this->hasMany(RencanaAksi::class);
+    }
+
     public function levelLabel(): string
     {
         return match ($this->level_pk) {

@@ -18,17 +18,23 @@ class RencanaAksi extends Model
     protected $fillable = [
         'opd_id',
         'perjanjian_kinerja_id',
+        'renstra_opd_id',
+        'dpa_opd_id',
         'periode_tahun_id',
         'tahun',
         'judul',
         'status',
         'catatan',
+        'snapshot_dibuat_pada',
+        'format_version',
     ];
 
     protected function casts(): array
     {
         return [
             'tahun' => 'integer',
+            'snapshot_dibuat_pada' => 'datetime',
+            'format_version' => 'integer',
         ];
     }
 
@@ -45,6 +51,16 @@ class RencanaAksi extends Model
     public function periodeTahun(): BelongsTo
     {
         return $this->belongsTo(PeriodeTahun::class);
+    }
+
+    public function renstraOpd(): BelongsTo
+    {
+        return $this->belongsTo(RenstraOpd::class);
+    }
+
+    public function dpaOpd(): BelongsTo
+    {
+        return $this->belongsTo(DpaOpd::class);
     }
 
     public function items(): HasMany

@@ -22,7 +22,7 @@ class StoreRencanaAksiRequest extends FormRequest
     {
         return [
             'opd_id' => ['required', 'integer', 'exists:opds,id'],
-            'perjanjian_kinerja_id' => ['nullable', 'integer', 'exists:perjanjian_kinerja,id'],
+            'perjanjian_kinerja_id' => ['required', 'integer', 'exists:perjanjian_kinerja,id'],
             'periode_tahun_id' => ['required', 'integer', 'exists:periode_tahun,id'],
             'tahun' => ['required', 'integer', 'min:2000', 'max:2100'],
             'judul' => ['required', 'string', 'max:255'],

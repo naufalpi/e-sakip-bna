@@ -503,23 +503,15 @@ const submit = () => {
                         Tidak ada riwayat jabatan pemilik PK yang berlaku pada tahun {{ form.tahun }}.
                     </small>
                 </div>
-                <div v-if="isManualIndividual" class="field md:col-span-2">
-                    <label for="unit_kerja_preview">
-                        Unit Kerja <span>{{ selectedPlacement?.unit_kerja ? '(otomatis)' : '(isi jika belum tersedia)' }}</span>
-                    </label>
+                <div v-if="form.level_pk !== 'bupati'" class="field md:col-span-2">
+                    <label for="unit_kerja_preview"> Unit Kerja <span>(dapat disesuaikan)</span> </label>
                     <input
                         id="unit_kerja_preview"
                         v-model="form.unit_kerja_snapshot"
-                        :readonly="Boolean(selectedPlacement?.unit_kerja)"
                         :placeholder="selectedPlacement ? 'Contoh: Bidang Informasi dan Komunikasi Publik' : selectedWorkUnit"
-                        :class="selectedPlacement?.unit_kerja ? 'cursor-not-allowed bg-muted/35' : ''"
                     />
                     <small class="field-hint">
-                        {{
-                            selectedPlacement?.unit_kerja
-                                ? `Diambil otomatis dari ${selectedPlacement.unit_kerja} dan disimpan sebagai snapshot PK.`
-                                : 'Bidang/Bagian belum tersedia pada struktur jabatan. Isi Unit Kerja untuk dokumen PK ini.'
-                        }}
+                        Nilai awal mengikuti jabatan yang dipilih. Anda dapat menyesuaikannya dan nilai ini akan disimpan sebagai snapshot PK.
                     </small>
                     <InputError :message="form.errors.unit_kerja_snapshot" />
                 </div>
