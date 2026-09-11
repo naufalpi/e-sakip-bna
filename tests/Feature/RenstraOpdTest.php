@@ -1204,6 +1204,7 @@ class RenstraOpdTest extends TestCase
             'kegiatan_pemerintahan_id' => $kegiatanMaster->id,
             'kode' => '9.99.01.2.01.0001',
             'nama' => $longSubKegiatanName,
+            'sasaran_sub_kegiatan' => 'Sasaran sub kegiatan dari master',
             'indikator_sub_kegiatan' => 'Jumlah keluaran baku sub kegiatan',
             'satuan_indikator_id' => $satuan->id,
             'definisi_operasional' => 'Keluaran yang diselesaikan sesuai standar.',
@@ -1318,6 +1319,7 @@ class RenstraOpdTest extends TestCase
             'opd_unit_id' => $unit->id,
             'kode' => '9.99.01.2.01.0001',
             'nama' => $longSubKegiatanName,
+            'sasaran_sub_kegiatan' => 'Sasaran sub kegiatan dari master',
         ]);
 
         $subKegiatanOpd = OpdSubKegiatan::where('opd_kegiatan_id', $kegiatanOpd->id)
@@ -1423,12 +1425,28 @@ class RenstraOpdTest extends TestCase
                 'parent_id' => $kegiatanOpd->id,
                 'sub_kegiatan_pemerintahan_id' => $subKegiatanMaster->id,
                 'opd_unit_id' => $unit->id,
+                'sasaran_level' => 'Sasaran sub kegiatan RENSTRA disesuaikan',
                 'urutan' => 2,
             ])
             ->assertRedirect(route('renstra-opd.show', $renstra))
             ->assertSessionHasNoErrors();
 
         $this->assertSame(2, $subKegiatanOpd->indikator()->count());
+        $this->assertSame('Sasaran sub kegiatan RENSTRA disesuaikan', $subKegiatanOpd->fresh()->sasaran_sub_kegiatan);
+
+        $this->actingAs($user)
+            ->from(route('renstra-opd.show', $renstra))
+            ->put(route('renstra-opd.nodes.update', [$renstra, 'sub_kegiatan', $subKegiatanOpd->id]), [
+                'type' => 'sub_kegiatan',
+                'parent_id' => $kegiatanOpd->id,
+                'sub_kegiatan_pemerintahan_id' => $subKegiatanMaster->id,
+                'opd_unit_id' => $unit->id,
+                'urutan' => 3,
+            ])
+            ->assertRedirect(route('renstra-opd.show', $renstra))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('Sasaran sub kegiatan RENSTRA disesuaikan', $subKegiatanOpd->fresh()->sasaran_sub_kegiatan);
 
         $this->actingAs($user)
             ->getJson(route('renstra-opd.nodes.sub-kegiatan-usage', $renstra))

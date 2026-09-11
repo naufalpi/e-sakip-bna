@@ -44,18 +44,27 @@ class StorePerjanjianKinerjaRequest extends FormRequest
         return [
             'opd_id' => [Rule::requiredIf(fn () => $this->input('level_pk') !== 'bupati'), 'nullable', 'integer', 'exists:opds,id'],
             'pegawai_id' => ['required', 'integer', 'exists:pegawai,id'],
-            'penempatan_pegawai_id' => ['nullable', 'integer', 'exists:riwayat_pejabat_jabatan,id'],
-            'atasan_pegawai_id' => ['nullable', 'integer', 'different:pegawai_id', 'exists:pegawai,id'],
+            'penempatan_pegawai_id' => [
+                Rule::requiredIf(fn () => filled($this->input('level_pk'))),
+                'nullable',
+                'integer',
+                'exists:riwayat_pejabat_jabatan,id',
+            ],
+            'atasan_pegawai_id' => [
+                Rule::requiredIf(fn () => filled($this->input('level_pk')) && $this->input('level_pk') !== 'bupati'),
+                'nullable',
+                'integer',
+                'different:pegawai_id',
+                'exists:pegawai,id',
+            ],
             'tipe_pk' => ['required', Rule::in(['cascading', 'individual'])],
-            'level_pk' => ['nullable', Rule::in(['bupati', 'kepala_opd', 'struktural', 'individu'])],
+            'level_pk' => ['required', Rule::in(['bupati', 'kepala_opd', 'struktural', 'individu'])],
             'renstra_opd_id' => [Rule::requiredIf(fn () => in_array($this->input('level_pk'), ['kepala_opd', 'struktural'], true) || ($this->input('level_pk') === 'individu' && $this->input('tipe_pk') === 'cascading') || (! $this->input('level_pk') && $this->input('tipe_pk') === 'cascading')), 'nullable', 'integer', 'exists:renstra_opd,id'],
             'rkpd_id' => [Rule::requiredIf(fn () => $this->input('level_pk') === 'bupati'), 'nullable', 'integer', 'exists:rkpd,id'],
             'dpa_opd_id' => [Rule::requiredIf(fn () => $this->input('level_pk') === 'kepala_opd'), 'nullable', 'integer', 'exists:dpa_opd,id'],
             'lingkup_kinerja_snapshot' => [
-                Rule::requiredIf(fn () => $this->input('level_pk') === 'struktural'
-                    || ($this->input('level_pk') === 'individu' && $this->input('tipe_pk') === 'cascading')
-                    || (! $this->input('level_pk') && $this->input('tipe_pk') === 'cascading')),
-                'nullable',
+                Rule::excludeIf(fn () => ! $this->requiresCascadingScope()),
+                'required',
                 'array',
                 'min:1',
                 'max:100',
@@ -67,6 +76,7 @@ class StorePerjanjianKinerjaRequest extends FormRequest
             'nomor_dokumen' => ['nullable', 'string', 'max:255'],
             'tanggal_dokumen' => ['nullable', 'date'],
             'tempat_penandatanganan' => ['nullable', 'string', 'max:120'],
+            'unit_kerja_snapshot' => ['nullable', 'string', 'max:255'],
             'status' => ['required', Rule::in(['draft', 'submitted', 'revision', 'verified', 'approved', 'rejected', 'locked'])],
             'catatan' => ['nullable', 'string'],
         ];
@@ -77,9 +87,21 @@ class StorePerjanjianKinerjaRequest extends FormRequest
         return [
             'pegawai_id.required' => 'Pemilik PK wajib dipilih.',
             'pegawai_id.exists' => 'Pemilik PK yang dipilih tidak ditemukan.',
+            'level_pk.required' => 'Pilih jenis Perjanjian Kinerja.',
+            'penempatan_pegawai_id.required' => 'Pilih jabatan penandatangan yang berlaku pada tahun PK.',
+            'atasan_pegawai_id.required' => 'Pilih Pihak Kedua / Atasan langsung.',
+            'atasan_pegawai_id.different' => 'Pemilik PK dan Pihak Kedua / Atasan tidak boleh sama.',
+            'unit_kerja_snapshot.max' => 'Nama Unit Kerja maksimal 255 karakter.',
             'lingkup_kinerja_snapshot.required' => 'Pilih minimal satu item cascading yang menjadi tanggung jawab pemilik PK.',
             'lingkup_kinerja_snapshot.min' => 'Pilih minimal satu item cascading yang menjadi tanggung jawab pemilik PK.',
             'lingkup_kinerja_snapshot.*.regex' => 'Salah satu item cascading tidak valid.',
         ];
+    }
+
+    private function requiresCascadingScope(): bool
+    {
+        return $this->input('level_pk') === 'struktural'
+            || ($this->input('level_pk') === 'individu' && $this->input('tipe_pk') === 'cascading')
+            || (! $this->input('level_pk') && $this->input('tipe_pk') === 'cascading');
     }
 }

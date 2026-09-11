@@ -89,6 +89,119 @@
     <div class="print-toolbar"><button type="button" onclick="window.print()">Cetak / Unduh PDF</button></div>
 @endif
 
+@if($isManualIndividual)
+<section class="sheet">
+    <div class="letterhead">
+        <div class="letterhead-logo">@if($logo)<img src="{{ $logo }}" alt="Lambang Banjarnegara">@endif</div>
+        <div class="letterhead-copy">
+            <div class="government">{{ $document['agency_name'] ?? 'PEMERINTAH KABUPATEN BANJARNEGARA' }}</div>
+            <div class="office">{{ $document['office_name'] ?? 'PERANGKAT DAERAH' }}</div>
+            <div class="address">
+                {{ $document['address'] ?? 'Kabupaten Banjarnegara' }}
+                @if(filled($document['telephone'] ?? null)) Telepon {{ $document['telephone'] }}@endif
+                @if(filled($document['fax'] ?? null)) Faksimile {{ $document['fax'] }}@endif
+                @if(filled($document['website'] ?? null) || filled($document['email'] ?? null))
+                    <br>@if(filled($document['website'] ?? null))Website {{ $document['website'] }}@endif
+                    @if(filled($document['email'] ?? null)){{ filled($document['website'] ?? null) ? ' · ' : '' }}Surat Elektronik {{ $document['email'] }}@endif
+                @endif
+            </div>
+            <div class="city">{{ $document['city'] ?? 'BANJARNEGARA' }}{{ filled($document['postal_code'] ?? null) ? ' '.$document['postal_code'] : '' }}</div>
+        </div>
+    </div>
+
+    <h1>{{ $document['title'] ?? 'PERJANJIAN KINERJA' }}</h1>
+
+    <p>Dalam rangka mewujudkan manajemen pemerintahan yang efektif, transparan dan akuntabel serta berorientasi pada hasil, kami yang bertanda tangan di bawah ini:</p>
+    <table class="party-table">
+        <tr><td class="label">Nama</td><td class="separator">:</td><td>{{ $first['name'] ?? '-' }}</td></tr>
+        <tr><td class="label">Jabatan</td><td class="separator">:</td><td>{{ $first['position'] ?? '-' }}</td></tr>
+    </table>
+    <div class="party-role">Selanjutnya disebut sebagai <strong>PIHAK PERTAMA</strong></div>
+    <table class="party-table">
+        <tr><td class="label">Nama</td><td class="separator">:</td><td>{{ $second['name'] ?? '-' }}</td></tr>
+        <tr><td class="label">Jabatan</td><td class="separator">:</td><td>{{ $second['position'] ?? '-' }}</td></tr>
+    </table>
+    <div class="party-role">Selaku atasan PIHAK PERTAMA, selanjutnya disebut sebagai <strong>PIHAK KEDUA</strong>.</div>
+    <p>PIHAK PERTAMA berjanji akan mewujudkan target kinerja yang seharusnya, sesuai lampiran perjanjian ini, dalam rangka mencapai target kinerja jangka menengah seperti yang telah ditetapkan dalam dokumen perencanaan. Keberhasilan dan kegagalan pencapaian target kinerja tersebut menjadi tanggung jawab kami.</p>
+    <p>PIHAK KEDUA akan melakukan supervisi yang diperlukan serta akan melakukan evaluasi terhadap capaian kinerja dari perjanjian kinerja ini dan mengambil tindakan yang diperlukan dalam rangka pemberian penghargaan dan sanksi.</p>
+
+    <div class="signature-date">{{ $document['place_date'] ?? 'Banjarnegara, ....................' }}</div>
+    <div class="signatures">
+        <div class="signature">
+            <div>Pihak Kedua</div>
+            <strong class="position">{{ $second['position'] ?? '-' }}</strong>
+            <div class="space"></div>
+            <div class="name">{{ $second['name'] ?? '-' }}</div>
+            @if(filled($second['rank'] ?? null))<div class="rank">{{ $second['rank'] }}</div>@endif
+            @if(filled($second['nip'] ?? null))<div class="nip">NIP. {{ $second['nip'] }}</div>@endif
+        </div>
+        <div class="signature">
+            <div>Pihak Pertama</div>
+            <strong class="position">{{ $first['position'] ?? '-' }}</strong>
+            <div class="space"></div>
+            <div class="name">{{ $first['name'] ?? '-' }}</div>
+            @if(filled($first['rank'] ?? null))<div class="rank">{{ $first['rank'] }}</div>@endif
+            @if(filled($first['nip'] ?? null))<div class="nip">NIP. {{ $first['nip'] }}</div>@endif
+        </div>
+    </div>
+</section>
+
+<section class="sheet page-break">
+    <div class="attachment-heading">
+        <strong>LAMPIRAN PERJANJIAN KINERJA TAHUN {{ $document['year'] ?? '' }}</strong>
+        <strong>{{ $document['office_name'] ?? '' }}</strong>
+    </div>
+
+    <table class="attachment-identity">
+        <tr><td class="label">Nama Pejabat</td><td class="separator">:</td><td>{{ $document['employee_name'] ?? ($first['name'] ?? '-') }}</td></tr>
+        <tr><td class="label">Unit Kerja</td><td class="separator">:</td><td>{{ $document['work_unit'] ?? ($document['office_name'] ?? '-') }}</td></tr>
+    </table>
+
+    <table class="matrix">
+        <thead><tr><th class="number">No</th><th class="performance">Sasaran Kinerja</th><th class="indicator">Indikator Kinerja</th><th class="target">Target</th></tr></thead>
+        <tbody>
+        @forelse($groups as $group)
+            @foreach($group['indicators'] as $indicatorIndex => $indicator)
+                <tr>
+                    @if($indicatorIndex === 0)
+                        <td class="number" rowspan="{{ count($group['indicators']) }}">{{ $group['number'] ?? '' }}</td>
+                        <td class="performance" rowspan="{{ count($group['indicators']) }}">{{ $group['performance'] }}</td>
+                    @endif
+                    <td class="indicator">{{ $indicator['name'] }}</td>
+                    <td class="target">{{ $indicator['target'] }}{{ ($indicator['unit'] ?? '-') !== '-' ? ' '.$indicator['unit'] : '' }}</td>
+                </tr>
+            @endforeach
+        @empty
+            @for($row = 1; $row <= 4; $row++)
+                <tr><td class="number">{{ $row }}</td><td></td><td></td><td></td></tr>
+            @endfor
+        @endforelse
+        </tbody>
+    </table>
+
+    <div>
+        <div class="signature-date">{{ $document['place_date'] ?? 'Banjarnegara, ....................' }}</div>
+        <div class="signatures">
+            <div class="signature">
+                <div>Pihak Kedua</div>
+                <strong class="position">{{ $second['position'] ?? '-' }}</strong>
+                <div class="space"></div>
+                <div class="name">{{ $second['name'] ?? '-' }}</div>
+                @if(filled($second['rank'] ?? null))<div class="rank">{{ $second['rank'] }}</div>@endif
+                @if(filled($second['nip'] ?? null))<div class="nip">NIP. {{ $second['nip'] }}</div>@endif
+            </div>
+            <div class="signature">
+                <div>Pihak Pertama</div>
+                <strong class="position">{{ $first['position'] ?? '-' }}</strong>
+                <div class="space"></div>
+                <div class="name">{{ $first['name'] ?? '-' }}</div>
+                @if(filled($first['rank'] ?? null))<div class="rank">{{ $first['rank'] }}</div>@endif
+                @if(filled($first['nip'] ?? null))<div class="nip">NIP. {{ $first['nip'] }}</div>@endif
+            </div>
+        </div>
+    </div>
+</section>
+@else
 <section class="sheet">
     <div class="letterhead">
         <div class="letterhead-logo">@if($logo)<img src="{{ $logo }}" alt="Lambang Banjarnegara">@endif</div>
@@ -243,5 +356,6 @@
         <div class="official-note">***) Kolom kedua disesuaikan dengan kondisi yang dilaksanakan oleh pejabat pengawas pada masing-masing Perangkat Daerah. Apabila hanya melaksanakan sub kegiatan, maka diisi hanya sasaran sub kegiatan; demikian juga indikatornya menyesuaikan.</div>
     @endif
 </section>
+@endif
 </body>
 </html>

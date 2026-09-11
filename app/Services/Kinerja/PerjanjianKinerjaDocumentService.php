@@ -20,11 +20,13 @@ class PerjanjianKinerjaDocumentService
         $pk->loadMissing([
             'opd:id,kode,nama,singkatan,alamat,telepon,email',
             'periodeTahun:id,tahun,nama',
-            'pegawai:id,nama,nip,pangkat_golongan',
+            'pegawai:id,opd_unit_id,nama,nip,pangkat_golongan',
+            'pegawai.opdUnit:id,nama',
             'atasanPegawai:id,nama,nip,pangkat_golongan',
             'penempatanPegawai.jabatanOrganisasi:id,opd_unit_id,parent_id,nama,level_jabatan',
             'penempatanPegawai.jabatanOrganisasi.opdUnit:id,nama',
-            'penempatanPegawai.jabatanOrganisasi.parent:id,nama,level_jabatan',
+            'penempatanPegawai.jabatanOrganisasi.parent:id,opd_unit_id,nama,level_jabatan',
+            'penempatanPegawai.jabatanOrganisasi.parent.opdUnit:id,nama',
             'items.satuanIndikator:id,nama,simbol',
             'programs',
         ]);
@@ -71,6 +73,11 @@ class PerjanjianKinerjaDocumentService
             $programs = $this->structuralPrograms($pk);
         }
 
+        $workUnit = $pk->unit_kerja_snapshot
+            ?: $pk->penempatanPegawai?->jabatanOrganisasi?->opdUnit?->nama
+            ?: $pk->penempatanPegawai?->jabatanOrganisasi?->parent?->opdUnit?->nama
+            ?: $pk->pegawai?->opdUnit?->nama;
+
         return [
             'id' => $pk->id,
             'is_bupati' => $isBupati,
@@ -104,8 +111,8 @@ class PerjanjianKinerjaDocumentService
             'first_party' => $firstParty,
             'second_party' => $secondParty,
             'employee_name' => $firstParty['name'],
-            'work_unit' => $pk->penempatanPegawai?->jabatanOrganisasi?->opdUnit?->nama ?: $pk->opd?->nama,
-            'performance_groups' => $this->performanceGroups($pk->items, $pk->level_pk),
+            'work_unit' => $workUnit ?: ($isManualIndividual ? 'Unit kerja belum ditentukan' : $pk->opd?->nama),
+            'performance_groups' => $this->performanceGroups($pk->items, $pk->level_pk, $isManualIndividual),
             'programs' => $programs->all(),
             'activity_budget_groups' => $isLowerCascading ? $this->lowerCascadingActivities($pk)->all() : [],
             'total_budget' => (float) $programs->sum('budget'),
@@ -118,7 +125,7 @@ class PerjanjianKinerjaDocumentService
         ];
     }
 
-    private function performanceGroups(Collection $items, ?string $level): array
+    private function performanceGroups(Collection $items, ?string $level, bool $isManualIndividual = false): array
     {
         $groups = [];
         $sequence = 0;
@@ -150,7 +157,9 @@ class PerjanjianKinerjaDocumentService
                 'id' => $item->id,
                 'name' => $item->indikator,
                 'target' => filled($item->target_text) ? $item->target_text : $this->number($item->target),
-                'unit' => $item->satuan_snapshot ?: $item->satuanIndikator?->simbol ?: $item->satuanIndikator?->nama ?: '-',
+                'unit' => $isManualIndividual && filled($item->target_text)
+                    ? '-'
+                    : ($item->satuan_snapshot ?: $item->satuanIndikator?->simbol ?: $item->satuanIndikator?->nama ?: '-'),
             ];
         }
 

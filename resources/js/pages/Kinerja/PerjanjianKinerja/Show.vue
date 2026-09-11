@@ -75,6 +75,7 @@ const props = defineProps<{
         level_label: string;
         source_label: string;
         place_date: string;
+        work_unit: string;
         first_party: { name: string; nip?: string | null; position: string };
         second_party?: { name: string; nip?: string | null; position: string } | null;
         performance_groups: Array<{
@@ -123,6 +124,7 @@ const showKopEditor = ref(false);
 const canEditItems = computed(
     () => props.can.manage && (props.item.tipe_pk === 'individual' || ['manual', 'penugasan'].includes(props.item.sumber_data ?? 'manual')),
 );
+const isManualIndividual = computed(() => props.item.level_pk === 'individu' && props.item.tipe_pk === 'individual');
 const kopForm = useForm({
     nama_pemerintah: props.documentPreview.letterhead.nama_pemerintah,
     nama_instansi: props.documentPreview.letterhead.nama_instansi,
@@ -184,7 +186,11 @@ const editItem = (row: ItemRow) => {
     form.sasaran = row.sasaran;
     form.indikator = row.indikator;
     form.target = row.target === null || row.target === undefined ? '' : String(row.target);
-    form.target_text = row.target_text || '';
+    form.target_text =
+        row.target_text ||
+        [row.target === null || row.target === undefined ? '' : String(row.target), row.satuan_snapshot || row.satuan?.nama || '']
+            .filter(Boolean)
+            .join(' ');
     form.urutan = row.urutan || 1;
 };
 
@@ -206,6 +212,15 @@ const destroyItem = async (row: ItemRow) => {
     if (await confirmDelete('Hapus item Perjanjian Kinerja ini?')) {
         router.delete(route('perjanjian-kinerja.items.destroy', { perjanjian_kinerja: props.item.id, item: row.id }), { preserveScroll: true });
     }
+};
+
+const itemTargetLabel = (row: ItemRow) => {
+    if (row.target_text) return row.target_text;
+
+    const value = row.target === null || row.target === undefined || row.target === '' ? '-' : String(row.target);
+    const unit = row.satuan_snapshot || row.satuan?.nama || row.satuan?.simbol || '';
+
+    return [value, unit].filter(Boolean).join(' ');
 };
 
 const statusLabel = (status: string) =>
@@ -272,7 +287,9 @@ const statusClass = (status: string) =>
                             rel="noopener noreferrer"
                             class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-red-50 focus-visible:bg-red-50 focus-visible:outline-none dark:hover:bg-red-950/30"
                         >
-                            <span class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300">
+                            <span
+                                class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300"
+                            >
                                 <FileText class="size-4" />
                             </span>
                             <span>
@@ -284,7 +301,9 @@ const statusClass = (status: string) =>
                             :href="route('perjanjian-kinerja.download.docx', item.id)"
                             class="mt-1 flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-blue-50 focus-visible:bg-blue-50 focus-visible:outline-none dark:hover:bg-blue-950/30"
                         >
-                            <span class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+                            <span
+                                class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
+                            >
                                 <Download class="size-4" />
                             </span>
                             <span>
@@ -314,6 +333,7 @@ const statusClass = (status: string) =>
                     <div class="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pihak Pertama</div>
                     <div class="mt-1 font-semibold">{{ documentPreview.first_party.name }}</div>
                     <div class="text-xs text-muted-foreground">{{ documentPreview.first_party.position }}</div>
+                    <div v-if="isManualIndividual" class="mt-1 text-xs font-medium text-primary">Unit Kerja: {{ documentPreview.work_unit }}</div>
                 </div>
             </div>
             <div>
@@ -358,9 +378,11 @@ const statusClass = (status: string) =>
                 <h2 class="text-sm font-semibold">
                     {{
                         editingItemId
-                            ? 'Edit Item Sasaran dan Indikator'
-                            : item.tipe_pk === 'individual'
-                              ? 'Tambah Hasil Kerja Individu'
+                            ? isManualIndividual
+                                ? 'Edit Sasaran Kinerja'
+                                : 'Edit Item Sasaran dan Indikator'
+                            : isManualIndividual
+                              ? 'Tambah Sasaran Kinerja'
                               : 'Tambah Item Cascading'
                     }}
                 </h2>
@@ -368,64 +390,103 @@ const statusClass = (status: string) =>
                     Batal edit
                 </button>
             </div>
-            <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitItem">
-                <div v-if="item.tipe_pk === 'cascading'" class="grid gap-1">
-                    <select v-model="form.sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="">Referensi sasaran OPD</option>
-                        <option v-for="option in nodeOptions.sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
-                    </select>
-                    <InputError :message="form.errors.sasaran_opd_id" />
-                </div>
-                <div v-if="item.tipe_pk === 'cascading'" class="grid gap-1">
-                    <select v-model="form.indikator_sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="">Referensi indikator sasaran</option>
-                        <option v-for="option in nodeOptions.indikator_sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
-                    </select>
-                    <InputError :message="form.errors.indikator_sasaran_opd_id" />
-                </div>
-                <div v-if="item.tipe_pk === 'cascading'" class="grid gap-1">
-                    <select v-model="form.opd_program_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="">Referensi program OPD</option>
-                        <option v-for="option in nodeOptions.opd_program" :key="option.id" :value="option.id">{{ option.label }}</option>
-                    </select>
-                    <InputError :message="form.errors.opd_program_id" />
-                </div>
-                <div class="grid gap-1">
-                    <select v-model="form.satuan_indikator_id" class="h-9 rounded-md border bg-background px-3 text-sm">
-                        <option value="">Satuan indikator</option>
-                        <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                    </select>
-                    <InputError :message="form.errors.satuan_indikator_id" />
-                </div>
-                <input v-model="form.kode" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Kode" />
-                <input v-model="form.urutan" type="number" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Urutan" />
-                <div class="grid gap-1 md:col-span-2">
-                    <textarea
-                        v-model="form.sasaran"
-                        rows="2"
-                        class="rounded-md border bg-background px-3 py-2 text-sm"
-                        placeholder="Sasaran kinerja"
+            <form :class="isManualIndividual ? 'mt-4 grid gap-4' : 'mt-4 grid gap-3 md:grid-cols-2'" @submit.prevent="submitItem">
+                <template v-if="isManualIndividual">
+                    <div class="grid gap-1.5">
+                        <label for="manual_sasaran" class="text-sm font-semibold">Sasaran Kinerja <span class="text-red-600">*</span></label>
+                        <textarea
+                            id="manual_sasaran"
+                            v-model="form.sasaran"
+                            rows="2"
+                            class="rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+                            placeholder="Contoh: Tersusunnya laporan hasil evaluasi"
+                        />
+                        <InputError :message="form.errors.sasaran" />
+                    </div>
+                    <div class="grid gap-1.5">
+                        <label for="manual_indikator" class="text-sm font-semibold">Indikator Kinerja <span class="text-red-600">*</span></label>
+                        <textarea
+                            id="manual_indikator"
+                            v-model="form.indikator"
+                            rows="2"
+                            class="rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+                            placeholder="Contoh: Jumlah laporan hasil evaluasi yang diselesaikan"
+                        />
+                        <InputError :message="form.errors.indikator" />
+                    </div>
+                    <div class="grid max-w-md gap-1.5">
+                        <label for="manual_target" class="text-sm font-semibold">Target <span class="text-red-600">*</span></label>
+                        <input
+                            id="manual_target"
+                            v-model="form.target_text"
+                            class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+                            placeholder="Contoh: 10 Dokumen"
+                        />
+                        <p class="text-xs text-muted-foreground">Tuliskan nilai sekaligus satuannya.</p>
+                        <InputError :message="form.errors.target_text" />
+                    </div>
+                </template>
+                <template v-else>
+                    <div v-if="item.tipe_pk === 'cascading'" class="grid gap-1">
+                        <select v-model="form.sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Referensi sasaran OPD</option>
+                            <option v-for="option in nodeOptions.sasaran_opd" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.sasaran_opd_id" />
+                    </div>
+                    <div v-if="item.tipe_pk === 'cascading'" class="grid gap-1">
+                        <select v-model="form.indikator_sasaran_opd_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Referensi indikator sasaran</option>
+                            <option v-for="option in nodeOptions.indikator_sasaran_opd" :key="option.id" :value="option.id">
+                                {{ option.label }}
+                            </option>
+                        </select>
+                        <InputError :message="form.errors.indikator_sasaran_opd_id" />
+                    </div>
+                    <div v-if="item.tipe_pk === 'cascading'" class="grid gap-1">
+                        <select v-model="form.opd_program_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Referensi program OPD</option>
+                            <option v-for="option in nodeOptions.opd_program" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.opd_program_id" />
+                    </div>
+                    <div class="grid gap-1">
+                        <select v-model="form.satuan_indikator_id" class="h-9 rounded-md border bg-background px-3 text-sm">
+                            <option value="">Satuan indikator</option>
+                            <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.satuan_indikator_id" />
+                    </div>
+                    <input v-model="form.kode" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Kode" />
+                    <input v-model="form.urutan" type="number" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Urutan" />
+                    <div class="grid gap-1 md:col-span-2">
+                        <textarea
+                            v-model="form.sasaran"
+                            rows="2"
+                            class="rounded-md border bg-background px-3 py-2 text-sm"
+                            placeholder="Sasaran kinerja"
+                        />
+                        <InputError :message="form.errors.sasaran" />
+                    </div>
+                    <div class="grid gap-1 md:col-span-2">
+                        <textarea
+                            v-model="form.indikator"
+                            rows="2"
+                            class="rounded-md border bg-background px-3 py-2 text-sm"
+                            placeholder="Indikator kinerja"
+                        />
+                        <InputError :message="form.errors.indikator" />
+                    </div>
+                    <input
+                        v-model="form.target"
+                        type="number"
+                        step="0.0001"
+                        class="h-9 rounded-md border bg-background px-3 text-sm"
+                        placeholder="Target angka"
                     />
-                    <InputError :message="form.errors.sasaran" />
-                </div>
-                <div class="grid gap-1 md:col-span-2">
-                    <textarea
-                        v-model="form.indikator"
-                        rows="2"
-                        class="rounded-md border bg-background px-3 py-2 text-sm"
-                        placeholder="Indikator kinerja"
-                    />
-                    <InputError :message="form.errors.indikator" />
-                </div>
-                <input
-                    v-model="form.target"
-                    type="number"
-                    step="0.0001"
-                    class="h-9 rounded-md border bg-background px-3 text-sm"
-                    placeholder="Target angka"
-                />
-                <input v-model="form.target_text" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Target teks" />
-                <div class="md:col-span-2">
+                    <input v-model="form.target_text" class="h-9 rounded-md border bg-background px-3 text-sm" placeholder="Target teks" />
+                </template>
+                <div :class="isManualIndividual ? '' : 'md:col-span-2'">
                     <button
                         type="submit"
                         :disabled="form.processing"
@@ -441,7 +502,13 @@ const statusClass = (status: string) =>
             <div class="flex items-center justify-between border-b bg-muted/25 px-5 py-4">
                 <div>
                     <h2 class="font-bold">Matriks Perjanjian Kinerja</h2>
-                    <p class="mt-0.5 text-xs text-muted-foreground">Tujuan, sasaran, dan indikator sesuai level dokumen.</p>
+                    <p class="mt-0.5 text-xs text-muted-foreground">
+                        {{
+                            isManualIndividual
+                                ? 'Sasaran, indikator, dan target hasil kerja individu.'
+                                : 'Tujuan, sasaran, dan indikator sesuai level dokumen.'
+                        }}
+                    </p>
                 </div>
                 <span class="rounded-full border bg-background px-3 py-1 text-xs font-semibold">{{ item.items.length }} indikator</span>
             </div>
@@ -449,7 +516,7 @@ const statusClass = (status: string) =>
                 <table class="w-full text-left text-sm">
                     <thead class="border-b bg-muted/60 text-xs uppercase text-muted-foreground">
                         <tr>
-                            <th class="px-4 py-3">Tujuan / Sasaran Strategis</th>
+                            <th class="px-4 py-3">{{ isManualIndividual ? 'Sasaran Kinerja' : 'Tujuan / Sasaran Strategis' }}</th>
                             <th class="px-4 py-3">Indikator</th>
                             <th class="px-4 py-3">Target</th>
                             <th v-if="canEditItems" class="px-4 py-3 text-right">Aksi</th>
@@ -466,7 +533,7 @@ const statusClass = (status: string) =>
                             </td>
                             <td class="px-4 py-3">{{ row.indikator }}</td>
                             <td class="px-4 py-3 font-semibold">
-                                {{ row.target_text || row.target || '-' }} {{ row.satuan_snapshot || row.satuan?.simbol || '' }}
+                                {{ itemTargetLabel(row) }}
                             </td>
                             <td v-if="canEditItems" class="px-4 py-3 text-right">
                                 <button

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Kinerja;
 
+use App\Models\PerjanjianKinerja;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -14,6 +15,9 @@ class StorePerjanjianKinerjaItemRequest extends FormRequest
 
     public function rules(): array
     {
+        $pk = $this->route('perjanjian_kinerja');
+        $isManualIndividual = $pk instanceof PerjanjianKinerja && $pk->tipe_pk === 'individual';
+
         return [
             'sumber_item' => ['nullable', Rule::in(['cascading', 'manual'])],
             'level_cascading' => ['nullable', Rule::in(['sasaran', 'program', 'kegiatan', 'sub_kegiatan'])],
@@ -27,8 +31,15 @@ class StorePerjanjianKinerjaItemRequest extends FormRequest
             'sasaran' => ['required', 'string'],
             'indikator' => ['required', 'string'],
             'target' => ['nullable', 'numeric'],
-            'target_text' => ['nullable', 'string', 'max:255'],
+            'target_text' => [Rule::requiredIf($isManualIndividual), 'nullable', 'string', 'max:255'],
             'urutan' => ['nullable', 'integer', 'min:1', 'max:999'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'target_text.required' => 'Target wajib diisi beserta satuannya, misalnya 10 Dokumen.',
         ];
     }
 }

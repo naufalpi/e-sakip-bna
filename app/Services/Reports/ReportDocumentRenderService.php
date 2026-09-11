@@ -183,9 +183,11 @@ class ReportDocumentRenderService
             $this->addPkWordIdentity($section, $first);
             $this->addPkWordPartyRole($section, 'Selanjutnya disebut sebagai ', 'PIHAK PERTAMA');
             $this->addPkWordIdentity($section, $second);
-            $this->addPkWordPartyRole($section, 'Selaku atasan PIHAK PERTAMA, selanjutnya disebut sebagai ', 'PIHAK KEDUA');
+            $this->addPkWordPartyRole($section, 'Selaku atasan PIHAK PERTAMA, selanjutnya disebut sebagai ', 'PIHAK KEDUA', $isManualIndividual ? '.' : '');
             $section->addText('PIHAK PERTAMA berjanji akan mewujudkan target kinerja yang seharusnya, sesuai lampiran perjanjian ini, dalam rangka mencapai target kinerja jangka menengah seperti yang telah ditetapkan dalam dokumen perencanaan. Keberhasilan dan kegagalan pencapaian target kinerja tersebut menjadi tanggung jawab kami.', [], $paragraphStyle);
-            $section->addText('PIHAK KEDUA akan melakukan supervisi yang diperlukan serta melakukan evaluasi terhadap capaian kinerja dari perjanjian kinerja ini dan mengambil tindakan yang diperlukan dalam rangka pemberian penghargaan dan sanksi.', [], $paragraphStyle);
+            $section->addText($isManualIndividual
+                ? 'PIHAK KEDUA akan melakukan supervisi yang diperlukan serta akan melakukan evaluasi terhadap capaian kinerja dari perjanjian kinerja ini dan mengambil tindakan yang diperlukan dalam rangka pemberian penghargaan dan sanksi.'
+                : 'PIHAK KEDUA akan melakukan supervisi yang diperlukan serta melakukan evaluasi terhadap capaian kinerja dari perjanjian kinerja ini dan mengambil tindakan yang diperlukan dalam rangka pemberian penghargaan dan sanksi.', [], $paragraphStyle);
         }
 
         $this->addPkWordSignatures($section, $document, false, ! $isBupati);
@@ -213,7 +215,7 @@ class ReportDocumentRenderService
         }
 
         $matrixTitle = $isManualIndividual
-            ? 'SASARAN KEGIATAN DAN SASARAN SUB KEGIATAN'
+            ? 'SASARAN KINERJA'
             : ($isLowerCascading
                 ? 'SASARAN KEGIATAN DAN SASARAN SUB KEGIATAN ***'
                 : ($isStructural
@@ -246,14 +248,14 @@ class ReportDocumentRenderService
         }
 
         $section->addTextBreak(1);
-        $this->addPkWordBudgetTable($section, $document, $usesActivityFormat, $isStructural, $usesOfficialFormat);
+        if (! $isManualIndividual) {
+            $this->addPkWordBudgetTable($section, $document, $usesActivityFormat, $isStructural, $usesOfficialFormat);
+        }
         $this->addPkWordSignatures($section, $document, true, $isStructural || $usesActivityFormat);
 
         if ($isStructural) {
             $section->addText('**) Untuk disesuaikan dengan kondisi pada masing-masing Perangkat Daerah; apabila tidak melaksanakan kegiatan, maka diisi sampai ke sasaran program.', ['italic' => true, 'size' => 11], ['alignment' => Jc::BOTH, 'spaceBefore' => 180, 'lineHeight' => 1.5]);
-        } elseif ($isManualIndividual) {
-            $section->addText('***) Untuk kolom kedua disesuaikan dengan kondisi yang dilaksanakan oleh pejabat pengawas pada masing-masing Perangkat Daerah (misalnya hanya melaksanakan sub kegiatan maka diisi hanya sasaran sub kegiatan, demikian juga indikatornya menyesuaikan).', ['italic' => true, 'size' => 11], ['alignment' => Jc::BOTH, 'spaceBefore' => 180, 'lineHeight' => 1.5]);
-        } elseif ($usesActivityFormat) {
+        } elseif ($usesActivityFormat && ! $isManualIndividual) {
             $section->addText('***) Untuk kolom kedua disesuaikan dengan kondisi yang dilaksanakan oleh pejabat pengawas pada masing-masing Perangkat Daerah. Apabila hanya melaksanakan sub kegiatan, maka diisi hanya sasaran sub kegiatan; demikian juga indikatornya menyesuaikan.', ['italic' => true, 'size' => 11], ['alignment' => Jc::BOTH, 'spaceBefore' => 180, 'lineHeight' => 1.5]);
         }
 
@@ -325,11 +327,14 @@ class ReportDocumentRenderService
         }
     }
 
-    private function addPkWordPartyRole($section, string $prefix, string $role): void
+    private function addPkWordPartyRole($section, string $prefix, string $role, string $suffix = ''): void
     {
         $run = $section->addTextRun(['spaceAfter' => 80, 'lineHeight' => 1.5]);
         $run->addText($prefix, ['size' => 12]);
         $run->addText($role, ['bold' => true, 'size' => 12]);
+        if ($suffix !== '') {
+            $run->addText($suffix, ['size' => 12]);
+        }
     }
 
     /** @param array<string, mixed> $document */

@@ -22,6 +22,7 @@ type PlacementOption = BasicOption & {
     opd_id?: number | null;
     level_jabatan?: string | null;
     parent_jabatan_id?: number | null;
+    unit_kerja?: string | null;
     tanggal_mulai?: string | null;
     tanggal_selesai?: string | null;
 };
@@ -44,6 +45,7 @@ type FormData = {
     nomor_dokumen: string;
     tanggal_dokumen: string;
     tempat_penandatanganan: string;
+    unit_kerja_snapshot: string;
     status: string;
     catatan: string;
 };
@@ -79,6 +81,7 @@ const form = useForm<FormData>({
     nomor_dokumen: props.item?.nomor_dokumen ?? '',
     tanggal_dokumen: props.item?.tanggal_dokumen ?? '',
     tempat_penandatanganan: props.item?.tempat_penandatanganan ?? 'Banjarnegara',
+    unit_kerja_snapshot: props.item?.unit_kerja_snapshot ?? '',
     status: props.item?.status ?? 'draft',
     catatan: props.item?.catatan ?? '',
 });
@@ -102,6 +105,7 @@ const levels = computed(() => [
     },
 ]);
 const isAutomatic = computed(() => ['bupati', 'kepala_opd'].includes(form.level_pk));
+const isManualIndividual = computed(() => form.level_pk === 'individu' && form.tipe_pk === 'individual');
 const usesCascadingSelection = computed(() => form.level_pk === 'struktural' || (form.level_pk === 'individu' && form.tipe_pk === 'cascading'));
 const isLowerCascading = computed(() => form.level_pk === 'individu' && form.tipe_pk === 'cascading');
 const scopeGroups = ref<CascadingScopeGroup[]>([]);
@@ -131,12 +135,13 @@ const filteredDpa = computed(() =>
             Number(option.opd_id) === Number(form.opd_id) && (!form.renstra_opd_id || Number(option.renstra_opd_id) === Number(form.renstra_opd_id)),
     ),
 );
-const placementIsActive = (placement: PlacementOption) => {
-    const referenceDate = form.tanggal_dokumen || new Date().toISOString().slice(0, 10);
+const placementIsAvailableForPkYear = (placement: PlacementOption) => {
+    const year = Number(form.tahun) || new Date().getFullYear();
+    const periodStart = `${year}-01-01`;
+    const periodEnd = `${year}-12-31`;
 
     return (
-        (!placement.tanggal_mulai || placement.tanggal_mulai <= referenceDate) &&
-        (!placement.tanggal_selesai || placement.tanggal_selesai >= referenceDate)
+        (!placement.tanggal_mulai || placement.tanggal_mulai <= periodEnd) && (!placement.tanggal_selesai || placement.tanggal_selesai >= periodStart)
     );
 };
 const employeeHasLevel = (employeeId: number, level: string, opdId?: number | string | null) =>
@@ -144,35 +149,47 @@ const employeeHasLevel = (employeeId: number, level: string, opdId?: number | st
         (placement) =>
             Number(placement.pegawai_id) === employeeId &&
             placement.level_jabatan === level &&
-            placementIsActive(placement) &&
+            placementIsAvailableForPkYear(placement) &&
             (opdId === undefined || Number(placement.opd_id) === Number(opdId)),
     );
-const employeeHasPlacementInOpd = (employeeId: number, opdId: number | string | null) =>
+const allowedPlacementLevels = computed(() => {
+    if (form.level_pk === 'bupati') return ['kepala_daerah'];
+    if (form.level_pk === 'kepala_opd') return ['jpt_pratama'];
+    if (form.level_pk === 'struktural') return ['administrator'];
+
+    return ['pengawas', 'fungsional', 'pelaksana'];
+});
+const employeeHasAllowedPlacement = (employeeId: number, opdId?: number | string | null) =>
     props.placementOptions.some(
         (placement) =>
-            Number(placement.pegawai_id) === employeeId && Number(placement.opd_id) === Number(opdId) && placementIsActive(placement),
+            Number(placement.pegawai_id) === employeeId &&
+            allowedPlacementLevels.value.includes(placement.level_jabatan ?? '') &&
+            placementIsAvailableForPkYear(placement) &&
+            (form.level_pk === 'bupati' || opdId === undefined || Number(placement.opd_id) === Number(opdId)),
     );
 const filteredEmployees = computed(() => {
-    if (form.level_pk === 'bupati') return props.pegawaiOptions.filter((employee) => employeeHasLevel(employee.id, 'kepala_daerah'));
-    if (form.level_pk === 'kepala_opd')
-        return props.pegawaiOptions.filter((employee) => employeeHasLevel(employee.id, 'jpt_pratama', form.opd_id));
-    return props.pegawaiOptions.filter(
-        (employee) => employeeHasPlacementInOpd(employee.id, form.opd_id) || Number(employee.opd_id) === Number(form.opd_id),
-    );
+    return props.pegawaiOptions.filter((employee) => employeeHasAllowedPlacement(employee.id, form.opd_id));
+});
+const employeeOptionsForSelect = computed(() => {
+    const selected = props.pegawaiOptions.find((employee) => Number(employee.id) === Number(form.pegawai_id));
+    if (!selected || filteredEmployees.value.some((employee) => Number(employee.id) === Number(selected.id))) return filteredEmployees.value;
+
+    return [...filteredEmployees.value, selected];
 });
 const filteredPlacements = computed(() =>
     props.placementOptions.filter((placement) => {
         if (Number(placement.pegawai_id) !== Number(form.pegawai_id)) return false;
-        if (!placementIsActive(placement)) return false;
-        if (form.level_pk === 'bupati') return placement.level_jabatan === 'kepala_daerah';
+        if (!placementIsAvailableForPkYear(placement) && Number(placement.id) !== Number(form.penempatan_pegawai_id)) return false;
+        if (!allowedPlacementLevels.value.includes(placement.level_jabatan ?? '')) return false;
+        if (form.level_pk === 'bupati') return true;
         if (Number(placement.opd_id) !== Number(form.opd_id)) return false;
-        if (form.level_pk === 'kepala_opd') return placement.level_jabatan === 'jpt_pratama';
-        return placement.level_jabatan !== 'kepala_daerah';
+        return true;
     }),
 );
-const selectedPlacement = computed(() => filteredPlacements.value.find((placement) => Number(placement.id) === Number(form.penempatan_pegawai_id)));
+const selectedPlacement = computed(() => props.placementOptions.find((placement) => Number(placement.id) === Number(form.penempatan_pegawai_id)));
+const selectedWorkUnit = computed(() => selectedPlacement.value?.unit_kerja || 'Unit kerja belum ditentukan');
 const selectedEmployee = computed(() => props.pegawaiOptions.find((employee) => Number(employee.id) === Number(form.pegawai_id)));
-const filteredSupervisors = computed(() => {
+const availableSupervisors = computed(() => {
     if (form.level_pk === 'bupati') return [];
     const parentJabatanId = Number(selectedPlacement.value?.parent_jabatan_id || 0);
 
@@ -182,13 +199,31 @@ const filteredSupervisors = computed(() => {
 
     const supervisorIds = new Set(
         props.placementOptions
-            .filter((placement) => placementIsActive(placement) && Number(placement.jabatan_organisasi_id) === parentJabatanId)
+            .filter((placement) => placementIsAvailableForPkYear(placement) && Number(placement.jabatan_organisasi_id) === parentJabatanId)
             .map((placement) => Number(placement.pegawai_id)),
     );
 
     return props.pegawaiOptions.filter((employee) => supervisorIds.has(Number(employee.id)) && Number(employee.id) !== Number(form.pegawai_id));
 });
+const supervisorOptionsForSelect = computed(() => {
+    const selected = props.pegawaiOptions.find((employee) => Number(employee.id) === Number(form.atasan_pegawai_id));
+    if (!selected || availableSupervisors.value.some((employee) => Number(employee.id) === Number(selected.id))) return availableSupervisors.value;
+
+    return [...availableSupervisors.value, selected];
+});
 const selectedLevel = computed(() => levels.value.find((level) => level.value === form.level_pk));
+const currentStatusLabel = computed(
+    () =>
+        ({
+            draft: 'Draft',
+            submitted: 'Diajukan',
+            revision: 'Perlu Perbaikan',
+            verified: 'Terverifikasi',
+            approved: 'Disetujui',
+            rejected: 'Ditolak',
+            locked: 'Terkunci',
+        })[form.status] ?? form.status,
+);
 const automaticTitle = computed(() => {
     const placementName = selectedPlacement.value?.label.split(' · TMT ')[0]?.trim();
     const employeeName = selectedEmployee.value?.label.split(' · NIP ')[0]?.trim();
@@ -199,7 +234,7 @@ const automaticTitle = computed(() => {
 
 const selectOnlyOption = () => {
     if (filteredEmployees.value.length === 1) form.pegawai_id = filteredEmployees.value[0].id;
-    if (filteredSupervisors.value.length === 1) form.atasan_pegawai_id = filteredSupervisors.value[0].id;
+    if (availableSupervisors.value.length === 1) form.atasan_pegawai_id = availableSupervisors.value[0].id;
 };
 
 watch(
@@ -245,10 +280,11 @@ watch(
     },
 );
 watch(
-    () => [form.penempatan_pegawai_id, form.tanggal_dokumen] as const,
-    () => {
-        if (!filteredSupervisors.value.some((option) => Number(option.id) === Number(form.atasan_pegawai_id))) form.atasan_pegawai_id = '';
-        if (filteredSupervisors.value.length === 1) form.atasan_pegawai_id = filteredSupervisors.value[0].id;
+    () => form.penempatan_pegawai_id,
+    (id, previous) => {
+        if (Number(id) !== Number(previous)) form.unit_kerja_snapshot = selectedPlacement.value?.unit_kerja || '';
+        if (!availableSupervisors.value.some((option) => Number(option.id) === Number(form.atasan_pegawai_id))) form.atasan_pegawai_id = '';
+        if (availableSupervisors.value.length === 1) form.atasan_pegawai_id = availableSupervisors.value[0].id;
     },
 );
 watch(
@@ -275,6 +311,16 @@ watch(
         if (isAutomatic.value) return;
         const period = props.periodeOptions.find((option) => Number(option.id) === Number(id));
         if (period) form.tahun = period.tahun;
+    },
+);
+watch(
+    () => form.tahun,
+    (year, previous) => {
+        if (Number(year) === Number(previous) || !selectedPlacement.value) return;
+        if (!placementIsAvailableForPkYear(selectedPlacement.value)) {
+            form.penempatan_pegawai_id = '';
+            form.atasan_pegawai_id = '';
+        }
     },
 );
 watch(
@@ -314,6 +360,26 @@ watch(
 );
 
 const submit = () => {
+    form.clearErrors('penempatan_pegawai_id', 'atasan_pegawai_id', 'unit_kerja_snapshot');
+
+    if (!form.penempatan_pegawai_id) {
+        form.setError('penempatan_pegawai_id', `Pilih jabatan penandatangan yang berlaku pada tahun ${form.tahun}.`);
+        document.getElementById('penempatan_pegawai_id')?.focus();
+        return;
+    }
+
+    if (form.level_pk !== 'bupati' && !form.atasan_pegawai_id) {
+        form.setError('atasan_pegawai_id', 'Pilih Pihak Kedua / Atasan langsung.');
+        document.getElementById('atasan_pegawai_id')?.focus();
+        return;
+    }
+
+    if (isManualIndividual.value && !selectedPlacement.value?.unit_kerja && !form.unit_kerja_snapshot.trim()) {
+        form.setError('unit_kerja_snapshot', 'Isi nama Bidang/Bagian sebagai Unit Kerja dokumen PK.');
+        document.getElementById('unit_kerja_preview')?.focus();
+        return;
+    }
+
     if (props.mode === 'create') form.post(route('perjanjian-kinerja.store'));
     else if (props.item) form.put(route('perjanjian-kinerja.update', { perjanjian_kinerja: props.item.id }));
 };
@@ -330,7 +396,9 @@ const submit = () => {
                 </h1>
                 <p class="mt-1 text-sm text-muted-foreground">Pilih level PK dan sumber resmi; sistem menyiapkan matriks serta format dokumennya.</p>
             </div>
-            <span class="w-fit rounded-full border bg-muted/40 px-3 py-1 text-xs font-semibold">Status awal: Draft</span>
+            <span class="w-fit rounded-full border bg-muted/40 px-3 py-1 text-xs font-semibold">
+                {{ mode === 'create' ? 'Status awal: Draft' : `Status: ${currentStatusLabel}` }}
+            </span>
         </header>
 
         <section>
@@ -420,22 +488,52 @@ const submit = () => {
                     <label for="pegawai_id">{{ form.level_pk === 'bupati' ? 'Bupati' : 'Pemilik PK' }}</label
                     ><select id="pegawai_id" v-model="form.pegawai_id">
                         <option value="">Pilih pegawai</option>
-                        <option v-for="option in filteredEmployees" :key="option.id" :value="option.id">{{ option.label }}</option></select
+                        <option v-for="option in employeeOptionsForSelect" :key="option.id" :value="option.id">{{ option.label }}</option></select
                     ><InputError :message="form.errors.pegawai_id" />
                 </div>
                 <div class="field">
                     <label for="penempatan_pegawai_id">Jabatan penandatangan</label
                     ><select id="penempatan_pegawai_id" v-model="form.penempatan_pegawai_id">
-                        <option value="">Pilih jabatan aktif</option>
+                        <option value="">
+                            {{ form.pegawai_id ? `Pilih jabatan pada tahun ${form.tahun}` : 'Pilih pemilik PK terlebih dahulu' }}
+                        </option>
                         <option v-for="option in filteredPlacements" :key="option.id" :value="option.id">{{ option.label }}</option></select
                     ><InputError :message="form.errors.penempatan_pegawai_id" />
+                    <small v-if="form.pegawai_id && filteredPlacements.length === 0" class="field-hint text-amber-700">
+                        Tidak ada riwayat jabatan pemilik PK yang berlaku pada tahun {{ form.tahun }}.
+                    </small>
+                </div>
+                <div v-if="isManualIndividual" class="field md:col-span-2">
+                    <label for="unit_kerja_preview">
+                        Unit Kerja <span>{{ selectedPlacement?.unit_kerja ? '(otomatis)' : '(isi jika belum tersedia)' }}</span>
+                    </label>
+                    <input
+                        id="unit_kerja_preview"
+                        v-model="form.unit_kerja_snapshot"
+                        :readonly="Boolean(selectedPlacement?.unit_kerja)"
+                        :placeholder="selectedPlacement ? 'Contoh: Bidang Informasi dan Komunikasi Publik' : selectedWorkUnit"
+                        :class="selectedPlacement?.unit_kerja ? 'cursor-not-allowed bg-muted/35' : ''"
+                    />
+                    <small class="field-hint">
+                        {{
+                            selectedPlacement?.unit_kerja
+                                ? `Diambil otomatis dari ${selectedPlacement.unit_kerja} dan disimpan sebagai snapshot PK.`
+                                : 'Bidang/Bagian belum tersedia pada struktur jabatan. Isi Unit Kerja untuk dokumen PK ini.'
+                        }}
+                    </small>
+                    <InputError :message="form.errors.unit_kerja_snapshot" />
                 </div>
                 <div v-if="form.level_pk !== 'bupati'" class="field md:col-span-2">
                     <label for="atasan_pegawai_id">Pihak Kedua / Atasan</label
                     ><select id="atasan_pegawai_id" v-model="form.atasan_pegawai_id">
-                        <option value="">Pilih atasan</option>
-                        <option v-for="option in filteredSupervisors" :key="option.id" :value="option.id">{{ option.label }}</option></select
+                        <option value="">
+                            {{ form.penempatan_pegawai_id ? 'Pilih atasan langsung' : 'Pilih jabatan penandatangan terlebih dahulu' }}
+                        </option>
+                        <option v-for="option in supervisorOptionsForSelect" :key="option.id" :value="option.id">{{ option.label }}</option></select
                     ><InputError :message="form.errors.atasan_pegawai_id" />
+                    <small v-if="selectedPlacement && availableSupervisors.length === 0" class="field-hint text-amber-700">
+                        Atasan langsung belum ditemukan. Periksa induk jabatan dan penempatan pejabat pada Struktur Organisasi.
+                    </small>
                 </div>
                 <div
                     v-if="isAutomatic"

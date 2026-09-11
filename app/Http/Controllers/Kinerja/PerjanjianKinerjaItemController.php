@@ -31,6 +31,9 @@ class PerjanjianKinerjaItemController extends Controller
 
         $data = $request->validated();
         $data = $this->normalizeItemSource($perjanjianKinerja, $data);
+        if ($perjanjianKinerja->tipe_pk === 'individual') {
+            $data['urutan'] = ((int) $perjanjianKinerja->items()->max('urutan')) + 1;
+        }
         $this->assertRelationsBelongToOpd($data, (int) $perjanjianKinerja->opd_id);
         if ($perjanjianKinerja->tipe_pk === 'cascading') {
             $data = $hierarchyValidation->applyApprovedPerjanjianKinerjaTarget($perjanjianKinerja, $data);
@@ -116,14 +119,22 @@ class PerjanjianKinerjaItemController extends Controller
     {
         if ($pk->tipe_pk === 'individual') {
             return [
-                ...$data,
                 'sumber_item' => 'manual',
+                'jenis_item' => 'manual',
                 'level_cascading' => null,
                 'cascading_source_type' => null,
                 'cascading_source_id' => null,
                 'sasaran_opd_id' => null,
                 'indikator_sasaran_opd_id' => null,
                 'opd_program_id' => null,
+                'satuan_indikator_id' => null,
+                'satuan_snapshot' => null,
+                'kode' => null,
+                'sasaran' => $data['sasaran'],
+                'indikator' => $data['indikator'],
+                'target' => null,
+                'target_text' => $data['target_text'] ?? null,
+                'urutan' => $data['urutan'] ?? 1,
             ];
         }
 

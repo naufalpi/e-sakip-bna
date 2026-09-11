@@ -17,6 +17,7 @@ use App\Models\RencanaAksiItem;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Kinerja\PerjanjianKinerjaDocumentService;
+use App\Services\Reports\ReportDocumentRenderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -314,37 +315,77 @@ class KinerjaReportExportTest extends TestCase
 
     public function test_manual_individual_pk_uses_official_manual_format(): void
     {
+        $document = [
+            'level' => 'individu',
+            'is_manual_individual' => true,
+            'year' => 2026,
+            'title' => 'PERJANJIAN KINERJA TAHUN 2026',
+            'office_name' => 'DINAS PENGUJIAN',
+            'employee_name' => 'Pelaksana Pengujian',
+            'work_unit' => 'Bidang Pengujian',
+            'place_date' => 'Banjarnegara, 5 Januari 2026',
+            'first_party' => ['name' => 'Pelaksana Pengujian', 'position' => 'Analis Pengujian'],
+            'second_party' => ['name' => 'Kabid Pengujian', 'position' => 'Kepala Bidang Pengujian'],
+            'performance_groups' => [[
+                'number' => 1,
+                'performance' => 'Tersusunnya hasil pengujian',
+                'indicators' => [['name' => 'Jumlah laporan pengujian', 'target' => '12', 'unit' => 'dokumen']],
+            ]],
+            'activity_budget_groups' => [],
+        ];
         $html = view('reports.perjanjian-kinerja', [
-            'report' => ['metadata' => ['pk_document' => [
-                'level' => 'individu',
-                'is_manual_individual' => true,
-                'year' => 2026,
-                'title' => 'PERJANJIAN KINERJA TAHUN 2026',
-                'office_name' => 'DINAS PENGUJIAN',
-                'employee_name' => 'Pelaksana Pengujian',
-                'work_unit' => 'Bidang Pengujian',
-                'place_date' => 'Banjarnegara, 5 Januari 2026',
-                'first_party' => ['name' => 'Pelaksana Pengujian', 'position' => 'Analis Pengujian'],
-                'second_party' => ['name' => 'Kabid Pengujian', 'position' => 'Kepala Bidang Pengujian'],
-                'performance_groups' => [[
-                    'number' => 1,
-                    'performance' => 'Tersusunnya hasil pengujian',
-                    'indicators' => [['name' => 'Jumlah laporan pengujian', 'target' => '12', 'unit' => 'dokumen']],
-                ]],
-                'activity_budget_groups' => [],
-            ]]],
+            'report' => ['metadata' => ['pk_document' => $document]],
             'browserPrint' => false,
         ])->render();
 
         $this->assertStringContainsString('size: 210mm 330mm', $html);
-        $this->assertStringContainsString('Sasaran Kegiatan dan Sasaran Sub Kegiatan', $html);
-        $this->assertStringNotContainsString('Sasaran Kegiatan dan Sasaran Sub Kegiatan ***', $html);
-        $this->assertStringContainsString('Kegiatan dan Sub Kegiatan', $html);
+        $this->assertStringContainsString('font-family: Arial, Helvetica, sans-serif; font-size: 12pt; line-height: 1.5;', $html);
+        $this->assertStringContainsString('.letterhead-copy .government { font-size: 15pt;', $html);
+        $this->assertStringContainsString('.letterhead-copy .office { font-size: 18pt;', $html);
+        $this->assertStringContainsString('Sasaran Kinerja', $html);
+        $this->assertStringContainsString('Indikator Kinerja', $html);
+        $this->assertStringContainsString('Tersusunnya hasil pengujian', $html);
+        $this->assertStringContainsString('12 dokumen', $html);
         $this->assertStringContainsString('Nama Pejabat', $html);
         $this->assertStringContainsString('Unit Kerja', $html);
         $this->assertStringContainsString('Pihak Kedua', $html);
         $this->assertStringContainsString('Pihak Pertama', $html);
-        $this->assertStringContainsString('Belum ada kegiatan atau sub kegiatan.', $html);
+        $this->assertStringContainsString('serta akan melakukan evaluasi terhadap capaian kinerja dari perjanjian kinerja ini', $html);
+        $this->assertStringNotContainsString('Kegiatan dan Sub Kegiatan', $html);
+        $this->assertStringNotContainsString('Belum ada kegiatan atau sub kegiatan.', $html);
+        $this->assertStringNotContainsString('<div class="official-note">', $html);
+
+        $report = [
+            'title' => 'PK Manual',
+            'filename' => 'pk-manual',
+            'sections' => [],
+            'metadata' => [
+                'layout' => 'perjanjian_kinerja',
+                'pk_document' => $document,
+            ],
+        ];
+        $renderService = app(ReportDocumentRenderService::class);
+        $pdf = $renderService->render($report, 'pdf');
+        $this->assertSame('application/pdf', $pdf['mime_type']);
+        $this->assertStringStartsWith('%PDF', $pdf['contents']);
+
+        $word = $renderService->render($report, 'word');
+        $temporaryPath = tempnam(sys_get_temp_dir(), 'pk-manual-docx-');
+        file_put_contents($temporaryPath, $word['contents']);
+        $archive = new \ZipArchive;
+
+        try {
+            $this->assertTrue($archive->open($temporaryPath) === true);
+            $documentXml = (string) $archive->getFromName('word/document.xml');
+            $this->assertStringContainsString('w:w="11906"', $documentXml);
+            $this->assertStringContainsString('w:h="18709"', $documentXml);
+            $this->assertStringContainsString('SASARAN KINERJA', $documentXml);
+            $this->assertStringContainsString('Tersusunnya hasil pengujian', $documentXml);
+            $this->assertStringNotContainsString('KEGIATAN DAN SUB KEGIATAN', $documentXml);
+        } finally {
+            $archive->close();
+            @unlink($temporaryPath);
+        }
     }
 
     /**

@@ -370,7 +370,13 @@ class RenstraOpdNodeController extends Controller
 
                 $subKegiatan->update([
                     'opd_kegiatan_id' => $kegiatan->id,
-                    ...$this->subKegiatanPayload($renstra, $kegiatan, $data, $subKegiatan->id),
+                    ...$this->subKegiatanPayload(
+                        $renstra,
+                        $kegiatan,
+                        $data,
+                        $subKegiatan->id,
+                        $subKegiatan->sasaran_sub_kegiatan,
+                    ),
                 ]);
 
                 $this->ensureSubKegiatanIndicatorSnapshot($subKegiatan->refresh());
@@ -682,8 +688,13 @@ class RenstraOpdNodeController extends Controller
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    private function subKegiatanPayload(RenstraOpd $renstra, OpdKegiatan $kegiatan, array $data, ?int $ignoreId = null): array
-    {
+    private function subKegiatanPayload(
+        RenstraOpd $renstra,
+        OpdKegiatan $kegiatan,
+        array $data,
+        ?int $ignoreId = null,
+        ?string $currentSasaran = null,
+    ): array {
         $reference = SubKegiatanPemerintahan::query()->findOrFail($data['sub_kegiatan_pemerintahan_id']);
 
         if ($kegiatan->kegiatan_pemerintahan_id && (int) $reference->kegiatan_pemerintahan_id !== (int) $kegiatan->kegiatan_pemerintahan_id) {
@@ -724,7 +735,9 @@ class RenstraOpdNodeController extends Controller
             'opd_unit_id' => $this->validatedOpdUnitId($renstra, $data['opd_unit_id'] ?? null),
             'kode' => $reference->kode,
             'nama' => $reference->nama,
-            'sasaran_sub_kegiatan' => $reference->sasaran_sub_kegiatan,
+            'sasaran_sub_kegiatan' => array_key_exists('sasaran_level', $data)
+                ? $data['sasaran_level']
+                : ($ignoreId !== null ? $currentSasaran : $reference->sasaran_sub_kegiatan),
             'urutan' => $data['urutan'] ?? 1,
         ];
     }

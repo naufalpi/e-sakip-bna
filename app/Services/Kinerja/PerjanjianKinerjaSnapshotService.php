@@ -250,8 +250,21 @@ class PerjanjianKinerjaSnapshotService
                 });
             });
 
+        if ($items->isEmpty()) {
+            throw ValidationException::withMessages([
+                'rkpd_id' => 'RKPD belum memiliki indikator Tujuan/Sasaran yang dapat dimasukkan ke PK Bupati.',
+            ]);
+        }
+
+        $this->ensureTargetsAvailable($items, 'rkpd_id', 'Target RKPD salah satu indikator Tujuan/Sasaran belum tersedia untuk tahun PK.');
         $this->storeItems($pk, $items);
         $this->storeRkpdPrograms($pk, $rkpd);
+
+        if (! $pk->programs()->exists()) {
+            throw ValidationException::withMessages([
+                'rkpd_id' => 'RKPD belum memiliki program dan pagu indikatif yang dapat dimasukkan ke PK Bupati.',
+            ]);
+        }
     }
 
     private function populateKepalaOpd(PerjanjianKinerja $pk): void

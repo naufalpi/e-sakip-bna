@@ -45,7 +45,7 @@ class KinerjaWorkflowTest extends TestCase
     {
         $this->seed();
         $opd = Opd::query()->where('status', 'active')->firstOrFail();
-        $periode = PeriodeTahun::query()->firstOrFail();
+        $periode = PeriodeTahun::query()->where('tahun', now()->year)->firstOrFail();
         $bupatiJob = JabatanOrganisasi::create([
             'nama' => 'Bupati Banjarnegara',
             'level_jabatan' => 'kepala_daerah',
@@ -106,7 +106,7 @@ class KinerjaWorkflowTest extends TestCase
         $this->seed();
         $opd = Opd::query()->where('status', 'active')->firstOrFail();
         $otherOpd = Opd::query()->where('status', 'active')->whereKeyNot($opd->id)->firstOrFail();
-        $periode = PeriodeTahun::query()->firstOrFail();
+        $periode = PeriodeTahun::query()->where('tahun', now()->year)->firstOrFail();
         $adminOpd = User::factory()->create(['opd_id' => $opd->id]);
         $adminOpd->roles()->sync([Role::query()->where('name', 'admin_opd')->value('id')]);
         $headJob = JabatanOrganisasi::create([
@@ -218,17 +218,21 @@ class KinerjaWorkflowTest extends TestCase
         $this->seed();
 
         [$opd, $otherOpd, $periode, $adminOpd] = $this->basicActors();
-        $pegawai = $this->pegawai($opd, 'Pegawai Dinas Kesehatan');
+        [$pegawai, $atasan, $penempatan] = $this->individualPkSubject($opd, $periode->tahun, 'Dinas Kesehatan');
 
         $this->actingAs($adminOpd)
             ->post(route('perjanjian-kinerja.store'), [
                 'opd_id' => $opd->id,
                 'pegawai_id' => $pegawai->id,
+                'penempatan_pegawai_id' => $penempatan->id,
+                'atasan_pegawai_id' => $atasan->id,
                 'tipe_pk' => 'individual',
+                'level_pk' => 'individu',
                 'periode_tahun_id' => $periode->id,
                 'tahun' => $periode->tahun,
                 'judul' => 'PK Dinas Kesehatan',
                 'nomor_dokumen' => 'PK/001',
+                'unit_kerja_snapshot' => 'Bidang Dinas Kesehatan',
                 'status' => 'draft',
             ])
             ->assertRedirect();
@@ -239,10 +243,14 @@ class KinerjaWorkflowTest extends TestCase
             ->post(route('perjanjian-kinerja.store'), [
                 'opd_id' => $otherOpd->id,
                 'pegawai_id' => $pegawai->id,
+                'penempatan_pegawai_id' => $penempatan->id,
+                'atasan_pegawai_id' => $atasan->id,
                 'tipe_pk' => 'individual',
+                'level_pk' => 'individu',
                 'periode_tahun_id' => $periode->id,
                 'tahun' => $periode->tahun,
                 'judul' => 'PK OPD Lain',
+                'unit_kerja_snapshot' => 'Bidang Dinas Kesehatan',
                 'status' => 'draft',
             ])
             ->assertForbidden();
@@ -342,6 +350,46 @@ class KinerjaWorkflowTest extends TestCase
 
         [$opd, , $periode, $adminOpd] = $this->basicActors();
         $pegawai = $this->pegawai($opd, 'Pegawai Pemilik PK');
+        $atasan = $this->pegawai($opd, 'Kepala OPD Pemilik PK');
+        $pegawaiPelaksana = $this->pegawai($opd, 'Pegawai Pelaksana PK');
+        $jabatanAtasan = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Kepala OPD Pengujian PK',
+            'level_jabatan' => 'jpt_pratama',
+            'status' => 'active',
+        ]);
+        $jabatanStruktural = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'parent_id' => $jabatanAtasan->id,
+            'nama' => 'Kepala Bidang Pengujian PK',
+            'level_jabatan' => 'administrator',
+            'status' => 'active',
+        ]);
+        $jabatanPelaksana = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'parent_id' => $jabatanStruktural->id,
+            'nama' => 'Pelaksana Pengujian PK',
+            'level_jabatan' => 'pelaksana',
+            'status' => 'active',
+        ]);
+        $atasan->penempatan()->create([
+            'jabatan_organisasi_id' => $jabatanAtasan->id,
+            'nama_pejabat' => $atasan->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => $periode->tahun.'-01-01',
+        ]);
+        $penempatanStruktural = $pegawai->penempatan()->create([
+            'jabatan_organisasi_id' => $jabatanStruktural->id,
+            'nama_pejabat' => $pegawai->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => $periode->tahun.'-01-01',
+        ]);
+        $penempatanPelaksana = $pegawaiPelaksana->penempatan()->create([
+            'jabatan_organisasi_id' => $jabatanPelaksana->id,
+            'nama_pejabat' => $pegawaiPelaksana->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => $periode->tahun.'-01-01',
+        ]);
 
         $rpjmd = Rpjmd::create([
             'periode_tahun_id' => $periode->id,
@@ -441,6 +489,8 @@ class KinerjaWorkflowTest extends TestCase
         $payload = [
             'opd_id' => $opd->id,
             'pegawai_id' => $pegawai->id,
+            'penempatan_pegawai_id' => $penempatanStruktural->id,
+            'atasan_pegawai_id' => $atasan->id,
             'tipe_pk' => 'cascading',
             'level_pk' => 'struktural',
             'renstra_opd_id' => $renstra->id,
@@ -579,6 +629,9 @@ class KinerjaWorkflowTest extends TestCase
 
         $lowerPayload = [
             ...$payload,
+            'pegawai_id' => $pegawaiPelaksana->id,
+            'penempatan_pegawai_id' => $penempatanPelaksana->id,
+            'atasan_pegawai_id' => $pegawai->id,
             'level_pk' => 'individu',
             'judul' => 'PK Kasi Cascading',
         ];
@@ -601,7 +654,7 @@ class KinerjaWorkflowTest extends TestCase
             ->assertSessionDoesntHaveErrors();
 
         $lowerPk = PerjanjianKinerja::query()
-            ->where('pegawai_id', $pegawai->id)
+            ->where('pegawai_id', $pegawaiPelaksana->id)
             ->where('level_pk', 'individu')
             ->firstOrFail();
         $this->actingAs($adminOpd)
@@ -885,6 +938,156 @@ class KinerjaWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_pk_status_cannot_be_changed_without_workflow(): void
+    {
+        $this->seed();
+
+        [$opd, , $periode, $adminOpd] = $this->basicActors();
+        [$pegawai, $atasan, $penempatan] = $this->individualPkSubject($opd, $periode->tahun, 'Status');
+        $payload = [
+            'opd_id' => $opd->id,
+            'pegawai_id' => $pegawai->id,
+            'penempatan_pegawai_id' => $penempatan->id,
+            'atasan_pegawai_id' => $atasan->id,
+            'tipe_pk' => 'individual',
+            'level_pk' => 'individu',
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'PK Status Tidak Sah',
+            'unit_kerja_snapshot' => 'Bidang Status',
+            'status' => 'approved',
+        ];
+
+        $this->actingAs($adminOpd)
+            ->post(route('perjanjian-kinerja.store'), $payload)
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $pk = PerjanjianKinerja::query()->where('pegawai_id', $pegawai->id)->firstOrFail();
+        $this->assertSame('draft', $pk->status);
+
+        $this->actingAs($adminOpd)
+            ->put(route('perjanjian-kinerja.update', $pk), [...$payload, 'status' => 'locked'])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertSame('draft', $pk->refresh()->status);
+    }
+
+    public function test_pk_rejects_mismatched_period_and_job_level(): void
+    {
+        $this->seed();
+
+        [$opd, , $periode, $adminOpd] = $this->basicActors();
+        [$sasaran, , $renstra] = $this->approvedRenstraTarget($opd, $periode);
+        $atasan = $this->pegawai($opd, 'Atasan PK Validasi');
+        $pemilik = $this->pegawai($opd, 'Pemilik PK Validasi');
+        $jabatanAtasan = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Kepala OPD Validasi',
+            'level_jabatan' => 'jpt_pratama',
+            'status' => 'active',
+        ]);
+        $jabatanPengawas = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'parent_id' => $jabatanAtasan->id,
+            'nama' => 'Kepala Seksi Validasi',
+            'level_jabatan' => 'pengawas',
+            'status' => 'active',
+        ]);
+        $atasan->penempatan()->create([
+            'jabatan_organisasi_id' => $jabatanAtasan->id,
+            'nama_pejabat' => $atasan->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => $periode->tahun.'-01-01',
+        ]);
+        $penempatan = $pemilik->penempatan()->create([
+            'jabatan_organisasi_id' => $jabatanPengawas->id,
+            'nama_pejabat' => $pemilik->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => $periode->tahun.'-01-01',
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->post(route('perjanjian-kinerja.store'), [
+                'opd_id' => $opd->id,
+                'pegawai_id' => $pemilik->id,
+                'penempatan_pegawai_id' => $penempatan->id,
+                'atasan_pegawai_id' => $atasan->id,
+                'tipe_pk' => 'cascading',
+                'level_pk' => 'struktural',
+                'renstra_opd_id' => $renstra->id,
+                'lingkup_kinerja_snapshot' => ['sasaran_opd:'.$sasaran->id],
+                'periode_tahun_id' => $periode->id,
+                'tahun' => $periode->tahun,
+                'judul' => 'PK Level Tidak Sesuai',
+                'status' => 'draft',
+            ])
+            ->assertSessionHasErrors('penempatan_pegawai_id');
+
+        $periodeLain = PeriodeTahun::query()->updateOrCreate(
+            ['tahun' => $periode->tahun + 1],
+            ['nama' => 'Tahun '.($periode->tahun + 1), 'status' => 'active'],
+        );
+        $this->actingAs($adminOpd)
+            ->post(route('perjanjian-kinerja.store'), [
+                'opd_id' => $opd->id,
+                'pegawai_id' => $pemilik->id,
+                'penempatan_pegawai_id' => $penempatan->id,
+                'atasan_pegawai_id' => $atasan->id,
+                'tipe_pk' => 'individual',
+                'level_pk' => 'individu',
+                'periode_tahun_id' => $periodeLain->id,
+                'tahun' => $periode->tahun,
+                'judul' => 'PK Periode Tidak Sesuai',
+                'unit_kerja_snapshot' => 'Bidang Validasi',
+                'status' => 'draft',
+            ])
+            ->assertSessionHasErrors('periode_tahun_id');
+    }
+
+    public function test_explicit_pk_must_be_complete_before_submission(): void
+    {
+        $this->seed();
+
+        [$opd, , $periode, $adminOpd] = $this->basicActors();
+        $pk = PerjanjianKinerja::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'PK Manual Belum Lengkap',
+            'tipe_pk' => 'individual',
+            'level_pk' => 'individu',
+            'sumber_data' => 'manual',
+            'nama_pegawai_snapshot' => 'Pemilik PK Manual',
+            'jabatan_snapshot' => 'Analis Kebijakan',
+            'unit_kerja_snapshot' => 'Bidang Pengujian',
+            'nama_atasan_snapshot' => 'Atasan PK Manual',
+            'jabatan_atasan_snapshot' => 'Kepala Bidang Pengujian',
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), ['action' => 'submit'])
+            ->assertSessionHasErrors('action');
+        $this->assertSame('draft', $pk->fresh()->status);
+
+        $pk->items()->create([
+            'sumber_item' => 'manual',
+            'jenis_item' => 'manual',
+            'sasaran' => 'Tersusunnya laporan evaluasi',
+            'indikator' => 'Jumlah laporan evaluasi',
+            'target_text' => '12 Dokumen',
+            'urutan' => 1,
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), ['action' => 'submit'])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+        $this->assertSame('submitted', $pk->fresh()->status);
+    }
+
     private function basicActors(): array
     {
         $opd = Opd::create(['kode' => '1.01', 'nama' => 'Dinas Kesehatan', 'status' => 'active']);
@@ -895,6 +1098,39 @@ class KinerjaWorkflowTest extends TestCase
         $adminOpd->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
 
         return [$opd, $otherOpd, $periode, $adminOpd];
+    }
+
+    private function individualPkSubject(Opd $opd, int $year, string $suffix): array
+    {
+        $atasan = $this->pegawai($opd, 'Atasan PK '.$suffix);
+        $pemilik = $this->pegawai($opd, 'Pemilik PK '.$suffix);
+        $jabatanAtasan = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Kepala Bidang '.$suffix,
+            'level_jabatan' => 'administrator',
+            'status' => 'active',
+        ]);
+        $jabatanPemilik = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'parent_id' => $jabatanAtasan->id,
+            'nama' => 'Analis '.$suffix,
+            'level_jabatan' => 'fungsional',
+            'status' => 'active',
+        ]);
+        $atasan->penempatan()->create([
+            'jabatan_organisasi_id' => $jabatanAtasan->id,
+            'nama_pejabat' => $atasan->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => $year.'-01-01',
+        ]);
+        $penempatan = $pemilik->penempatan()->create([
+            'jabatan_organisasi_id' => $jabatanPemilik->id,
+            'nama_pejabat' => $pemilik->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => $year.'-01-01',
+        ]);
+
+        return [$pemilik, $atasan, $penempatan];
     }
 
     private function approvedRenstraTarget(Opd $opd, PeriodeTahun $periode): array

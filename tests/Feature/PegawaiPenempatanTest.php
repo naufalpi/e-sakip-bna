@@ -5,10 +5,10 @@ namespace Tests\Feature;
 use App\Models\IndikatorSasaranOpd;
 use App\Models\JabatanOrganisasi;
 use App\Models\Opd;
+use App\Models\OpdUnit;
 use App\Models\Pegawai;
 use App\Models\PeriodeTahun;
 use App\Models\PerjanjianKinerja;
-use App\Models\PerjanjianKinerjaItem;
 use App\Models\RenstraOpd;
 use App\Models\Role;
 use App\Models\Rpjmd;
@@ -584,10 +584,61 @@ class PegawaiPenempatanTest extends TestCase
     {
         $this->seed();
         $opd = Opd::query()->where('status', 'active')->firstOrFail();
-        $periode = PeriodeTahun::query()->firstOrFail();
+        $periode = PeriodeTahun::query()->where('tahun', now()->year)->firstOrFail();
         $adminOpd = $this->userWithRole('admin_opd', $opd);
         $assigned = $this->employee($opd, 'Pegawai Cascading', '197901012009011001');
         $individual = $this->employee($opd, 'Pegawai Individu', '197901012009011002');
+        $head = $this->employee($opd, 'Kepala OPD Cascading', '197901012009011003');
+        $unit = OpdUnit::create([
+            'opd_id' => $opd->id,
+            'kode' => 'BID-PENGUJIAN',
+            'nama' => 'Bidang Pengujian',
+            'jenis_unit' => 'bidang',
+            'status' => 'active',
+        ]);
+        $headPosition = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Kepala OPD Pengujian',
+            'level_jabatan' => 'jpt_pratama',
+            'status' => 'active',
+        ]);
+        $supervisorPosition = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'opd_unit_id' => $unit->id,
+            'parent_id' => $headPosition->id,
+            'nama' => 'Kepala Bidang Pengujian',
+            'level_jabatan' => 'administrator',
+            'status' => 'active',
+        ]);
+        $individualPosition = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'opd_unit_id' => null,
+            'parent_id' => $supervisorPosition->id,
+            'nama' => 'Analis Pengujian',
+            'level_jabatan' => 'fungsional',
+            'status' => 'active',
+        ]);
+        $head->penempatan()->create([
+            'jabatan_organisasi_id' => $headPosition->id,
+            'nama_pejabat' => $head->nama,
+            'nip' => $head->nip,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => now()->startOfYear()->toDateString(),
+        ]);
+        $assignedPlacement = $assigned->penempatan()->create([
+            'jabatan_organisasi_id' => $supervisorPosition->id,
+            'nama_pejabat' => $assigned->nama,
+            'nip' => $assigned->nip,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => now()->startOfYear()->toDateString(),
+        ]);
+        $individualPlacement = $individual->penempatan()->create([
+            'jabatan_organisasi_id' => $individualPosition->id,
+            'nama_pejabat' => $individual->nama,
+            'nip' => $individual->nip,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => now()->startOfYear()->toDateString(),
+        ]);
         $rpjmd = Rpjmd::create([
             'periode_tahun_id' => $periode->id,
             'judul' => 'RPJMD Pengujian',
@@ -629,6 +680,9 @@ class PegawaiPenempatanTest extends TestCase
 
         $basePayload = [
             'opd_id' => $opd->id,
+            'pegawai_id' => $assigned->id,
+            'penempatan_pegawai_id' => $assignedPlacement->id,
+            'atasan_pegawai_id' => $head->id,
             'periode_tahun_id' => $periode->id,
             'tahun' => $periode->tahun,
             'judul' => 'PK Cascading Pengujian',
@@ -640,11 +694,7 @@ class PegawaiPenempatanTest extends TestCase
         ];
 
         $this->actingAs($adminOpd)
-            ->post(route('perjanjian-kinerja.store'), [...$basePayload, 'pegawai_id' => $individual->id])
-            ->assertRedirect()
-            ->assertSessionDoesntHaveErrors();
-        $this->actingAs($adminOpd)
-            ->post(route('perjanjian-kinerja.store'), [...$basePayload, 'pegawai_id' => $assigned->id])
+            ->post(route('perjanjian-kinerja.store'), $basePayload)
             ->assertRedirect()
             ->assertSessionDoesntHaveErrors();
 
@@ -652,7 +702,6 @@ class PegawaiPenempatanTest extends TestCase
         $this->actingAs($adminOpd)
             ->put(route('perjanjian-kinerja.update', $cascadingPk), [
                 ...$basePayload,
-                'pegawai_id' => $assigned->id,
                 'lingkup_kinerja_snapshot' => [],
                 'nomor_dokumen' => 'PK/EDIT/001',
             ])
@@ -663,27 +712,52 @@ class PegawaiPenempatanTest extends TestCase
             $cascadingPk->refresh()->lingkup_kinerja_snapshot,
         );
 
+        $manualPayload = [
+            ...$basePayload,
+            'pegawai_id' => $individual->id,
+            'penempatan_pegawai_id' => $individualPlacement->id,
+            'atasan_pegawai_id' => $assigned->id,
+            'tipe_pk' => 'individual',
+            'level_pk' => 'individu',
+            'renstra_opd_id' => null,
+            'lingkup_kinerja_snapshot' => [],
+            'tanggal_dokumen' => now()->startOfYear()->addDays(4)->toDateString(),
+            'judul' => 'PK Individu Pengujian',
+            'status' => 'draft',
+        ];
+
         $this->actingAs($adminOpd)
-            ->post(route('perjanjian-kinerja.store'), [
-                ...$basePayload,
-                'pegawai_id' => $individual->id,
-                'tipe_pk' => 'individual',
-                'level_pk' => 'individu',
-                'renstra_opd_id' => null,
-                'judul' => 'PK Individu Pengujian',
-                'status' => 'approved',
-            ])
+            ->post(route('perjanjian-kinerja.store'), $manualPayload)
             ->assertRedirect();
 
         $individualPk = PerjanjianKinerja::query()->where('tipe_pk', 'individual')->firstOrFail();
-        PerjanjianKinerjaItem::create([
+        $this->assertSame('Bidang Pengujian', $individualPk->unit_kerja_snapshot);
+        $this->actingAs($adminOpd)
+            ->put(route('perjanjian-kinerja.update', $individualPk), $manualPayload)
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+        $this->actingAs($adminOpd)
+            ->post(route('perjanjian-kinerja.items.store', $individualPk), [
+                'sasaran' => 'Hasil kerja individu',
+                'indikator' => 'Dokumen selesai',
+                'target_text' => '12 Dokumen',
+                'satuan_indikator_id' => 1,
+                'kode' => 'IGNORED',
+                'urutan' => 99,
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+        $this->assertDatabaseHas('perjanjian_kinerja_items', [
             'perjanjian_kinerja_id' => $individualPk->id,
-            'sumber_item' => 'manual',
             'sasaran' => 'Hasil kerja individu',
             'indikator' => 'Dokumen selesai',
-            'target_text' => '12 dokumen',
+            'target' => null,
+            'target_text' => '12 Dokumen',
+            'satuan_indikator_id' => null,
+            'kode' => null,
             'urutan' => 1,
         ]);
+        $individualPk->forceFill(['status' => 'approved'])->save();
 
         $this->actingAs($adminOpd)
             ->post(route('rencana-aksi.store'), [

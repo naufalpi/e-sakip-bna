@@ -278,6 +278,7 @@ type RenstraOutputRow = {
     level: RenstraOutputRowLevel;
     label: string;
     indicator: string;
+    satuan: string;
     baseline: string;
     values: Array<{ year: number | string; target: string; pagu: string }>;
 };
@@ -1563,6 +1564,7 @@ const renstraOutputRows = computed<RenstraOutputRow[]>(() => {
                     level: 'bidang',
                     label: group.label,
                     indicator: '',
+                    satuan: '',
                     baseline: '',
                     values: blankRenstraOutputValues(),
                 });
@@ -1654,6 +1656,7 @@ function appendRenstraGroupingRow(rows: RenstraOutputRow[], level: RenstraOutput
         level,
         label,
         indicator: '',
+        satuan: '',
         baseline: '',
         values: blankRenstraOutputValues(),
     });
@@ -1675,6 +1678,7 @@ function appendRenstraOutputRows(
             level: options.level,
             label: options.label,
             indicator: '',
+            satuan: '',
             baseline: '',
             values: renstraOutputValues(null, options.budgetResolver),
         });
@@ -1688,6 +1692,7 @@ function appendRenstraOutputRows(
             level: options.level,
             label: index === 0 ? options.label : '',
             indicator: plainNodeText(indicator.indikator),
+            satuan: indicator.satuan?.nama?.trim() || '-',
             baseline: targetForIndicatorYear(indicator, baselineYear.value),
             values: renstraOutputValues(indicator, options.budgetResolver, index === 0),
         });
@@ -1721,7 +1726,7 @@ const renstraOutputValues = (indicator: Indikator | null, budgetResolver: (year:
 const targetForIndicatorYear = (indicator: Indikator, year: number) => {
     const target = (indicator.targets ?? []).find((item) => Number(item.periode_tahun?.tahun) === year);
 
-    return normalizedTargetText(target?.target_text || target?.target) || '-';
+    return normalizedTargetText(target?.target_text) || normalizedTargetText(target?.target) || '-';
 };
 
 const subKegiatanBudgetByYear = (subKegiatan: SubKegiatan, year: number) => {
@@ -2486,6 +2491,10 @@ const applyBulkMasterReference = (row: BulkRow, option: Option | null) => {
 
     row.kode = valueText(option.kode);
     row.uraian = valueText(option.nama ?? option.label);
+
+    if (row.type === 'sub_kegiatan') {
+        row.sasaran_level = valueText(option.sasaran_sub_kegiatan);
+    }
 };
 const setBulkMasterValue = (row: BulkRow, value: number | string | null | undefined) => {
     if (row.type === 'program') {
@@ -4213,7 +4222,9 @@ watch(
 
         form.kode = valueText(reference.kode);
         form.uraian = valueText(reference.nama ?? reference.label);
-        form.sasaran_level = valueText(reference.sasaran_sub_kegiatan);
+        if (!editingNode.value || !form.sasaran_level) {
+            form.sasaran_level = valueText(reference.sasaran_sub_kegiatan);
+        }
     },
 );
 
@@ -6188,7 +6199,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                 <div
                     class="w-full overflow-x-auto overscroll-x-contain pb-6 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:bg-clip-padding [&::-webkit-scrollbar-track]:bg-slate-100"
                 >
-                    <table class="w-max min-w-[1720px] border-collapse text-left text-[13px] leading-5">
+                    <table class="w-max min-w-[1820px] border-collapse text-left text-[13px] leading-5">
                         <thead class="text-xs uppercase text-slate-950">
                             <tr class="bg-white">
                                 <th rowspan="3" class="w-[290px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
@@ -6196,6 +6207,9 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 </th>
                                 <th rowspan="3" class="w-[260px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
                                     INDIKATOR OUTCOME / OUTPUT
+                                </th>
+                                <th rowspan="3" class="w-[120px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
+                                    SATUAN
                                 </th>
                                 <th rowspan="3" class="w-[110px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
                                     BASE LINE {{ baselineYear }}
@@ -6227,14 +6241,19 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     <div :class="renstraOutputLabelClass(row.level)">{{ row.label }}</div>
                                 </td>
                                 <td class="border border-slate-900 px-3 py-3 align-top">{{ row.indicator }}</td>
-                                <td class="border border-slate-900 px-3 py-3 text-center align-top tabular-nums">{{ row.baseline }}</td>
+                                <td class="whitespace-pre-line border border-slate-900 px-3 py-3 text-center align-top">{{ row.satuan }}</td>
+                                <td class="whitespace-pre-line border border-slate-900 px-3 py-3 text-center align-top tabular-nums">
+                                    {{ row.baseline }}
+                                </td>
                                 <template v-for="value in row.values" :key="`${row.key}-${value.year}`">
-                                    <td class="border border-slate-900 px-2 py-3 text-center align-top tabular-nums">{{ value.target }}</td>
+                                    <td class="whitespace-pre-line border border-slate-900 px-2 py-3 text-center align-top tabular-nums">
+                                        {{ value.target }}
+                                    </td>
                                     <td class="border border-slate-900 px-2 py-3 align-top tabular-nums">{{ value.pagu }}</td>
                                 </template>
                             </tr>
                             <tr v-if="renstraOutputRows.length === 0">
-                                <td :colspan="3 + periodColumns.length * 2" class="border border-slate-900 px-4 py-10 text-center text-muted-foreground">
+                                <td :colspan="4 + periodColumns.length * 2" class="border border-slate-900 px-4 py-10 text-center text-muted-foreground">
                                     Belum ada data Renstra OPD.
                                 </td>
                             </tr>
@@ -7103,20 +7122,11 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                     </div>
                                 </div>
                                 <InputError :message="form.errors.sub_kegiatan_pemerintahan_id" />
-                                <div v-if="selectedSubKegiatanMaster" class="grid gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-3 text-sm">
+                                <div v-if="selectedSubKegiatanMaster" class="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-3 text-sm">
                                     <div>
                                         <span class="text-xs font-semibold uppercase text-slate-500">Sub Kegiatan OPD</span>
                                         <p class="mt-1 font-semibold leading-6 text-slate-950">
                                             {{ selectedSubKegiatanMaster.nama || selectedSubKegiatanMaster.label }}
-                                        </p>
-                                    </div>
-                                    <div class="rounded-md border border-white/80 bg-white/80 px-3 py-2">
-                                        <span class="text-xs font-semibold uppercase text-slate-500">Sasaran Sub Kegiatan</span>
-                                        <p
-                                            class="mt-1 leading-6"
-                                            :class="selectedSubKegiatanMaster.sasaran_sub_kegiatan ? 'text-slate-800' : 'text-slate-500'"
-                                        >
-                                            {{ selectedSubKegiatanMaster.sasaran_sub_kegiatan || 'Belum ada sasaran sub kegiatan pada master.' }}
                                         </p>
                                     </div>
                                 </div>
@@ -7137,16 +7147,39 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 <InputError :message="form.errors.uraian" />
                             </div>
 
-                            <div v-if="['program', 'kegiatan'].includes(form.type)" class="grid gap-2">
-                                <label class="text-sm font-medium" for="sasaran_level">
-                                    {{ form.type === 'program' ? 'Sasaran Program' : 'Sasaran Kegiatan' }}
-                                </label>
+                            <div v-if="['program', 'kegiatan', 'sub_kegiatan'].includes(form.type)" class="grid gap-2">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <label class="text-sm font-semibold text-slate-800" for="sasaran_level">
+                                        {{
+                                            form.type === 'program'
+                                                ? 'Sasaran Program'
+                                                : form.type === 'kegiatan'
+                                                  ? 'Sasaran Kegiatan'
+                                                  : 'Sasaran Sub Kegiatan'
+                                        }}
+                                    </label>
+                                    <span
+                                        v-if="form.type === 'sub_kegiatan'"
+                                        class="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700"
+                                    >
+                                        Khusus RENSTRA
+                                    </span>
+                                </div>
                                 <textarea
                                     id="sasaran_level"
                                     v-model="form.sasaran_level"
                                     rows="3"
-                                    class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-primary"
+                                    :disabled="form.type === 'sub_kegiatan' && !hasSelectedMasterReference"
+                                    :placeholder="
+                                        form.type === 'sub_kegiatan'
+                                            ? 'Pilih sub kegiatan terlebih dahulu.'
+                                            : 'Tuliskan sasaran yang ingin dicapai.'
+                                    "
+                                    class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                                 />
+                                <p v-if="form.type === 'sub_kegiatan'" class="text-xs leading-5 text-slate-500">
+                                    Terisi otomatis dari master. Perubahan di sini hanya berlaku untuk RENSTRA ini dan tidak mengubah data master.
+                                </p>
                                 <InputError :message="form.errors.sasaran_level" />
                             </div>
 

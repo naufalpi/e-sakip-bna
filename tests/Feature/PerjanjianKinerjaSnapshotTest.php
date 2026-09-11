@@ -59,14 +59,14 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
             'jenis_versi' => 'ditetapkan',
             'is_active_version' => true,
         ]);
-        RkpdIkuTarget::create([
+        $rkpdTarget = RkpdIkuTarget::create([
             'rkpd_id' => $rkpd->id,
             'periode_tahun_id' => $periode->id,
             'indikator_type' => 'indikator_tujuan_daerah',
             'indikator_id' => $indikator->id,
             'target_rkpd' => '82,50',
         ]);
-        RkpdItem::create([
+        $rkpdItem = RkpdItem::create([
             'rkpd_id' => $rkpd->id,
             'opd_id' => $opd->id,
             'kode' => '1.01.01',
@@ -96,6 +96,37 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
             'target_text' => '82,50',
             'is_readonly' => true,
         ]);
+        $this->assertDatabaseHas('perjanjian_kinerja_programs', [
+            'perjanjian_kinerja_id' => $pk->id,
+            'nama_program' => 'PROGRAM PELAYANAN PUBLIK',
+            'anggaran' => 125000000,
+        ]);
+
+        $rkpdTarget->delete();
+
+        try {
+            app(PerjanjianKinerjaSnapshotService::class)->populate($pk);
+            $this->fail('Sinkronisasi PK Bupati seharusnya ditolak ketika target RKPD belum tersedia.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('rkpd_id', $exception->errors());
+        }
+
+        $this->assertDatabaseHas('perjanjian_kinerja_items', [
+            'perjanjian_kinerja_id' => $pk->id,
+            'target_text' => '82,50',
+        ]);
+
+        $rkpdTarget->restore();
+        $rkpdItem->delete();
+
+        try {
+            app(PerjanjianKinerjaSnapshotService::class)->populate($pk);
+            $this->fail('Sinkronisasi PK Bupati seharusnya ditolak ketika program RKPD belum tersedia.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('rkpd_id', $exception->errors());
+        }
+
+        // Kegagalan sinkronisasi tidak boleh menghapus snapshot terakhir yang masih sah.
         $this->assertDatabaseHas('perjanjian_kinerja_programs', [
             'perjanjian_kinerja_id' => $pk->id,
             'nama_program' => 'PROGRAM PELAYANAN PUBLIK',

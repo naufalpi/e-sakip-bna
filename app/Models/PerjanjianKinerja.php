@@ -33,6 +33,7 @@ class PerjanjianKinerja extends Model
         'nama_pegawai_snapshot',
         'nip_snapshot',
         'jabatan_snapshot',
+        'unit_kerja_snapshot',
         'nama_atasan_snapshot',
         'nip_atasan_snapshot',
         'jabatan_atasan_snapshot',

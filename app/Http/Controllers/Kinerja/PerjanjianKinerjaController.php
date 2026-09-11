@@ -12,6 +12,7 @@ use App\Models\OpdKegiatan;
 use App\Models\OpdProgram;
 use App\Models\OpdSubKegiatan;
 use App\Models\Pegawai;
+use App\Models\PeriodeTahun;
 use App\Models\PerjanjianKinerja;
 use App\Models\PerjanjianKinerjaItem;
 use App\Models\RenstraOpd;
@@ -232,6 +233,7 @@ class PerjanjianKinerjaController extends Controller
         $data = $request->validated();
         $this->assertRenstraBelongsToOpd($data['renstra_opd_id'] ?? null, isset($data['opd_id']) ? (int) $data['opd_id'] : null);
         $data = $this->prepareSubjectData($data);
+        $data['status'] = 'draft';
         $this->assertNoDuplicate($data);
 
         $pk = DB::transaction(function () use ($data, $snapshotService, $kopService): PerjanjianKinerja {
@@ -255,8 +257,12 @@ class PerjanjianKinerjaController extends Controller
             'renstraOpd:id,judul,tahun_awal,tahun_akhir',
             'rkpd:id,judul,tahun,jenis_versi,status',
             'dpaOpd:id,judul,tahun,nomor_dpa,status',
-            'pegawai:id,nama,nip,pangkat_golongan',
-            'penempatanPegawai.jabatanOrganisasi:id,nama,level_jabatan',
+            'pegawai:id,opd_unit_id,nama,nip,pangkat_golongan',
+            'pegawai.opdUnit:id,nama',
+            'penempatanPegawai.jabatanOrganisasi:id,opd_unit_id,parent_id,nama,level_jabatan',
+            'penempatanPegawai.jabatanOrganisasi.opdUnit:id,nama',
+            'penempatanPegawai.jabatanOrganisasi.parent:id,opd_unit_id,nama',
+            'penempatanPegawai.jabatanOrganisasi.parent.opdUnit:id,nama',
             'atasanPegawai:id,nama,nip',
             'items.satuanIndikator:id,nama,simbol',
             'items.sasaranOpd:id,kode,sasaran',
@@ -362,6 +368,7 @@ class PerjanjianKinerjaController extends Controller
                 'nomor_dokumen' => $perjanjianKinerja->nomor_dokumen,
                 'tanggal_dokumen' => $perjanjianKinerja->tanggal_dokumen?->format('Y-m-d'),
                 'tempat_penandatanganan' => $perjanjianKinerja->tempat_penandatanganan,
+                'unit_kerja_snapshot' => $perjanjianKinerja->unit_kerja_snapshot,
                 'status' => $perjanjianKinerja->status,
                 'catatan' => $perjanjianKinerja->catatan,
             ],
@@ -384,6 +391,8 @@ class PerjanjianKinerjaController extends Controller
         $data = $request->validated();
         $this->assertRenstraBelongsToOpd($data['renstra_opd_id'] ?? null, isset($data['opd_id']) ? (int) $data['opd_id'] : null);
         $data = $this->prepareSubjectData($data);
+        // Status dokumen hanya boleh berubah melalui workflow submit/review/lock.
+        $data['status'] = $perjanjianKinerja->status;
         $this->assertNoDuplicate($data, $perjanjianKinerja);
 
         DB::transaction(function () use ($perjanjianKinerja, $data, $snapshotService, $kopService): void {
@@ -479,6 +488,7 @@ class PerjanjianKinerjaController extends Controller
             'nama_pegawai_snapshot' => $pk->nama_pegawai_snapshot,
             'nip_snapshot' => $pk->nip_snapshot,
             'jabatan_snapshot' => $pk->jabatan_snapshot,
+            'unit_kerja_snapshot' => $pk->unit_kerja_snapshot,
             'nama_atasan_snapshot' => $pk->nama_atasan_snapshot,
             'nip_atasan_snapshot' => $pk->nip_atasan_snapshot,
             'jabatan_atasan_snapshot' => $pk->jabatan_atasan_snapshot,
@@ -564,9 +574,15 @@ class PerjanjianKinerjaController extends Controller
                         ->when($currentEmployeeIds, fn (Builder $query) => $query->orWhereIn('pegawai.id', $currentEmployeeIds));
                 });
             })
-            ->with(['penempatan.jabatanOrganisasi:id,opd_id,parent_id,nama,level_jabatan'])
+            ->with([
+                'opdUnit:id,nama',
+                'penempatan.jabatanOrganisasi:id,opd_id,opd_unit_id,parent_id,nama,level_jabatan,verification_status',
+                'penempatan.jabatanOrganisasi.opdUnit:id,nama',
+                'penempatan.jabatanOrganisasi.parent:id,opd_unit_id,nama',
+                'penempatan.jabatanOrganisasi.parent.opdUnit:id,nama',
+            ])
             ->orderBy('nama')
-            ->get(['id', 'opd_id', 'nama', 'nip']);
+            ->get(['id', 'opd_id', 'opd_unit_id', 'nama', 'nip']);
 
         return [
             'pegawaiOptions' => $employees->map(fn (Pegawai $pegawai) => [
@@ -574,17 +590,23 @@ class PerjanjianKinerjaController extends Controller
                 'opd_id' => $pegawai->opd_id,
                 'label' => $pegawai->nama.($pegawai->nip ? " · NIP {$pegawai->nip}" : ''),
             ])->all(),
-            'placementOptions' => $employees->flatMap(fn (Pegawai $pegawai) => $pegawai->penempatan->map(fn (RiwayatPejabatJabatan $placement) => [
-                'id' => $placement->id,
-                'pegawai_id' => $pegawai->id,
-                'jabatan_organisasi_id' => $placement->jabatan_organisasi_id,
-                'opd_id' => $placement->jabatanOrganisasi?->opd_id,
-                'level_jabatan' => $placement->jabatanOrganisasi?->level_jabatan,
-                'parent_jabatan_id' => $placement->jabatanOrganisasi?->parent_id,
-                'tanggal_mulai' => $placement->tanggal_mulai?->format('Y-m-d'),
-                'tanggal_selesai' => $placement->tanggal_selesai?->format('Y-m-d'),
-                'label' => ($placement->jabatanOrganisasi?->nama ?? 'Jabatan tidak tersedia')." · TMT {$placement->tanggal_mulai?->format('Y-m-d')}",
-            ]))->values()->all(),
+            'placementOptions' => $employees->flatMap(fn (Pegawai $pegawai) => $pegawai->penempatan
+                ->filter(fn (RiwayatPejabatJabatan $placement) => $placement->jabatanOrganisasi
+                    && $placement->jabatanOrganisasi->verification_status !== 'rejected')
+                ->map(fn (RiwayatPejabatJabatan $placement) => [
+                    'id' => $placement->id,
+                    'pegawai_id' => $pegawai->id,
+                    'jabatan_organisasi_id' => $placement->jabatan_organisasi_id,
+                    'opd_id' => $placement->jabatanOrganisasi?->opd_id,
+                    'level_jabatan' => $placement->jabatanOrganisasi?->level_jabatan,
+                    'parent_jabatan_id' => $placement->jabatanOrganisasi?->parent_id,
+                    'unit_kerja' => $placement->jabatanOrganisasi?->opdUnit?->nama
+                        ?: $placement->jabatanOrganisasi?->parent?->opdUnit?->nama
+                        ?: $pegawai->opdUnit?->nama,
+                    'tanggal_mulai' => $placement->tanggal_mulai?->format('Y-m-d'),
+                    'tanggal_selesai' => $placement->tanggal_selesai?->format('Y-m-d'),
+                    'label' => ($placement->jabatanOrganisasi?->nama ?? 'Jabatan tidak tersedia')." · TMT {$placement->tanggal_mulai?->format('Y-m-d')}",
+                ]))->values()->all(),
         ];
     }
 
@@ -594,28 +616,59 @@ class PerjanjianKinerjaController extends Controller
         $data['tipe_pk'] = $data['level_pk'] === 'individu'
             ? ($data['tipe_pk'] ?? 'individual')
             : 'cascading';
-        $pegawai = Pegawai::query()->findOrFail($data['pegawai_id']);
-        $referenceDate = filled($data['tanggal_dokumen'] ?? null)
-            ? $data['tanggal_dokumen']
-            : now()->toDateString();
+        $isManualIndividual = $data['level_pk'] === 'individu' && $data['tipe_pk'] === 'individual';
+        $pegawai = Pegawai::query()->with('opdUnit:id,nama')->findOrFail($data['pegawai_id']);
+        $referenceYear = (int) ($data['tahun'] ?? now()->year);
+        $periodStart = "{$referenceYear}-01-01";
+        $periodEnd = "{$referenceYear}-12-31";
+
+        if (! PeriodeTahun::query()
+            ->whereKey($data['periode_tahun_id'])
+            ->where('tahun', $referenceYear)
+            ->exists()) {
+            throw ValidationException::withMessages([
+                'periode_tahun_id' => 'Periode dan Tahun PK harus berada pada tahun yang sama.',
+            ]);
+        }
 
         $placement = null;
         if ($data['penempatan_pegawai_id'] ?? null) {
             $placement = RiwayatPejabatJabatan::query()
-                ->with('jabatanOrganisasi:id,opd_id,parent_id,nama,level_jabatan')
+                ->with([
+                    'jabatanOrganisasi:id,opd_id,opd_unit_id,parent_id,nama,level_jabatan,verification_status',
+                    'jabatanOrganisasi.opdUnit:id,nama',
+                    'jabatanOrganisasi.parent:id,opd_unit_id,nama',
+                    'jabatanOrganisasi.parent.opdUnit:id,nama',
+                ])
                 ->whereKey($data['penempatan_pegawai_id'])
                 ->where('pegawai_id', $pegawai->id)
-                ->whereDate('tanggal_mulai', '<=', $referenceDate)
-                ->where(fn (Builder $query) => $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $referenceDate))
+                ->whereDate('tanggal_mulai', '<=', $periodEnd)
+                ->where(fn (Builder $query) => $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $periodStart))
                 ->first();
 
             if (! $placement) {
-                throw ValidationException::withMessages(['penempatan_pegawai_id' => 'Penempatan tidak sesuai dengan pegawai yang dipilih.']);
+                throw ValidationException::withMessages([
+                    'penempatan_pegawai_id' => "Penempatan tidak sesuai dengan pegawai atau tidak berlaku pada tahun {$referenceYear}.",
+                ]);
             }
 
             if (! $placement->jabatanOrganisasi) {
                 throw ValidationException::withMessages(['penempatan_pegawai_id' => 'Jabatan pada penempatan ini sudah tidak tersedia. Pilih penempatan aktif lainnya.']);
             }
+
+            if ($placement->jabatanOrganisasi->verification_status === 'rejected') {
+                throw ValidationException::withMessages(['penempatan_pegawai_id' => 'Jabatan yang ditolak tidak dapat digunakan sebagai identitas penandatangan PK.']);
+            }
+        }
+
+        $workUnit = $placement?->jabatanOrganisasi?->opdUnit?->nama
+            ?: $placement?->jabatanOrganisasi?->parent?->opdUnit?->nama
+            ?: $pegawai->opdUnit?->nama
+            ?: trim((string) ($data['unit_kerja_snapshot'] ?? ''));
+        if ($isManualIndividual && $placement && blank($workUnit)) {
+            throw ValidationException::withMessages([
+                'unit_kerja_snapshot' => 'Unit Kerja belum tersedia otomatis. Isi nama Bidang/Bagian untuk dokumen PK ini.',
+            ]);
         }
 
         $subjectOpdId = $placement?->jabatanOrganisasi?->opd_id ?? $pegawai->opd_id;
@@ -637,21 +690,35 @@ class PerjanjianKinerjaController extends Controller
             throw ValidationException::withMessages(['penempatan_pegawai_id' => 'PK Kepala OPD harus memakai penempatan JPT Pratama/Kepala Perangkat Daerah.']);
         }
 
+        if ($data['level_pk'] === 'struktural' && $placement?->jabatanOrganisasi?->level_jabatan !== 'administrator') {
+            throw ValidationException::withMessages(['penempatan_pegawai_id' => 'PK Sekretaris/Kabid/Kabag harus memakai penempatan Jabatan Administrator.']);
+        }
+
+        if ($data['level_pk'] === 'individu'
+            && $placement
+            && ! in_array($placement->jabatanOrganisasi?->level_jabatan, ['pengawas', 'fungsional', 'pelaksana'], true)) {
+            throw ValidationException::withMessages(['penempatan_pegawai_id' => 'PK Kasi/Kasubbag/JF/Pelaksana harus memakai penempatan Pengawas, Fungsional, atau Pelaksana.']);
+        }
+
         $atasan = null;
         $atasanPlacement = null;
         $parentJabatanId = $placement?->jabatanOrganisasi?->parent_id;
         if ($data['atasan_pegawai_id'] ?? null) {
             $atasan = Pegawai::query()->findOrFail($data['atasan_pegawai_id']);
             $atasanPlacement = RiwayatPejabatJabatan::query()
-                ->with('jabatanOrganisasi:id,opd_id,nama,level_jabatan')
+                ->with('jabatanOrganisasi:id,opd_id,nama,level_jabatan,verification_status')
                 ->where('pegawai_id', $atasan->id)
                 ->when($parentJabatanId, fn (Builder $query, int $jabatanId) => $query->where('jabatan_organisasi_id', $jabatanId))
                 ->when(! $parentJabatanId && $data['level_pk'] === 'kepala_opd', fn (Builder $query) => $query
                     ->whereHas('jabatanOrganisasi', fn (Builder $query) => $query->where('level_jabatan', 'kepala_daerah')))
-                ->whereDate('tanggal_mulai', '<=', $referenceDate)
-                ->where(fn (Builder $query) => $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $referenceDate))
+                ->whereDate('tanggal_mulai', '<=', $periodEnd)
+                ->where(fn (Builder $query) => $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $periodStart))
                 ->orderByDesc('tanggal_mulai')
                 ->first();
+
+            if ($atasanPlacement?->jabatanOrganisasi?->verification_status === 'rejected') {
+                throw ValidationException::withMessages(['atasan_pegawai_id' => 'Jabatan Pihak Kedua / Atasan sudah ditolak dan tidak dapat digunakan pada PK.']);
+            }
 
             if ($data['level_pk'] === 'kepala_opd' && $atasanPlacement?->jabatanOrganisasi?->level_jabatan !== 'kepala_daerah') {
                 throw ValidationException::withMessages(['atasan_pegawai_id' => 'Pihak Kedua PK Kepala OPD harus Bupati/Kepala Daerah aktif.']);
@@ -723,6 +790,7 @@ class PerjanjianKinerjaController extends Controller
             'nama_pegawai_snapshot' => $pegawai->nama,
             'nip_snapshot' => $pegawai->nip,
             'jabatan_snapshot' => $placement?->jabatanOrganisasi?->nama,
+            'unit_kerja_snapshot' => $workUnit,
             'nama_atasan_snapshot' => $atasan?->nama,
             'nip_atasan_snapshot' => $atasan?->nip,
             'jabatan_atasan_snapshot' => $atasanPlacement?->jabatanOrganisasi?->nama,
