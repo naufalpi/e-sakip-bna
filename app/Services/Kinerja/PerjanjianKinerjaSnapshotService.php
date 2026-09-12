@@ -12,12 +12,14 @@ use App\Models\OpdKegiatan;
 use App\Models\OpdProgram;
 use App\Models\OpdSubKegiatan;
 use App\Models\PerjanjianKinerja;
+use App\Models\PerjanjianKinerjaItem;
 use App\Models\Rkpd;
 use App\Models\RkpdItem;
 use App\Models\SasaranDaerah;
 use App\Models\SasaranOpd;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
+use App\Services\Perencanaan\RenjaAnnualTargetService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +28,14 @@ use Illuminate\Validation\ValidationException;
 class PerjanjianKinerjaSnapshotService
 {
     private const OFFICIAL_STATUSES = ['approved', 'locked'];
+
+    /** @var Collection<string, PerjanjianKinerjaItem> */
+    private Collection $targetAdjustments;
+
+    public function __construct(private readonly RenjaAnnualTargetService $renjaAnnualTargetService)
+    {
+        $this->targetAdjustments = collect();
+    }
 
     public function populate(PerjanjianKinerja $pk): void
     {
@@ -37,24 +47,35 @@ class PerjanjianKinerjaSnapshotService
         }
 
         DB::transaction(function () use ($pk): void {
-            $pk->items()->delete();
-            $pk->programs()->delete();
+            $this->targetAdjustments = $pk->items()
+                ->where('target_disesuaikan', true)
+                ->whereNotNull('cascading_source_type')
+                ->whereNotNull('cascading_source_id')
+                ->get()
+                ->keyBy(fn ($item) => $this->sourceKey($item->cascading_source_type, $item->cascading_source_id));
 
-            if ($pk->sumber_data === 'manual') {
-                $pk->forceFill(['snapshot_dibuat_pada' => null])->saveQuietly();
+            try {
+                $pk->items()->delete();
+                $pk->programs()->delete();
 
-                return;
+                if ($pk->sumber_data === 'manual') {
+                    $pk->forceFill(['snapshot_dibuat_pada' => null])->saveQuietly();
+
+                    return;
+                }
+
+                if ($pk->level_pk === 'bupati') {
+                    $this->populateBupati($pk);
+                } elseif ($pk->level_pk === 'kepala_opd') {
+                    $this->populateKepalaOpd($pk);
+                } else {
+                    $this->populateDirectCascading($pk);
+                }
+
+                $pk->forceFill(['snapshot_dibuat_pada' => now()])->saveQuietly();
+            } finally {
+                $this->targetAdjustments = collect();
             }
-
-            if ($pk->level_pk === 'bupati') {
-                $this->populateBupati($pk);
-            } elseif ($pk->level_pk === 'kepala_opd') {
-                $this->populateKepalaOpd($pk);
-            } else {
-                $this->populateDirectCascading($pk);
-            }
-
-            $pk->forceFill(['snapshot_dibuat_pada' => now()])->saveQuietly();
         });
     }
 
@@ -301,6 +322,19 @@ class PerjanjianKinerjaSnapshotService
             ]);
         }
 
+        $useRenjaAnnualTargets = $this->renjaAnnualTargetService->available();
+        $annualTargets = collect();
+        if ($useRenjaAnnualTargets) {
+            $renja = $dpa->renjaOpd;
+            $this->renjaAnnualTargetService->bootstrap(
+                $renja,
+                $renja->isOfficialVersion() ? 'legacy_backfill' : 'renstra_initial',
+            );
+            $annualTargets = $renja->annualTargets()
+                ->get()
+                ->keyBy(fn ($target) => $target->indicator_type.':'.$target->indicator_id);
+        }
+
         $items = collect();
 
         $goals = TujuanOpd::query()
@@ -313,22 +347,23 @@ class PerjanjianKinerjaSnapshotService
             ->orderBy('id')
             ->get();
 
-        $goals->each(function (TujuanOpd $tujuan) use ($items): void {
+        $goals->each(function (TujuanOpd $tujuan) use ($annualTargets, $items, $useRenjaAnnualTargets): void {
             if ($tujuan->indikator->isEmpty()) {
                 throw ValidationException::withMessages([
                     'renstra_opd_id' => 'Salah satu Tujuan OPD belum memiliki indikator pada Renstra.',
                 ]);
             }
 
-            $tujuan->indikator->each(function (IndikatorTujuanOpd $indikator) use ($items, $tujuan): void {
+            $tujuan->indikator->each(function (IndikatorTujuanOpd $indikator) use ($annualTargets, $items, $tujuan, $useRenjaAnnualTargets): void {
                 $target = $indikator->targets->first();
+                $annualTarget = $annualTargets->get($indikator->getTable().':'.$indikator->id);
                 $items->push($this->performanceItem(
                     'tujuan_opd',
                     $indikator->kode,
                     $tujuan->tujuan,
                     $indikator,
-                    $target?->target_text,
-                    $target?->target,
+                    $useRenjaAnnualTargets ? $annualTarget?->target_renja_text : $target?->target_text,
+                    $useRenjaAnnualTargets ? $annualTarget?->target_renja : $target?->target,
                 ));
             });
         });
@@ -345,23 +380,24 @@ class PerjanjianKinerjaSnapshotService
             ->get()
             ->sortBy(fn (SasaranOpd $sasaran) => sprintf('%06d-%06d-%010d', $sasaran->tujuan?->urutan ?? 0, $sasaran->urutan, $sasaran->id));
 
-        $objectives->each(function (SasaranOpd $sasaran) use ($items): void {
+        $objectives->each(function (SasaranOpd $sasaran) use ($annualTargets, $items, $useRenjaAnnualTargets): void {
             if ($sasaran->indikator->isEmpty()) {
                 throw ValidationException::withMessages([
                     'renstra_opd_id' => 'Salah satu Sasaran OPD belum memiliki indikator pada Renstra.',
                 ]);
             }
 
-            $sasaran->indikator->each(function (IndikatorSasaranOpd $indikator) use ($items, $sasaran): void {
+            $sasaran->indikator->each(function (IndikatorSasaranOpd $indikator) use ($annualTargets, $items, $sasaran, $useRenjaAnnualTargets): void {
                 $target = $indikator->targets->first();
+                $annualTarget = $annualTargets->get($indikator->getTable().':'.$indikator->id);
                 $items->push([
                     ...$this->performanceItem(
                         'sasaran_opd',
                         $sasaran->kode,
                         $sasaran->sasaran,
                         $indikator,
-                        $target?->target_text,
-                        $target?->target,
+                        $useRenjaAnnualTargets ? $annualTarget?->target_renja_text : $target?->target_text,
+                        $useRenjaAnnualTargets ? $annualTarget?->target_renja : $target?->target,
                     ),
                     'sasaran_opd_id' => $sasaran->id,
                     'indikator_sasaran_opd_id' => $indikator->id,
@@ -375,7 +411,13 @@ class PerjanjianKinerjaSnapshotService
             ]);
         }
 
-        $this->ensureTargetsAvailable($items, 'renstra_opd_id', 'Target tahunan salah satu indikator Tujuan/Sasaran OPD belum tersedia pada Renstra untuk tahun PK.');
+        $this->ensureTargetsAvailable(
+            $items,
+            $useRenjaAnnualTargets ? 'dpa_opd_id' : 'renstra_opd_id',
+            $useRenjaAnnualTargets
+                ? 'Target tahunan salah satu indikator Tujuan/Sasaran OPD belum tersedia pada RENJA sumber DPA/DPPA untuk tahun PK.'
+                : 'Target tahunan salah satu indikator Tujuan/Sasaran OPD belum tersedia pada Renstra untuk tahun PK.',
+        );
         $this->storeItems($pk, $items);
         $this->storeDpaPrograms($pk, $dpa, $renstra->id);
     }
@@ -402,7 +444,10 @@ class PerjanjianKinerjaSnapshotService
             'sasaran' => $performance,
             'indikator' => (string) $indicator->getAttribute('indikator'),
             'target' => $target,
+            'target_sumber' => $target,
             'target_text' => filled($targetText) ? (string) $targetText : null,
+            'target_sumber_text' => filled($targetText) ? (string) $targetText : null,
+            'target_disesuaikan' => false,
             'is_readonly' => true,
         ];
     }
@@ -410,8 +455,58 @@ class PerjanjianKinerjaSnapshotService
     private function storeItems(PerjanjianKinerja $pk, Collection $items): void
     {
         $items->values()->each(function (array $item, int $index) use ($pk): void {
+            $adjustment = $this->targetAdjustments->get($this->sourceKey(
+                $item['cascading_source_type'] ?? null,
+                $item['cascading_source_id'] ?? null,
+            ));
+
+            if ($adjustment && ! $this->targetsEqual(
+                $adjustment->target_text,
+                $adjustment->target,
+                $item['target_sumber_text'] ?? null,
+                $item['target_sumber'] ?? null,
+            )) {
+                $item['target'] = $adjustment->target;
+                $item['target_text'] = $adjustment->target_text;
+                $item['target_disesuaikan'] = true;
+            }
+
             $pk->items()->create([...$item, 'urutan' => $index + 1]);
         });
+    }
+
+    private function sourceKey(mixed $type, mixed $id): string
+    {
+        return trim((string) $type).':'.(int) $id;
+    }
+
+    private function targetsEqual(mixed $leftText, mixed $left, mixed $rightText, mixed $right): bool
+    {
+        $leftValue = filled($leftText) ? (string) $leftText : (string) $left;
+        $rightValue = filled($rightText) ? (string) $rightText : (string) $right;
+        $leftNumeric = $this->numericValue($leftValue);
+        $rightNumeric = $this->numericValue($rightValue);
+
+        if ($leftNumeric !== null && $rightNumeric !== null) {
+            return abs($leftNumeric - $rightNumeric) < 0.0001;
+        }
+
+        return mb_strtolower(preg_replace('/\s+/', ' ', trim($leftValue)) ?? '')
+            === mb_strtolower(preg_replace('/\s+/', ' ', trim($rightValue)) ?? '');
+    }
+
+    private function numericValue(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $normalized = str_replace(' ', '', trim((string) $value));
+        if (! preg_match('/^-?\d+(?:[.,]\d+)?$/', $normalized)) {
+            return null;
+        }
+
+        return (float) str_replace(',', '.', $normalized);
     }
 
     private function storeRkpdPrograms(PerjanjianKinerja $pk, Rkpd $rkpd): void

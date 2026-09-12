@@ -146,6 +146,11 @@ class RenjaOpd extends Model
         return $this->hasMany(RenjaOpdItem::class)->orderBy('urutan')->orderBy('id');
     }
 
+    public function annualTargets(): HasMany
+    {
+        return $this->hasMany(RenjaOpdAnnualTarget::class)->orderBy('urutan')->orderBy('id');
+    }
+
     public function rkaDocuments(): HasMany
     {
         return $this->hasMany(RkaOpd::class);

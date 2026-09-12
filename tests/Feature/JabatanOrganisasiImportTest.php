@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\ImportBatch;
 use App\Models\JabatanOrganisasi;
 use App\Models\Opd;
-use App\Models\Pegawai;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Imports\ImportTemplateService;
@@ -18,7 +17,7 @@ class JabatanOrganisasiImportTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_template_contains_hierarchy_examples_and_clear_assignment_guidance(): void
+    public function test_structure_template_is_styled_and_separates_data_examples_and_references(): void
     {
         $template = app(ImportTemplateService::class)->make('jabatan_organisasi');
         $path = tempnam(sys_get_temp_dir(), 'jabatan_template_test_');
@@ -27,23 +26,23 @@ class JabatanOrganisasiImportTest extends TestCase
         $zip = new ZipArchive;
         $zip->open($path);
         $jobs = $zip->getFromName('xl/worksheets/sheet1.xml');
-        $officials = $zip->getFromName('xl/worksheets/sheet2.xml');
+        $examples = $zip->getFromName('xl/worksheets/sheet2.xml');
         $guide = $zip->getFromName('xl/worksheets/sheet3.xml');
+        $references = $zip->getFromName('xl/worksheets/sheet4.xml');
+        $styles = $zip->getFromName('xl/styles.xml');
         $zip->close();
         @unlink($path);
 
-        $this->assertStringContainsString('Kepala Bidang', $jobs);
-        $this->assertStringContainsString('Kepala Seksi', $jobs);
-        $this->assertStringContainsString('Pranata Komputer Ahli Pertama', $jobs);
-        $this->assertStringContainsString('Pengadministrasi Umum', $jobs);
-        $this->assertStringContainsString('tmt_jabatan', $officials);
-        $this->assertStringContainsString('jenis_pegawai', $officials);
-        $this->assertStringContainsString('pppk', $officials);
-        $this->assertStringContainsString('Admin OPD', $guide);
-        $this->assertStringContainsString('nomor dan tanggal SK', $guide);
+        $this->assertStringContainsString('Nama Jabatan *', $jobs);
+        $this->assertStringNotContainsString('KODE_OPD', $jobs);
+        $this->assertStringContainsString('dataValidations', $jobs);
+        $this->assertStringContainsString('Kepala Bidang Contoh', $examples);
+        $this->assertStringContainsString('Unggah hanya membuat preview', $guide);
+        $this->assertStringContainsString('Kode OPD', $references);
+        $this->assertStringContainsString('Aptos', $styles);
     }
 
-    public function test_manager_can_preview_and_apply_jabatan_and_pejabat_workbook(): void
+    public function test_manager_can_preview_and_apply_structure_workbook_without_importing_employee_sheet(): void
     {
         $this->seed();
         $admin = $this->userWithRole('admin_kabupaten_bagian_organisasi');
@@ -70,7 +69,7 @@ class JabatanOrganisasiImportTest extends TestCase
 
         $batch = ImportBatch::query()->where('module', 'jabatan_organisasi')->latest()->firstOrFail();
         $this->assertSame('previewed', $batch->status, $batch->error_message ?? '');
-        $this->assertSame(3, $batch->rows()->where('status', 'valid')->count(), $batch->rows()->pluck('error_message')->filter()->implode(' | '));
+        $this->assertSame(2, $batch->rows()->where('status', 'valid')->count(), $batch->rows()->pluck('error_message')->filter()->implode(' | '));
         $this->assertSame(0, $batch->rows()->where('status', 'invalid')->count());
 
         $this->actingAs($admin)
@@ -81,17 +80,7 @@ class JabatanOrganisasiImportTest extends TestCase
         $kepalaOpd = JabatanOrganisasi::query()->where('nama', 'Kepala OPD Import')->firstOrFail();
 
         $this->assertSame($bupati->id, $kepalaOpd->parent_id);
-        $this->assertDatabaseHas('riwayat_pejabat_jabatan', [
-            'jabatan_organisasi_id' => $kepalaOpd->id,
-            'nama_pejabat' => 'Pejabat Hasil Import',
-            'nip' => '198001012010011001',
-        ]);
-        $this->assertDatabaseHas('pegawai', [
-            'nama' => 'Pejabat Hasil Import',
-            'nip' => '198001012010011001',
-            'jenis_pegawai' => 'pns',
-        ]);
-        $this->assertNotNull(Pegawai::query()->where('nip', '198001012010011001')->first()?->penempatan()->first());
+        $this->assertDatabaseMissing('pegawai', ['nip' => '198001012010011001']);
         $this->assertSame('imported', $batch->fresh()->status);
 
         $this->actingAs($admin)
@@ -103,7 +92,7 @@ class JabatanOrganisasiImportTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame(2, JabatanOrganisasi::query()->whereIn('nama', ['Bupati Banjarnegara', 'Kepala OPD Import'])->count());
-        $this->assertDatabaseCount('riwayat_pejabat_jabatan', 1);
+        $this->assertDatabaseCount('riwayat_pejabat_jabatan', 0);
     }
 
     public function test_duplicate_jabatan_is_invalid_and_cannot_be_applied(): void

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { confirmAction } from '@/lib/sweetAlert';
 import { Head, Link, router } from '@inertiajs/vue3';
 import ArrowLeft from 'lucide-vue-next/dist/esm/icons/arrow-left.js';
 import Building2 from 'lucide-vue-next/dist/esm/icons/building-2.js';
@@ -40,6 +41,7 @@ type Prepared = {
     nama_pejabat?: string | null;
     nip?: string | null;
     jenis_pegawai?: string | null;
+    status_pegawai?: string | null;
     jenis_penugasan?: string | null;
     tanggal_mulai?: string | null;
     tanggal_selesai?: string | null;
@@ -55,19 +57,62 @@ type Row = {
     error_message?: string | null;
 };
 
-const props = defineProps<{ batch: Batch; rows: Row[]; can: { manage: boolean } }>();
+const props = defineProps<{ batch: Batch; rows: Row[]; can: { manage: boolean }; importMode: 'structure' | 'employee' | 'combined' }>();
 const applying = ref(false);
 const activeType = ref<'semua' | 'jabatan' | 'pejabat'>('semua');
+const activeStatus = ref<'semua' | 'valid' | 'invalid' | 'imported'>('semua');
 const preview = computed(() => props.batch.metadata?.preview ?? {});
+const isEmployee = computed(() => props.importMode === 'employee');
+const page = computed(() =>
+    isEmployee.value
+        ? {
+              head: 'Preview Import Pegawai OPD',
+              createRoute: 'master.pegawai.import.create',
+              applyRoute: 'master.pegawai.import.apply',
+              backLabel: 'Import Pegawai OPD',
+              itemLabel: 'pegawai dan penempatan',
+          }
+        : {
+              head: 'Preview Import Struktur Organisasi',
+              createRoute: 'master.jabatan-organisasi.import.create',
+              applyRoute: 'master.jabatan-organisasi.import.apply',
+              backLabel: 'Import Struktur Organisasi',
+              itemLabel: props.importMode === 'combined' ? 'struktur dan pegawai' : 'struktur organisasi',
+          },
+);
+const typeOptions = computed(() => {
+    if (props.importMode === 'employee') return [{ value: 'pejabat' as const, label: 'Pegawai' }];
+    if (props.importMode === 'structure') return [{ value: 'jabatan' as const, label: 'Struktur' }];
+
+    return [
+        { value: 'semua' as const, label: 'Semua' },
+        { value: 'jabatan' as const, label: 'Struktur' },
+        { value: 'pejabat' as const, label: 'Pegawai' },
+    ];
+});
 const canApply = computed(
     () => props.can.manage && props.batch.status === 'previewed' && (preview.value.invalid_rows ?? 0) === 0 && (preview.value.valid_rows ?? 0) > 0,
 );
-const filteredRows = computed(() => (activeType.value === 'semua' ? props.rows : props.rows.filter((row) => row.entity_type === activeType.value)));
+const filteredRows = computed(() =>
+    props.rows.filter(
+        (row) =>
+            (activeType.value === 'semua' || row.entity_type === activeType.value) &&
+            (activeStatus.value === 'semua' || row.status === activeStatus.value),
+    ),
+);
 
-const apply = () => {
+const apply = async () => {
+    const confirmed = await confirmAction({
+        title: `Terapkan ${page.value.itemLabel}?`,
+        text: `${preview.value.create_rows ?? 0} data baru dan ${preview.value.update_rows ?? 0} pembaruan akan disimpan. Proses dilakukan dalam satu transaksi.`,
+        icon: 'question',
+        confirmButtonText: 'Ya, terapkan import',
+    });
+    if (!confirmed) return;
+
     applying.value = true;
     router.post(
-        route('master.jabatan-organisasi.import.apply', props.batch.id),
+        route(page.value.applyRoute, props.batch.id),
         {},
         { preserveScroll: true, onFinish: () => (applying.value = false) },
     );
@@ -97,17 +142,17 @@ const statusClass = (status: string) =>
 </script>
 
 <template>
-    <Head title="Preview Import Jabatan Organisasi" />
+    <Head :title="page.head" />
 
     <div class="flex flex-col gap-5 p-4 md:p-6">
         <header class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
                 <Link
-                    :href="route('master.jabatan-organisasi.import.create')"
+                    :href="route(page.createRoute)"
                     class="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition hover:text-foreground"
                 >
                     <ArrowLeft class="size-4" />
-                    Import Jabatan
+                    {{ page.backLabel }}
                 </Link>
                 <div class="flex flex-wrap items-center gap-2">
                     <h1 class="text-2xl font-semibold tracking-tight md:text-3xl">Preview data</h1>
@@ -119,7 +164,7 @@ const statusClass = (status: string) =>
             </div>
             <div class="flex flex-wrap gap-2">
                 <Link
-                    :href="route('master.jabatan-organisasi.import.create')"
+                    :href="route(page.createRoute)"
                     class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border bg-card px-4 text-sm font-semibold transition hover:bg-muted"
                 >
                     <RefreshCw class="size-4" /> Import baru
@@ -138,12 +183,15 @@ const statusClass = (status: string) =>
             </div>
         </header>
 
-        <section class="grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-3 lg:grid-cols-6">
-            <div class="bg-card p-4">
+        <section
+            class="grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-2"
+            :class="importMode === 'combined' ? 'lg:grid-cols-6' : 'lg:grid-cols-5'"
+        >
+            <div v-if="importMode !== 'employee'" class="bg-card p-4">
                 <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total</p>
                 <p class="mt-2 text-2xl font-semibold">{{ preview.total_rows ?? 0 }}</p>
             </div>
-            <div class="bg-card p-4">
+            <div v-if="importMode !== 'structure'" class="bg-card p-4">
                 <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Jabatan</p>
                 <p class="mt-2 text-2xl font-semibold">{{ preview.jabatan_rows ?? 0 }}</p>
             </div>
@@ -177,7 +225,12 @@ const statusClass = (status: string) =>
             class="flex gap-3 rounded-xl border border-emerald-300/70 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100"
         >
             <CheckCircle2 class="size-5 shrink-0" />
-            {{ batch.metadata.applied.jabatan_rows }} jabatan dan {{ batch.metadata.applied.pejabat_rows }} penempatan pegawai berhasil diterapkan.
+            <template v-if="importMode === 'employee'">{{ batch.metadata.applied.pejabat_rows }} pegawai dan penempatan berhasil diterapkan.</template>
+            <template v-else-if="importMode === 'structure'">{{ batch.metadata.applied.jabatan_rows }} jabatan organisasi berhasil diterapkan.</template>
+            <template v-else
+                >{{ batch.metadata.applied.jabatan_rows }} jabatan dan {{ batch.metadata.applied.pejabat_rows }} penempatan pegawai berhasil
+                diterapkan.</template
+            >
         </section>
 
         <section class="overflow-hidden rounded-xl border bg-card">
@@ -186,18 +239,30 @@ const statusClass = (status: string) =>
                     <h2 class="font-semibold">Hasil validasi per baris</h2>
                     <p class="mt-1 text-xs text-muted-foreground">Lokasi baris mengikuti nomor pada masing-masing sheet Excel.</p>
                 </div>
-                <div class="inline-flex w-fit rounded-lg bg-muted p-1 text-xs font-semibold">
-                    <button
-                        v-for="type in ['semua', 'jabatan', 'pejabat'] as const"
-                        :key="type"
-                        type="button"
-                        class="rounded-md px-3 py-1.5 capitalize transition"
-                        :class="activeType === type ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-                        @click="activeType = type"
-                    >
-                        {{ type }}
-                    </button>
+                <div class="flex flex-wrap items-center gap-2">
+                    <select v-model="activeStatus" class="h-9 rounded-lg border bg-background px-3 text-xs font-semibold">
+                        <option value="semua">Semua status</option>
+                        <option value="valid">Valid</option>
+                        <option value="invalid">Perlu diperbaiki</option>
+                        <option value="imported">Sudah diterapkan</option>
+                    </select>
+                    <div v-if="typeOptions.length > 1" class="inline-flex w-fit rounded-lg bg-muted p-1 text-xs font-semibold">
+                        <button
+                            v-for="type in typeOptions"
+                            :key="type.value"
+                            type="button"
+                            class="rounded-md px-3 py-1.5 transition"
+                            :class="activeType === type.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                            @click="activeType = type.value"
+                        >
+                            {{ type.label }}
+                        </button>
+                    </div>
                 </div>
+            </div>
+
+            <div v-if="batch.total_rows > rows.length" class="border-b bg-slate-50 px-5 py-3 text-xs text-slate-600 dark:bg-slate-900/40 dark:text-slate-300">
+                Menampilkan {{ rows.length }} baris prioritas. Baris yang perlu diperbaiki ditampilkan lebih dahulu dari total {{ batch.total_rows }} data.
             </div>
 
             <div class="divide-y">
@@ -243,7 +308,8 @@ const statusClass = (status: string) =>
                         <p class="mt-1 text-sm text-muted-foreground">
                             {{ row.prepared.jabatan_label || '—'
                             }}<template v-if="row.prepared.jenis_pegawai"> · {{ employeeTypeLabel(row.prepared.jenis_pegawai) }}</template
-                            ><template v-if="row.prepared.nip"> · NIP {{ row.prepared.nip }}</template>
+                            ><template v-if="row.prepared.nip"> · NIP {{ row.prepared.nip }}</template
+                            ><template v-if="row.prepared.status_pegawai"> · {{ row.prepared.status_pegawai === 'active' ? 'Aktif' : 'Nonaktif' }}</template>
                         </p>
                         <p v-if="row.prepared.tanggal_mulai" class="mt-1 text-xs text-muted-foreground">
                             {{ row.prepared.jenis_penugasan }} · TMT {{ row.prepared.tanggal_mulai }} s.d.

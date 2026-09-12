@@ -23,6 +23,21 @@ class RenjaVersioningTest extends TestCase
         [$renja, $rkpdInitial, $item] = $this->initialRenja();
         $approver = User::factory()->create();
         $rkpdEstablished = app(RkpdVersionService::class)->publishAfterApproval($rkpdInitial, $approver);
+        $renja->annualTargets()->create([
+            'level' => 'sasaran_opd',
+            'indicator_type' => 'indikator_sasaran_opd',
+            'indicator_id' => 999,
+            'uraian_snapshot' => 'Sasaran Uji',
+            'indikator_snapshot' => 'Nilai Uji',
+            'hierarchy_snapshot' => [['level' => 'Sasaran Strategis', 'kode' => 'S.1', 'label' => 'Sasaran Uji']],
+            'target_renstra' => 80,
+            'target_renstra_text' => '80',
+            'target_renja' => 85,
+            'target_renja_text' => '85',
+            'is_adjusted' => true,
+            'alasan_penyesuaian' => 'Target tahunan disesuaikan.',
+            'urutan' => 1,
+        ]);
 
         $established = app(RenjaVersionService::class)->publishAfterApproval($renja, $approver);
 
@@ -36,6 +51,18 @@ class RenjaVersioningTest extends TestCase
             'kode' => $item->kode,
             'pagu_indikatif' => '2500000.00',
         ]);
+        $this->assertDatabaseHas('renja_opd_annual_targets', [
+            'renja_opd_id' => $established->id,
+            'indicator_type' => 'indikator_sasaran_opd',
+            'indicator_id' => 999,
+            'target_renja' => 85,
+            'alasan_penyesuaian' => 'Target tahunan disesuaikan.',
+            'bootstrap_source' => 'version_clone',
+        ]);
+        $this->assertSame(
+            [['level' => 'Sasaran Strategis', 'kode' => 'S.1', 'label' => 'Sasaran Uji']],
+            $established->annualTargets()->firstOrFail()->hierarchy_snapshot,
+        );
         $this->assertDatabaseHas('renja_opd_items', [
             'id' => $item->id,
             'renja_opd_id' => $renja->id,

@@ -23,7 +23,9 @@ use App\Models\TargetIndikatorSasaranOpd;
 use App\Models\TargetIndikatorTujuanOpd;
 use App\Models\TujuanDaerah;
 use App\Models\TujuanOpd;
+use App\Models\User;
 use App\Services\Kinerja\PerjanjianKinerjaSnapshotService;
+use App\Services\Perencanaan\RenjaAnnualTargetService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -31,6 +33,68 @@ use Tests\TestCase;
 class PerjanjianKinerjaSnapshotTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_all_cascading_levels_allow_target_only_adjustment_and_restore(): void
+    {
+        $this->seed();
+        $user = User::query()->where('username', 'superadmin')->firstOrFail();
+        $periode = PeriodeTahun::query()->firstOrFail();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $pk = PerjanjianKinerja::create([
+            'opd_id' => $opd->id,
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'PK Uji Penyesuaian Target',
+            'tipe_pk' => 'cascading',
+            'level_pk' => 'struktural',
+            'sumber_data' => 'renstra_cascading',
+            'status' => 'draft',
+        ]);
+
+        foreach (['tujuan', 'sasaran', 'tujuan_opd', 'sasaran_opd', 'program_opd', 'kegiatan_opd', 'sub_kegiatan_opd'] as $index => $level) {
+            $item = $pk->items()->create([
+                'sumber_item' => 'snapshot',
+                'jenis_item' => $level,
+                'level_cascading' => $level,
+                'cascading_source_type' => 'indikator_'.$level,
+                'cascading_source_id' => $index + 1,
+                'sasaran' => 'Kinerja '.$level,
+                'indikator' => 'Indikator '.$level,
+                'target' => 80,
+                'target_sumber' => 80,
+                'target_text' => '80',
+                'target_sumber_text' => '80',
+                'urutan' => $index + 1,
+                'is_readonly' => true,
+            ]);
+
+            $this->actingAs($user)
+                ->put(route('perjanjian-kinerja.items.target.update', [$pk, $item]), [
+                    'target_text' => '90,5',
+                ])
+                ->assertRedirect()
+                ->assertSessionDoesntHaveErrors();
+
+            $item->refresh();
+            $this->assertSame('90.5000', $item->target);
+            $this->assertSame('90,5', $item->target_text);
+            $this->assertSame('80.0000', $item->target_sumber);
+            $this->assertTrue($item->target_disesuaikan);
+        }
+
+        $lastItem = $pk->items()->orderByDesc('urutan')->firstOrFail();
+        $this->actingAs($user)
+            ->put(route('perjanjian-kinerja.items.target.update', [$pk, $lastItem]), [
+                'restore_source' => true,
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $lastItem->refresh();
+        $this->assertSame('80.0000', $lastItem->target);
+        $this->assertSame('80', $lastItem->target_text);
+        $this->assertFalse($lastItem->target_disesuaikan);
+    }
 
     public function test_pk_bupati_snapshots_rkpd_target_and_program_budget(): void
     {
@@ -94,12 +158,36 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
             'perjanjian_kinerja_id' => $pk->id,
             'jenis_item' => 'tujuan',
             'target_text' => '82,50',
+            'target_sumber_text' => '82,50',
+            'target_disesuaikan' => false,
             'is_readonly' => true,
         ]);
         $this->assertDatabaseHas('perjanjian_kinerja_programs', [
             'perjanjian_kinerja_id' => $pk->id,
             'nama_program' => 'PROGRAM PELAYANAN PUBLIK',
             'anggaran' => 125000000,
+        ]);
+
+        $adjustedItem = $pk->items()->firstOrFail();
+        $adjustedItem->update([
+            'target' => 84,
+            'target_text' => '84',
+            'target_disesuaikan' => true,
+        ]);
+        app(PerjanjianKinerjaSnapshotService::class)->populate($pk);
+        $this->assertDatabaseHas('perjanjian_kinerja_items', [
+            'perjanjian_kinerja_id' => $pk->id,
+            'target' => 84,
+            'target_text' => '84',
+            'target_sumber_text' => '82,50',
+            'target_disesuaikan' => true,
+        ]);
+
+        $adjustedItem = $pk->items()->firstOrFail();
+        $adjustedItem->update([
+            'target' => $adjustedItem->target_sumber,
+            'target_text' => $adjustedItem->target_sumber_text,
+            'target_disesuaikan' => false,
         ]);
 
         $rkpdTarget->delete();
@@ -136,6 +224,7 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
 
     public function test_pk_kepala_opd_snapshots_renstra_matrix_and_dpa_budget(): void
     {
+        config(['features.renja_annual_targets' => true]);
         $this->seed();
         $periode = PeriodeTahun::query()->updateOrCreate(
             ['tahun' => 2092],
@@ -228,6 +317,18 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
             'status' => 'draft',
         ]);
 
+        $annualTargetService = app(RenjaAnnualTargetService::class);
+        $annualTargetService->bootstrap($renja);
+        $annualTarget = $renja->annualTargets()
+            ->where('indicator_type', $indikatorSasaran->getTable())
+            ->where('indicator_id', $indikatorSasaran->id)
+            ->firstOrFail();
+        $annualTargetService->updateTargets($renja, [[
+            'id' => $annualTarget->id,
+            'target_text' => '95',
+            'alasan_penyesuaian' => 'Penajaman target tahunan RENJA.',
+        ]]);
+
         app(PerjanjianKinerjaSnapshotService::class)->populate($pk);
 
         $this->assertSame(['tujuan_opd', 'sasaran_opd'], $pk->items()->pluck('jenis_item')->all());
@@ -236,6 +337,12 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
             'jenis_item' => 'program_opd',
         ]);
         $this->assertTrue($pk->items()->get()->every(fn ($item) => $item->is_readonly));
+        $this->assertDatabaseHas('perjanjian_kinerja_items', [
+            'perjanjian_kinerja_id' => $pk->id,
+            'indikator' => 'Nilai pelayanan',
+            'target' => 95,
+            'target_text' => '95',
+        ]);
         $this->assertDatabaseHas('perjanjian_kinerja_programs', [
             'perjanjian_kinerja_id' => $pk->id,
             'opd_program_id' => $program->id,
@@ -244,15 +351,13 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
             'keterangan' => 'APBD, DAK',
         ]);
 
-        TargetIndikatorSasaranOpd::query()
-            ->where('indikator_sasaran_opd_id', $indikatorSasaran->id)
-            ->delete();
+        $annualTarget->update(['target_renja' => null, 'target_renja_text' => null]);
 
         try {
             app(PerjanjianKinerjaSnapshotService::class)->populate($pk);
-            $this->fail('Sinkronisasi PK seharusnya ditolak ketika target tahunan RENSTRA belum tersedia.');
+            $this->fail('Sinkronisasi PK seharusnya ditolak ketika target tahunan RENJA belum tersedia.');
         } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('renstra_opd_id', $exception->errors());
+            $this->assertArrayHasKey('dpa_opd_id', $exception->errors());
         }
 
         // Penghapusan snapshot dilakukan di transaksi yang sama, sehingga kegagalan sinkronisasi
@@ -260,7 +365,7 @@ class PerjanjianKinerjaSnapshotTest extends TestCase
         $this->assertDatabaseHas('perjanjian_kinerja_items', [
             'perjanjian_kinerja_id' => $pk->id,
             'indikator' => 'Nilai pelayanan',
-            'target' => 90,
+            'target' => 95,
         ]);
         $this->assertDatabaseHas('perjanjian_kinerja_programs', [
             'perjanjian_kinerja_id' => $pk->id,

@@ -7,7 +7,23 @@ import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, Check, ClipboardList, GitBranch, LockKeyhole, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-vue-next';
+import {
+    ArrowLeft,
+    ArrowRight,
+    Check,
+    CheckCircle2,
+    ClipboardList,
+    GitBranch,
+    LockKeyhole,
+    Pencil,
+    Plus,
+    Save,
+    Search,
+    Target,
+    Trash2,
+    TriangleAlert,
+    X,
+} from 'lucide-vue-next';
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 type Option = {
@@ -206,6 +222,14 @@ const props = defineProps<{
         total_pagu: number;
         total_prakiraan_maju_pagu: number;
     };
+    annualTargetsFeatureEnabled: boolean;
+    annualTargetSummary?: {
+        total: number;
+        complete: number;
+        missing: number;
+        adjusted: number;
+        following: number;
+    } | null;
     filters: { search?: string; status?: string };
     subKegiatanOptions: Option[];
     existingSubKegiatanRows: Array<{ id: number; sub_kegiatan_pemerintahan_id: number | null }>;
@@ -933,6 +957,55 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
         </section>
 
         <WorkflowHistoryTimeline :workflow="workflow" />
+
+        <section v-if="annualTargetsFeatureEnabled && annualTargetSummary" class="overflow-hidden rounded-xl border bg-white shadow-sm">
+            <div class="grid gap-5 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <div class="flex min-w-0 items-start gap-3">
+                    <span class="bg-[#00336C]/8 grid size-11 shrink-0 place-items-center rounded-xl text-[#00336C]">
+                        <Target class="size-5" />
+                    </span>
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h2 class="font-semibold text-slate-950">Target Kinerja Tahunan {{ renja.tahun }}</h2>
+                            <span
+                                class="inline-flex min-h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold"
+                                :class="annualTargetSummary.missing ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'"
+                            >
+                                <TriangleAlert v-if="annualTargetSummary.missing" class="size-3.5" />
+                                <CheckCircle2 v-else class="size-3.5" />
+                                {{ annualTargetSummary.missing ? `${annualTargetSummary.missing} belum diisi` : 'Lengkap' }}
+                            </span>
+                        </div>
+                        <p class="mt-1 text-sm leading-6 text-muted-foreground">
+                            Target strategis tahunan sebagai dasar penyusunan PK Kepala OPD. Target awal mengikuti RENSTRA dan dapat disesuaikan pada
+                            RENJA draft.
+                        </p>
+                        <div class="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+                            <span
+                                ><strong class="tabular-nums text-slate-950"
+                                    >{{ annualTargetSummary.complete }}/{{ annualTargetSummary.total }}</strong
+                                >
+                                indikator lengkap</span
+                            >
+                            <span
+                                ><strong class="tabular-nums text-slate-950">{{ annualTargetSummary.following }}</strong> mengikuti RENSTRA</span
+                            >
+                            <span :class="annualTargetSummary.adjusted ? 'text-amber-800' : 'text-muted-foreground'">
+                                <strong class="tabular-nums">{{ annualTargetSummary.adjusted }}</strong> disesuaikan
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <Link
+                    :href="route('renja-opd.annual-targets.index', { renja_opd: renja.id })"
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#00336C]/25 bg-white px-4 text-sm font-semibold text-[#00336C] transition hover:border-[#00336C]/50 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C] focus-visible:ring-offset-2"
+                >
+                    {{ can.manage ? 'Kelola Target' : 'Lihat Target' }}
+                    <ArrowRight class="size-4" />
+                </Link>
+            </div>
+        </section>
 
         <section class="overflow-hidden rounded-xl border bg-card shadow-sm">
             <div class="border-b bg-[linear-gradient(135deg,#f8fbff,#eef7ff)] px-5 py-4">

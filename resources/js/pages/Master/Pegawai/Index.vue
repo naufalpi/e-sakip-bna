@@ -6,6 +6,7 @@ import BriefcaseBusiness from 'lucide-vue-next/dist/esm/icons/briefcase-business
 import Building2 from 'lucide-vue-next/dist/esm/icons/building-2.js';
 import ChevronRight from 'lucide-vue-next/dist/esm/icons/chevron-right.js';
 import CircleUserRound from 'lucide-vue-next/dist/esm/icons/circle-user-round.js';
+import FileSpreadsheet from 'lucide-vue-next/dist/esm/icons/file-spreadsheet.js';
 import Plus from 'lucide-vue-next/dist/esm/icons/plus.js';
 import Search from 'lucide-vue-next/dist/esm/icons/search.js';
 import UsersRound from 'lucide-vue-next/dist/esm/icons/users-round.js';
@@ -110,13 +111,20 @@ const groupedItems = computed(() => {
                     <p class="mt-1 text-sm text-muted-foreground">Kelola pegawai dan jabatan aktif dalam satu tempat.</p>
                 </div>
             </div>
-            <Link
-                v-if="can.manage"
-                :href="route('master.pegawai.create')"
-                class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-900 dark:bg-blue-600 dark:hover:bg-blue-500"
-            >
-                <Plus class="size-4" /> Tambah Pegawai
-            </Link>
+            <div v-if="can.manage" class="flex flex-wrap gap-2">
+                <Link
+                    :href="route('master.pegawai.import.create')"
+                    class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border bg-card px-4 text-sm font-semibold shadow-sm transition hover:bg-muted"
+                >
+                    <FileSpreadsheet class="size-4 text-emerald-700 dark:text-emerald-300" /> Import Excel
+                </Link>
+                <Link
+                    :href="route('master.pegawai.create')"
+                    class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-900 dark:bg-blue-600 dark:hover:bg-blue-500"
+                >
+                    <Plus class="size-4" /> Tambah Pegawai
+                </Link>
+            </div>
         </header>
 
         <section class="grid overflow-hidden rounded-xl border bg-card sm:grid-cols-3">

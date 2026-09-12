@@ -497,7 +497,7 @@ class PerjanjianKinerjaController extends Controller
             'renstra_opd' => $pk->renstraOpd,
             'rkpd' => $pk->rkpd,
             'dpa_opd' => $pk->dpaOpd,
-            'items' => $pk->items->where('jenis_item', '!=', 'program_opd')->values()->map(fn (PerjanjianKinerjaItem $item) => [
+            'items' => $pk->items->values()->map(fn (PerjanjianKinerjaItem $item) => [
                 'id' => $item->id,
                 'sasaran_opd_id' => $item->sasaran_opd_id,
                 'indikator_sasaran_opd_id' => $item->indikator_sasaran_opd_id,
@@ -510,7 +510,10 @@ class PerjanjianKinerjaController extends Controller
                 'sasaran' => $item->sasaran,
                 'indikator' => $item->indikator,
                 'target' => $item->target,
+                'target_sumber' => $item->target_sumber,
                 'target_text' => $item->target_text,
+                'target_sumber_text' => $item->target_sumber_text,
+                'target_disesuaikan' => $item->target_disesuaikan,
                 'urutan' => $item->urutan,
                 'satuan' => $item->satuanIndikator,
                 'sasaran_opd' => $item->sasaranOpd,

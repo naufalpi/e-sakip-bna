@@ -3,6 +3,7 @@
 namespace App\Services\Perencanaan;
 
 use App\Models\RenjaOpd;
+use App\Models\RenjaOpdAnnualTarget;
 use App\Models\Rkpd;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -193,6 +194,24 @@ class RenjaVersionService
             unset($attributes['id'], $attributes['created_at'], $attributes['updated_at'], $attributes['deleted_at']);
 
             $clone->items()->create($attributes);
+        }
+
+        $timestamp = now();
+        $annualTargets = $source->annualTargets()->reorder()->orderBy('id')->get()
+            ->map(function ($target) use ($clone, $timestamp): array {
+                $attributes = $target->getAttributes();
+                unset($attributes['id'], $attributes['renja_opd_id'], $attributes['created_at'], $attributes['updated_at']);
+
+                return [
+                    ...$attributes,
+                    'renja_opd_id' => $clone->id,
+                    'bootstrap_source' => 'version_clone',
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ];
+            });
+        if ($annualTargets->isNotEmpty()) {
+            RenjaOpdAnnualTarget::query()->insert($annualTargets->all());
         }
 
         return $clone;

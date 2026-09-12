@@ -9,6 +9,7 @@ import Download from 'lucide-vue-next/dist/esm/icons/download.js';
 import FileSpreadsheet from 'lucide-vue-next/dist/esm/icons/file-spreadsheet.js';
 import History from 'lucide-vue-next/dist/esm/icons/history.js';
 import LoaderCircle from 'lucide-vue-next/dist/esm/icons/loader-circle.js';
+import ShieldCheck from 'lucide-vue-next/dist/esm/icons/shield-check.js';
 import UserRound from 'lucide-vue-next/dist/esm/icons/user-round.js';
 import { computed, ref } from 'vue';
 
@@ -21,11 +22,41 @@ type RecentImport = {
     created_at?: string | null;
 };
 
-defineProps<{ recentImports: RecentImport[] }>();
+const props = defineProps<{ recentImports: RecentImport[]; importMode: 'structure' | 'employee' }>();
 
 const form = useForm<{ file: File | null }>({ file: null });
 const input = ref<HTMLInputElement | null>(null);
 const dragging = ref(false);
+const isEmployee = computed(() => props.importMode === 'employee');
+const page = computed(() =>
+    isEmployee.value
+        ? {
+              head: 'Import Pegawai OPD',
+              backRoute: 'master.pegawai.index',
+              backLabel: 'Pegawai OPD',
+              title: 'Import Pegawai OPD',
+              description: 'Tambahkan atau perbarui pegawai beserta riwayat penempatannya tanpa mengubah Struktur Organisasi.',
+              templateRoute: 'master.pegawai.import.template',
+              storeRoute: 'master.pegawai.import.store',
+              showRoute: 'master.pegawai.import.show',
+              sheet: 'Sheet Pegawai OPD',
+              sheetDescription: 'Nama pegawai, NIP, jabatan, jenis penugasan, TMT, masa tugas, dan akun pengguna opsional.',
+              accent: 'emerald',
+          }
+        : {
+              head: 'Import Struktur Organisasi',
+              backRoute: 'master.jabatan-organisasi.index',
+              backLabel: 'Struktur Organisasi',
+              title: 'Import Struktur Organisasi',
+              description: 'Susun hierarki jabatan secara massal dengan pemeriksaan OPD, unit, atasan langsung, level, dan data ganda.',
+              templateRoute: 'master.jabatan-organisasi.import.template',
+              storeRoute: 'master.jabatan-organisasi.import.store',
+              showRoute: 'master.jabatan-organisasi.import.show',
+              sheet: 'Sheet Struktur Organisasi',
+              sheetDescription: 'Nomenklatur jabatan, level, OPD/unit, atasan langsung, eselon, urutan, dan status.',
+              accent: 'blue',
+          },
+);
 
 const fileSize = computed(() => {
     if (!form.file) return null;
@@ -34,7 +65,23 @@ const fileSize = computed(() => {
 
 const selectFile = (files?: FileList | null) => {
     form.clearErrors('file');
-    form.file = files?.[0] ?? null;
+    const file = files?.[0] ?? null;
+    if (!file) {
+        form.file = null;
+        return;
+    }
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+        form.file = null;
+        form.setError('file', 'Pilih file Excel dengan ekstensi .xlsx.');
+        return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+        form.file = null;
+        form.setError('file', 'Ukuran file maksimal 10 MB. Pecah data menjadi beberapa file bila diperlukan.');
+        return;
+    }
+
+    form.file = file;
 };
 
 const dropFile = (event: DragEvent) => {
@@ -44,7 +91,7 @@ const dropFile = (event: DragEvent) => {
 
 const submit = () => {
     if (!form.file) return;
-    form.post(route('master.jabatan-organisasi.import.store'), { forceFormData: true, preserveScroll: true });
+    form.post(route(page.value.storeRoute), { forceFormData: true, preserveScroll: true });
 };
 
 const statusLabel = (status: string) =>
@@ -59,71 +106,84 @@ const statusClass = (status: string) =>
 </script>
 
 <template>
-    <Head title="Import Jabatan Organisasi" />
+    <Head :title="page.head" />
 
     <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 md:p-6">
         <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
                 <Link
-                    :href="route('master.jabatan-organisasi.index')"
+                    :href="route(page.backRoute)"
                     class="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition hover:text-foreground"
                 >
                     <ArrowLeft class="size-4" />
-                    Master Jabatan Organisasi
+                    {{ page.backLabel }}
                 </Link>
-                <h1 class="text-2xl font-semibold tracking-tight md:text-3xl">Import struktur dan pegawai</h1>
+                <h1 class="text-2xl font-semibold tracking-tight md:text-3xl">{{ page.title }}</h1>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                    Gunakan template sistem agar struktur atasan dan riwayat masa tugas dapat diperiksa sebelum disimpan.
+                    {{ page.description }}
                 </p>
             </div>
             <a
-                :href="route('master.jabatan-organisasi.import.template')"
+                :href="route(page.templateRoute)"
                 class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border bg-card px-4 text-sm font-semibold shadow-sm transition hover:bg-muted"
             >
-                <Download class="size-4 text-blue-700 dark:text-blue-300" />
-                Unduh template Excel
+                <Download class="size-4" :class="isEmployee ? 'text-emerald-700 dark:text-emerald-300' : 'text-blue-700 dark:text-blue-300'" />
+                Unduh template terbaru
             </a>
         </header>
 
         <section class="grid overflow-hidden rounded-2xl border bg-card lg:grid-cols-[0.9fr_1.4fr]">
             <div class="border-b bg-muted/30 p-5 lg:border-b-0 lg:border-r lg:p-6">
-                <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-300">
+                <div
+                    class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em]"
+                    :class="isEmployee ? 'text-emerald-700 dark:text-emerald-300' : 'text-blue-700 dark:text-blue-300'"
+                >
                     <FileSpreadsheet class="size-4" />
                     Isi workbook
                 </div>
                 <div class="mt-6 space-y-5">
                     <div class="flex gap-3">
                         <span
-                            class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200"
+                            class="flex size-9 shrink-0 items-center justify-center rounded-lg"
+                            :class="
+                                isEmployee
+                                    ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200'
+                                    : 'bg-blue-50 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200'
+                            "
                         >
-                            <Building2 class="size-4" />
+                            <UserRound v-if="isEmployee" class="size-4" />
+                            <Building2 v-else class="size-4" />
                         </span>
                         <div>
-                            <p class="font-semibold">Sheet Jabatan</p>
+                            <p class="font-semibold">{{ page.sheet }}</p>
                             <p class="mt-1 text-sm leading-5 text-muted-foreground">
-                                Nomenklatur, level, OPD/unit, atasan langsung, eselon, dan urutan.
+                                {{ page.sheetDescription }}
                             </p>
                         </div>
                     </div>
                     <div class="flex gap-3">
                         <span
-                            class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200"
+                            class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
                         >
-                            <UserRound class="size-4" />
+                            <FileSpreadsheet class="size-4" />
                         </span>
                         <div>
-                            <p class="font-semibold">Sheet Pegawai</p>
+                            <p class="font-semibold">Contoh dan referensi siap pakai</p>
                             <p class="mt-1 text-sm leading-5 text-muted-foreground">
-                                Pejabat/JF/Pelaksana, jenis pegawai, penugasan, TMT Jabatan, dan riwayat masa tugas.
+                                Template menyertakan petunjuk, contoh terpisah, serta kode OPD, unit, dan {{ isEmployee ? 'jabatan' : 'unit' }} aktif.
                             </p>
                         </div>
                     </div>
                 </div>
                 <div class="mt-6 border-t pt-5 text-sm text-muted-foreground">
-                    <p class="flex gap-2"><Check class="mt-0.5 size-4 shrink-0 text-emerald-600" /> Jabatan dicocokkan dari nama + OPD + unit.</p>
+                    <p class="flex gap-2">
+                        <Check class="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                        {{ isEmployee ? 'Pegawai dicocokkan terutama melalui NIP atau akun.' : 'Jabatan dicocokkan dari nama + OPD + unit.' }}
+                    </p>
                     <p class="mt-3 flex gap-2"><Check class="mt-0.5 size-4 shrink-0 text-emerald-600" /> Data belum tersimpan pada tahap preview.</p>
                     <p class="mt-3 flex gap-2">
-                        <Check class="mt-0.5 size-4 shrink-0 text-emerald-600" /> Akun pengguna dan dasar SK bersifat opsional.
+                        <ShieldCheck class="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                        {{ isEmployee ? 'Admin OPD hanya dapat mengimport data OPD sendiri.' : 'Semua perubahan diterapkan dalam satu transaksi aman.' }}
                     </p>
                 </div>
             </div>
@@ -133,13 +193,17 @@ const statusClass = (status: string) =>
                     class="group flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center transition"
                     :class="
                         dragging
-                            ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-500/10'
-                            : 'border-border bg-background hover:border-blue-500 hover:bg-muted/35'
+                            ? isEmployee
+                                ? 'border-emerald-600 bg-emerald-50/70 dark:bg-emerald-500/10'
+                                : 'border-blue-600 bg-blue-50/70 dark:bg-blue-500/10'
+                            : 'border-border bg-background hover:border-slate-500 hover:bg-muted/35'
                     "
                     role="button"
                     tabindex="0"
+                    aria-label="Pilih file Excel untuk diimport"
                     @click="input?.click()"
                     @keydown.enter="input?.click()"
+                    @keydown.space.prevent="input?.click()"
                     @dragenter.prevent="dragging = true"
                     @dragover.prevent="dragging = true"
                     @dragleave.prevent="dragging = false"
@@ -147,7 +211,10 @@ const statusClass = (status: string) =>
                 >
                     <input ref="input" class="hidden" type="file" accept=".xlsx" @change="selectFile(($event.target as HTMLInputElement).files)" />
                     <span class="flex size-12 items-center justify-center rounded-xl border bg-card shadow-sm">
-                        <UploadCloud class="size-5 text-blue-700 transition group-hover:-translate-y-0.5 dark:text-blue-300" />
+                        <UploadCloud
+                            class="size-5 transition group-hover:-translate-y-0.5"
+                            :class="isEmployee ? 'text-emerald-700 dark:text-emerald-300' : 'text-blue-700 dark:text-blue-300'"
+                        />
                     </span>
                     <template v-if="form.file">
                         <p class="mt-4 max-w-full truncate font-semibold">{{ form.file.name }}</p>
@@ -167,7 +234,8 @@ const statusClass = (status: string) =>
                     <button
                         type="submit"
                         :disabled="!form.file || form.processing"
-                        class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-800 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
+                        class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50"
+                        :class="isEmployee ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-blue-800 hover:bg-blue-900 dark:bg-blue-600 dark:hover:bg-blue-500'"
                     >
                         <LoaderCircle v-if="form.processing" class="size-4 animate-spin" />
                         <FileSpreadsheet v-else class="size-4" />
@@ -185,7 +253,7 @@ const statusClass = (status: string) =>
             <Link
                 v-for="item in recentImports"
                 :key="item.id"
-                :href="route('master.jabatan-organisasi.import.show', item.id)"
+                :href="route(page.showRoute, item.id)"
                 class="grid gap-2 border-b px-5 py-3.5 text-sm transition last:border-0 hover:bg-muted/40 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center"
             >
                 <span class="min-w-0">

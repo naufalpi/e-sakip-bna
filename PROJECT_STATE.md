@@ -2,6 +2,23 @@
 
 Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat baru tanpa membawa seluruh riwayat percakapan lama.
 
+## Snapshot Terakhir
+
+- Diperbarui: **12 September 2026**.
+- Commit terakhir pada saat state diperbarui: `c9187cc fixing sidebar`.
+- Workspace masih memiliki perubahan aktif yang belum dikomit. Jangan melakukan reset/checkout massal karena perubahan tersebut adalah hasil pekerjaan lanjutan RENJA tahunan, penyesuaian target PK, serta penyempurnaan import Struktur Organisasi/Pegawai OPD.
+- Migration lokal sudah sampai batch yang memuat:
+    - `2026_09_11_000002_create_renja_opd_annual_targets_table.php`
+    - `2026_09_11_000003_add_source_target_snapshot_to_perjanjian_kinerja_items.php`
+- Feature flag `FEATURE_RENJA_ANNUAL_TARGETS` saat ini **false** pada default/config. Implementasi dan tabel target tahunan RENJA tetap disimpan sebagai eksperimen rollback-safe, tetapi panelnya tidak tampil dan alur aktif kembali memakai RENSTRA seperti semula.
+- Verifikasi terakhir:
+    - build production Vite berhasil,
+    - ESLint file PK berhasil,
+    - PHP Pint berhasil,
+    - pengujian khusus PK/Rencana Aksi: 13 test, 259 assertion lulus,
+    - full suite sempat menghasilkan 289 test lulus dan 2 test RENJA gagal hanya karena test belum mengaktifkan feature flag; setup test sudah diperbaiki dan suite `RenjaAnnualTargetTest` kemudian lulus 3/3.
+    - suite Struktur Organisasi/Pegawai OPD terbaru: 28 test, 316 assertion lulus; tambahan regresi import RPJMD/RENSTRA: 6 test, 62 assertion lulus; ESLint, PHP Pint, route audit, dan build production Vite lulus.
+
 ## Lokasi Project
 
 - Stack:
@@ -63,9 +80,11 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
     - Pejabat definitif tidak diberi tanggal selesai sampai benar-benar diganti/mutasi/pensiun/diberhentikan; sebelum pejabat pengganti dicatat, riwayat lama harus ditutup agar masa tugas tidak bertumpang tindih.
     - Jabatan struktural hanya boleh memiliki satu pemegang pada rentang aktif yang sama. Jabatan Fungsional dan Pelaksana dapat diisi banyak pegawai, tetapi penempatan pegawai yang sama tidak boleh bertumpang tindih.
     - Akun pejabat tidak wajib untuk penyusunan PK karena Admin OPD dapat bertindak sebagai operator. Akun hanya perlu dihubungkan bila pejabat akan login atau melakukan persetujuan sendiri; identitas pihak PK tetap berasal dari pejabat aktif sesuai TMT/periode dokumen.
-    - Import Excel tersedia melalui alur template -> upload/validasi -> preview -> terapkan. Workbook terbaru memakai sheet `Jabatan` dan `Pegawai`; pencocokan jabatan menggunakan kombinasi nama jabatan + OPD + unit.
-    - Template memberi contoh hierarki sampai Sekretaris/Kabid, Kasubbag/Kasi, JF, dan Pelaksana; memakai kolom `jenis_pegawai` serta `tmt_jabatan`. Importer tetap menerima template lama tanpa `jenis_pegawai`, sheet bernama `Pejabat`, dan kolom lama `tanggal_mulai` untuk kompatibilitas.
-    - Validasi import menolak OPD/unit/atasan/akun yang tidak ditemukan, jabatan ganda, hierarki tidak valid atau bersiklus, format tanggal salah, serta masa tugas pejabat yang bertumpang tindih. Seluruh baris harus valid sebelum import dapat diterapkan.
+    - Import Excel dipisahkan menjadi dua jalur yang jelas: `Import Struktur` dari halaman Struktur Organisasi dan `Import Excel` dari halaman Pegawai OPD. Keduanya memakai alur template -> upload/validasi -> preview -> konfirmasi -> terapkan, tanpa migration baru.
+    - Template v2 memakai sheet data kosong yang aman, sedangkan contoh pengisian, petunjuk, referensi OPD/unit, dan referensi jabatan ditempatkan pada sheet terpisah agar contoh tidak pernah terbaca sebagai data. Header dibedakan wajib/opsional, baris input sudah berformat teks, kolom dibekukan/difilter, serta nilai baku memiliki dropdown Excel.
+    - Template Pegawai OPD memformat NIP sebagai teks agar 18 digit tidak rusak, menyertakan `Status Pegawai`, dan untuk Admin OPD hanya memuat referensi OPD/jabatan miliknya. Template lama tetap terbaca melalui alias header (`nama_pejabat`, `opd_kode`, `tanggal_mulai`, dan lain-lain), tetapi tiap jalur hanya menerapkan entitasnya sendiri.
+    - Validasi import menolak OPD/unit/atasan/akun yang tidak ditemukan, data di luar lingkup Admin OPD, NIP bukan 18 digit/notasi ilmiah, identitas pegawai yang saling bertentangan, string melebihi kapasitas kolom, jabatan ganda, hierarki tidak valid atau bersiklus, status pegawai/penempatan yang tidak konsisten, format tanggal salah, serta masa tugas yang bertumpang tindih. Batas tegas 2.000 baris per sheet dan pemeriksaan ukuran isi ZIP mencegah file terlalu besar/zip bomb.
+    - Seluruh baris harus valid sebelum import dapat diterapkan. Penerapan dikunci dalam transaksi database, memeriksa ulang scope dan perubahan data sejak preview, tidak menghapus data yang tidak tercantum, serta tidak memutus akun/NIP/pangkat lama hanya karena kolom opsional dikosongkan.
     - Data lama pada riwayat pejabat otomatis dibentuk menjadi master pegawai saat migrasi; relasi lama tetap dipertahankan agar data production tidak hilang.
     - Jabatan dengan turunan atau riwayat tidak dapat dihapus dan harus dinonaktifkan agar histori dokumen aman.
     - Struktur resmi/nomenklatur jabatan dikendalikan oleh Super Admin, Bagian Organisasi, dan Dinkominfo. Jabatan lama otomatis berstatus `verified` sehingga migrasi tidak mengubah data atau penempatan production.
@@ -164,8 +183,16 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
     - baseline,
     - target,
     - pagu indikatif.
+- Preview tabel Renstra sekarang memiliki kolom `Satuan` tersendiri di sebelah kiri `Baseline`; target tidak lagi menggabungkan nama satuan ke dalam kolom target.
 - Preview tabel dan export Excel menampilkan baris pengelompokan Sasaran Program, Sasaran Kegiatan, dan Sasaran Sub Kegiatan. Program/kegiatan bernama sama tidak digabung jika berada pada cabang sasaran berbeda; setiap cabang tetap ditampilkan sesuai urutan hierarkinya.
 - Preview tree Renstra sedang disembunyikan.
+- Halaman daftar RENSTRA memakai ukuran area konten yang sama dengan RENJA. Ringkasan header `RENSTRA Murni`, `RENSTRA Perubahan`, dan `Cascading Lengkap` dihitung dari seluruh hasil filter di database, bukan hanya baris pada halaman pagination yang sedang tampil.
+- Kelola RENSTRA memakai dua card utama di atas untuk `Tujuan OPD` dan `Sasaran Strategis OPD`, kemudian tiga card untuk Program, Kegiatan, dan Sub Kegiatan. Label `Sasaran Strategis OPD` hanya perubahan frontend; backend/tabel tetap memakai Sasaran OPD.
+- Ringkasan card memakai nama entitas langsung (`1 tujuan`, `7 program`, dan seterusnya), bukan teks generik `data utama`. Card Sub Kegiatan juga menampilkan jumlah indikator dan target.
+- Panel acuan perencanaan/RPJMD dan riwayat persetujuan tidak lagi memaksa pengguna melewati konten panjang sebelum Kelola RENSTRA; tampilan lama tetap disimpan sebagai cadangan UI.
+- Kelengkapan cascading hanya menghitung turunan aktif yang seluruh rantai induknya juga aktif, sehingga soft-deleted Sub Kegiatan/indikator/target tidak ikut terhitung. Pengguna kabupaten tertentu dapat membuka `Lihat kekurangan` untuk melihat item/tahun target yang masih belum lengkap; akses diberikan kepada Super Admin, Bapperida, dan Bagian Organisasi sesuai policy.
+- Edit `Sasaran Sub Kegiatan` tersedia di halaman Kelola Sub Kegiatan RENSTRA.
+- Nomor dokumen RENSTRA disembunyikan dari form dan daftar karena bukan metadata yang selalu tersedia; kolom backend tetap dipertahankan untuk kompatibilitas.
 
 ### Versi Dokumen Renstra
 
@@ -228,7 +255,7 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 - Migrasi lama memetakan status `approved/locked` sebagai RENJA Ditetapkan dan status lainnya sebagai RENJA Awal.
 - Tahun Renja menjadi input utama; periode tahun mengikuti otomatis.
 - Pembuatan RENJA Akhir Draft otomatis memilih RKPD Ditetapkan aktif yang sudah disetujui pada tahun yang sama. Referensi lama yang masih menunjuk RKPD Awal tetap dapat dipertahankan saat edit agar data production tidak rusak; sinkronisasi akan mencari versi resmi dari root RKPD yang sama.
-- Judul dan nomor dokumen dibuat uppercase.
+- Judul RENJA dibuat uppercase. Nomor dokumen legacy tetap dinormalisasi bila ada, tetapi input/labelnya disembunyikan dari UI.
 - Status awal otomatis draft.
 - Form dan preview Renja disesuaikan agar mirip RKPD.
 - Program yang muncul harus sesuai Renja OPD terkait, termasuk program penunjang khusus OPD.
@@ -240,6 +267,20 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 - Sumber pembuatan RENJA Akhir Draft wajib RENSTRA versi aktif berstatus `approved/locked`, berasal dari OPD yang sama, dan mencakup tahun RENJA. Filter UI, validasi request, dan service bootstrap memeriksa ulang syarat tersebut agar RENSTRA draft/revisi/ditolak tidak dapat tersalin.
 - Migrasi `2026_08_26_000003_harden_renja_rkpd_source_integrity.php` menambahkan partial unique index untuk satu Sub Kegiatan aktif per dokumen RENJA. Migrasi melakukan preflight dan berhenti tanpa menghapus data bila menemukan duplikasi lama, sehingga data konflik dapat direkonsiliasi terlebih dahulu.
 - Kolom `target_akhir_renstra` pada item RENJA dan RKPD menggunakan tipe `text` agar gabungan banyak indikator/target tidak terpotong pada batas 255 karakter.
+- Field `Unit OPD` disembunyikan pada form RENJA karena seluruh OPD Banjarnegara menyusun satu RENJA tingkat perangkat daerah, bukan dokumen terpisah per unit. Relasi backend tetap dipertahankan untuk kompatibilitas data lama.
+- Nomor dokumen RENJA disembunyikan dari form dan daftar; kolom backend tetap ada.
+- Header daftar RENJA ditulis `RENJA OPD` dan memakai gaya/warna biru yang konsisten dengan header RENSTRA.
+- Daftar RENJA tetap dapat menampilkan seluruh versi (`Akhir Draft`, `Perubahan`, dan `Ditetapkan`), tetapi filter versi default saat halaman dibuka adalah `Versi aktif` agar pengguna tidak mengira arsip proses sebagai dokumen ganda. Badge versi dan badge `Aktif` diletakkan setelah judul dokumen. Tombol `Buka` menjadi akses utama; histori versi tetap tersimpan tanpa duplikasi aksi yang membingungkan.
+- Form tambah/edit Sub Kegiatan RENJA disusun vertikal per bagian tanpa penomoran. Lebar dan tinggi input disesuaikan dengan jenis data; `Sumber Dana` sejajar dengan `Pagu Indikatif`, sedangkan `Prioritas Nasional` sejajar ukuran/lebar/tingginya dengan `Prioritas Daerah`.
+- Label indikator pada form Sub Kegiatan RENJA menjadi `Indikator Sub Kegiatan`. Nama satuan dari RENSTRA ditampilkan readonly di bawah indikator dan preview tabel RENJA menampilkan target beserta **nama satuan**, bukan simbol satuan.
+- Pembuatan RENJA tetap menarik seluruh Sub Kegiatan RENSTRA aktif satu kali. User diarahkan membandingkan jumlah Sub Kegiatan RENSTRA dan RENJA terlebih dahulu, kemudian menghapus Sub Kegiatan yang tidak dilaksanakan pada tahun berjalan.
+
+#### Eksperimen Target Tahunan RENJA (Disimpan, Saat Ini Nonaktif)
+
+- Kode, migration, model, service, controller, request, route, dan halaman `AnnualTargets.vue` tetap tersedia agar rancangan target tahunan Tujuan/Sasaran/Program/Kegiatan tidak hilang.
+- Ketika feature flag aktif, panel target tahunan mengambil indikator RENSTRA, menyimpan target RENSTRA sebagai referensi, dan memungkinkan target RENJA tahunan disesuaikan dengan alasan.
+- Saat ini `FEATURE_RENJA_ANNUAL_TARGETS=false`, sehingga panel tersebut tidak tampil, readiness RENJA tidak mewajibkannya, PK/Rencana Aksi kembali memakai target RENSTRA sesuai tahun, dan perilaku pengguna sama seperti sebelum eksperimen.
+- Jangan mengaktifkan flag ini tanpa persetujuan user. Untuk menguji implementasinya secara terisolasi, test harus mengatur `config(['features.renja_annual_targets' => true])` sendiri.
 
 ### RKA OPD
 
@@ -308,7 +349,9 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 - Kop dokumen memuat logo, nama pemerintah, nama instansi, alamat, telepon, faksimile, website, surel, kota, dan kode pos. Saat PK dibuat, kop disalin menjadi snapshot sehingga perubahan master tidak mengubah dokumen lama; snapshot kop PK berstatus Draft/Perlu Perbaikan/Ditolak masih dapat disesuaikan melalui aksi `Atur Kop`.
 - PK Bupati mengambil snapshot indikator tujuan/sasaran beserta target dan program/anggaran dari RKPD resmi aktif berstatus `approved/locked`.
 - PK Kepala OPD menampilkan matriks hanya dari Tujuan OPD dan Sasaran OPD beserta indikator/target tahunannya. Sasaran Program dan indikator program tidak menjadi baris bernomor pada matriks; Program OPD tetap ditampilkan terpisah pada tabel Program dan Anggaran yang bersumber dari DPA/DPPA resmi.
-- Seluruh PK Cascading memakai snapshot read-only. Koreksi dilakukan pada dokumen sumber resmi atau lingkup pilihan PK, lalu snapshot dibentuk ulang; data sumber tidak ikut berubah.
+- Seluruh PK Cascading memakai snapshot. Struktur, sasaran, indikator, satuan, serta referensi sumber tetap read-only, tetapi **target PK dapat disesuaikan langsung** pada seluruh level Tujuan, Sasaran, Program, Kegiatan, dan Sub Kegiatan selama policy mengizinkan dokumen diedit.
+- Aksi `Sesuaikan target` membuka modal peringatan yang menjelaskan bahwa perubahan hanya berlaku pada PK dan tidak mengubah RENSTRA/RENJA/RKPD/DPA. Nilai sumber disimpan terpisah pada `target_sumber`/`target_sumber_text`, baris yang berubah diberi status `target_disesuaikan`, dan tersedia aksi `Kembalikan target sumber`.
+- Penyesuaian target tetap dipertahankan saat snapshot PK dibangun ulang selama indikator sumber yang sama masih tersedia. Migration aditifnya adalah `2026_09_11_000003_add_source_target_snapshot_to_perjanjian_kinerja_items.php` dan juga melakukan backfill target sumber untuk snapshot lama.
 - PK memiliki subjek pegawai, snapshot nama/NIP/jabatan Pihak Pertama dan Pihak Kedua, penempatan yang digunakan, tanggal/tempat penandatanganan, dan sumber dokumen.
 - PK Struktural memilih langsung beberapa Sasaran OPD, Program OPD, Kegiatan OPD, atau Sub Kegiatan OPD dari Renstra resmi aktif pada form PK. Pilihan disimpan pada `lingkup_kinerja_snapshot`, lalu seluruh indikator dan target tahun terkait disalin sebagai snapshot.
 - PK JF/Pelaksana mempunyai dua mode: `Cascading` memakai pemilihan lingkup Renstra yang sama, sedangkan `Manual` diisi sendiri setelah PK dibuat. Hanya PK Cascading resmi yang dapat diteruskan ke Rencana Aksi dan realisasi/pengukuran organisasi.
@@ -321,7 +364,36 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 - Sinkronisasi Struktur Organisasi, Pegawai OPD, dan PK memakai penempatan aktif sebagai sumber OPD/unit/jabatan. Perubahan identitas pegawai menyegarkan identitas penempatan aktif, perubahan struktur menyegarkan pemegang aktif, dan PK memvalidasi lingkup berdasarkan OPD jabatan yang dipilih. Snapshot PK yang sudah tersimpan tetap tidak diubah. Migrasi `2026_08_31_000003_sync_current_pegawai_organization.php` menormalkan data aktif lama tanpa menghapus histori.
 - Data PK lama tetap bertipe cascading secara default dan tidak dihapus oleh migrasi; identitas pegawainya dapat dilengkapi saat dokumen diedit.
 - Preview/cetak PK memakai format dua halaman: pernyataan dan tanda tangan, kemudian lampiran matriks indikator serta rekap program/anggaran. Export PDF memakai layout yang sama; export Word tetap tersedia.
+- Template PK Manual mengikuti styling/kop/ukuran dokumen PK resmi lainnya. Untuk PK Manual JF/Pelaksana, input matriks cukup `Sasaran Kinerja`, `Indikator Kinerja`, dan `Target`; `Unit Kerja` pada PK dapat diedit dan disimpan sebagai snapshot dokumen.
+- Bug pilihan `Jabatan penandatangan` dan `Pihak Kedua/Atasan` yang hilang setelah validasi sudah diperbaiki. PK manual tidak lagi salah diwajibkan memilih item cascading.
+- Permission RENSTRA telah dinormalisasi melalui `PermissionAliases`: `renstra.manage` adalah permission kanonik dan `manage_renstra_opd` hanya alias legacy. UI Role Permission menampilkan satu `Kelola Renstra OPD`; penyimpanan permission legacy dinormalisasi ke permission kanonik. Bapperida/Bagian Organisasi yang diberi permission manage dapat mengelola RENSTRA lintas OPD sesuai policy. Dokumen final tetap terkunci bagi user biasa, sedangkan Super Admin tetap dapat memakai kewenangan koreksi.
 - Dasar implementasi: Perpres 29/2014, PermenPANRB 53/2014, dan Perbup Banjarnegara 41/2024. Perbup Banjarnegara 14/2015 sudah dicabut oleh Perbup 41/2024.
+
+### Rencana Aksi
+
+- Modul Rencana Aksi format matriks (`format_version = 2`) sudah tersedia dan memakai PK Kepala OPD bertipe cascading yang resmi sebagai pintu masuk.
+- Sebelum dibuat, readiness memeriksa PK, cascading RENSTRA, target, formula, dan anggaran sumber. Satu PK Kepala OPD hanya dapat menjadi sumber satu Rencana Aksi aktif.
+- Matriks dibentuk dari seluruh rantai Tujuan OPD -> Sasaran Strategis OPD -> Program -> Kegiatan -> Sub Kegiatan yang relevan dengan PK/DPA, bukan hanya dua baris yang dicetak pada matriks PK Kepala OPD.
+- Kolom matriks: uraian cascading, indikator, formula, satuan, target, anggaran, target pelaksanaan Triwulan I-IV, dan penanggung jawab.
+- Target Tujuan/Sasaran memakai snapshot target PK Kepala OPD. Target Program/Kegiatan memakai target RENSTRA pada tahun PK (atau target tahunan RENJA hanya bila feature flag diaktifkan). Target Sub Kegiatan mengutamakan target kinerja DPA/DPPA dan fallback ke RENSTRA. Anggaran memakai DPA/DPPA. Formula mengambil nilai awal dari RENSTRA dan tetap editable karena beberapa OPD belum mengisi formula di sumber. Penanggung jawab dan target pelaksanaan tiap triwulan wajib diisi pengguna.
+- Judul otomatis uppercase dan placeholder mengikuti format `RENCANA AKSI TAHUN 2026 DINAS KOMUNIKASI DAN INFORMATIKA KABUPATEN BANJARNEGARA`.
+- Halaman depan Rencana Aksi mengikuti gaya daftar PK. Form buat memakai header putih/netral, sederhana, tanpa blok biru besar.
+- Rencana Aksi lama (`format_version < 2`) tetap dapat dibuka untuk kompatibilitas, tetapi pembuatan baru memakai matriks versi 2.
+- Saat ini Rencana Aksi tingkat Bupati belum dibuat; modul aktif berfokus pada Rencana Aksi OPD dari PK Kepala OPD.
+
+### Pengumuman Sistem
+
+- Menu `Pengumuman Sistem` tersedia di submenu `Administrasi Sistem` dan dikelola Super Admin.
+- Pengumuman mendukung tipe/warna, sasaran semua user/role/OPD, jadwal mulai-selesai, tautan opsional, status aktif, serta opsi dapat ditutup.
+- Pengumuman yang terlihat dibagikan melalui Inertia dan di-cache agar ringan; cache langsung diinvalidasi saat pengumuman berubah.
+- Bar pengumuman sticky tepat di bawah header dengan lapisan/z-index selaras terhadap header. Teks berjalan hanya ke kiri, kata terakhir keluar penuh dari sisi kiri sebelum reset, dan tidak berjalan di belakang badge.
+- Jika ada beberapa pengumuman, item berikutnya mulai setelah jeda 3 detik. Tombol navigasi sebelumnya/berikutnya dibuat kecil dan menampilkan posisi seperti `1/2`. Preferensi reduced-motion dan dismiss berbasis session storage didukung.
+- Tipe `Perhatian` memakai kuning solid `#E9D502`; layout badge ikon+label, sisi kanan, dan alignment vertikal sudah dirapikan.
+
+### UI Shell / Sidebar
+
+- Header/navbar admin dan bar pengumuman dibuat sticky; pengumuman tetap persis di bawah header ketika halaman di-scroll.
+- Sidebar collapsed mempertahankan radius/sudut yang sama dengan sidebar normal. Ikon dipusatkan horizontal, label notifikasi tidak lagi bertumpuk, indikator unread tetap terlihat, dan area akun bawah tetap rapi.
 
 ### Dokumen Publik
 
@@ -493,11 +565,11 @@ Catatan production:
 
 Prioritas dekat:
 
-1. Perbaiki dashboard admin:
+1. Cek dashboard admin:
 
     - dark mode penuh,
-    - header admin sticky tanpa gerakan,
-    - konten admin memakai scroll window/browser.
+    - konsistensi sticky header dan announcement pada seluruh ukuran layar,
+    - konten admin tetap memakai scroll window/browser.
 
 2. Cek ulang fitur `Batalkan Perubahan` RPJMD/Renstra:
 
@@ -506,12 +578,11 @@ Prioritas dekat:
     - tidak boleh batalkan versi disetujui/terkunci,
     - nomor perubahan berikutnya tidak bentrok walau perubahan sebelumnya soft deleted.
 
-3. Rapikan Renstra:
+3. Audit akhir Renstra setelah digunakan banyak OPD:
 
-    - grouping program/kegiatan/sub kegiatan,
-    - smooth scroll ke detail kegiatan/sub kegiatan,
-    - modal dropdown tidak tertutup header,
-    - preview tabel Renstra dan export Excel.
+    - cek edge case grouping program/kegiatan/sub kegiatan bernama sama,
+    - cek smooth scroll dan modal dropdown pada layar kecil,
+    - cocokkan preview tabel dan export Excel pada dokumen besar.
 
 4. Rapikan RKPD:
 
@@ -519,16 +590,22 @@ Prioritas dekat:
     - OPD muncul sekali lalu seluruh baris di bawahnya,
     - export Excel format resmi.
 
-5. Lanjutkan PK struktural dan Rencana Aksi:
+5. Lanjutkan cakupan PK dan Rencana Aksi:
 
     - batasi pemilihan matriks PK struktural secara penuh berdasarkan beberapa penugasan sasaran/program/kegiatan/sub kegiatan milik pegawai,
-    - finalisasi matriks PK struktural untuk indikator kegiatan/sub kegiatan,
-    - penyempurnaan Rencana Aksi berdasarkan penugasan PK Cascading.
+    - pertimbangkan kebutuhan Rencana Aksi tingkat Bupati,
+    - lanjutkan modul pengukuran/realisasi setelah Rencana Aksi OPD stabil.
 
 6. Kuatkan sinkronisasi RKPD <-> Renja:
     - tarik Renja ke RKPD,
     - tarik RKPD ke Renja,
     - tampilkan diff jika target/pagu/indikator/lokasi berbeda.
+
+7. Feature target tahunan RENJA tetap disimpan tetapi nonaktif:
+
+    - jangan mengaktifkan `FEATURE_RENJA_ANNUAL_TARGETS` tanpa keputusan user,
+    - jika nanti diaktifkan, lakukan UAT khusus dampaknya pada PK Kepala OPD dan Rencana Aksi,
+    - rollback cukup menonaktifkan flag; tabel/data tidak perlu dihapus.
 
 ## Catatan Desain Bisnis
 

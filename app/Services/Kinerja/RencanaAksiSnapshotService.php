@@ -11,6 +11,7 @@ use App\Models\PerjanjianKinerjaItem;
 use App\Models\RencanaAksi;
 use App\Models\SasaranOpd;
 use App\Models\TujuanOpd;
+use App\Services\Perencanaan\RenjaAnnualTargetService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,8 @@ use Illuminate\Validation\ValidationException;
 class RencanaAksiSnapshotService
 {
     private const OFFICIAL_STATUSES = ['approved', 'locked'];
+
+    public function __construct(private readonly RenjaAnnualTargetService $renjaAnnualTargetService) {}
 
     /**
      * @return array{ready: bool, issues: array<int, string>, warnings: array<int, string>, counts: array<string, int>}
@@ -187,7 +190,8 @@ class RencanaAksiSnapshotService
             return compact('issues', 'warnings') + [
                 'goals' => $empty, 'objectives' => $empty, 'programs' => $empty,
                 'activities' => $empty, 'subActivities' => $empty, 'dpaGroups' => $empty,
-                'pkItems' => $empty, 'pkPrograms' => $empty, 'rowCount' => 0,
+                'pkItems' => $empty, 'pkPrograms' => $empty, 'annualTargets' => $empty,
+                'useAnnualTargets' => false, 'rowCount' => 0,
             ];
         }
         if ((int) $dpa->renja_opd_id !== (int) $pk->renja_opd_id) {
@@ -195,6 +199,19 @@ class RencanaAksiSnapshotService
         }
         if (! $dpa->renjaOpd()->where('renstra_opd_id', $renstra->id)->exists()) {
             $issues[] = 'DPA/DPPA pada PK tidak terhubung ke RENSTRA sumber PK.';
+        }
+
+        $useAnnualTargets = $this->renjaAnnualTargetService->available();
+        $annualTargets = collect();
+        $renja = $dpa->renjaOpd;
+        if ($useAnnualTargets && $renja) {
+            $this->renjaAnnualTargetService->bootstrap(
+                $renja,
+                $renja->isOfficialVersion() ? 'legacy_backfill' : 'renstra_initial',
+            );
+            $annualTargets = $renja->annualTargets()
+                ->get()
+                ->keyBy(fn ($target) => $target->indicator_type.':'.$target->indicator_id);
         }
 
         $allSubActivities = OpdSubKegiatan::query()
@@ -303,8 +320,14 @@ class RencanaAksiSnapshotService
         foreach ($programs->concat($activities) as $node) {
             foreach ($node->indikator as $indicator) {
                 $target = $indicator->targets->first();
-                if (! $target || ($target->target === null && blank($target->target_text))) {
-                    $issues[] = 'Target tahunan indikator program/kegiatan pada RENSTRA belum lengkap untuk tahun PK.';
+                $annualTarget = $annualTargets->get($indicator->getTable().':'.$indicator->id);
+                $missing = $useAnnualTargets
+                    ? ! $annualTarget || ($annualTarget->target_renja === null && blank($annualTarget->target_renja_text))
+                    : ! $target || ($target->target === null && blank($target->target_text));
+                if ($missing) {
+                    $issues[] = $useAnnualTargets
+                        ? 'Target tahunan indikator program/kegiatan pada RENJA sumber PK belum lengkap.'
+                        : 'Target tahunan indikator program/kegiatan pada RENSTRA belum lengkap untuk tahun PK.';
                     break 2;
                 }
             }
@@ -340,7 +363,8 @@ class RencanaAksiSnapshotService
 
         return compact(
             'issues', 'warnings', 'goals', 'objectives', 'programs', 'activities',
-            'subActivities', 'dpaGroups', 'pkItems', 'pkPrograms', 'pkProgramsByCode'
+            'subActivities', 'dpaGroups', 'pkItems', 'pkPrograms', 'pkProgramsByCode',
+            'annualTargets', 'useAnnualTargets'
         ) + ['rowCount' => $allIndicators->count()];
     }
 
@@ -429,6 +453,9 @@ class RencanaAksiSnapshotService
         }
 
         $target = $indicator->targets->first();
+        $annualTarget = $context['annualTargets']->get($indicator->getTable().':'.$indicator->id);
+        $targetNumber = $context['useAnnualTargets'] ? $annualTarget?->target_renja : $target?->target;
+        $targetText = $context['useAnnualTargets'] ? $annualTarget?->target_renja_text : $target?->target_text;
         if ($level === 'program_opd') {
             $pkProgram = $context['pkPrograms']->get($node->id)
                 ?: $context['pkProgramsByCode']->get($this->normalize($node->kode));
@@ -438,7 +465,7 @@ class RencanaAksiSnapshotService
             $budget = (float) $subIds->sum(fn ($subId) => $context['dpaGroups']->get($subId, collect())->sum(fn ($entry) => (float) ($entry['dpa_item']->pagu_dpa ?? 0)));
         }
 
-        return [$target?->target, $target?->target_text, $budget];
+        return [$targetNumber, $targetText, $budget];
     }
 
     private function hierarchyOrder(Model $model): string

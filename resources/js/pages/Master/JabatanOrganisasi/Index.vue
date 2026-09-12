@@ -211,7 +211,7 @@ const groupedItems = computed(() => {
                     class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border bg-card px-4 text-sm font-semibold shadow-sm transition hover:bg-muted"
                 >
                     <FileSpreadsheet class="size-4 text-blue-700 dark:text-blue-300" />
-                    Import Excel
+                    Import Struktur
                 </Link>
                 <Link
                     v-if="can.create"

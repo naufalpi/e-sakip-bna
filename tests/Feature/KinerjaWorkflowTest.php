@@ -36,6 +36,7 @@ use App\Models\TargetIndikatorTujuanOpd;
 use App\Models\TujuanOpd;
 use App\Models\User;
 use App\Services\Kinerja\KinerjaReportContentService;
+use App\Services\Perencanaan\RenjaAnnualTargetService;
 use App\Services\Reports\ReportDocumentRenderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -352,6 +353,7 @@ class KinerjaWorkflowTest extends TestCase
 
     public function test_perjanjian_kinerja_requires_approved_renstra_when_linked(): void
     {
+        config(['features.renja_annual_targets' => true]);
         $this->seed();
 
         [$opd, , $periode, $adminOpd] = $this->basicActors();
@@ -728,6 +730,29 @@ class KinerjaWorkflowTest extends TestCase
             'urutan' => 1,
         ]);
 
+        $annualTargetService = app(RenjaAnnualTargetService::class);
+        $annualTargetService->bootstrap($renja);
+        $programAnnualTarget = $renja->annualTargets()
+            ->where('indicator_type', $indikatorProgram->getTable())
+            ->where('indicator_id', $indikatorProgram->id)
+            ->firstOrFail();
+        $activityAnnualTarget = $renja->annualTargets()
+            ->where('indicator_type', $indikatorKegiatan->getTable())
+            ->where('indicator_id', $indikatorKegiatan->id)
+            ->firstOrFail();
+        $annualTargetService->updateTargets($renja, [
+            [
+                'id' => $programAnnualTarget->id,
+                'target_text' => '93 persen',
+                'alasan_penyesuaian' => 'Penajaman target program tahunan.',
+            ],
+            [
+                'id' => $activityAnnualTarget->id,
+                'target_text' => '94 persen',
+                'alasan_penyesuaian' => 'Penajaman target kegiatan tahunan.',
+            ],
+        ]);
+
         $this->actingAs($adminOpd)
             ->get(route('rencana-aksi.create'))
             ->assertOk()
@@ -759,6 +784,16 @@ class KinerjaWorkflowTest extends TestCase
         $this->assertSame(2, $matrix->format_version);
         $this->assertSame(5, $matrix->items()->count());
         $this->assertSame('Nilai hasil evaluasi tata kelola', $matrix->items()->orderBy('urutan')->value('formula'));
+        $this->assertDatabaseHas('rencana_aksi_items', [
+            'rencana_aksi_id' => $matrix->id,
+            'level' => 'program_opd',
+            'target_text' => '93 persen',
+        ]);
+        $this->assertDatabaseHas('rencana_aksi_items', [
+            'rencana_aksi_id' => $matrix->id,
+            'level' => 'kegiatan_opd',
+            'target_text' => '94 persen',
+        ]);
         $this->assertDatabaseHas('rencana_aksi_items', [
             'rencana_aksi_id' => $matrix->id,
             'level' => 'sub_kegiatan_opd',

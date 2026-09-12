@@ -9,6 +9,12 @@ use ZipArchive;
 
 class SpreadsheetImportReader
 {
+    private const MAX_UNCOMPRESSED_WORKBOOK_BYTES = 50 * 1024 * 1024;
+
+    private const MAX_UNCOMPRESSED_ENTRY_BYTES = 25 * 1024 * 1024;
+
+    private const MAX_ARCHIVE_ENTRIES = 200;
+
     /**
      * @return array<int, array<int, string|null>>
      */
@@ -34,7 +40,7 @@ class SpreadsheetImportReader
     public function readWorksheets(UploadedFile $file, int $maxRowsPerSheet = 1000): array
     {
         if (strtolower($file->getClientOriginalExtension()) !== 'xlsx') {
-            throw new RuntimeException('Import jabatan hanya mendukung file Excel .xlsx.');
+            throw new RuntimeException('Import ini hanya mendukung file Excel .xlsx.');
         }
 
         if (! class_exists(ZipArchive::class)) {
@@ -48,6 +54,7 @@ class SpreadsheetImportReader
         }
 
         try {
+            $this->assertSafeWorkbook($zip);
             $sharedStrings = $this->readSharedStrings($zip);
             $worksheetPaths = [];
 
@@ -144,13 +151,15 @@ class SpreadsheetImportReader
             throw new RuntimeException('File .xlsx tidak bisa dibuka.');
         }
 
-        $sharedStrings = $this->readSharedStrings($zip);
-        $worksheetPath = $this->firstWorksheetPath($zip);
-        $rows = $this->readWorksheet($zip, $worksheetPath, $sharedStrings, $maxRows);
+        try {
+            $this->assertSafeWorkbook($zip);
+            $sharedStrings = $this->readSharedStrings($zip);
+            $worksheetPath = $this->firstWorksheetPath($zip);
 
-        $zip->close();
-
-        return $rows;
+            return $this->readWorksheet($zip, $worksheetPath, $sharedStrings, $maxRows);
+        } finally {
+            $zip->close();
+        }
     }
 
     /**
@@ -165,7 +174,7 @@ class SpreadsheetImportReader
             throw new RuntimeException('Worksheet tidak ditemukan di file .xlsx.');
         }
 
-        $xml = simplexml_load_string($worksheet);
+        $xml = simplexml_load_string($worksheet, SimpleXMLElement::class, LIBXML_NONET | LIBXML_COMPACT);
 
         if (! $xml instanceof SimpleXMLElement) {
             throw new RuntimeException('Worksheet .xlsx tidak bisa dibaca.');
@@ -205,7 +214,7 @@ class SpreadsheetImportReader
             return [];
         }
 
-        $xml = simplexml_load_string($content);
+        $xml = simplexml_load_string($content, SimpleXMLElement::class, LIBXML_NONET | LIBXML_COMPACT);
 
         if (! $xml instanceof SimpleXMLElement) {
             return [];
@@ -321,6 +330,35 @@ class SpreadsheetImportReader
             ->toString();
 
         return $column !== '' ? $column : 'kolom_'.($index + 1);
+    }
+
+    private function assertSafeWorkbook(ZipArchive $zip): void
+    {
+        if ($zip->numFiles > self::MAX_ARCHIVE_ENTRIES) {
+            throw new RuntimeException('File Excel memiliki terlalu banyak bagian dan tidak dapat diproses dengan aman. Gunakan template resmi dari sistem.');
+        }
+
+        $totalSize = 0;
+        for ($index = 0; $index < $zip->numFiles; $index++) {
+            $stat = $zip->statIndex($index);
+            if (! is_array($stat)) {
+                continue;
+            }
+
+            $name = (string) ($stat['name'] ?? '');
+            $size = (int) ($stat['size'] ?? 0);
+            if (str_contains(str_replace('\\', '/', $name), '../')) {
+                throw new RuntimeException('Struktur file Excel tidak aman. Gunakan template resmi dari sistem.');
+            }
+            if ($size > self::MAX_UNCOMPRESSED_ENTRY_BYTES) {
+                throw new RuntimeException('Salah satu bagian file Excel terlalu besar untuk diproses. Kurangi jumlah data atau pecah file import.');
+            }
+
+            $totalSize += $size;
+            if ($totalSize > self::MAX_UNCOMPRESSED_WORKBOOK_BYTES) {
+                throw new RuntimeException('Isi file Excel terlalu besar setelah dibuka. Kurangi jumlah data atau pecah file import.');
+            }
+        }
     }
 
     private function cleanCell(mixed $value): ?string

@@ -2,6 +2,8 @@
 
 namespace App\Services\Imports;
 
+use App\Models\JabatanOrganisasi;
+use App\Models\Opd;
 use RuntimeException;
 use ZipArchive;
 
@@ -10,13 +12,14 @@ class ImportTemplateService
     /**
      * @return array{filename: string, content: string}
      */
-    public function make(string $module): array
+    public function make(string $module, array $context = []): array
     {
         [$filename, $sheets] = match ($module) {
             'rpjmd' => ['template-import-rpjmd-banjarnegara.xlsx', $this->rpjmdSheets()],
             'renstra_opd' => ['template-import-renstra-opd-banjarnegara.xlsx', $this->renstraSheets()],
             'rkpd' => ['template-import-rkpd-banjarnegara.xlsx', $this->rkpdSheets()],
-            'jabatan_organisasi' => ['template-import-jabatan-organisasi-banjarnegara.xlsx', $this->jabatanOrganisasiSheets()],
+            'jabatan_organisasi' => ['template-import-struktur-organisasi-banjarnegara.xlsx', $this->jabatanOrganisasiSheets($context['opd_id'] ?? null)],
+            'pegawai_opd' => ['template-import-pegawai-opd-banjarnegara.xlsx', $this->pegawaiOpdSheets($context['opd_id'] ?? null)],
             default => throw new RuntimeException('Template import tidak tersedia.'),
         };
 
@@ -85,63 +88,172 @@ class ImportTemplateService
     /**
      * @return array<string, array<int, array<int, string|int|float|null>>>
      */
-    private function jabatanOrganisasiSheets(): array
+    private function jabatanOrganisasiSheets(?int $opdId = null): array
     {
         return [
-            'Jabatan' => [
-                ['nama_jabatan', 'level_jabatan', 'opd_kode', 'unit_kode', 'atasan_nama_jabatan', 'atasan_opd_kode', 'atasan_unit_kode', 'eselon', 'urutan', 'status'],
-                ['Bupati Banjarnegara', 'kepala_daerah', null, null, null, null, null, null, 1, 'active'],
-                ['Kepala Dinas Contoh', 'jpt_pratama', 'KODE_OPD_CONTOH', null, 'Bupati Banjarnegara', null, null, 'ii_b', 1, 'active'],
-                ['Sekretaris Dinas Contoh', 'administrator', 'KODE_OPD_CONTOH', 'UNIT-SEKRETARIAT', 'Kepala Dinas Contoh', 'KODE_OPD_CONTOH', null, 'iii_a', 1, 'active'],
-                ['Kepala Bidang Pengelolaan Informasi dan Komunikasi Publik', 'administrator', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'Kepala Dinas Contoh', 'KODE_OPD_CONTOH', null, 'iii_b', 2, 'active'],
-                ['Kepala Subbagian Umum dan Kepegawaian', 'pengawas', 'KODE_OPD_CONTOH', 'UNIT-SUBBAG-UMUM', 'Sekretaris Dinas Contoh', 'KODE_OPD_CONTOH', 'UNIT-SEKRETARIAT', 'iv_a', 1, 'active'],
-                ['Kepala Seksi Pengelolaan Informasi Publik', 'pengawas', 'KODE_OPD_CONTOH', 'UNIT-SEKSI-IP', 'Kepala Bidang Pengelolaan Informasi dan Komunikasi Publik', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'iv_a', 1, 'active'],
-                ['Pranata Komputer Ahli Pertama', 'fungsional', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'Kepala Bidang Pengelolaan Informasi dan Komunikasi Publik', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'non_eselon', 1, 'active'],
-                ['Pengadministrasi Umum', 'pelaksana', 'KODE_OPD_CONTOH', 'UNIT-SUBBAG-UMUM', 'Kepala Subbagian Umum dan Kepegawaian', 'KODE_OPD_CONTOH', 'UNIT-SUBBAG-UMUM', 'non_eselon', 1, 'active'],
+            'Struktur Organisasi' => [
+                'rows' => [['Nama Jabatan *', 'Level Jabatan *', 'Kode OPD **', 'Kode Unit', 'Nama Jabatan Atasan **', 'Kode OPD Atasan', 'Kode Unit Atasan', 'Eselon', 'Urutan', 'Status']],
+                'required_columns' => [0, 1, 2, 4],
+                'widths' => [42, 24, 18, 20, 42, 20, 20, 16, 11, 14],
+                'blank_rows' => 500,
+                'tab_color' => '0B4A82',
+                'validations' => [
+                    ['column' => 1, 'values' => ['Kepala Daerah', 'JPT Pratama', 'Administrator', 'Pengawas', 'Fungsional', 'Pelaksana'], 'title' => 'Level jabatan', 'message' => 'Pilih level jabatan dari daftar.'],
+                    ['column' => 7, 'values' => ['Eselon II.a', 'Eselon II.b', 'Eselon III.a', 'Eselon III.b', 'Eselon IV.a', 'Eselon IV.b', 'Non-eselon'], 'title' => 'Eselon', 'message' => 'Pilih eselon atau kosongkan.'],
+                    ['column' => 9, 'values' => ['Aktif', 'Nonaktif'], 'title' => 'Status', 'message' => 'Kosong berarti Aktif.'],
+                ],
             ],
-            'Pegawai' => [
-                ['nama_jabatan', 'opd_kode', 'unit_kode', 'nama_pejabat', 'nip', 'pangkat_golongan', 'jenis_pegawai', 'jenis_penugasan', 'nomor_sk', 'tanggal_sk', 'tmt_jabatan', 'tanggal_selesai', 'akun_pengguna'],
-                ['Bupati Banjarnegara', null, null, 'Nama Bupati', null, null, 'pejabat_negara', 'definitif', 'Nomor keputusan pelantikan', '2025-02-20', '2025-02-20', null, null],
-                ['Kepala Dinas Contoh', 'KODE_OPD_CONTOH', null, 'Nama Kepala Dinas', '197001011995011001', 'Pembina Utama Muda, IV/c', 'pns', 'definitif', '800.1.3.3/001/2026', '2026-01-02', '2026-01-03', null, null],
-                ['Sekretaris Dinas Contoh', 'KODE_OPD_CONTOH', 'UNIT-SEKRETARIAT', 'Nama Sekretaris Dinas', '197501012000031001', 'Pembina Tingkat I, IV/b', 'pns', 'definitif', '800.1.3.3/002/2026', '2026-01-02', '2026-01-03', null, null],
-                ['Kepala Bidang Pengelolaan Informasi dan Komunikasi Publik', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'Nama Kepala Bidang', '198001012005011001', 'Pembina, IV/a', 'pns', 'definitif', null, null, '2026-01-03', null, null],
-                ['Kepala Subbagian Umum dan Kepegawaian', 'KODE_OPD_CONTOH', 'UNIT-SUBBAG-UMUM', 'Nama Kepala Subbagian', '198501012010011001', 'Penata Tingkat I, III/d', 'pns', 'definitif', null, null, '2026-01-03', null, null],
-                ['Kepala Seksi Pengelolaan Informasi Publik', 'KODE_OPD_CONTOH', 'UNIT-SEKSI-IP', 'Nama Pelaksana Tugas', '198701012011011001', 'Penata Tingkat I, III/d', 'pns', 'plt', '800.1.11.1/010/2026', '2026-01-10', '2026-01-10', '2026-04-09', 'nama.pengguna'],
-                ['Pranata Komputer Ahli Pertama', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'Nama Pranata Komputer Satu', '199001012020011001', 'Penata Muda, III/a', 'pns', 'definitif', null, null, '2026-01-03', null, null],
-                ['Pranata Komputer Ahli Pertama', 'KODE_OPD_CONTOH', 'UNIT-BIDANG-IKP', 'Nama Pranata Komputer Dua', '199201012021012001', 'IX', 'pppk', 'definitif', null, null, '2026-01-03', null, null],
-                ['Pengadministrasi Umum', 'KODE_OPD_CONTOH', 'UNIT-SUBBAG-UMUM', 'Nama Pelaksana', null, null, 'non_asn', 'definitif', null, null, '2026-01-03', null, null],
+            'Contoh Struktur' => [
+                'rows' => [
+                    ['Urutan pengisian', 'Nama Jabatan', 'Level', 'Kode OPD', 'Kode Unit', 'Atasan Langsung', 'Keterangan'],
+                    [1, 'Bupati Banjarnegara', 'Kepala Daerah', null, null, null, 'Kepala Daerah tidak memakai kode OPD dan atasan.'],
+                    [2, 'Kepala Dinas Contoh', 'JPT Pratama', 'KODE_OPD', null, 'Bupati Banjarnegara', 'Kepala OPD umumnya tidak memakai kode unit.'],
+                    [3, 'Sekretaris Dinas Contoh', 'Administrator', 'KODE_OPD', 'KODE_UNIT_SEKRETARIAT', 'Kepala Dinas Contoh', 'Isi identitas atasan persis seperti baris atasannya.'],
+                    [4, 'Kepala Bidang Contoh', 'Administrator', 'KODE_OPD', 'KODE_UNIT_BIDANG', 'Kepala Dinas Contoh', 'Urutan saudara dapat diatur melalui kolom Urutan.'],
+                    [5, 'Kepala Subbagian Contoh', 'Pengawas', 'KODE_OPD', 'KODE_UNIT_SUBBAG', 'Sekretaris Dinas Contoh', 'Kode unit harus terdaftar pada OPD yang sama.'],
+                    [6, 'Pranata Komputer Ahli Pertama', 'Fungsional', 'KODE_OPD', 'KODE_UNIT_BIDANG', 'Kepala Bidang Contoh', 'Satu nomenklatur fungsional dapat diisi beberapa pegawai.'],
+                ],
+                'widths' => [18, 42, 22, 18, 25, 42, 62],
+                'tab_color' => '5B9BD5',
             ],
             'Petunjuk' => [
-                ['Bagian', 'Kolom / topik', 'Petunjuk'],
-                ['UMUM', 'Cara menggunakan template', '1) Ganti atau hapus seluruh baris contoh. 2) Pastikan kode OPD/unit sama persis dengan master sistem. 3) Upload file. 4) Periksa preview. 5) Terapkan hanya setelah semua baris valid.'],
-                ['UMUM', 'Keamanan data', 'Upload hanya membuat preview. Data baru disimpan setelah tombol Terapkan Import ditekan. Import tidak menghapus jabatan atau riwayat yang sudah ada.'],
-                ['UMUM', 'Baris contoh', 'Kode KODE_OPD_CONTOH dan UNIT-... hanyalah penanda. Wajib diganti dengan kode yang benar dari Master OPD dan unit organisasi.'],
-                ['JABATAN', 'Fungsi sheet', 'Berisi struktur jabatan permanen, bukan nama orang. Susun Kepala Daerah, Kepala OPD, Sekretaris/Kabid, lalu Kasubbag/Kasi dan jabatan di bawahnya.'],
-                ['JABATAN', 'nama_jabatan', 'Wajib. Nomenklatur jabatan. Sistem mencocokkan data berdasarkan gabungan nama_jabatan + opd_kode + unit_kode; kombinasi yang sudah ada akan diperbarui.'],
-                ['JABATAN', 'level_jabatan', 'Wajib. Gunakan: kepala_daerah, jpt_pratama, administrator, pengawas, fungsional, atau pelaksana. Sekretaris/Kabid umumnya administrator; Kasubbag/Kasi umumnya pengawas.'],
-                ['JABATAN', 'opd_kode', 'Wajib kecuali Kepala Daerah. Salin kode persis dari Master OPD aktif. Jangan memakai singkatan atau nama OPD.'],
-                ['JABATAN', 'unit_kode', 'Opsional. Isi bila jabatan melekat pada unit tertentu. Kode harus tersedia dan aktif pada OPD yang sama. Kepala OPD umumnya tidak memerlukan unit_kode.'],
-                ['JABATAN', 'atasan_nama_jabatan', 'Wajib kecuali Kepala Daerah. Harus menunjuk jabatan pada sheet Jabatan atau jabatan yang sudah ada di sistem.'],
-                ['JABATAN', 'atasan_opd_kode', 'Isi kode OPD tempat jabatan atasan berada. Kosongkan hanya jika atasannya Kepala Daerah.'],
-                ['JABATAN', 'atasan_unit_kode', 'Isi jika jabatan atasan terikat unit. Kosongkan untuk Kepala Daerah atau Kepala OPD yang tidak terikat unit.'],
-                ['JABATAN', 'eselon', 'Opsional sebagai informasi nomenklatur lama. Nilai: ii_a, ii_b, iii_a, iii_b, iv_a, iv_b, atau non_eselon.'],
-                ['JABATAN', 'urutan', 'Opsional. Angka 0 sampai 65535 untuk mengatur urutan tampilan di bawah atasan yang sama. Bila kosong otomatis 0.'],
-                ['JABATAN', 'status', 'Opsional. active/aktif atau inactive/nonaktif. Bila kosong otomatis active.'],
-                ['PEGAWAI', 'Fungsi sheet', 'Berisi pejabat, JF, dan pelaksana yang pernah atau sedang ditempatkan pada jabatan. Jabatan struktural hanya memiliki satu pemegang aktif; JF/Pelaksana dapat diisi banyak pegawai.'],
-                ['PEGAWAI', 'nama_jabatan + opd_kode + unit_kode', 'Wajib untuk mencocokkan pegawai dengan jabatan pada sheet Jabatan atau data sistem. Ketiganya harus sama dengan identitas jabatan.'],
-                ['PEGAWAI', 'nama_pejabat', 'Wajib. Isi nama lengkap pegawai/pejabat. Nama kolom tetap dipertahankan untuk kompatibilitas template lama.'],
-                ['PEGAWAI', 'nip', 'Opsional, tetapi sangat disarankan untuk PNS/PPPK. Isi tanpa mengubah digit NIP.'],
-                ['PEGAWAI', 'pangkat_golongan', 'Opsional. Contoh: Pembina, IV/a.'],
-                ['PEGAWAI', 'jenis_pegawai', 'Opsional; otomatis pns bila kosong. Gunakan: pejabat_negara, pns, pppk, atau non_asn.'],
-                ['PEGAWAI', 'jenis_penugasan', 'Opsional; otomatis definitif bila kosong. Nilai yang didukung: definitif, penjabat/Pj., plt/Plt., atau plh/Plh.'],
-                ['PEGAWAI', 'nomor_sk + tanggal_sk', 'Opsional. Isi nomor dan tanggal SK pengangkatan atau surat perintah bila tersedia. E-SAKIP tidak menjadikannya syarat login maupun penyusunan PK.'],
-                ['PEGAWAI', 'tmt_jabatan', 'Wajib. Tanggal efektif mulai menjalankan jabatan (TMT), bukan sekadar tanggal SK. Format YYYY-MM-DD atau DD/MM/YYYY.'],
-                ['PEGAWAI', 'tanggal_selesai', 'Opsional. Kosongkan untuk penempatan yang masih aktif. Isi saat mutasi, pensiun, diberhentikan, diganti, atau masa Plt./Plh./Pj. berakhir.'],
-                ['PEGAWAI', 'Pergantian pejabat', 'Sebelum menambahkan pejabat struktural baru pada jabatan yang sama, isi tanggal_selesai pejabat lama agar tidak bertumpang tindih dengan TMT pejabat baru.'],
-                ['PEGAWAI', 'akun_pengguna', 'Opsional. Isi username atau email akun aktif hanya bila pegawai perlu login atau menyetujui dokumen sendiri. PK tetap dapat disusun oleh Admin OPD tanpa akun pegawai.'],
-                ['PREVIEW', 'Baris invalid', 'Seluruh baris harus valid sebelum import dapat diterapkan. Perbaiki file sesuai pesan pada preview lalu upload ulang.'],
+                'rows' => [
+                    ['Bagian', 'Kolom / topik', 'Petunjuk'],
+                    ['MULAI', 'Urutan kerja', '1) Isi sheet Struktur Organisasi mulai baris 2. 2) Gunakan kode pada sheet Referensi OPD & Unit. 3) Jangan mengubah judul kolom. 4) Unggah dan periksa preview. 5) Terapkan setelah semua baris valid.'],
+                    ['MULAI', 'Tanda kolom', '* selalu wajib. ** wajib kecuali untuk Kepala Daerah. Kolom tanpa tanda boleh dikosongkan.'],
+                    ['AMAN', 'Cara kerja import', 'Unggah hanya membuat preview. Data disimpan dalam satu transaksi setelah tombol Terapkan Import ditekan. Import tidak menghapus jabatan yang tidak dicantumkan.'],
+                    ['AMAN', 'Pembaruan data', 'Gabungan Nama Jabatan + Kode OPD + Kode Unit menjadi identitas. Jika identitas sudah ada, data jabatan tersebut diperbarui; jika belum, dibuat baru.'],
+                    ['STRUKTUR', 'Urutan baris', 'Susun atasan sebelum bawahannya: Kepala Daerah, Kepala OPD, Sekretaris/Kabid, Kasubbag/Kasi, lalu Fungsional/Pelaksana.'],
+                    ['STRUKTUR', 'Kode OPD', 'Salin kode persis dari sheet Referensi OPD & Unit. Kepala Daerah tidak memakai kode OPD maupun unit.'],
+                    ['STRUKTUR', 'Kode Unit', 'Isi bila jabatan melekat pada unit. Kepala OPD umumnya tidak memakai kode unit.'],
+                    ['STRUKTUR', 'Identitas atasan', 'Nama Jabatan Atasan, Kode OPD Atasan, dan Kode Unit Atasan harus sama persis dengan identitas atasan pada file atau sistem.'],
+                    ['STRUKTUR', 'Urutan', 'Angka 0–65535. Angka lebih kecil tampil lebih dahulu di bawah atasan yang sama. Kosong dianggap 0.'],
+                    ['STRUKTUR', 'Status', 'Pilih Aktif atau Nonaktif. Kosong dianggap Aktif.'],
+                    ['VALIDASI', 'Batas data', 'Maksimal 2.000 baris struktur per file. Seluruh baris harus valid sebelum import dapat diterapkan.'],
+                    ['VERSI', 'Template', 'Template Struktur Organisasi E-SAKIP v2 · diunduh '.now()->timezone(config('app.timezone'))->format('d-m-Y H:i').' WIB.'],
+                ],
+                'widths' => [16, 28, 110],
+                'tab_color' => '70AD47',
+            ],
+            'Referensi OPD & Unit' => [
+                'rows' => $this->opdUnitReferenceRows($opdId),
+                'widths' => [18, 52, 22, 52],
+                'tab_color' => 'A5A5A5',
             ],
         ];
+    }
+
+    private function pegawaiOpdSheets(?int $opdId = null): array
+    {
+        return [
+            'Pegawai OPD' => [
+                'rows' => [['Nama Pegawai *', 'NIP', 'Jenis Pegawai', 'Status Pegawai', 'Pangkat / Golongan', 'Nama Jabatan *', 'Kode OPD **', 'Kode Unit', 'Jenis Penugasan', 'TMT Jabatan *', 'Tanggal Selesai', 'Nomor SK', 'Tanggal SK', 'Akun Pengguna']],
+                'required_columns' => [0, 5, 6, 9],
+                'widths' => [38, 24, 20, 18, 28, 46, 18, 22, 22, 18, 18, 28, 18, 30],
+                'blank_rows' => 1000,
+                'tab_color' => '107C41',
+                'validations' => [
+                    ['column' => 2, 'values' => ['Pejabat Negara', 'PNS', 'PPPK', 'Non-ASN'], 'title' => 'Jenis pegawai', 'message' => 'Kosong berarti PNS.'],
+                    ['column' => 3, 'values' => ['Aktif', 'Nonaktif'], 'title' => 'Status pegawai', 'message' => 'Kosong berarti Aktif untuk data baru.'],
+                    ['column' => 8, 'values' => ['Definitif', 'Penjabat (Pj.)', 'Pelaksana Tugas (Plt.)', 'Pelaksana Harian (Plh.)'], 'title' => 'Jenis penugasan', 'message' => 'Kosong berarti Definitif.'],
+                ],
+            ],
+            'Contoh Pegawai' => [
+                'rows' => [
+                    ['Contoh Nama Pegawai', 'Contoh NIP', 'Jenis', 'Status', 'Pangkat / Golongan', 'Nama Jabatan', 'Kode OPD', 'Kode Unit', 'Penugasan', 'TMT Jabatan', 'Tanggal Selesai', 'Catatan'],
+                    ['Nama Kepala Dinas', '197001011995011001', 'PNS', 'Aktif', 'Pembina Utama Muda, IV/c', 'Kepala Dinas Contoh', 'KODE_OPD', null, 'Definitif', '2026-01-03', null, 'Kosongkan Tanggal Selesai untuk penempatan aktif.'],
+                    ['Nama Pelaksana Tugas', '198701012011011001', 'PNS', 'Aktif', 'Penata Tingkat I, III/d', 'Kepala Bidang Contoh', 'KODE_OPD', 'KODE_UNIT_BIDANG', 'Pelaksana Tugas (Plt.)', '2026-01-10', '2026-04-09', 'Masa Plt. harus memiliki periode yang tidak bertumpang tindih.'],
+                    ['Nama Pranata Komputer', '199001012020011001', 'PNS', 'Aktif', 'Penata Muda, III/a', 'Pranata Komputer Ahli Pertama', 'KODE_OPD', 'KODE_UNIT_BIDANG', 'Definitif', '2026-01-03', null, 'JF/Pelaksana dapat memiliki lebih dari satu pemegang.'],
+                ],
+                'widths' => [34, 24, 18, 16, 28, 44, 18, 24, 24, 18, 18, 62],
+                'tab_color' => '70AD47',
+            ],
+            'Petunjuk' => [
+                'rows' => [
+                    ['Bagian', 'Kolom / topik', 'Petunjuk'],
+                    ['MULAI', 'Urutan kerja', '1) Pastikan Struktur Organisasi sudah tersedia. 2) Isi sheet Pegawai OPD mulai baris 2. 3) Salin identitas jabatan dari sheet Referensi Jabatan. 4) Unggah dan periksa preview. 5) Terapkan setelah semua baris valid.'],
+                    ['MULAI', 'Tanda kolom', '* selalu wajib. ** wajib kecuali untuk pejabat tingkat kabupaten/Kepala Daerah. Kolom tanpa tanda boleh dikosongkan.'],
+                    ['AMAN', 'Cara kerja import', 'Unggah hanya membuat preview. Data disimpan dalam satu transaksi setelah tombol Terapkan Import ditekan. Import tidak menghapus pegawai atau riwayat yang tidak dicantumkan.'],
+                    ['PEGAWAI', 'NIP', 'Sangat disarankan untuk PNS/PPPK. Isi tepat 18 digit. Kolom telah diformat sebagai teks agar angka nol dan seluruh digit tetap utuh. Jangan memakai notasi ilmiah.'],
+                    ['PEGAWAI', 'Jenis Pegawai', 'Pilih Pejabat Negara, PNS, PPPK, atau Non-ASN. Kosong dianggap PNS.'],
+                    ['PEGAWAI', 'Status Pegawai', 'Pilih Aktif atau Nonaktif. Jika dikosongkan, data baru dianggap Aktif dan status data lama tetap dipertahankan.'],
+                    ['PENEMPATAN', 'Identitas jabatan', 'Nama Jabatan + Kode OPD + Kode Unit harus sama persis dengan Referensi Jabatan. Kode Unit boleh kosong bila jabatan tidak terikat unit.'],
+                    ['PENEMPATAN', 'TMT Jabatan', 'Tanggal efektif mulai bertugas. Gunakan YYYY-MM-DD atau DD/MM/YYYY.'],
+                    ['PENEMPATAN', 'Tanggal Selesai', 'Kosongkan untuk penempatan aktif. Isi ketika mutasi, pensiun, diganti, atau masa Plt./Plh./Pj. berakhir.'],
+                    ['PENEMPATAN', 'Pergantian pejabat', 'Akhiri masa tugas pejabat struktural lama sebelum TMT pejabat baru agar periode tidak bertumpang tindih.'],
+                    ['AKUN', 'Akun Pengguna', 'Opsional. Isi username atau email akun aktif hanya bila pegawai perlu login/menyetujui dokumen. Kolom kosong tidak memutus akun yang sudah terhubung.'],
+                    ['VALIDASI', 'Batas data', 'Maksimal 2.000 baris pegawai per file. Seluruh baris harus valid sebelum import dapat diterapkan.'],
+                    ['VERSI', 'Template', 'Template Pegawai OPD E-SAKIP v2 · diunduh '.now()->timezone(config('app.timezone'))->format('d-m-Y H:i').' WIB.'],
+                ],
+                'widths' => [16, 28, 110],
+                'tab_color' => '70AD47',
+            ],
+            'Referensi Jabatan' => [
+                'rows' => $this->jabatanReferenceRows($opdId),
+                'widths' => [48, 18, 52, 22, 42, 22, 20],
+                'tab_color' => 'A5A5A5',
+            ],
+            'Referensi OPD & Unit' => [
+                'rows' => $this->opdUnitReferenceRows($opdId),
+                'widths' => [18, 52, 22, 52],
+                'tab_color' => 'A5A5A5',
+            ],
+        ];
+    }
+
+    private function opdUnitReferenceRows(?int $opdId): array
+    {
+        $rows = [['Kode OPD', 'Nama Perangkat Daerah', 'Kode Unit', 'Nama Unit']];
+        $opds = Opd::query()
+            ->with(['units' => fn ($query) => $query->where('status', 'active')->orderBy('kode')->orderBy('nama')])
+            ->where('status', 'active')
+            ->when($opdId, fn ($query) => $query->whereKey($opdId))
+            ->orderBy('kode')
+            ->orderBy('nama')
+            ->get(['id', 'kode', 'nama']);
+
+        foreach ($opds as $opd) {
+            if ($opd->units->isEmpty()) {
+                $rows[] = [$opd->kode, $opd->nama, null, 'Tidak memiliki unit aktif'];
+
+                continue;
+            }
+
+            foreach ($opd->units as $unit) {
+                $rows[] = [$opd->kode, $opd->nama, $unit->kode, $unit->nama];
+            }
+        }
+
+        return $rows;
+    }
+
+    private function jabatanReferenceRows(?int $opdId): array
+    {
+        $rows = [['Nama Jabatan', 'Kode OPD', 'Nama Perangkat Daerah', 'Kode Unit', 'Nama Unit', 'Level', 'Status Verifikasi']];
+        $jobs = JabatanOrganisasi::query()
+            ->with(['opd:id,kode,nama', 'opdUnit:id,kode,nama'])
+            ->where('status', 'active')
+            ->whereIn('verification_status', ['verified', 'pending'])
+            ->when($opdId, fn ($query) => $query->where('opd_id', $opdId))
+            ->orderByRaw('CASE WHEN opd_id IS NULL THEN 0 ELSE 1 END')
+            ->orderBy('opd_id')
+            ->orderBy('urutan')
+            ->orderBy('nama')
+            ->get();
+
+        foreach ($jobs as $job) {
+            $rows[] = [
+                $job->nama,
+                $job->opd?->kode,
+                $job->opd?->nama ?? 'Pemerintah Kabupaten',
+                $job->opdUnit?->kode,
+                $job->opdUnit?->nama,
+                JabatanOrganisasi::levelLabels()[$job->level_jabatan] ?? $job->level_jabatan,
+                $job->verification_status === 'verified' ? 'Terverifikasi' : 'Menunggu verifikasi',
+            ];
+        }
+
+        return $rows;
     }
 
     /**
@@ -176,9 +288,7 @@ class ImportTemplateService
         ];
     }
 
-    /**
-     * @param  array<string, array<int, array<int, string|int|float|null>>>  $sheets
-     */
+    /** @param array<string, array<mixed>> $sheets */
     private function buildWorkbook(array $sheets): string
     {
         if (! class_exists(ZipArchive::class)) {
@@ -201,8 +311,8 @@ class ImportTemplateService
         $zip->addFromString('xl/styles.xml', $this->stylesXml());
 
         $index = 1;
-        foreach ($sheets as $rows) {
-            $zip->addFromString("xl/worksheets/sheet{$index}.xml", $this->worksheetXml($rows));
+        foreach ($sheets as $definition) {
+            $zip->addFromString("xl/worksheets/sheet{$index}.xml", $this->worksheetXml($this->normalizeSheetDefinition($definition)));
             $index++;
         }
 
@@ -218,26 +328,93 @@ class ImportTemplateService
         return $content;
     }
 
-    private function worksheetXml(array $rows): string
+    /** @param array<mixed> $definition */
+    private function normalizeSheetDefinition(array $definition): array
     {
+        if (! array_key_exists('rows', $definition)) {
+            $definition = ['rows' => $definition];
+        }
+
+        return [
+            'rows' => $definition['rows'] ?? [],
+            'required_columns' => $definition['required_columns'] ?? [],
+            'widths' => $definition['widths'] ?? [],
+            'blank_rows' => $definition['blank_rows'] ?? 0,
+            'validations' => $definition['validations'] ?? [],
+            'tab_color' => $definition['tab_color'] ?? null,
+        ];
+    }
+
+    private function worksheetXml(array $definition): string
+    {
+        $rows = $definition['rows'];
+        $blankRows = max(0, (int) $definition['blank_rows']);
+        $columnCount = max(1, count($rows[0] ?? []));
+        $lastRow = max(1, count($rows) + $blankRows);
+        $lastColumn = $this->columnName($columnCount);
+        $columns = '';
+
+        foreach ($definition['widths'] as $index => $width) {
+            $column = $index + 1;
+            $columns .= '<col min="'.$column.'" max="'.$column.'" width="'.max(8, min(120, (float) $width)).'" customWidth="1"/>';
+        }
+
+        $tabColor = $definition['tab_color']
+            ? '<sheetPr><tabColor rgb="FF'.$this->escapeAttribute($definition['tab_color']).'"/></sheetPr>'
+            : '';
         $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .$tabColor
+            .'<dimension ref="A1:'.$lastColumn.$lastRow.'"/>'
             .'<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+            .'<sheetFormatPr defaultRowHeight="18"/>'
+            .($columns !== '' ? '<cols>'.$columns.'</cols>' : '')
             .'<sheetData>';
 
         foreach ($rows as $rowIndex => $row) {
             $excelRow = $rowIndex + 1;
-            $xml .= '<row r="'.$excelRow.'">';
+            $xml .= '<row r="'.$excelRow.'"'.($rowIndex === 0 ? ' ht="34" customHeight="1"' : '').'>';
 
             foreach ($row as $columnIndex => $value) {
                 $cell = $this->columnName($columnIndex + 1).$excelRow;
-                $xml .= '<c r="'.$cell.'" t="inlineStr"><is><t xml:space="preserve">'.$this->escape($value).'</t></is></c>';
+                $style = $rowIndex === 0
+                    ? (in_array($columnIndex, $definition['required_columns'], true) ? 1 : 2)
+                    : (count($rows) > 1 ? 4 : 3);
+                $xml .= '<c r="'.$cell.'" s="'.$style.'" t="inlineStr"><is><t xml:space="preserve">'.$this->escape($value).'</t></is></c>';
             }
 
             $xml .= '</row>';
         }
 
-        return $xml.'</sheetData></worksheet>';
+        for ($rowIndex = count($rows) + 1; $rowIndex <= $lastRow; $rowIndex++) {
+            $xml .= '<row r="'.$rowIndex.'">';
+            for ($columnIndex = 1; $columnIndex <= $columnCount; $columnIndex++) {
+                $cell = $this->columnName($columnIndex).$rowIndex;
+                $xml .= '<c r="'.$cell.'" s="3" t="inlineStr"><is><t></t></is></c>';
+            }
+            $xml .= '</row>';
+        }
+
+        $xml .= '</sheetData>';
+
+        if ($blankRows > 0) {
+            $xml .= '<autoFilter ref="A1:'.$lastColumn.$lastRow.'"/>';
+        }
+
+        if ($definition['validations'] !== []) {
+            $validations = '';
+            foreach ($definition['validations'] as $validation) {
+                $column = $this->columnName(((int) $validation['column']) + 1);
+                $values = implode(',', $validation['values']);
+                $validations .= '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorStyle="stop"'
+                    .' errorTitle="Nilai tidak dikenali" error="Pilih nilai yang tersedia pada daftar."'
+                    .' promptTitle="'.$this->escapeAttribute($validation['title']).'" prompt="'.$this->escapeAttribute($validation['message']).'"'
+                    .' sqref="'.$column.'2:'.$column.$lastRow.'"><formula1>&quot;'.$this->escape($values).'&quot;</formula1></dataValidation>';
+            }
+            $xml .= '<dataValidations count="'.count($definition['validations']).'">'.$validations.'</dataValidations>';
+        }
+
+        return $xml.'<pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/></worksheet>';
     }
 
     /**
@@ -305,11 +482,12 @@ class ImportTemplateService
     {
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-            .'<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>'
-            .'<fills count="1"><fill><patternFill patternType="none"/></fill></fills>'
-            .'<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+            .'<fonts count="2"><font><sz val="11"/><name val="Aptos"/><family val="2"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Aptos Display"/><family val="2"/></font></fonts>'
+            .'<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0B4A82"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF52738F"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF3F7FA"/><bgColor indexed="64"/></patternFill></fill></fills>'
+            .'<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD7E0E8"/></left><right style="thin"><color rgb="FFD7E0E8"/></right><top style="thin"><color rgb="FFD7E0E8"/></top><bottom style="thin"><color rgb="FFD7E0E8"/></bottom><diagonal/></border></borders>'
             .'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-            .'<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>'
+            .'<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="49" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="49" fontId="0" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs>'
+            .'<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
             .'</styleSheet>';
     }
 

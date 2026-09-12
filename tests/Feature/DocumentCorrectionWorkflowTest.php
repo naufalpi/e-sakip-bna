@@ -19,6 +19,7 @@ class DocumentCorrectionWorkflowTest extends TestCase
 
     public function test_super_admin_can_correct_approved_renstra_and_draft_descendant_is_preserved_for_alignment(): void
     {
+        config(['features.renja_annual_targets' => false]);
         $this->seed();
         [$opd, $periode, $superAdmin] = $this->context();
         $rpjmd = $this->rpjmd($periode);

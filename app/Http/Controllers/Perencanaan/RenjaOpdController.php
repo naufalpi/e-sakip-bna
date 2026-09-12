@@ -19,6 +19,7 @@ use App\Models\SubKegiatanPemerintahan;
 use App\Models\User;
 use App\Services\Perencanaan\DocumentEstablishmentCancellationService;
 use App\Services\Perencanaan\PlanningSyncService;
+use App\Services\Perencanaan\RenjaAnnualTargetService;
 use App\Services\Perencanaan\RenjaInitialItemService;
 use App\Services\Perencanaan\RenjaProgramScopeService;
 use App\Services\Perencanaan\RenjaVersionService;
@@ -36,6 +37,7 @@ class RenjaOpdController extends Controller
     public function __construct(
         private readonly RenjaProgramScopeService $renjaProgramScopeService,
         private readonly RenjaInitialItemService $renjaInitialItemService,
+        private readonly RenjaAnnualTargetService $renjaAnnualTargetService,
     ) {}
 
     public function index(Request $request): Response
@@ -190,7 +192,7 @@ class RenjaOpdController extends Controller
 
     public function store(StoreRenjaOpdRequest $request): RedirectResponse
     {
-        [$renja, $bootstrap] = DB::transaction(function () use ($request): array {
+        [$renja, $bootstrap, $annualTargets] = DB::transaction(function () use ($request): array {
             $renja = RenjaOpd::create([
                 ...$request->validated(),
                 'status' => 'draft',
@@ -199,7 +201,13 @@ class RenjaOpdController extends Controller
                 'is_active_version' => true,
             ]);
 
-            return [$renja, $this->renjaInitialItemService->bootstrapFromRenstra($renja)];
+            return [
+                $renja,
+                $this->renjaInitialItemService->bootstrapFromRenstra($renja),
+                $this->renjaAnnualTargetService->available()
+                    ? $this->renjaAnnualTargetService->bootstrap($renja)
+                    : ['created' => 0, 'existing' => 0],
+            ];
         });
 
         $message = $bootstrap['copied'] > 0
@@ -207,9 +215,18 @@ class RenjaOpdController extends Controller
             : 'RENJA OPD berhasil dibuat.';
 
         $redirect = redirect()->route('renja-opd.show', $renja)->with('success', $message);
+        $warnings = [];
 
         if ($bootstrap['skipped'] > 0) {
-            $redirect->with('warning', "{$bootstrap['skipped']} sub kegiatan RENSTRA dilewati karena struktur master tahun RENJA belum tersedia.");
+            $warnings[] = "{$bootstrap['skipped']} sub kegiatan RENSTRA dilewati karena struktur master tahun RENJA belum tersedia.";
+        }
+
+        if ($this->renjaAnnualTargetService->available() && $annualTargets['created'] === 0) {
+            $warnings[] = 'Target Kinerja Tahunan belum terbentuk karena indikator RENSTRA belum tersedia.';
+        }
+
+        if ($warnings !== []) {
+            $redirect->with('warning', implode(' ', $warnings));
         }
 
         return $redirect;
@@ -223,6 +240,15 @@ class RenjaOpdController extends Controller
         $canManage = $request->user()->can('update', $renjaOpd);
 
         $renjaOpd->load(['opd:id,kode,nama,singkatan', 'opdUnit:id,kode,nama', 'rkpd:id,judul,tahun,status,jenis_versi,nomor_versi', 'periodeTahun:id,tahun,nama']);
+
+        $annualTargetSummary = null;
+        if ($this->renjaAnnualTargetService->available()) {
+            $this->renjaAnnualTargetService->bootstrap(
+                $renjaOpd,
+                $renjaOpd->isOfficialVersion() ? 'legacy_backfill' : 'renstra_initial',
+            );
+            $annualTargetSummary = $this->renjaAnnualTargetService->summary($renjaOpd);
+        }
 
         $versionHistory = RenjaOpd::query()
             ->where('root_version_id', $renjaOpd->root_version_id ?: $renjaOpd->id)
@@ -300,6 +326,8 @@ class RenjaOpdController extends Controller
                 'total_pagu' => collect($previewItems)->sum(fn (array $item) => (float) ($item['pagu_indikatif'] ?? 0)),
                 'total_prakiraan_maju_pagu' => collect($previewItems)->sum(fn (array $item) => (float) ($item['prakiraan_maju_pagu_indikatif'] ?? 0)),
             ],
+            'annualTargetsFeatureEnabled' => $this->renjaAnnualTargetService->available(),
+            'annualTargetSummary' => $annualTargetSummary,
             'filters' => $filters,
             'subKegiatanOptions' => $canManage ? $this->subKegiatanOptions($renjaOpd) : [],
             'existingSubKegiatanRows' => $canManage ? $renjaOpd->items()->get(['id', 'sub_kegiatan_pemerintahan_id'])->map(fn (RenjaOpdItem $item) => [

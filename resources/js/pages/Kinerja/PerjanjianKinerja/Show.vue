@@ -2,9 +2,23 @@
 import InputError from '@/components/InputError.vue';
 import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
 import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ChevronDown, Download, FileBadge2, FileText, LockKeyhole, Printer, RotateCcw, Save, WalletCards, X } from 'lucide-vue-next';
+import {
+    AlertTriangle,
+    ChevronDown,
+    Download,
+    FileBadge2,
+    FileText,
+    LockKeyhole,
+    PencilLine,
+    Printer,
+    RotateCcw,
+    Save,
+    WalletCards,
+    X,
+} from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 type Option = { id: number; label: string };
@@ -21,7 +35,10 @@ type ItemRow = {
     sasaran: string;
     indikator: string;
     target?: string | number | null;
+    target_sumber?: string | number | null;
     target_text?: string | null;
+    target_sumber_text?: string | null;
+    target_disesuaikan?: boolean;
     urutan: number;
     satuan?: { nama: string; simbol?: string | null } | null;
     opd_program?: { kode?: string | null; nama: string } | null;
@@ -121,10 +138,18 @@ const form = useForm({
 
 const editingItemId = ref<number | null>(null);
 const showKopEditor = ref(false);
+const targetEditingItem = ref<ItemRow | null>(null);
+const showTargetEditor = ref(false);
 const canEditItems = computed(
     () => props.can.manage && (props.item.tipe_pk === 'individual' || ['manual', 'penugasan'].includes(props.item.sumber_data ?? 'manual')),
 );
+const canAdjustCascadingTargets = computed(() => props.can.manage && props.item.tipe_pk === 'cascading');
+const showItemActions = computed(() => canEditItems.value || canAdjustCascadingTargets.value);
 const isManualIndividual = computed(() => props.item.level_pk === 'individu' && props.item.tipe_pk === 'individual');
+const targetForm = useForm({
+    target_text: '',
+    restore_source: false,
+});
 const kopForm = useForm({
     nama_pemerintah: props.documentPreview.letterhead.nama_pemerintah,
     nama_instansi: props.documentPreview.letterhead.nama_instansi,
@@ -221,6 +246,64 @@ const itemTargetLabel = (row: ItemRow) => {
     const unit = row.satuan_snapshot || row.satuan?.nama || row.satuan?.simbol || '';
 
     return [value, unit].filter(Boolean).join(' ');
+};
+
+const itemUnitLabel = (row: ItemRow | null) => row?.satuan_snapshot || row?.satuan?.nama || row?.satuan?.simbol || 'Tanpa satuan';
+
+const sourceTargetLabel = (row: ItemRow | null) => {
+    if (!row) return '-';
+    if (row.target_sumber_text) return row.target_sumber_text;
+    if (row.target_sumber !== null && row.target_sumber !== undefined && row.target_sumber !== '') return String(row.target_sumber);
+
+    return '-';
+};
+
+const openTargetEditor = (row: ItemRow) => {
+    targetEditingItem.value = row;
+    targetForm.target_text = row.target_text || (row.target === null || row.target === undefined ? '' : String(row.target));
+    targetForm.restore_source = false;
+    targetForm.clearErrors();
+    showTargetEditor.value = true;
+};
+
+const closeTargetEditor = () => {
+    showTargetEditor.value = false;
+    targetEditingItem.value = null;
+    targetForm.reset();
+    targetForm.clearErrors();
+};
+
+const submitTargetAdjustment = () => {
+    if (!targetEditingItem.value) return;
+
+    targetForm.restore_source = false;
+    targetForm.put(
+        route('perjanjian-kinerja.items.target.update', {
+            perjanjian_kinerja: props.item.id,
+            item: targetEditingItem.value.id,
+        }),
+        {
+            preserveScroll: true,
+            onSuccess: closeTargetEditor,
+        },
+    );
+};
+
+const restoreSourceTarget = () => {
+    if (!targetEditingItem.value) return;
+
+    targetForm.restore_source = true;
+    targetForm.put(
+        route('perjanjian-kinerja.items.target.update', {
+            perjanjian_kinerja: props.item.id,
+            item: targetEditingItem.value.id,
+        }),
+        {
+            preserveScroll: true,
+            onSuccess: closeTargetEditor,
+            onFinish: () => (targetForm.restore_source = false),
+        },
+    );
 };
 
 const statusLabel = (status: string) =>
@@ -367,8 +450,8 @@ const statusClass = (status: string) =>
             <div>
                 <p class="font-bold">Matriks cascading dibekukan sebagai snapshot</p>
                 <p class="mt-1 text-xs leading-5 opacity-80">
-                    Lingkup kinerja dipilih melalui Edit PK. Indikator dan target tetap mengikuti dokumen sumber resmi dan tidak dapat diubah langsung
-                    pada matriks.
+                    Struktur, sasaran, indikator, dan satuan tetap mengikuti dokumen sumber resmi. Target dapat disesuaikan khusus untuk PK ini melalui
+                    tombol <span class="font-semibold">Sesuaikan target</span>.
                 </p>
             </div>
         </section>
@@ -519,7 +602,7 @@ const statusClass = (status: string) =>
                             <th class="px-4 py-3">{{ isManualIndividual ? 'Sasaran Kinerja' : 'Tujuan / Sasaran Strategis' }}</th>
                             <th class="px-4 py-3">Indikator</th>
                             <th class="px-4 py-3">Target</th>
-                            <th v-if="canEditItems" class="px-4 py-3 text-right">Aksi</th>
+                            <th v-if="showItemActions" class="px-4 py-3 text-right">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -533,9 +616,27 @@ const statusClass = (status: string) =>
                             </td>
                             <td class="px-4 py-3">{{ row.indikator }}</td>
                             <td class="px-4 py-3 font-semibold">
-                                {{ itemTargetLabel(row) }}
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span>{{ itemTargetLabel(row) }}</span>
+                                    <span
+                                        v-if="row.target_disesuaikan"
+                                        class="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                                    >
+                                        Disesuaikan
+                                    </span>
+                                </div>
                             </td>
-                            <td v-if="canEditItems" class="px-4 py-3 text-right">
+                            <td v-if="showItemActions" class="px-4 py-3 text-right">
+                                <button
+                                    v-if="canAdjustCascadingTargets && row.is_readonly"
+                                    type="button"
+                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:border-amber-800 dark:bg-amber-950/35 dark:text-amber-100 dark:hover:bg-amber-950/55"
+                                    :aria-label="`Sesuaikan target ${row.indikator}`"
+                                    @click="openTargetEditor(row)"
+                                >
+                                    <PencilLine class="size-3.5" />
+                                    Sesuaikan target
+                                </button>
                                 <button
                                     v-if="!row.is_readonly"
                                     type="button"
@@ -555,7 +656,7 @@ const statusClass = (status: string) =>
                             </td>
                         </tr>
                         <tr v-if="item.items.length === 0">
-                            <td :colspan="canEditItems ? 4 : 3" class="px-4 py-8 text-center text-muted-foreground">
+                            <td :colspan="showItemActions ? 4 : 3" class="px-4 py-8 text-center text-muted-foreground">
                                 Belum ada item Perjanjian Kinerja.
                             </td>
                         </tr>
@@ -595,6 +696,103 @@ const statusClass = (status: string) =>
         </section>
 
         <WorkflowHistoryTimeline :workflow="workflow" />
+
+        <Dialog v-model:open="showTargetEditor">
+            <DialogContent class="gap-0 overflow-hidden p-0 sm:max-w-xl">
+                <DialogHeader class="border-b px-6 py-5 pr-12 text-left">
+                    <div class="flex items-start gap-3">
+                        <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200">
+                            <PencilLine class="size-5" />
+                        </span>
+                        <div>
+                            <DialogTitle>Sesuaikan Target PK</DialogTitle>
+                            <DialogDescription class="mt-1 leading-5">
+                                Ubah nilai target untuk indikator terpilih tanpa mengubah struktur cascading.
+                            </DialogDescription>
+                        </div>
+                    </div>
+                </DialogHeader>
+
+                <form class="grid gap-5 px-6 py-5" @submit.prevent="submitTargetAdjustment">
+                    <div
+                        class="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/35 dark:text-amber-100"
+                        role="alert"
+                    >
+                        <AlertTriangle class="mt-0.5 size-5 shrink-0" />
+                        <div>
+                            <p class="font-bold">Perhatikan sebelum mengubah target</p>
+                            <p class="mt-1 text-xs leading-5">
+                                Nilai baru hanya berlaku pada PK ini. Target pada {{ documentPreview.source_label }}, RENSTRA, RENJA, RKPD, atau DPA
+                                tidak ikut berubah.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border bg-muted/25 p-4">
+                        <p class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                            {{ targetEditingItem?.jenis_item?.replaceAll('_', ' ') || 'Cascading' }}
+                        </p>
+                        <p class="mt-1 text-sm font-semibold leading-6">{{ targetEditingItem?.indikator }}</p>
+                        <div class="mt-3 grid gap-3 border-t pt-3 sm:grid-cols-2">
+                            <div>
+                                <p class="text-xs text-muted-foreground">Target dokumen sumber</p>
+                                <p class="mt-0.5 font-semibold">{{ sourceTargetLabel(targetEditingItem) }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-muted-foreground">Satuan terkunci</p>
+                                <p class="mt-0.5 font-semibold">{{ itemUnitLabel(targetEditingItem) }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-1.5">
+                        <label for="pk_target_adjustment" class="text-sm font-bold">Target PK <span class="text-red-600">*</span></label>
+                        <div class="flex min-w-0 overflow-hidden rounded-lg border bg-background focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20">
+                            <input
+                                id="pk_target_adjustment"
+                                v-model="targetForm.target_text"
+                                class="h-11 min-w-0 flex-1 border-0 bg-transparent px-3 text-sm outline-none"
+                                autocomplete="off"
+                                placeholder="Contoh: 90 atau NA"
+                            />
+                            <span class="flex max-w-[45%] items-center border-l bg-muted/60 px-3 text-xs font-semibold text-muted-foreground">
+                                {{ itemUnitLabel(targetEditingItem) }}
+                            </span>
+                        </div>
+                        <p class="text-xs leading-5 text-muted-foreground">Masukkan nilainya saja; satuan tetap mengikuti dokumen sumber.</p>
+                        <InputError :message="targetForm.errors.target_text" />
+                    </div>
+
+                    <DialogFooter class="gap-2 border-t pt-4 sm:justify-between">
+                        <button
+                            v-if="targetEditingItem?.target_disesuaikan"
+                            type="button"
+                            :disabled="targetForm.processing"
+                            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                            @click="restoreSourceTarget"
+                        >
+                            <RotateCcw class="size-4" /> Kembalikan target sumber
+                        </button>
+                        <div class="flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row">
+                            <button
+                                type="button"
+                                class="min-h-11 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                @click="closeTargetEditor"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="submit"
+                                :disabled="targetForm.processing"
+                                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 disabled:opacity-60"
+                            >
+                                <Save class="size-4" /> {{ targetForm.processing ? 'Menyimpan...' : 'Simpan target PK' }}
+                            </button>
+                        </div>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
 
         <div
             v-if="showKopEditor"

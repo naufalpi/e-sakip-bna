@@ -18,6 +18,7 @@ use App\Services\Kinerja\RencanaAksiReadinessService;
 use App\Services\Penganggaran\DpaReadinessService;
 use App\Services\Penganggaran\RkaReadinessService;
 use App\Services\Perencanaan\DocumentVersionActivationService;
+use App\Services\Perencanaan\RenjaAnnualTargetReadinessService;
 use App\Services\Perencanaan\RenjaVersionService;
 use App\Services\Perencanaan\RkpdVersionService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -33,6 +34,7 @@ class WorkflowTransitionService
         private readonly DocumentVersionActivationService $documentVersionActivationService,
         private readonly RkpdVersionService $rkpdVersionService,
         private readonly RenjaVersionService $renjaVersionService,
+        private readonly RenjaAnnualTargetReadinessService $renjaAnnualTargetReadinessService,
         private readonly RkaReadinessService $rkaReadinessService,
         private readonly DpaReadinessService $dpaReadinessService,
         private readonly PerjanjianKinerjaReadinessService $perjanjianKinerjaReadinessService,
@@ -59,6 +61,10 @@ class WorkflowTransitionService
 
         if ($action === 'submit') {
             $this->documentCorrectionService->ensureCorrectedSourceIsOfficial($model, $module);
+        }
+
+        if ($model instanceof RenjaOpd && in_array($action, ['submit', 'verify', 'approve'], true)) {
+            $this->renjaAnnualTargetReadinessService->ensureReady($model);
         }
 
         if ($action === 'submit' && $model instanceof RkaOpd) {

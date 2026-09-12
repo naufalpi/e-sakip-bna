@@ -6,6 +6,7 @@ use App\Models\ImportBatch;
 use App\Models\JabatanOrganisasi;
 use App\Models\Opd;
 use App\Models\OpdUnit;
+use App\Models\Pegawai;
 use App\Models\RiwayatPejabatJabatan;
 use App\Models\User;
 use App\Services\Imports\SpreadsheetImportReader;
@@ -20,20 +21,34 @@ class JabatanOrganisasiImportPreviewService
 {
     private const MAX_ROWS_PER_SHEET = 2000;
 
+    public const MODE_COMBINED = 'combined';
+
+    public const MODE_STRUCTURE = 'structure';
+
+    public const MODE_EMPLOYEE = 'employee';
+
     public function __construct(private readonly SpreadsheetImportReader $reader) {}
 
-    public function storePreview(UploadedFile $file, User $user): ImportBatch
+    public function storePreview(UploadedFile $file, User $user, string $mode = self::MODE_COMBINED, ?int $scopeOpdId = null): ImportBatch
     {
+        if (! in_array($mode, [self::MODE_COMBINED, self::MODE_STRUCTURE, self::MODE_EMPLOYEE], true)) {
+            throw new RuntimeException('Mode import tidak dikenali.');
+        }
+
         $disk = config('filesystems.default', 'local');
-        $path = $file->store('imports/jabatan-organisasi/'.now()->format('Y/m'), $disk);
+        $path = $file->store('imports/'.($mode === self::MODE_EMPLOYEE ? 'pegawai-opd' : 'jabatan-organisasi').'/'.now()->format('Y/m'), $disk);
 
         if (! is_string($path)) {
             throw new RuntimeException('File import gagal disimpan.');
         }
 
         $batch = ImportBatch::create([
-            'module' => 'jabatan_organisasi',
-            'import_type' => 'jabatan_dan_pejabat',
+            'module' => $mode === self::MODE_EMPLOYEE ? 'pegawai' : 'jabatan_organisasi',
+            'import_type' => match ($mode) {
+                self::MODE_STRUCTURE => 'struktur_organisasi',
+                self::MODE_EMPLOYEE => 'pegawai_dan_penempatan',
+                default => 'jabatan_dan_pejabat',
+            },
             'status' => 'processing',
             'original_filename' => $file->getClientOriginalName(),
             'mime_type' => $file->getClientMimeType(),
@@ -43,13 +58,15 @@ class JabatanOrganisasiImportPreviewService
             'uploaded_by' => $user->id,
             'metadata' => [
                 'parser' => 'spreadsheet_multi_sheet_preview',
+                'mode' => $mode,
+                'scope_opd_id' => $scopeOpdId,
                 'note' => 'Data hanya disimpan setelah tombol Terapkan Import ditekan.',
             ],
         ]);
 
         try {
-            [$jobSheet, $officialSheet] = $this->resolveSheets($file);
-            $rows = $this->prepareRows($jobSheet, $officialSheet);
+            [$jobSheet, $officialSheet] = $this->resolveSheets($file, $mode);
+            $rows = $this->prepareRows($jobSheet, $officialSheet, $scopeOpdId);
 
             DB::transaction(function () use ($batch, $rows, $jobSheet, $officialSheet): void {
                 foreach ($rows as $index => $row) {
@@ -57,7 +74,7 @@ class JabatanOrganisasiImportPreviewService
                         'row_number' => $index + 1,
                         'status' => $row['status'],
                         'raw_data' => [
-                            'sheet' => $row['entity_type'] === 'jabatan' ? 'Jabatan' : 'Pegawai',
+                            'sheet' => $row['entity_type'] === 'jabatan' ? 'Struktur Organisasi' : 'Pegawai OPD',
                             'sheet_row' => $row['sheet_row'],
                             'cells' => array_values($row['cells']),
                         ],
@@ -98,32 +115,76 @@ class JabatanOrganisasiImportPreviewService
     /**
      * @return array{0: array{columns: array<int, string>, rows: array<int, array<int, string|null>>}, 1: array{columns: array<int, string>, rows: array<int, array<int, string|null>>}}
      */
-    private function resolveSheets(UploadedFile $file): array
+    private function resolveSheets(UploadedFile $file, string $mode): array
     {
         $resolved = [];
 
-        foreach ($this->reader->readWorksheets($file, self::MAX_ROWS_PER_SHEET) as $rows) {
-            $columns = $this->reader->detectColumns($rows);
+        foreach ($this->reader->readWorksheets($file, self::MAX_ROWS_PER_SHEET + 2) as $rows) {
+            $columns = array_map(fn (string $column) => $this->canonicalColumn($column), $this->reader->detectColumns($rows));
 
             if (in_array('nama_jabatan', $columns, true) && in_array('level_jabatan', $columns, true)) {
+                if (isset($resolved['jabatan'])) {
+                    throw new RuntimeException('Ditemukan lebih dari satu sheet Struktur Organisasi. Sisakan satu sheet data saja.');
+                }
                 $resolved['jabatan'] = ['columns' => $columns, 'rows' => array_slice($rows, 1)];
             } elseif (in_array('nama_jabatan', $columns, true) && in_array('nama_pejabat', $columns, true)) {
+                if (isset($resolved['pejabat'])) {
+                    throw new RuntimeException('Ditemukan lebih dari satu sheet Pegawai OPD. Sisakan satu sheet data saja.');
+                }
                 $resolved['pejabat'] = ['columns' => $columns, 'rows' => array_slice($rows, 1)];
             }
         }
 
-        if (! isset($resolved['jabatan'], $resolved['pejabat'])) {
+        if ($mode === self::MODE_COMBINED && ! isset($resolved['jabatan'], $resolved['pejabat'])) {
             throw new RuntimeException('Sheet Jabatan dan Pegawai tidak ditemukan. Template lama dengan sheet Pejabat tetap didukung bila kolomnya lengkap.');
         }
 
-        $this->assertColumns($resolved['jabatan']['columns'], ['nama_jabatan', 'level_jabatan', 'opd_kode', 'unit_kode', 'atasan_nama_jabatan', 'atasan_opd_kode', 'atasan_unit_kode', 'eselon', 'urutan', 'status'], 'Jabatan');
-        $this->assertColumns($resolved['pejabat']['columns'], ['nama_jabatan', 'opd_kode', 'unit_kode', 'nama_pejabat', 'nip', 'pangkat_golongan', 'jenis_penugasan', 'nomor_sk', 'tanggal_sk', 'tanggal_selesai', 'akun_pengguna'], 'Pegawai');
-
-        if (! in_array('tmt_jabatan', $resolved['pejabat']['columns'], true) && ! in_array('tanggal_mulai', $resolved['pejabat']['columns'], true)) {
-            throw new RuntimeException('Sheet Pegawai tidak lengkap. Kolom tmt_jabatan tidak ditemukan. Gunakan template terbaru dari sistem.');
+        if ($mode === self::MODE_STRUCTURE && ! isset($resolved['jabatan'])) {
+            throw new RuntimeException('Sheet Struktur Organisasi tidak ditemukan. Unduh dan gunakan template terbaru dari sistem.');
         }
 
-        return [$resolved['jabatan'], $resolved['pejabat']];
+        if ($mode === self::MODE_EMPLOYEE && ! isset($resolved['pejabat'])) {
+            throw new RuntimeException('Sheet Pegawai OPD tidak ditemukan. Unduh dan gunakan template terbaru dari sistem.');
+        }
+
+        $emptySheet = ['columns' => [], 'rows' => []];
+        $jobSheet = $mode === self::MODE_EMPLOYEE ? $emptySheet : ($resolved['jabatan'] ?? $emptySheet);
+        $officialSheet = $mode === self::MODE_STRUCTURE ? $emptySheet : ($resolved['pejabat'] ?? $emptySheet);
+
+        if (count($jobSheet['rows']) > self::MAX_ROWS_PER_SHEET) {
+            throw new RuntimeException('Sheet Struktur Organisasi melebihi batas 2.000 baris data. Pisahkan menjadi beberapa file.');
+        }
+
+        if (count($officialSheet['rows']) > self::MAX_ROWS_PER_SHEET) {
+            throw new RuntimeException('Sheet Pegawai OPD melebihi batas 2.000 baris data. Pisahkan menjadi beberapa file.');
+        }
+
+        if ($jobSheet['columns'] !== []) {
+            $this->assertColumns($jobSheet['columns'], ['nama_jabatan', 'level_jabatan', 'opd_kode', 'unit_kode', 'atasan_nama_jabatan', 'atasan_opd_kode', 'atasan_unit_kode', 'eselon', 'urutan', 'status'], 'Struktur Organisasi');
+        }
+
+        if ($officialSheet['columns'] !== []) {
+            $this->assertColumns($officialSheet['columns'], ['nama_jabatan', 'opd_kode', 'unit_kode', 'nama_pejabat', 'nip', 'pangkat_golongan', 'jenis_penugasan', 'nomor_sk', 'tanggal_sk', 'tanggal_selesai', 'akun_pengguna'], 'Pegawai OPD');
+
+            if (! in_array('tmt_jabatan', $officialSheet['columns'], true) && ! in_array('tanggal_mulai', $officialSheet['columns'], true)) {
+                throw new RuntimeException('Sheet Pegawai OPD tidak lengkap. Kolom TMT Jabatan tidak ditemukan. Gunakan template terbaru dari sistem.');
+            }
+        }
+
+        return [$jobSheet, $officialSheet];
+    }
+
+    private function canonicalColumn(string $column): string
+    {
+        return [
+            'nama_pegawai' => 'nama_pejabat',
+            'kode_opd' => 'opd_kode',
+            'kode_unit' => 'unit_kode',
+            'nama_jabatan_atasan' => 'atasan_nama_jabatan',
+            'kode_opd_atasan' => 'atasan_opd_kode',
+            'kode_unit_atasan' => 'atasan_unit_kode',
+            'tmt' => 'tmt_jabatan',
+        ][$column] ?? $column;
     }
 
     /**
@@ -144,7 +205,7 @@ class JabatanOrganisasiImportPreviewService
      * @param  array{columns: array<int, string>, rows: array<int, array<int, string|null>>}  $officialSheet
      * @return array<int, array<string, mixed>>
      */
-    private function prepareRows(array $jobSheet, array $officialSheet): array
+    private function prepareRows(array $jobSheet, array $officialSheet, ?int $scopeOpdId = null): array
     {
         $jobRows = [];
 
@@ -154,6 +215,7 @@ class JabatanOrganisasiImportPreviewService
 
             try {
                 $row['prepared'] = $this->prepareJobBase($mapped);
+                $this->assertOpdScope($row['prepared']['opd_id'] ?? null, $scopeOpdId);
                 $row['status'] = 'pending';
             } catch (Throwable $exception) {
                 $row['status'] = 'invalid';
@@ -175,7 +237,7 @@ class JabatanOrganisasiImportPreviewService
             $key = $row['prepared']['identity_key'];
             if (($jobKeys[$key] ?? collect())->count() > 1) {
                 $row['status'] = 'invalid';
-                $row['error_message'] = 'Jabatan yang sama muncul lebih dari sekali pada sheet Jabatan.';
+                $row['error_message'] = 'Jabatan yang sama muncul lebih dari sekali pada sheet Struktur Organisasi.';
 
                 continue;
             }
@@ -198,6 +260,7 @@ class JabatanOrganisasiImportPreviewService
 
         $officialRows = [];
         $workbookRanges = [];
+        $workbookEmployees = [];
 
         foreach ($officialSheet['rows'] as $index => $cells) {
             $mapped = $this->reader->mapRow($cells, $officialSheet['columns']);
@@ -205,12 +268,20 @@ class JabatanOrganisasiImportPreviewService
 
             try {
                 $prepared = $this->prepareOfficial($mapped, $resolvedJobKeys);
+                $this->assertOpdScope($prepared['opd_id'] ?? null, $scopeOpdId);
                 $this->assertWorkbookPeriodAvailable($prepared, $workbookRanges, $index + 2);
+                $this->assertWorkbookEmployeeConsistent($prepared, $workbookEmployees, $index + 2);
                 $row['prepared'] = $prepared;
                 $row['status'] = 'valid';
                 $workbookRanges[$prepared['range_key']][] = [
                     'start' => $prepared['tanggal_mulai'],
                     'end' => $prepared['tanggal_selesai'],
+                    'row' => $index + 2,
+                ];
+                $workbookEmployees[$prepared['employee_identity_key']] = [
+                    'name' => $prepared['nama_pejabat'],
+                    'nip' => $prepared['nip'],
+                    'user_id' => $prepared['user_id'],
                     'row' => $index + 2,
                 ];
             } catch (Throwable $exception) {
@@ -227,7 +298,7 @@ class JabatanOrganisasiImportPreviewService
     /** @param array<string, string|null> $mapped */
     private function prepareJobBase(array $mapped): array
     {
-        $name = $this->required($mapped, 'nama_jabatan', 'Nama jabatan');
+        $name = $this->limited($this->required($mapped, 'nama_jabatan', 'Nama jabatan'), 255, 'Nama jabatan');
         $level = $this->choice($this->required($mapped, 'level_jabatan', 'Level jabatan'), $this->levelChoices(), 'level jabatan');
 
         if ($level === 'kepala_daerah' && ($this->nullable($mapped['opd_kode'] ?? null) !== null || $this->nullable($mapped['unit_kode'] ?? null) !== null)) {
@@ -305,7 +376,7 @@ class JabatanOrganisasiImportPreviewService
         }
 
         if (! $parentPrepared && $parentExisting->isEmpty()) {
-            throw new RuntimeException("Jabatan atasan '{$parentName}' tidak ditemukan pada sheet Jabatan maupun data sistem.");
+            throw new RuntimeException("Jabatan atasan '{$parentName}' tidak ditemukan pada sheet Struktur Organisasi maupun data sistem.");
         }
 
         $parentLevel = $parentPrepared['level_jabatan'] ?? $parentExisting->first()->level_jabatan;
@@ -344,21 +415,30 @@ class JabatanOrganisasiImportPreviewService
      */
     private function prepareOfficial(array $mapped, $jobKeys): array
     {
-        $jobName = $this->required($mapped, 'nama_jabatan', 'Nama jabatan');
+        $jobName = $this->limited($this->required($mapped, 'nama_jabatan', 'Nama jabatan'), 255, 'Nama jabatan');
         $opdCode = $this->nullable($mapped['opd_kode'] ?? null);
         [$opd, $unit] = $this->resolveLocation($opdCode, $mapped['unit_kode'] ?? null, $opdCode === null);
         $jobKey = $this->identityKey($jobName, $opd?->id, $unit?->id);
         $workbookJob = ($jobKeys[$jobKey] ?? collect())->first();
         $existingJobs = $this->matchingJobs($jobName, $opd?->id, $unit?->id);
-        $officialName = $this->required($mapped, 'nama_pejabat', 'Nama pejabat');
-        $officialNip = $this->nullable($mapped['nip'] ?? null);
+        $officialName = $this->limited($this->required($mapped, 'nama_pejabat', 'Nama pegawai'), 255, 'Nama pegawai');
+        $officialNip = $this->normalizeNip($mapped['nip'] ?? null);
 
         if ($existingJobs->count() > 1) {
             throw new RuntimeException('Jabatan pejabat tidak unik di sistem. Rapikan data ganda sebelum import.');
         }
 
         if (! $workbookJob && $existingJobs->isEmpty()) {
-            throw new RuntimeException("Jabatan '{$jobName}' tidak ditemukan pada sheet Jabatan maupun data sistem.");
+            throw new RuntimeException("Jabatan '{$jobName}' tidak ditemukan pada sheet Struktur Organisasi maupun data sistem.");
+        }
+
+        $resolvedJob = $existingJobs->first();
+        if ($resolvedJob && ($resolvedJob->status !== 'active' || $resolvedJob->verification_status === 'rejected')) {
+            throw new RuntimeException("Jabatan '{$jobName}' tidak aktif atau berstatus ditolak sehingga tidak dapat menerima penempatan pegawai.");
+        }
+
+        if ($workbookJob && ($workbookJob['prepared']['status'] ?? 'active') !== 'active') {
+            throw new RuntimeException("Jabatan '{$jobName}' berstatus nonaktif pada sheet Struktur Organisasi.");
         }
 
         $start = $this->date($this->requiredAny($mapped, ['tmt_jabatan', 'tanggal_mulai'], 'TMT Jabatan'), 'TMT Jabatan');
@@ -371,6 +451,7 @@ class JabatanOrganisasiImportPreviewService
 
         $account = null;
         if ($accountValue = $this->nullable($mapped['akun_pengguna'] ?? null)) {
+            $accountValue = $this->limited($accountValue, 255, 'Akun pengguna');
             $accounts = User::query()
                 ->where('status', 'active')
                 ->where(fn ($query) => $query->whereRaw('LOWER(username) = ?', [mb_strtolower($accountValue)])->orWhereRaw('LOWER(email) = ?', [mb_strtolower($accountValue)]))
@@ -385,15 +466,27 @@ class JabatanOrganisasiImportPreviewService
         $jobId = $existingJobs->first()?->id;
         $jobLevel = $existingJobs->first()?->level_jabatan ?? ($workbookJob['prepared']['level_jabatan'] ?? null);
         $allowsMultiple = in_array($jobLevel, ['fungsional', 'pelaksana'], true);
-        $pegawaiId = null;
+        $pegawaiByNip = $officialNip ? Pegawai::query()->where('nip', $officialNip)->first() : null;
+        $pegawaiByAccount = $account ? Pegawai::query()->where('user_id', $account->id)->first() : null;
 
-        if ($officialNip) {
-            $pegawaiId = DB::table('pegawai')->where('nip', $officialNip)->value('id');
+        if ($pegawaiByNip && $pegawaiByAccount && $pegawaiByNip->id !== $pegawaiByAccount->id) {
+            throw new RuntimeException('NIP dan akun pengguna terhubung ke dua data pegawai yang berbeda. Periksa kembali identitas pegawai.');
         }
 
-        if (! $pegawaiId && $account) {
-            $pegawaiId = DB::table('pegawai')->where('user_id', $account->id)->value('id');
+        $pegawai = $pegawaiByNip ?: $pegawaiByAccount;
+        if (! $pegawai && ! $officialNip && ! $account) {
+            $sameNames = Pegawai::query()
+                ->where('opd_id', $opd?->id)
+                ->whereRaw('LOWER(nama) = ?', [mb_strtolower($officialName)])
+                ->get();
+
+            if ($sameNames->count() > 1) {
+                throw new RuntimeException('Nama pegawai tidak unik. Isi NIP atau akun pengguna agar data dapat dicocokkan dengan tepat.');
+            }
+            $pegawai = $sameNames->first();
         }
+
+        $pegawaiId = $pegawai?->id;
         $existingHistory = null;
 
         if ($jobId) {
@@ -406,6 +499,11 @@ class JabatanOrganisasiImportPreviewService
                 })
                 ->whereDate('tanggal_mulai', $start)
                 ->first();
+
+            if ($existingHistory?->pegawai_id && $pegawaiId && $existingHistory->pegawai_id !== $pegawaiId) {
+                throw new RuntimeException('Riwayat pada jabatan dan TMT yang sama sudah terhubung ke pegawai lain. Periksa NIP atau TMT Jabatan.');
+            }
+            $pegawaiId ??= $existingHistory?->pegawai_id;
 
             $overlap = RiwayatPejabatJabatan::query()
                 ->where('jabatan_organisasi_id', $jobId)
@@ -428,23 +526,54 @@ class JabatanOrganisasiImportPreviewService
         $assignment = $this->choice($assignment, $this->assignmentChoices(), 'jenis penugasan');
         $employeeType = $this->nullable($mapped['jenis_pegawai'] ?? null) ?? ($jobLevel === 'kepala_daerah' ? 'pejabat_negara' : 'pns');
         $employeeType = $this->choice($employeeType, $this->employeeTypeChoices(), 'jenis pegawai');
+        $employeeStatus = $this->nullable($mapped['status_pegawai'] ?? null);
+        if ($employeeStatus !== null) {
+            $employeeStatus = $this->choice($employeeStatus, ['active' => 'active', 'aktif' => 'active', 'inactive' => 'inactive', 'nonaktif' => 'inactive'], 'status pegawai');
+        }
+        $placementIsCurrent = $end === null || $end >= now()->toDateString();
+        if ($placementIsCurrent && $employeeStatus === 'inactive') {
+            throw new RuntimeException('Pegawai berstatus Nonaktif tidak dapat memiliki penempatan yang masih aktif. Isi Tanggal Selesai atau ubah Status Pegawai menjadi Aktif.');
+        }
+        if ($placementIsCurrent && $employeeStatus === null && $pegawai?->status === 'inactive') {
+            throw new RuntimeException('Pegawai ini saat ini berstatus Nonaktif. Pilih Status Pegawai Aktif untuk mengaktifkan kembali dan menambahkan penempatan.');
+        }
         $skDateValue = $this->nullable($mapped['tanggal_sk'] ?? null);
+        $pangkatGolongan = $this->nullable($mapped['pangkat_golongan'] ?? null);
+        $nomorSk = $this->nullable($mapped['nomor_sk'] ?? null);
+
+        if ($pangkatGolongan !== null) {
+            $pangkatGolongan = $this->limited($pangkatGolongan, 120, 'Pangkat/golongan');
+        }
+        if ($nomorSk !== null) {
+            $nomorSk = $this->limited($nomorSk, 150, 'Nomor SK');
+        }
+
+        $identityKey = $officialNip
+            ? 'nip:'.$officialNip
+            : ($account ? 'user:'.$account->id : 'name:'.mb_strtolower($officialName).'|opd:'.($opd?->id ?? 0));
 
         return [
             'jabatan_key' => $jobKey,
             'range_key' => $allowsMultiple ? $jobKey.'|'.mb_strtolower($officialNip ?: $officialName) : $jobKey,
             'jabatan_existing_id' => $jobId,
             'existing_id' => $existingHistory?->id,
+            'pegawai_existing_id' => $pegawaiId,
             'action' => $existingHistory ? 'update' : 'create',
             'jabatan_label' => $jobName,
+            'opd_id' => $opd?->id,
+            'opd_unit_id' => $unit?->id,
+            'opd_label' => $opd ? "{$opd->kode} - {$opd->nama}" : 'Pemerintah Kabupaten',
+            'unit_label' => $unit ? "{$unit->kode} - {$unit->nama}" : null,
+            'employee_identity_key' => $identityKey,
             'user_id' => $account?->id,
             'account_label' => $account ? ($account->username ?: $account->email) : null,
             'nama_pejabat' => $officialName,
             'nip' => $officialNip,
-            'pangkat_golongan' => $this->nullable($mapped['pangkat_golongan'] ?? null),
+            'pangkat_golongan' => $pangkatGolongan,
             'jenis_pegawai' => $employeeType,
+            'status_pegawai' => $employeeStatus,
             'jenis_penugasan' => $assignment,
-            'nomor_sk' => $this->nullable($mapped['nomor_sk'] ?? null),
+            'nomor_sk' => $nomorSk,
             'tanggal_sk' => $skDateValue ? $this->date($skDateValue, 'Tanggal SK') : null,
             'tanggal_mulai' => $start,
             'tanggal_selesai' => $end,
@@ -468,6 +597,33 @@ class JabatanOrganisasiImportPreviewService
     }
 
     /**
+     * @param  array<string, mixed>  $prepared
+     * @param  array<string, array{name: string, nip: string|null, user_id: int|null, row: int}>  $employees
+     */
+    private function assertWorkbookEmployeeConsistent(array $prepared, array $employees, int $sheetRow): void
+    {
+        $existing = $employees[$prepared['employee_identity_key']] ?? null;
+        if (! $existing) {
+            return;
+        }
+
+        $sameName = mb_strtolower(trim($existing['name'])) === mb_strtolower(trim($prepared['nama_pejabat']));
+        $sameNip = ($existing['nip'] ?? null) === ($prepared['nip'] ?? null);
+        $sameAccount = ($existing['user_id'] ?? null) === ($prepared['user_id'] ?? null);
+
+        if (! $sameName || ! $sameNip || ! $sameAccount) {
+            throw new RuntimeException("Identitas pegawai bertentangan dengan baris {$existing['row']} pada sheet Pegawai OPD. Samakan nama, NIP, dan akun untuk pegawai yang sama.");
+        }
+    }
+
+    private function assertOpdScope(?int $rowOpdId, ?int $scopeOpdId): void
+    {
+        if ($scopeOpdId !== null && $rowOpdId !== $scopeOpdId) {
+            throw new RuntimeException('Data berada di luar perangkat daerah akun Anda. Gunakan kode OPD yang tersedia pada sheet referensi.');
+        }
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $rows
      * @param  Collection<string, Collection<int, array<string, mixed>>>  $jobKeys
      */
@@ -485,7 +641,7 @@ class JabatanOrganisasiImportPreviewService
             while ($cursor && isset($jobKeys[$cursor])) {
                 if (isset($visited[$cursor])) {
                     $row['status'] = 'invalid';
-                    $row['error_message'] = 'Hierarki atasan membentuk siklus pada sheet Jabatan.';
+                    $row['error_message'] = 'Hierarki atasan membentuk siklus pada sheet Struktur Organisasi.';
                     break;
                 }
 
@@ -590,6 +746,34 @@ class JabatanOrganisasiImportPreviewService
         return $value === '' || $value === '-' ? null : $value;
     }
 
+    private function normalizeNip(mixed $value): ?string
+    {
+        $nip = $this->nullable($value);
+        if ($nip === null) {
+            return null;
+        }
+
+        if (preg_match('/[eE][+-]?\d+/', $nip) === 1) {
+            throw new RuntimeException('NIP terbaca sebagai notasi ilmiah dan berisiko berubah. Gunakan kolom NIP pada template terbaru yang sudah berformat teks.');
+        }
+
+        $nip = preg_replace('/[\s.\-]+/', '', $nip) ?? $nip;
+        if (preg_match('/^\d{18}$/', $nip) !== 1) {
+            throw new RuntimeException('NIP harus terdiri dari tepat 18 digit. Kosongkan hanya jika pegawai memang tidak memiliki NIP.');
+        }
+
+        return $nip;
+    }
+
+    private function limited(string $value, int $maximum, string $label): string
+    {
+        if (mb_strlen($value) > $maximum) {
+            throw new RuntimeException("{$label} maksimal {$maximum} karakter.");
+        }
+
+        return $value;
+    }
+
     /** @param array<string, string> $choices */
     private function choice(string $value, array $choices, string $label): string
     {
@@ -630,12 +814,17 @@ class JabatanOrganisasiImportPreviewService
         return [
             'definitif' => 'definitif',
             'penjabat' => 'penjabat',
+            'penjabat (pj.)' => 'penjabat',
             'pj' => 'penjabat',
             'pj.' => 'penjabat',
             'plt' => 'plt',
             'plt.' => 'plt',
+            'pelaksana tugas' => 'plt',
+            'pelaksana tugas (plt.)' => 'plt',
             'plh' => 'plh',
             'plh.' => 'plh',
+            'pelaksana harian' => 'plh',
+            'pelaksana harian (plh.)' => 'plh',
         ];
     }
 

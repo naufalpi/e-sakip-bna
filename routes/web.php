@@ -26,6 +26,7 @@ use App\Http\Controllers\Master\KopDokumenController;
 use App\Http\Controllers\Master\OpdController;
 use App\Http\Controllers\Master\OpdUnitController;
 use App\Http\Controllers\Master\PegawaiController;
+use App\Http\Controllers\Master\PegawaiImportController;
 use App\Http\Controllers\Master\PenempatanPegawaiController;
 use App\Http\Controllers\Master\PenugasanPengampuKinerjaController;
 use App\Http\Controllers\Master\PeriodeTahunController;
@@ -45,6 +46,7 @@ use App\Http\Controllers\Penganggaran\RkaOpdController;
 use App\Http\Controllers\Penganggaran\RkaOpdItemController;
 use App\Http\Controllers\Perencanaan\PlanningSyncController;
 use App\Http\Controllers\Perencanaan\PohonKinerjaController;
+use App\Http\Controllers\Perencanaan\RenjaOpdAnnualTargetController;
 use App\Http\Controllers\Perencanaan\RenjaOpdController;
 use App\Http\Controllers\Perencanaan\RenjaOpdItemController;
 use App\Http\Controllers\Perencanaan\RkpdController;
@@ -146,6 +148,8 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::resource('renja-opd', RenjaOpdController::class)->parameters(['renja-opd' => 'renja_opd']);
     Route::post('renja-opd/{renja_opd}/perubahan', [RenjaOpdController::class, 'createRevision'])->name('renja-opd.revisions.store');
     Route::post('renja-opd/{renja_opd}/batalkan-penetapan', [RenjaOpdController::class, 'cancelEstablishment'])->name('renja-opd.establishment.cancel');
+    Route::get('renja-opd/{renja_opd}/target-tahunan', [RenjaOpdAnnualTargetController::class, 'index'])->name('renja-opd.annual-targets.index');
+    Route::put('renja-opd/{renja_opd}/target-tahunan', [RenjaOpdAnnualTargetController::class, 'update'])->name('renja-opd.annual-targets.update');
     Route::post('renja-opd/{renja_opd}/items', [RenjaOpdItemController::class, 'store'])->name('renja-opd.items.store');
     Route::put('renja-opd/{renja_opd}/items/{item}', [RenjaOpdItemController::class, 'update'])->name('renja-opd.items.update');
     Route::delete('renja-opd/{renja_opd}/items/{item}', [RenjaOpdItemController::class, 'destroy'])->name('renja-opd.items.destroy');
@@ -169,6 +173,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('perjanjian-kinerja/{perjanjian_kinerja}/export', [PerjanjianKinerjaController::class, 'export'])->name('perjanjian-kinerja.export');
     Route::post('perjanjian-kinerja/{perjanjian_kinerja}/items', [PerjanjianKinerjaItemController::class, 'store'])->name('perjanjian-kinerja.items.store');
     Route::put('perjanjian-kinerja/{perjanjian_kinerja}/items/{item}', [PerjanjianKinerjaItemController::class, 'update'])->name('perjanjian-kinerja.items.update');
+    Route::put('perjanjian-kinerja/{perjanjian_kinerja}/items/{item}/target', [PerjanjianKinerjaItemController::class, 'updateTarget'])->name('perjanjian-kinerja.items.target.update');
     Route::delete('perjanjian-kinerja/{perjanjian_kinerja}/items/{item}', [PerjanjianKinerjaItemController::class, 'destroy'])->name('perjanjian-kinerja.items.destroy');
 
     Route::get('rencana-aksi/pk-readiness/{perjanjianKinerja}', [RencanaAksiController::class, 'sourceReadiness'])->name('rencana-aksi.pk-readiness');
@@ -251,6 +256,11 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
             ->name('pegawai.pengampu-kinerja.store');
         Route::delete('pegawai/{pegawai}/pengampu-kinerja/{penugasan}', [PenugasanPengampuKinerjaController::class, 'destroy'])
             ->name('pegawai.pengampu-kinerja.destroy');
+        Route::get('pegawai/import', [PegawaiImportController::class, 'create'])->name('pegawai.import.create');
+        Route::get('pegawai/import/template', [PegawaiImportController::class, 'template'])->name('pegawai.import.template');
+        Route::post('pegawai/import', [PegawaiImportController::class, 'store'])->name('pegawai.import.store');
+        Route::get('pegawai/import/{importBatch}', [PegawaiImportController::class, 'show'])->name('pegawai.import.show');
+        Route::post('pegawai/import/{importBatch}/apply', [PegawaiImportController::class, 'apply'])->name('pegawai.import.apply');
         Route::resource('pegawai', PegawaiController::class);
         Route::get('opd-units', [OpdUnitController::class, 'redirectToOpd'])->name('opd-units.index');
         Route::get('opd-units/create', [OpdUnitController::class, 'redirectToOpd'])->name('opd-units.create');

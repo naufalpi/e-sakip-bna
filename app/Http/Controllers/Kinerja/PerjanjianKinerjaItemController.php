@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Kinerja;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Kinerja\StorePerjanjianKinerjaItemRequest;
+use App\Http\Requests\Kinerja\UpdatePerjanjianKinerjaItemTargetRequest;
 use App\Models\IndikatorSasaranOpd;
 use App\Models\OpdProgram;
 use App\Models\PerjanjianKinerja;
@@ -85,6 +86,51 @@ class PerjanjianKinerjaItemController extends Controller
         return back()->with('success', 'Item Perjanjian Kinerja berhasil dihapus.');
     }
 
+    public function updateTarget(
+        UpdatePerjanjianKinerjaItemTargetRequest $request,
+        PerjanjianKinerja $perjanjianKinerja,
+        PerjanjianKinerjaItem $item,
+    ): RedirectResponse {
+        $this->authorize('update', $perjanjianKinerja);
+        abort_unless((int) $item->perjanjian_kinerja_id === (int) $perjanjianKinerja->id, 404);
+
+        if ($perjanjianKinerja->tipe_pk !== 'cascading'
+            || $item->sumber_item !== 'snapshot'
+            || ! $item->is_readonly
+            || blank($item->cascading_source_type)
+            || ! $item->cascading_source_id) {
+            throw ValidationException::withMessages([
+                'target_text' => 'Hanya target item snapshot cascading yang dapat disesuaikan melalui tindakan ini.',
+            ]);
+        }
+
+        $data = $request->validated();
+        if ($data['restore_source'] ?? false) {
+            if ($item->target_sumber === null && blank($item->target_sumber_text)) {
+                throw ValidationException::withMessages([
+                    'target_text' => 'Target sumber tidak tersedia sehingga belum dapat dipulihkan.',
+                ]);
+            }
+
+            $item->update([
+                'target' => $item->target_sumber,
+                'target_text' => $item->target_sumber_text,
+                'target_disesuaikan' => false,
+            ]);
+
+            return back()->with('success', 'Target PK berhasil dikembalikan ke target dokumen sumber.');
+        }
+
+        $targetText = trim((string) $data['target_text']);
+        $item->update([
+            'target' => $this->numericTarget($targetText),
+            'target_text' => $targetText,
+            'target_disesuaikan' => ! $this->targetMatchesSource($item, $targetText),
+        ]);
+
+        return back()->with('success', 'Target PK berhasil disesuaikan tanpa mengubah dokumen sumber.');
+    }
+
     /**
      * @param  array<string, mixed>  $data
      */
@@ -145,5 +191,35 @@ class PerjanjianKinerjaItemController extends Controller
     {
         return $pk->tipe_pk === 'cascading'
             && in_array($pk->sumber_data, ['rkpd', 'dpa', 'renstra_cascading'], true);
+    }
+
+    private function targetMatchesSource(PerjanjianKinerjaItem $item, string $targetText): bool
+    {
+        $source = filled($item->target_sumber_text)
+            ? (string) $item->target_sumber_text
+            : ($item->target_sumber !== null ? (string) $item->target_sumber : '');
+        $sourceNumeric = $this->numericTarget($source);
+        $targetNumeric = $this->numericTarget($targetText);
+
+        if ($sourceNumeric !== null && $targetNumeric !== null) {
+            return abs($sourceNumeric - $targetNumeric) < 0.0001;
+        }
+
+        return mb_strtolower(preg_replace('/\s+/', ' ', trim($source)) ?? '')
+            === mb_strtolower(preg_replace('/\s+/', ' ', $targetText) ?? '');
+    }
+
+    private function numericTarget(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $normalized = str_replace(' ', '', trim((string) $value));
+        if (! preg_match('/^-?\d+(?:[.,]\d+)?$/', $normalized)) {
+            return null;
+        }
+
+        return (float) str_replace(',', '.', $normalized);
     }
 }

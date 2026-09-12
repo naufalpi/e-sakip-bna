@@ -30,7 +30,10 @@ class PerjanjianKinerjaItem extends Model
         'sasaran',
         'indikator',
         'target',
+        'target_sumber',
         'target_text',
+        'target_sumber_text',
+        'target_disesuaikan',
         'urutan',
         'is_readonly',
     ];
@@ -39,6 +42,8 @@ class PerjanjianKinerjaItem extends Model
     {
         return [
             'target' => 'decimal:4',
+            'target_sumber' => 'decimal:4',
+            'target_disesuaikan' => 'boolean',
             'is_readonly' => 'boolean',
         ];
     }
