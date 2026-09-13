@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { confirmAction } from '@/lib/sweetAlert';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import ArrowLeft from 'lucide-vue-next/dist/esm/icons/arrow-left.js';
 import Building2 from 'lucide-vue-next/dist/esm/icons/building-2.js';
 import CheckCircle2 from 'lucide-vue-next/dist/esm/icons/circle-check.js';
@@ -58,10 +58,12 @@ type Row = {
 };
 
 const props = defineProps<{ batch: Batch; rows: Row[]; can: { manage: boolean }; importMode: 'structure' | 'employee' | 'combined' }>();
+const inertiaPage = usePage<{ errors?: Record<string, string> }>();
 const applying = ref(false);
 const activeType = ref<'semua' | 'jabatan' | 'pejabat'>('semua');
 const activeStatus = ref<'semua' | 'valid' | 'invalid' | 'imported'>('semua');
 const preview = computed(() => props.batch.metadata?.preview ?? {});
+const applyError = computed(() => inertiaPage.props.errors?.import_batch_id ?? null);
 const isEmployee = computed(() => props.importMode === 'employee');
 const page = computed(() =>
     isEmployee.value
@@ -187,15 +189,15 @@ const statusClass = (status: string) =>
             class="grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-2"
             :class="importMode === 'combined' ? 'lg:grid-cols-6' : 'lg:grid-cols-5'"
         >
-            <div v-if="importMode !== 'employee'" class="bg-card p-4">
+            <div class="bg-card p-4">
                 <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total</p>
                 <p class="mt-2 text-2xl font-semibold">{{ preview.total_rows ?? 0 }}</p>
             </div>
-            <div v-if="importMode !== 'structure'" class="bg-card p-4">
+            <div v-if="importMode !== 'employee'" class="bg-card p-4">
                 <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Jabatan</p>
                 <p class="mt-2 text-2xl font-semibold">{{ preview.jabatan_rows ?? 0 }}</p>
             </div>
-            <div class="bg-card p-4">
+            <div v-if="importMode !== 'structure'" class="bg-card p-4">
                 <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pegawai & penempatan</p>
                 <p class="mt-2 text-2xl font-semibold">{{ preview.pejabat_rows ?? 0 }}</p>
             </div>
@@ -214,11 +216,13 @@ const statusClass = (status: string) =>
         </section>
 
         <section
-            v-if="batch.error_message || (batch.status === 'previewed' && !canApply)"
+            v-if="batch.error_message || applyError || (batch.status === 'previewed' && !canApply)"
             class="flex gap-3 rounded-xl border border-amber-300/70 bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+            role="alert"
+            aria-live="assertive"
         >
             <AlertTriangle class="mt-0.5 size-5 shrink-0" />
-            <span>{{ batch.error_message || 'Import belum dapat diterapkan. Perbaiki semua baris invalid pada file, kemudian upload ulang.' }}</span>
+            <span>{{ batch.error_message || applyError || 'Import belum dapat diterapkan. Perbaiki semua baris invalid pada file, kemudian upload ulang.' }}</span>
         </section>
         <section
             v-if="batch.metadata?.applied"

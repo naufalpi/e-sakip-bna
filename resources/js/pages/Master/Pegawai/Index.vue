@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OrganizationWorkspaceTabs from '@/components/OrganizationWorkspaceTabs.vue';
 import { useAutoFilters } from '@/composables/useAutoFilters';
 import { Head, Link, router } from '@inertiajs/vue3';
 import BadgeCheck from 'lucide-vue-next/dist/esm/icons/badge-check.js';
@@ -10,9 +11,10 @@ import FileSpreadsheet from 'lucide-vue-next/dist/esm/icons/file-spreadsheet.js'
 import Plus from 'lucide-vue-next/dist/esm/icons/plus.js';
 import Search from 'lucide-vue-next/dist/esm/icons/search.js';
 import UsersRound from 'lucide-vue-next/dist/esm/icons/users-round.js';
-import { computed, reactive } from 'vue';
+import { computed, reactive, watch } from 'vue';
 
 type Option = { id?: number; value?: string; label: string };
+type UnitOption = { id: number; opd_id: number; label: string };
 type Placement = {
     id: number;
     jabatan?: { nama: string; level_jabatan: string; level_label: string; verification_status?: string } | null;
@@ -41,8 +43,9 @@ type Paginator<T> = {
 
 const props = defineProps<{
     items: Paginator<Row>;
-    filters: { search?: string; opd_id?: string; jenis_pegawai?: string; status?: string };
+    filters: { search?: string; opd_id?: string; opd_unit_id?: string; jenis_pegawai?: string; status?: string };
     opdOptions: Option[];
+    unitOptions: UnitOption[];
     jenisOptions: Option[];
     stats: { total: number; active: number; withPlacement: number };
     can: { manage: boolean; manage_jobs: boolean; opd_scoped: boolean };
@@ -51,13 +54,40 @@ const props = defineProps<{
 const filterForm = reactive({
     search: props.filters.search ?? '',
     opd_id: props.filters.opd_id ?? '',
+    opd_unit_id: props.filters.opd_unit_id ?? '',
     jenis_pegawai: props.filters.jenis_pegawai ?? '',
     status: props.filters.status ?? '',
 });
-const applyFilters = () => router.get(route('master.pegawai.index'), filterForm, { preserveState: true, preserveScroll: true, replace: true });
-const { applyFiltersNow } = useAutoFilters(filterForm, applyFilters);
+const filterPayload = () => ({ ...filterForm });
+const applyFilters = () => router.get(route('master.pegawai.index'), filterPayload(), { preserveState: true, preserveScroll: true, replace: true });
+const { applyFiltersNow, syncFilters } = useAutoFilters(filterForm, applyFilters);
+watch(
+    () => props.filters,
+    (filters) =>
+        syncFilters({
+            search: filters.search ?? '',
+            opd_id: filters.opd_id ?? '',
+            opd_unit_id: filters.opd_unit_id ?? '',
+            jenis_pegawai: filters.jenis_pegawai ?? '',
+            status: filters.status ?? '',
+        }),
+    { deep: true },
+);
+
+const availableUnitOptions = computed(() => {
+    if (!filterForm.opd_id) return props.unitOptions;
+
+    return props.unitOptions.filter((option) => String(option.opd_id) === String(filterForm.opd_id));
+});
+const activeFilterCount = computed(() => Object.values(filterForm).filter((value) => String(value).trim() !== '').length);
+
+const handleOpdChange = () => {
+    if (filterForm.opd_unit_id && !availableUnitOptions.value.some((option) => String(option.id) === String(filterForm.opd_unit_id))) {
+        filterForm.opd_unit_id = '';
+    }
+};
 const resetFilters = () => {
-    Object.assign(filterForm, { search: '', opd_id: '', jenis_pegawai: '', status: '' });
+    Object.assign(filterForm, { search: '', opd_id: '', opd_unit_id: '', jenis_pegawai: '', status: '' });
     applyFiltersNow();
 };
 
@@ -85,21 +115,7 @@ const groupedItems = computed(() => {
     <Head title="Pegawai OPD" />
 
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 md:p-6">
-        <nav
-            v-if="can.manage_jobs && can.opd_scoped"
-            class="inline-flex w-fit rounded-lg border bg-card p-1 text-sm shadow-sm"
-            aria-label="Kelola jabatan dan pegawai"
-        >
-            <Link :href="route('master.pegawai.index')" class="rounded-md bg-blue-800 px-4 py-2 font-semibold text-white dark:bg-blue-600">
-                Pegawai
-            </Link>
-            <Link
-                :href="route('master.jabatan-organisasi.index')"
-                class="rounded-md px-4 py-2 font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-                Jabatan di OPD
-            </Link>
-        </nav>
+        <OrganizationWorkspaceTabs active="people" />
         <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="flex items-start gap-3">
                 <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-800 text-white shadow-sm dark:bg-blue-600">
@@ -150,7 +166,8 @@ const groupedItems = computed(() => {
 
         <section class="overflow-hidden rounded-xl border bg-card">
             <form
-                class="grid gap-3 border-b bg-muted/20 p-4 lg:grid-cols-[minmax(260px,1fr)_260px_180px_160px_auto]"
+                class="grid gap-3 border-b bg-muted/20 p-4 md:grid-cols-2"
+                :class="can.opd_scoped ? 'xl:grid-cols-5' : 'xl:grid-cols-6'"
                 @submit.prevent="applyFiltersNow"
             >
                 <div class="relative">
@@ -160,23 +177,47 @@ const groupedItems = computed(() => {
                         type="search"
                         class="h-10 w-full rounded-lg border bg-background pl-9 pr-3 text-sm"
                         placeholder="Cari nama, NIP, atau jabatan"
+                        aria-label="Cari pegawai atau jabatan aktif"
                     />
                 </div>
-                <select v-model="filterForm.opd_id" class="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm">
+                <select
+                    v-if="!can.opd_scoped"
+                    v-model="filterForm.opd_id"
+                    class="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm"
+                    aria-label="Filter perangkat daerah"
+                    @change="handleOpdChange"
+                >
                     <option value="">Semua perangkat daerah</option>
                     <option v-for="option in opdOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
                 </select>
-                <select v-model="filterForm.jenis_pegawai" class="h-10 rounded-lg border bg-background px-3 text-sm">
+                <select
+                    v-model="filterForm.opd_unit_id"
+                    class="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm"
+                    aria-label="Filter unit kerja"
+                >
+                    <option value="">Semua unit kerja</option>
+                    <option v-for="option in availableUnitOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                </select>
+                <select
+                    v-model="filterForm.jenis_pegawai"
+                    class="h-10 rounded-lg border bg-background px-3 text-sm"
+                    aria-label="Filter jenis pegawai"
+                >
                     <option value="">Semua jenis</option>
                     <option v-for="option in jenisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                 </select>
-                <select v-model="filterForm.status" class="h-10 rounded-lg border bg-background px-3 text-sm">
+                <select v-model="filterForm.status" class="h-10 rounded-lg border bg-background px-3 text-sm" aria-label="Filter status pegawai">
                     <option value="">Semua status</option>
                     <option value="active">Aktif</option>
                     <option value="inactive">Nonaktif</option>
                 </select>
-                <button type="button" class="h-10 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-muted" @click="resetFilters">
-                    Reset
+                <button
+                    type="button"
+                    class="h-10 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                    :disabled="activeFilterCount === 0"
+                    @click="resetFilters"
+                >
+                    Reset<span v-if="activeFilterCount > 0"> ({{ activeFilterCount }})</span>
                 </button>
             </form>
 

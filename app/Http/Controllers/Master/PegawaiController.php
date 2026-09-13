@@ -33,7 +33,15 @@ class PegawaiController extends Controller
         abort_unless($request->user()->hasPermission('pegawai.view'), 403);
 
         $user = $request->user();
-        $filters = $request->only(['search', 'opd_id', 'jenis_pegawai', 'status']);
+        $filters = [
+            'search' => trim((string) $request->input('search', '')),
+            'opd_id' => ctype_digit((string) $request->input('opd_id')) ? (string) $request->input('opd_id') : '',
+            'opd_unit_id' => ctype_digit((string) $request->input('opd_unit_id')) ? (string) $request->input('opd_unit_id') : '',
+            'jenis_pegawai' => in_array($request->input('jenis_pegawai'), collect(Pegawai::jenisOptions())->pluck('value')->all(), true)
+                ? $request->input('jenis_pegawai')
+                : '',
+            'status' => in_array($request->input('status'), ['active', 'inactive'], true) ? $request->input('status') : '',
+        ];
         $baseQuery = $this->scopedQuery($user);
         $today = now()->toDateString();
         $hierarchyRank = RiwayatPejabatJabatan::query()
@@ -70,13 +78,28 @@ class PegawaiController extends Controller
                     ->orderByDesc('tanggal_mulai'),
             ])
             ->withCount('penempatan')
-            ->when($filters['search'] ?? null, function (Builder $query, string $search) {
+            ->when($filters['search'] ?? null, function (Builder $query, string $search) use ($today) {
                 $query->where(fn (Builder $query) => $query
-                    ->where('nama', 'ilike', "%{$search}%")
-                    ->orWhere('nip', 'ilike', "%{$search}%")
-                    ->orWhereHas('penempatan.jabatanOrganisasi', fn (Builder $query) => $query->where('nama', 'ilike', "%{$search}%")));
+                    ->whereLike('nama', "%{$search}%")
+                    ->orWhereLike('nip', "%{$search}%")
+                    ->orWhereHas('opd', fn (Builder $query) => $query
+                        ->whereLike('nama', "%{$search}%")
+                        ->orWhereLike('singkatan', "%{$search}%"))
+                    ->orWhereHas('opdUnit', fn (Builder $query) => $query
+                        ->whereLike('kode', "%{$search}%")
+                        ->orWhereLike('nama', "%{$search}%"))
+                    ->orWhereHas('penempatan', fn (Builder $query) => $this
+                        ->currentPlacementConstraint($query, $today)
+                        ->whereHas('jabatanOrganisasi', fn (Builder $query) => $query->whereLike('nama', "%{$search}%"))));
             })
-            ->when(($filters['opd_id'] ?? null) && ! $this->shouldLimitToUserOpd($user), fn (Builder $query, string $opdId) => $query->where('opd_id', $opdId))
+            ->when(
+                ($filters['opd_id'] ?? '') !== '' && ! $this->shouldLimitToUserOpd($user),
+                fn (Builder $query) => $query->where('opd_id', $filters['opd_id'])
+            )
+            ->when(
+                $filters['opd_unit_id'] !== '',
+                fn (Builder $query) => $query->where('opd_unit_id', $filters['opd_unit_id'])
+            )
             ->when($filters['jenis_pegawai'] ?? null, fn (Builder $query, string $jenis) => $query->where('jenis_pegawai', $jenis))
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->orderByRaw('CASE WHEN pegawai.opd_id IS NULL THEN 0 ELSE 1 END')
@@ -96,6 +119,7 @@ class PegawaiController extends Controller
             'items' => $items,
             'filters' => $filters,
             'opdOptions' => $this->opdOptions($user),
+            'unitOptions' => $this->unitOptions($user),
             'jenisOptions' => Pegawai::jenisOptions(),
             'stats' => [
                 'total' => (clone $baseQuery)->count(),
@@ -459,6 +483,21 @@ class PegawaiController extends Controller
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->whereKey($user->opd_id ?? 0))
             ->orderBy('nama')->get(['id', 'kode', 'nama', 'singkatan'])
             ->map(fn (Opd $opd) => ['id' => $opd->id, 'label' => $opd->singkatan ? "{$opd->singkatan} - {$opd->nama}" : $opd->nama])->all();
+    }
+
+    private function unitOptions(User $user): array
+    {
+        return OpdUnit::query()
+            ->where('status', 'active')
+            ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
+            ->orderBy('opd_id')
+            ->orderBy('kode')
+            ->get(['id', 'opd_id', 'kode', 'nama'])
+            ->map(fn (OpdUnit $unit) => [
+                'id' => $unit->id,
+                'opd_id' => $unit->opd_id,
+                'label' => "{$unit->kode} - {$unit->nama}",
+            ])->all();
     }
 
     private function jabatanOptions(User $user, Pegawai $pegawai): array

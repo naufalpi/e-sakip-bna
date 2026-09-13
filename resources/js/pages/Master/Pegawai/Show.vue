@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
+import OrganizationWorkspaceTabs from '@/components/OrganizationWorkspaceTabs.vue';
 import { confirmAction, confirmDelete } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import ArrowLeft from 'lucide-vue-next/dist/esm/icons/arrow-left.js';
@@ -106,6 +107,7 @@ const isCurrent = (placement: Placement) => {
 <template>
     <Head :title="item.nama" />
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 md:p-6">
+        <OrganizationWorkspaceTabs active="people" />
         <div class="flex flex-wrap items-center justify-between gap-3">
             <Link
                 :href="route('master.pegawai.index')"

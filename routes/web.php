@@ -31,6 +31,7 @@ use App\Http\Controllers\Master\PenempatanPegawaiController;
 use App\Http\Controllers\Master\PenugasanPengampuKinerjaController;
 use App\Http\Controllers\Master\PeriodeTahunController;
 use App\Http\Controllers\Master\ProgramPemerintahanController;
+use App\Http\Controllers\Master\ReferensiJabatanController;
 use App\Http\Controllers\Master\RiwayatPejabatJabatanController;
 use App\Http\Controllers\Master\RolePermissionController;
 use App\Http\Controllers\Master\SatuanIndikatorController;
@@ -165,6 +166,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::put('dpa-opd/{dpa_opd}/items/{item}', [DpaOpdItemController::class, 'update'])->name('dpa-opd.items.update');
     Route::delete('dpa-opd/{dpa_opd}/items/{item}', [DpaOpdItemController::class, 'destroy'])->name('dpa-opd.items.destroy');
 
+    Route::get('perjanjian-kinerja/form-options', [PerjanjianKinerjaController::class, 'formOptions'])->name('perjanjian-kinerja.form-options');
     Route::get('perjanjian-kinerja/cascading-scope-options', [PerjanjianKinerjaController::class, 'cascadingScopeOptions'])->name('perjanjian-kinerja.cascading-scope-options');
     Route::resource('perjanjian-kinerja', PerjanjianKinerjaController::class);
     Route::patch('perjanjian-kinerja/{perjanjian_kinerja}/kop', [PerjanjianKinerjaController::class, 'updateKop'])->name('perjanjian-kinerja.kop.update');
@@ -224,6 +226,9 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
             ->where('scopeKey', 'kabupaten|opd:\\d+')
             ->name('kop-dokumen.update');
         Route::resource('opd', OpdController::class)->except(['show']);
+        Route::resource('referensi-jabatan', ReferensiJabatanController::class)
+            ->parameters(['referensi-jabatan' => 'referensiJabatan'])
+            ->except(['show']);
         Route::get('jabatan-organisasi/import', [JabatanOrganisasiImportController::class, 'create'])
             ->name('jabatan-organisasi.import.create');
         Route::get('jabatan-organisasi/import/template', [JabatanOrganisasiImportController::class, 'template'])
@@ -262,9 +267,9 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
         Route::get('pegawai/import/{importBatch}', [PegawaiImportController::class, 'show'])->name('pegawai.import.show');
         Route::post('pegawai/import/{importBatch}/apply', [PegawaiImportController::class, 'apply'])->name('pegawai.import.apply');
         Route::resource('pegawai', PegawaiController::class);
-        Route::get('opd-units', [OpdUnitController::class, 'redirectToOpd'])->name('opd-units.index');
-        Route::get('opd-units/create', [OpdUnitController::class, 'redirectToOpd'])->name('opd-units.create');
-        Route::get('opd-units/{opdUnit}/edit', [OpdUnitController::class, 'redirectToOpd'])->name('opd-units.edit');
+        Route::get('opd-units', [OpdUnitController::class, 'index'])->name('opd-units.index');
+        Route::get('opd-units/create', [OpdUnitController::class, 'create'])->name('opd-units.create');
+        Route::get('opd-units/{opdUnit}/edit', [OpdUnitController::class, 'edit'])->name('opd-units.edit');
         Route::post('opd-units', [OpdUnitController::class, 'store'])->name('opd-units.store');
         Route::put('opd-units/{opdUnit}', [OpdUnitController::class, 'update'])->name('opd-units.update');
         Route::delete('opd-units/{opdUnit}', [OpdUnitController::class, 'destroy'])->name('opd-units.destroy');

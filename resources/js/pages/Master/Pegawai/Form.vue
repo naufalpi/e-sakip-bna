@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
+import OrganizationWorkspaceTabs from '@/components/OrganizationWorkspaceTabs.vue';
 import { confirmAction } from '@/lib/sweetAlert';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import ArrowLeft from 'lucide-vue-next/dist/esm/icons/arrow-left.js';
@@ -120,6 +121,7 @@ const submit = async () => {
     <Head :title="mode === 'create' ? 'Tambah Pegawai' : 'Edit Pegawai'" />
 
     <form class="mx-auto flex w-full max-w-4xl flex-col gap-5 p-4 md:p-6" @submit.prevent="submit">
+        <OrganizationWorkspaceTabs active="people" />
         <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="flex items-start gap-3">
                 <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-800 text-white shadow-sm dark:bg-blue-600">

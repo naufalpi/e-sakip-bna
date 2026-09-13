@@ -8,6 +8,7 @@ use App\Http\Requests\Kinerja\StorePerjanjianKinerjaRequest;
 use App\Http\Requests\Kinerja\UpdatePerjanjianKinerjaRequest;
 use App\Jobs\ExportKinerjaReportDocumentJob;
 use App\Models\DpaOpd;
+use App\Models\JabatanOrganisasi;
 use App\Models\OpdKegiatan;
 use App\Models\OpdProgram;
 use App\Models\OpdSubKegiatan;
@@ -127,11 +128,50 @@ class PerjanjianKinerjaController extends Controller
             'item' => null,
             'opdOptions' => $this->opdOptions($request->user()),
             'periodeOptions' => $this->periodeOptions(),
-            'renstraOptions' => $this->renstraOptions($request->user()),
-            'rkpdOptions' => $this->rkpdOptions(),
-            'dpaOptions' => $this->dpaOptions($request->user()),
+            'renstraOptions' => [],
+            'rkpdOptions' => [],
+            'dpaOptions' => [],
+            'pegawaiOptions' => [],
+            'placementOptions' => [],
             'can' => ['manage_bupati' => ! $request->user()->hasRole('admin_opd')],
-            ...$this->subjectOptions($request->user()),
+        ]);
+    }
+
+    public function formOptions(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'level_pk' => ['required', Rule::in(['bupati', 'kepala_opd', 'struktural', 'individu'])],
+            'tipe_pk' => ['required', Rule::in(['cascading', 'individual'])],
+            'opd_id' => [Rule::requiredIf(fn () => $request->input('level_pk') !== 'bupati'), 'nullable', 'integer', 'exists:opds,id'],
+            'tahun' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'perjanjian_kinerja_id' => ['nullable', 'integer', 'exists:perjanjian_kinerja,id'],
+        ]);
+
+        $current = filled($data['perjanjian_kinerja_id'] ?? null)
+            ? PerjanjianKinerja::query()->findOrFail($data['perjanjian_kinerja_id'])
+            : null;
+
+        if ($current) {
+            $this->authorize('update', $current);
+        } else {
+            $this->authorize('create', PerjanjianKinerja::class);
+        }
+
+        $user = $request->user();
+        $opdId = $data['level_pk'] === 'bupati' ? null : (int) $data['opd_id'];
+
+        if ($opdId && $this->shouldLimitToUserOpd($user) && $opdId !== (int) $user->opd_id) {
+            abort(403);
+        }
+
+        $usesRenstra = in_array($data['level_pk'], ['kepala_opd', 'struktural'], true)
+            || ($data['level_pk'] === 'individu' && $data['tipe_pk'] === 'cascading');
+
+        return response()->json([
+            'renstraOptions' => $usesRenstra && $opdId ? $this->renstraOptions($user, $opdId) : [],
+            'rkpdOptions' => $data['level_pk'] === 'bupati' ? $this->rkpdOptions() : [],
+            'dpaOptions' => $data['level_pk'] === 'kepala_opd' && $opdId ? $this->dpaOptions($user, $opdId) : [],
+            ...$this->subjectOptions($user, $current, $opdId, (int) $data['tahun'], $data['level_pk']),
         ]);
     }
 
@@ -374,11 +414,12 @@ class PerjanjianKinerjaController extends Controller
             ],
             'opdOptions' => $this->opdOptions($request->user()),
             'periodeOptions' => $this->periodeOptions(),
-            'renstraOptions' => $this->renstraOptions($request->user()),
-            'rkpdOptions' => $this->rkpdOptions(),
-            'dpaOptions' => $this->dpaOptions($request->user()),
+            'renstraOptions' => [],
+            'rkpdOptions' => [],
+            'dpaOptions' => [],
+            'pegawaiOptions' => [],
+            'placementOptions' => [],
             'can' => ['manage_bupati' => ! $request->user()->hasRole('admin_opd')],
-            ...$this->subjectOptions($request->user(), $perjanjianKinerja),
         ]);
     }
 
@@ -561,15 +602,55 @@ class PerjanjianKinerjaController extends Controller
         }
     }
 
-    private function subjectOptions(User $user, ?PerjanjianKinerja $current = null): array
-    {
+    private function subjectOptions(
+        User $user,
+        ?PerjanjianKinerja $current = null,
+        ?int $opdId = null,
+        ?int $year = null,
+        ?string $level = null,
+    ): array {
         $currentEmployeeIds = collect([$current?->pegawai_id, $current?->atasan_pegawai_id])->filter()->map(fn ($id) => (int) $id)->all();
+        $currentPlacementId = $current?->penempatan_pegawai_id;
+        $assignmentLabels = collect(RiwayatPejabatJabatan::penugasanOptions())->pluck('label', 'value');
+        $verificationLabels = JabatanOrganisasi::verificationLabels();
+        $referenceYear = $year ?: now()->year;
+        $periodStart = "{$referenceYear}-01-01";
+        $periodEnd = "{$referenceYear}-12-31";
+        $placementScope = function ($query) use ($currentPlacementId, $level, $opdId, $periodEnd, $periodStart): void {
+            $query->where(function (Builder $query) use ($currentPlacementId, $periodEnd, $periodStart): void {
+                $query->where(function (Builder $query) use ($periodEnd, $periodStart): void {
+                    $query->whereDate('tanggal_mulai', '<=', $periodEnd)
+                        ->where(fn (Builder $query) => $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $periodStart));
+                })->when($currentPlacementId, fn (Builder $query, int $id) => $query->orWhereKey($id));
+            })->where(function (Builder $query) use ($currentPlacementId, $level, $opdId): void {
+                $query->whereHas('jabatanOrganisasi', function (Builder $query) use ($level, $opdId): void {
+                    $query->where('verification_status', '!=', 'rejected')
+                        ->where('status', 'active')
+                        ->where(function (Builder $query) use ($level, $opdId): void {
+                            if ($level === 'bupati') {
+                                $query->where('level_jabatan', 'kepala_daerah');
+
+                                return;
+                            }
+
+                            $query->where('opd_id', $opdId);
+                            if ($level === 'kepala_opd') {
+                                $query->orWhere('level_jabatan', 'kepala_daerah');
+                            }
+                        });
+                })->when($currentPlacementId, fn (Builder $query, int $id) => $query->orWhereKey($id));
+            });
+        };
         $employees = Pegawai::query()
             ->where(fn (Builder $query) => $query
                 ->where('status', 'active')
                 ->when($currentEmployeeIds, fn (Builder $query) => $query->orWhereIn('pegawai.id', $currentEmployeeIds)))
-            ->when($this->shouldLimitToUserOpd($user), function (Builder $query) use ($user, $currentEmployeeIds): void {
-                $query->where(function (Builder $query) use ($user, $currentEmployeeIds): void {
+            ->where(function (Builder $query) use ($currentEmployeeIds, $placementScope): void {
+                $query->whereHas('penempatan', $placementScope)
+                    ->when($currentEmployeeIds, fn (Builder $query) => $query->orWhereIn('pegawai.id', $currentEmployeeIds));
+            })
+            ->when($this->shouldLimitToUserOpd($user), function (Builder $query) use ($currentEmployeeIds, $user): void {
+                $query->where(function (Builder $query) use ($currentEmployeeIds, $user): void {
                     $query->where('opd_id', $user->opd_id)
                         ->orWhereHas('penempatan.jabatanOrganisasi', fn (Builder $query) => $query
                             ->where('opd_id', $user->opd_id)
@@ -579,7 +660,8 @@ class PerjanjianKinerjaController extends Controller
             })
             ->with([
                 'opdUnit:id,nama',
-                'penempatan.jabatanOrganisasi:id,opd_id,opd_unit_id,parent_id,nama,level_jabatan,verification_status',
+                'penempatan' => $placementScope,
+                'penempatan.jabatanOrganisasi:id,opd_id,opd_unit_id,parent_id,nama,level_jabatan,status,verification_status',
                 'penempatan.jabatanOrganisasi.opdUnit:id,nama',
                 'penempatan.jabatanOrganisasi.parent:id,opd_unit_id,nama',
                 'penempatan.jabatanOrganisasi.parent.opdUnit:id,nama',
@@ -594,22 +676,40 @@ class PerjanjianKinerjaController extends Controller
                 'label' => $pegawai->nama.($pegawai->nip ? " · NIP {$pegawai->nip}" : ''),
             ])->all(),
             'placementOptions' => $employees->flatMap(fn (Pegawai $pegawai) => $pegawai->penempatan
-                ->filter(fn (RiwayatPejabatJabatan $placement) => $placement->jabatanOrganisasi
-                    && $placement->jabatanOrganisasi->verification_status !== 'rejected')
-                ->map(fn (RiwayatPejabatJabatan $placement) => [
-                    'id' => $placement->id,
-                    'pegawai_id' => $pegawai->id,
-                    'jabatan_organisasi_id' => $placement->jabatan_organisasi_id,
-                    'opd_id' => $placement->jabatanOrganisasi?->opd_id,
-                    'level_jabatan' => $placement->jabatanOrganisasi?->level_jabatan,
-                    'parent_jabatan_id' => $placement->jabatanOrganisasi?->parent_id,
-                    'unit_kerja' => $placement->jabatanOrganisasi?->opdUnit?->nama
+                ->filter(fn (RiwayatPejabatJabatan $placement) => $placement->jabatanOrganisasi !== null)
+                ->map(function (RiwayatPejabatJabatan $placement) use ($pegawai, $assignmentLabels, $verificationLabels): array {
+                    $jobName = $placement->jabatanOrganisasi?->nama ?? 'Jabatan tidak tersedia';
+                    $workUnit = $placement->jabatanOrganisasi?->opdUnit?->nama
                         ?: $placement->jabatanOrganisasi?->parent?->opdUnit?->nama
-                        ?: $pegawai->opdUnit?->nama,
-                    'tanggal_mulai' => $placement->tanggal_mulai?->format('Y-m-d'),
-                    'tanggal_selesai' => $placement->tanggal_selesai?->format('Y-m-d'),
-                    'label' => ($placement->jabatanOrganisasi?->nama ?? 'Jabatan tidak tersedia')." · TMT {$placement->tanggal_mulai?->format('Y-m-d')}",
-                ]))->values()->all(),
+                        ?: $pegawai->opdUnit?->nama;
+                    $labelParts = [$jobName, $workUnit];
+
+                    if ($placement->jenis_penugasan !== 'definitif') {
+                        $labelParts[] = $assignmentLabels->get($placement->jenis_penugasan);
+                    }
+                    if ($placement->jabatanOrganisasi?->verification_status !== 'verified') {
+                        $labelParts[] = $verificationLabels[$placement->jabatanOrganisasi?->verification_status] ?? 'Belum terverifikasi';
+                    }
+                    if ($placement->jabatanOrganisasi?->status !== 'active') {
+                        $labelParts[] = 'Tidak aktif';
+                    }
+
+                    return [
+                        'id' => $placement->id,
+                        'pegawai_id' => $pegawai->id,
+                        'jabatan_organisasi_id' => $placement->jabatan_organisasi_id,
+                        'opd_id' => $placement->jabatanOrganisasi?->opd_id,
+                        'level_jabatan' => $placement->jabatanOrganisasi?->level_jabatan,
+                        'parent_jabatan_id' => $placement->jabatanOrganisasi?->parent_id,
+                        'nama_jabatan' => $jobName,
+                        'job_status' => $placement->jabatanOrganisasi?->status,
+                        'verification_status' => $placement->jabatanOrganisasi?->verification_status,
+                        'unit_kerja' => $workUnit,
+                        'tanggal_mulai' => $placement->tanggal_mulai?->format('Y-m-d'),
+                        'tanggal_selesai' => $placement->tanggal_selesai?->format('Y-m-d'),
+                        'label' => collect($labelParts)->filter()->implode(' · '),
+                    ];
+                }))->values()->all(),
         ];
     }
 
@@ -819,11 +919,12 @@ class PerjanjianKinerjaController extends Controller
             ->all();
     }
 
-    private function dpaOptions(User $user): array
+    private function dpaOptions(User $user, ?int $opdId = null): array
     {
         return DpaOpd::query()
             ->with(['opd:id,nama,singkatan', 'renjaOpd:id,renstra_opd_id'])
             ->when($this->shouldLimitToUserOpd($user), fn (Builder $query) => $query->where('opd_id', $user->opd_id))
+            ->when($opdId, fn (Builder $query) => $query->where('opd_id', $opdId))
             ->whereIn('status', self::APPROVED_PLANNING_STATUSES)
             ->orderByDesc('tahun')
             ->get(['id', 'opd_id', 'periode_tahun_id', 'renja_opd_id', 'tahun', 'jenis_anggaran', 'judul', 'nomor_dpa', 'status'])

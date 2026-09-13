@@ -53,7 +53,8 @@ class OpdController extends Controller
             'filters' => $filters,
             'can' => [
                 'create' => $request->user()->can('create', Opd::class),
-                'manageUnits' => $this->canManageOpdUnits($request->user()),
+                // Unit kerja dikelola pada workspace Struktur Organisasi agar tidak memiliki dua sumber perubahan.
+                'manageUnits' => false,
             ],
             'jenisUnitOptions' => $this->jenisUnitOptions(),
         ]);

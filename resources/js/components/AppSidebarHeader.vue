@@ -28,6 +28,8 @@ const breadcrumbTitleByPrefix: Array<[string, string]> = [
     ['/workflow/inbox', 'Pengajuan Masuk'],
     ['/notifications', 'Notifikasi'],
     ['/master/opd', 'Master OPD'],
+    ['/master/opd-units', 'Unit Kerja'],
+    ['/master/referensi-jabatan', 'Referensi Jabatan'],
     ['/master/kop-dokumen', 'Pengaturan Kop Dokumen'],
     ['/master/jabatan-organisasi', 'Struktur Jabatan'],
     ['/master/pegawai', 'Pegawai OPD'],
@@ -91,8 +93,6 @@ const activeBreadcrumbs = computed(() => (props.breadcrumbs.length > 0 ? props.b
         </div>
         <Link
             :href="route('notifications.index')"
-            prefetch="hover"
-            cache-for="45s"
             class="admin-topbar-notification relative inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Notifikasi"
         >

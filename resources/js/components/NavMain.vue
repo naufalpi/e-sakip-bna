@@ -35,8 +35,6 @@ const isActive = (item: NavItem) => {
                 >
                     <Link
                         :href="item.href"
-                        prefetch="hover"
-                        cache-for="5m"
                         :aria-label="item.badge ? `${item.title}, ${item.badge}` : item.title"
                         @focus="warmAppPageComponent(item.pageComponent)"
                         @pointerenter="warmAppPageComponent(item.pageComponent)"

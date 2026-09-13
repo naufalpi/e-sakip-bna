@@ -10,6 +10,7 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 - Migration lokal sudah sampai batch yang memuat:
     - `2026_09_11_000002_create_renja_opd_annual_targets_table.php`
     - `2026_09_11_000003_add_source_target_snapshot_to_perjanjian_kinerja_items.php`
+    - `2026_09_12_000001_create_referensi_jabatan_table.php` (fitur baru; jalankan migration saat deployment).
 - Feature flag `FEATURE_RENJA_ANNUAL_TARGETS` saat ini **false** pada default/config. Implementasi dan tabel target tahunan RENJA tetap disimpan sebagai eksperimen rollback-safe, tetapi panelnya tidak tampil dan alur aktif kembali memakai RENSTRA seperti semula.
 - Verifikasi terakhir:
     - build production Vite berhasil,
@@ -17,7 +18,7 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
     - PHP Pint berhasil,
     - pengujian khusus PK/Rencana Aksi: 13 test, 259 assertion lulus,
     - full suite sempat menghasilkan 289 test lulus dan 2 test RENJA gagal hanya karena test belum mengaktifkan feature flag; setup test sudah diperbaiki dan suite `RenjaAnnualTargetTest` kemudian lulus 3/3.
-    - suite Struktur Organisasi/Pegawai OPD terbaru: 28 test, 316 assertion lulus; tambahan regresi import RPJMD/RENSTRA: 6 test, 62 assertion lulus; ESLint, PHP Pint, route audit, dan build production Vite lulus.
+    - suite terarah Struktur Organisasi, referensi jabatan, unit kerja, Pegawai OPD, import, dan akses: 43 test lulus; tambahan regresi import RPJMD/RENSTRA: 6 test, 62 assertion lulus; ESLint, PHP Pint, route audit, dan build production Vite lulus.
 
 ## Lokasi Project
 
@@ -67,32 +68,38 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 
 ### Master Data
 
-- Master OPD dan unit OPD digabung dalam menu `Master OPD`.
+- Master OPD tetap menjadi referensi perangkat daerah. Perubahan unit tidak lagi dilakukan dari Master OPD agar tidak ada dua sumber perubahan.
 - User sudah bisa dikaitkan ke `opd_id` dan `opd_unit_id`.
 - Referensi organisasi tetap dipisahkan secara data menjadi `Jabatan Organisasi` dan `Pegawai/Penempatan` agar nomenklatur struktur tidak tercampur dengan identitas orang.
-    - UI Admin OPD disederhanakan menjadi satu menu `Jabatan & Pegawai` dengan tab `Pegawai` dan `Jabatan di OPD`. Saat menambah pegawai, jabatan, status jabatan, TMT, dan SK dapat disimpan sekaligus dalam satu formulir. Istilah penempatan tetap dipakai pada struktur data internal untuk menjaga histori.
-    - Pengelola pusat tetap memperoleh menu `Struktur Organisasi` untuk pengendalian nomenklatur dan verifikasi usulan seluruh OPD.
+    - Menu `Struktur Organisasi` berada di `Administrasi Sistem` dan menjadi workspace bersama dengan tab `Unit Kerja`, `Jabatan`, `Penempatan Pegawai`, dan `Usulan Perubahan`; `Referensi Jabatan` tersedia sebagai katalog global.
+    - Admin OPD mengelola unit dan pegawai milik OPD sendiri. Bagian Organisasi dan Dinkominfo dapat mengelola lintas OPD; akun yang dibatasi ke satu unit tetap hanya-baca untuk struktur unit.
     - `Struktur Jabatan` memuat hierarki permanen: Kepala Daerah, JPT Pratama, Administrator, Pengawas, Fungsional, dan Pelaksana.
-    - Jabatan tidak memakai kode khusus; identitas teknis menggunakan ID database dan pengguna cukup mengisi nomenklatur jabatan.
+    - Jabatan struktural tetap memakai nama manual sesuai struktur resmi. Jabatan Fungsional/Pelaksana wajib dipilih dari `referensi_jabatan`; kode referensi bersifat opsional tetapi membantu membedakan nomenklatur bernama sama.
+    - Referensi global menyimpan jenis, jenjang, kelas jabatan, kualifikasi, dasar hukum, masa berlaku, status validasi, dan status aktif. Hanya referensi aktif, terverifikasi, dan masih berlaku yang dapat dipakai untuk penempatan baru.
+    - Acuan resmi awal yang ditemukan: Perbup Banjarnegara Nomor 58 Tahun 2025 tentang Kelas Jabatan ASN dan Perbup Banjarnegara Nomor 16 Tahun 2024 tentang Sistem Kerja Perangkat Daerah. Sistem tidak menandai data hasil migrasi sebagai resmi secara otomatis; lampiran/peta jabatan tetap harus divalidasi Bagian Organisasi.
     - Setiap jabatan selain Kepala Daerah wajib memiliki OPD dan atasan langsung yang valid; unit organisasi bersifat opsional.
+    - Relasi `parent_id` pada jabatan adalah atasan **jabatan** langsung, bukan atasan pegawai. Jabatan Fungsional/Pelaksana dari referensi global dapat ditempatkan langsung oleh Admin OPD pada unit dan atasan terverifikasi tanpa menunggu verifikasi ulang nomenklatur.
     - `Pegawai & Penempatan` memuat PNS, PPPK, dan Non-ASN; akun aplikasi bersifat opsional dan tidak identik dengan pegawai.
     - Penempatan mencatat jabatan, jenis penugasan definitif/Pj./Plt./Plh., TMT Jabatan wajib, tanggal selesai opsional, serta dasar SK.
     - Pejabat definitif tidak diberi tanggal selesai sampai benar-benar diganti/mutasi/pensiun/diberhentikan; sebelum pejabat pengganti dicatat, riwayat lama harus ditutup agar masa tugas tidak bertumpang tindih.
     - Jabatan struktural hanya boleh memiliki satu pemegang pada rentang aktif yang sama. Jabatan Fungsional dan Pelaksana dapat diisi banyak pegawai, tetapi penempatan pegawai yang sama tidak boleh bertumpang tindih.
     - Akun pejabat tidak wajib untuk penyusunan PK karena Admin OPD dapat bertindak sebagai operator. Akun hanya perlu dihubungkan bila pejabat akan login atau melakukan persetujuan sendiri; identitas pihak PK tetap berasal dari pejabat aktif sesuai TMT/periode dokumen.
-    - Import Excel dipisahkan menjadi dua jalur yang jelas: `Import Struktur` dari halaman Struktur Organisasi dan `Import Excel` dari halaman Pegawai OPD. Keduanya memakai alur template -> upload/validasi -> preview -> konfirmasi -> terapkan, tanpa migration baru.
+    - Import Excel dipisahkan menjadi dua jalur yang jelas: `Import Struktur` dari halaman Struktur Organisasi dan `Import Excel` dari halaman Pegawai OPD. Keduanya memakai alur template -> upload/validasi -> preview -> konfirmasi -> terapkan.
     - Template v2 memakai sheet data kosong yang aman, sedangkan contoh pengisian, petunjuk, referensi OPD/unit, dan referensi jabatan ditempatkan pada sheet terpisah agar contoh tidak pernah terbaca sebagai data. Header dibedakan wajib/opsional, baris input sudah berformat teks, kolom dibekukan/difilter, serta nilai baku memiliki dropdown Excel.
-    - Template Pegawai OPD memformat NIP sebagai teks agar 18 digit tidak rusak, menyertakan `Status Pegawai`, dan untuk Admin OPD hanya memuat referensi OPD/jabatan miliknya. Template lama tetap terbaca melalui alias header (`nama_pejabat`, `opd_kode`, `tanggal_mulai`, dan lain-lain), tetapi tiap jalur hanya menerapkan entitasnya sendiri.
-    - Validasi import menolak OPD/unit/atasan/akun yang tidak ditemukan, data di luar lingkup Admin OPD, NIP bukan 18 digit/notasi ilmiah, identitas pegawai yang saling bertentangan, string melebihi kapasitas kolom, jabatan ganda, hierarki tidak valid atau bersiklus, status pegawai/penempatan yang tidak konsisten, format tanggal salah, serta masa tugas yang bertumpang tindih. Batas tegas 2.000 baris per sheet dan pemeriksaan ukuran isi ZIP mencegah file terlalu besar/zip bomb.
-    - Seluruh baris harus valid sebelum import dapat diterapkan. Penerapan dikunci dalam transaksi database, memeriksa ulang scope dan perubahan data sejak preview, tidak menghapus data yang tidak tercantum, serta tidak memutus akun/NIP/pangkat lama hanya karena kolom opsional dikosongkan.
+    - Template Pegawai OPD memformat NIP sebagai teks agar 18 digit tidak rusak, menyertakan `Status Pegawai`, dan untuk Admin OPD hanya memuat referensi OPD/jabatan miliknya. NIP wajib untuk PNS/PPPK serta boleh kosong untuk Pejabat Negara/Non-ASN. Template lama tetap terbaca melalui alias header (`nama_pejabat`, `opd_kode`, `tanggal_mulai`, dan lain-lain), tetapi tiap jalur hanya menerapkan entitasnya sendiri.
+    - Template Struktur Organisasi memiliki kolom `Kode Referensi Jabatan` dan sheet `Referensi Jabatan Global`. Import Fungsional/Pelaksana wajib cocok dengan referensi global terverifikasi (melalui kode atau nama unik); import tidak dapat menjadi jalur untuk membuat nomenklatur bebas.
+    - Validasi import menolak OPD/unit/atasan/akun yang tidak ditemukan, data di luar lingkup Admin OPD, upaya Admin OPD memindahkan pegawai milik OPD lain, NIP bukan 18 digit/notasi ilmiah, identitas pegawai yang saling bertentangan, string melebihi kapasitas kolom, jabatan ganda, hierarki tidak valid atau bersiklus, status pegawai/penempatan yang tidak konsisten, format tanggal salah, serta masa tugas yang bertumpang tindih. Batas tegas 2.000 baris per sheet dan pemeriksaan ukuran isi ZIP mencegah file terlalu besar/zip bomb.
+    - Preview memakai cache referensi per request sehingga jumlah query pencocokan OPD/unit/jabatan/akun/pegawai/riwayat tetap terbatas ketika jumlah baris bertambah. Ringkasan preview dipisahkan akurat per jenis import dan error penerapan ditampilkan langsung sebagai alert aksesibel.
+    - Seluruh baris harus valid sebelum import dapat diterapkan. Batch dikunci `FOR UPDATE` dan status diperiksa ulang di dalam transaksi untuk mencegah double-apply dari tab/request bersamaan; penerapan juga memeriksa ulang scope dan perubahan data sejak preview, tidak menghapus data yang tidak tercantum, serta tidak memutus akun atau pangkat lama hanya karena kolom opsional dikosongkan.
     - Data lama pada riwayat pejabat otomatis dibentuk menjadi master pegawai saat migrasi; relasi lama tetap dipertahankan agar data production tidak hilang.
     - Jabatan dengan turunan atau riwayat tidak dapat dihapus dan harus dinonaktifkan agar histori dokumen aman.
-    - Struktur resmi/nomenklatur jabatan dikendalikan oleh Super Admin, Bagian Organisasi, dan Dinkominfo. Jabatan lama otomatis berstatus `verified` sehingga migrasi tidak mengubah data atau penempatan production.
+    - Struktur resmi/nomenklatur jabatan dikendalikan oleh Super Admin, Bagian Organisasi, dan Dinkominfo. Migrasi katalog menghubungkan data Fungsional/Pelaksana lama tanpa menghapus atau mengubah penempatan; referensi hasil migrasi ditandai `Perlu validasi` agar Bagian Organisasi dapat memeriksa nomenklaturnya sebelum digunakan OPD lain.
     - Admin OPD dapat mengusulkan jabatan baru hanya untuk OPD sendiri melalui permission `jabatan_organisasi.manage_opd`. Usulan berstatus `pending`; Admin OPD hanya dapat mengubah/menghapus usulan miliknya yang masih `pending/rejected`, sedangkan jabatan resmi `verified` tetap terkunci.
     - Admin Kabupaten memverifikasi atau mengembalikan usulan dengan catatan melalui permission `jabatan_organisasi.verify`. Verifikasi hierarki wajib dilakukan dari jabatan atasan ke bawah.
     - Jabatan `pending` dapat dipakai untuk penempatan pegawai agar operasional OPD tidak terhenti. Jabatan `rejected` tetap mempertahankan histori lama tetapi tidak dapat dipilih untuk penempatan baru sampai diperbaiki dan diverifikasi.
     - Admin OPD dapat menambah/memperbarui pegawai dan mencatat/mengakhiri penempatan hanya untuk OPD sendiri melalui permission `pegawai.manage`. Admin OPD tidak dapat mengubah jabatan resmi atau menghapus histori penempatan.
     - Pengelola pusat dapat mengelola seluruh pegawai, perpindahan lintas OPD, serta penghapusan data kosong. Data yang sudah memiliki histori penempatan/PK harus dinonaktifkan, bukan dihapus.
+    - Filter workspace Struktur Organisasi sudah dinormalisasi dan disinkronkan dengan query URL. Filter OPD tidak lagi berubah menjadi boolean/ID `1`; Unit Kerja dapat difilter pada daftar Jabatan dan Pegawai, pencarian hanya memakai penempatan aktif yang terlihat, dan pilihan filter tidak tertinggal saat berpindah tab Usulan atau memakai navigasi browser.
     - Lingkup kinerja tahunan tidak lagi diatur pada profil pegawai. Tabel/rute penugasan pengampu lama tetap dipertahankan untuk kompatibilitas histori production, tetapi UI-nya disembunyikan dan tidak menjadi syarat PK baru.
 - Pimpinan memperoleh akses lihat sesuai cakupan OPD.
 - Daftar `Struktur Organisasi` dan `Pegawai OPD` dikelompokkan per perangkat daerah. Di dalam setiap OPD, data mengikuti hierarki jabatan aktif: Kepala Daerah/Kepala OPD, Sekretaris, Administrator/Kabid, Pengawas, Fungsional, lalu Pelaksana; pegawai tanpa jabatan aktif ditempatkan paling bawah.
@@ -366,6 +373,10 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 - Preview/cetak PK memakai format dua halaman: pernyataan dan tanda tangan, kemudian lampiran matriks indikator serta rekap program/anggaran. Export PDF memakai layout yang sama; export Word tetap tersedia.
 - Template PK Manual mengikuti styling/kop/ukuran dokumen PK resmi lainnya. Untuk PK Manual JF/Pelaksana, input matriks cukup `Sasaran Kinerja`, `Indikator Kinerja`, dan `Target`; `Unit Kerja` pada PK dapat diedit dan disimpan sebagai snapshot dokumen.
 - Bug pilihan `Jabatan penandatangan` dan `Pihak Kedua/Atasan` yang hilang setelah validasi sudah diperbaiki. PK manual tidak lagi salah diwajibkan memilih item cascading.
+- Form tambah/edit PK sekarang memuat Renstra/RKPD/DPA, pegawai, dan penempatan secara bertahap melalui endpoint `perjanjian-kinerja.form-options` setelah jenis PK, OPD, dan tahun diketahui. Halaman awal tidak lagi mengirim seluruh data lintas OPD; pilihan lama pada mode edit tetap dimuat secara aman.
+- Navigasi utama tidak lagi menyimpan cache respons halaman Inertia. Preload hanya dilakukan pada bundle komponen halaman, sehingga daftar Renstra, Renja, dan modul lain selalu mengambil data server terbaru saat menu dibuka tanpa membutuhkan hard refresh.
+- Dropdown jabatan PK tidak menampilkan TMT. Label ringkas berisi nama jabatan, unit kerja bila tersedia, jenis penugasan nondefinitif, serta status menunggu verifikasi bila relevan.
+- Jabatan `pending` tetap dapat dipakai untuk menyimpan Draft PK, tetapi pengajuan/verifikasi/persetujuan diblokir sampai jabatan Pihak Pertama dan Pihak Kedua terverifikasi. Readiness juga memeriksa masa berlaku penempatan, status aktif, kesesuaian level/OPD/atasan langsung, seluruh indikator termasuk Program, dan target yang wajib terisi.
 - Permission RENSTRA telah dinormalisasi melalui `PermissionAliases`: `renstra.manage` adalah permission kanonik dan `manage_renstra_opd` hanya alias legacy. UI Role Permission menampilkan satu `Kelola Renstra OPD`; penyimpanan permission legacy dinormalisasi ke permission kanonik. Bapperida/Bagian Organisasi yang diberi permission manage dapat mengelola RENSTRA lintas OPD sesuai policy. Dokumen final tetap terkunci bagi user biasa, sedangkan Super Admin tetap dapat memakai kewenangan koreksi.
 - Dasar implementasi: Perpres 29/2014, PermenPANRB 53/2014, dan Perbup Banjarnegara 41/2024. Perbup Banjarnegara 14/2015 sudah dicabut oleh Perbup 41/2024.
 
@@ -597,6 +608,7 @@ Prioritas dekat:
     - lanjutkan modul pengukuran/realisasi setelah Rencana Aksi OPD stabil.
 
 6. Kuatkan sinkronisasi RKPD <-> Renja:
+
     - tarik Renja ke RKPD,
     - tarik RKPD ke Renja,
     - tampilkan diff jika target/pagu/indikator/lokasi berbeda.

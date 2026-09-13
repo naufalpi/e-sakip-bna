@@ -4,6 +4,7 @@ namespace App\Services\Imports;
 
 use App\Models\JabatanOrganisasi;
 use App\Models\Opd;
+use App\Models\ReferensiJabatan;
 use RuntimeException;
 use ZipArchive;
 
@@ -92,41 +93,42 @@ class ImportTemplateService
     {
         return [
             'Struktur Organisasi' => [
-                'rows' => [['Nama Jabatan *', 'Level Jabatan *', 'Kode OPD **', 'Kode Unit', 'Nama Jabatan Atasan **', 'Kode OPD Atasan', 'Kode Unit Atasan', 'Eselon', 'Urutan', 'Status']],
-                'required_columns' => [0, 1, 2, 4],
-                'widths' => [42, 24, 18, 20, 42, 20, 20, 16, 11, 14],
+                'rows' => [['Nama Jabatan *', 'Kode Referensi Jabatan', 'Level Jabatan *', 'Kode OPD **', 'Kode Unit', 'Nama Jabatan Atasan **', 'Kode OPD Atasan', 'Kode Unit Atasan', 'Eselon', 'Urutan', 'Status']],
+                'required_columns' => [0, 2, 3, 5],
+                'widths' => [42, 26, 24, 18, 20, 42, 20, 20, 16, 11, 14],
                 'blank_rows' => 500,
                 'tab_color' => '0B4A82',
                 'validations' => [
-                    ['column' => 1, 'values' => ['Kepala Daerah', 'JPT Pratama', 'Administrator', 'Pengawas', 'Fungsional', 'Pelaksana'], 'title' => 'Level jabatan', 'message' => 'Pilih level jabatan dari daftar.'],
-                    ['column' => 7, 'values' => ['Eselon II.a', 'Eselon II.b', 'Eselon III.a', 'Eselon III.b', 'Eselon IV.a', 'Eselon IV.b', 'Non-eselon'], 'title' => 'Eselon', 'message' => 'Pilih eselon atau kosongkan.'],
-                    ['column' => 9, 'values' => ['Aktif', 'Nonaktif'], 'title' => 'Status', 'message' => 'Kosong berarti Aktif.'],
+                    ['column' => 2, 'values' => ['Kepala Daerah', 'JPT Pratama', 'Administrator', 'Pengawas', 'Fungsional', 'Pelaksana'], 'title' => 'Level jabatan', 'message' => 'Pilih level jabatan dari daftar.'],
+                    ['column' => 8, 'values' => ['Eselon II.a', 'Eselon II.b', 'Eselon III.a', 'Eselon III.b', 'Eselon IV.a', 'Eselon IV.b', 'Non-eselon'], 'title' => 'Eselon', 'message' => 'Pilih eselon atau kosongkan.'],
+                    ['column' => 10, 'values' => ['Aktif', 'Nonaktif'], 'title' => 'Status', 'message' => 'Kosong berarti Aktif.'],
                 ],
             ],
             'Contoh Struktur' => [
                 'rows' => [
-                    ['Urutan pengisian', 'Nama Jabatan', 'Level', 'Kode OPD', 'Kode Unit', 'Atasan Langsung', 'Keterangan'],
-                    [1, 'Bupati Banjarnegara', 'Kepala Daerah', null, null, null, 'Kepala Daerah tidak memakai kode OPD dan atasan.'],
-                    [2, 'Kepala Dinas Contoh', 'JPT Pratama', 'KODE_OPD', null, 'Bupati Banjarnegara', 'Kepala OPD umumnya tidak memakai kode unit.'],
-                    [3, 'Sekretaris Dinas Contoh', 'Administrator', 'KODE_OPD', 'KODE_UNIT_SEKRETARIAT', 'Kepala Dinas Contoh', 'Isi identitas atasan persis seperti baris atasannya.'],
-                    [4, 'Kepala Bidang Contoh', 'Administrator', 'KODE_OPD', 'KODE_UNIT_BIDANG', 'Kepala Dinas Contoh', 'Urutan saudara dapat diatur melalui kolom Urutan.'],
-                    [5, 'Kepala Subbagian Contoh', 'Pengawas', 'KODE_OPD', 'KODE_UNIT_SUBBAG', 'Sekretaris Dinas Contoh', 'Kode unit harus terdaftar pada OPD yang sama.'],
-                    [6, 'Pranata Komputer Ahli Pertama', 'Fungsional', 'KODE_OPD', 'KODE_UNIT_BIDANG', 'Kepala Bidang Contoh', 'Satu nomenklatur fungsional dapat diisi beberapa pegawai.'],
+                    ['Urutan pengisian', 'Nama Jabatan', 'Kode Referensi', 'Level', 'Kode OPD', 'Kode Unit', 'Atasan Langsung', 'Keterangan'],
+                    [1, 'Bupati Banjarnegara', null, 'Kepala Daerah', null, null, null, 'Kepala Daerah tidak memakai kode OPD dan atasan.'],
+                    [2, 'Kepala Dinas Contoh', null, 'JPT Pratama', 'KODE_OPD', null, 'Bupati Banjarnegara', 'Kepala OPD umumnya tidak memakai kode unit.'],
+                    [3, 'Sekretaris Dinas Contoh', null, 'Administrator', 'KODE_OPD', 'KODE_UNIT_SEKRETARIAT', 'Kepala Dinas Contoh', 'Isi identitas atasan persis seperti baris atasannya.'],
+                    [4, 'Kepala Bidang Contoh', null, 'Administrator', 'KODE_OPD', 'KODE_UNIT_BIDANG', 'Kepala Dinas Contoh', 'Urutan saudara dapat diatur melalui kolom Urutan.'],
+                    [5, 'Kepala Subbagian Contoh', null, 'Pengawas', 'KODE_OPD', 'KODE_UNIT_SUBBAG', 'Sekretaris Dinas Contoh', 'Kode unit harus terdaftar pada OPD yang sama.'],
+                    [6, 'Pranata Komputer Ahli Pertama', 'KODE_JF', 'Fungsional', 'KODE_OPD', 'KODE_UNIT_BIDANG', 'Kepala Bidang Contoh', 'Nama dan kode disalin dari sheet Referensi Jabatan Global.'],
                 ],
-                'widths' => [18, 42, 22, 18, 25, 42, 62],
+                'widths' => [18, 42, 24, 22, 18, 25, 42, 62],
                 'tab_color' => '5B9BD5',
             ],
             'Petunjuk' => [
                 'rows' => [
                     ['Bagian', 'Kolom / topik', 'Petunjuk'],
                     ['MULAI', 'Urutan kerja', '1) Isi sheet Struktur Organisasi mulai baris 2. 2) Gunakan kode pada sheet Referensi OPD & Unit. 3) Jangan mengubah judul kolom. 4) Unggah dan periksa preview. 5) Terapkan setelah semua baris valid.'],
-                    ['MULAI', 'Tanda kolom', '* selalu wajib. ** wajib kecuali untuk Kepala Daerah. Kolom tanpa tanda boleh dikosongkan.'],
+                    ['MULAI', 'Tanda kolom', '* selalu wajib. ** wajib kecuali untuk Kepala Daerah. Kolom lain boleh dikosongkan.'],
                     ['AMAN', 'Cara kerja import', 'Unggah hanya membuat preview. Data disimpan dalam satu transaksi setelah tombol Terapkan Import ditekan. Import tidak menghapus jabatan yang tidak dicantumkan.'],
                     ['AMAN', 'Pembaruan data', 'Gabungan Nama Jabatan + Kode OPD + Kode Unit menjadi identitas. Jika identitas sudah ada, data jabatan tersebut diperbarui; jika belum, dibuat baru.'],
                     ['STRUKTUR', 'Urutan baris', 'Susun atasan sebelum bawahannya: Kepala Daerah, Kepala OPD, Sekretaris/Kabid, Kasubbag/Kasi, lalu Fungsional/Pelaksana.'],
                     ['STRUKTUR', 'Kode OPD', 'Salin kode persis dari sheet Referensi OPD & Unit. Kepala Daerah tidak memakai kode OPD maupun unit.'],
                     ['STRUKTUR', 'Kode Unit', 'Isi bila jabatan melekat pada unit. Kepala OPD umumnya tidak memakai kode unit.'],
                     ['STRUKTUR', 'Identitas atasan', 'Nama Jabatan Atasan, Kode OPD Atasan, dan Kode Unit Atasan harus sama persis dengan identitas atasan pada file atau sistem.'],
+                    ['STRUKTUR', 'Fungsional/Pelaksana', 'Nama wajib disalin persis dari sheet Referensi Jabatan Global. Isi Kode Referensi bila tersedia, terutama jika ada nama yang sama. Hanya referensi aktif dan terverifikasi yang dapat diimport.'],
                     ['STRUKTUR', 'Urutan', 'Angka 0–65535. Angka lebih kecil tampil lebih dahulu di bawah atasan yang sama. Kosong dianggap 0.'],
                     ['STRUKTUR', 'Status', 'Pilih Aktif atau Nonaktif. Kosong dianggap Aktif.'],
                     ['VALIDASI', 'Batas data', 'Maksimal 2.000 baris struktur per file. Seluruh baris harus valid sebelum import dapat diterapkan.'],
@@ -140,15 +142,46 @@ class ImportTemplateService
                 'widths' => [18, 52, 22, 52],
                 'tab_color' => 'A5A5A5',
             ],
+            'Referensi Jabatan Global' => [
+                'rows' => $this->globalJobReferenceRows(),
+                'widths' => [26, 52, 24, 24, 16, 18],
+                'tab_color' => '8064A2',
+            ],
         ];
+    }
+
+    private function globalJobReferenceRows(): array
+    {
+        $rows = [['Kode Referensi', 'Nama Jabatan', 'Jenis', 'Jenjang', 'Kelas Jabatan', 'Status']];
+
+        foreach (ReferensiJabatan::query()
+            ->where('status', 'active')
+            ->where('verification_status', 'verified')
+            ->where(fn ($query) => $query->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', now()->toDateString()))
+            ->where(fn ($query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', now()->toDateString()))
+            ->orderBy('jenis_jabatan')
+            ->orderBy('nama')
+            ->orderBy('jenjang')
+            ->get() as $reference) {
+            $rows[] = [
+                $reference->kode,
+                $reference->nama,
+                ReferensiJabatan::jenisLabels()[$reference->jenis_jabatan] ?? $reference->jenis_jabatan,
+                $reference->jenjang,
+                $reference->kelas_jabatan,
+                'Terverifikasi',
+            ];
+        }
+
+        return $rows;
     }
 
     private function pegawaiOpdSheets(?int $opdId = null): array
     {
         return [
             'Pegawai OPD' => [
-                'rows' => [['Nama Pegawai *', 'NIP', 'Jenis Pegawai', 'Status Pegawai', 'Pangkat / Golongan', 'Nama Jabatan *', 'Kode OPD **', 'Kode Unit', 'Jenis Penugasan', 'TMT Jabatan *', 'Tanggal Selesai', 'Nomor SK', 'Tanggal SK', 'Akun Pengguna']],
-                'required_columns' => [0, 5, 6, 9],
+                'rows' => [['Nama Pegawai *', 'NIP **', 'Jenis Pegawai', 'Status Pegawai', 'Pangkat / Golongan', 'Nama Jabatan *', 'Kode OPD **', 'Kode Unit', 'Jenis Penugasan', 'TMT Jabatan *', 'Tanggal Selesai', 'Nomor SK', 'Tanggal SK', 'Akun Pengguna']],
+                'required_columns' => [0, 1, 5, 6, 9],
                 'widths' => [38, 24, 20, 18, 28, 46, 18, 22, 22, 18, 18, 28, 18, 30],
                 'blank_rows' => 1000,
                 'tab_color' => '107C41',
@@ -172,9 +205,9 @@ class ImportTemplateService
                 'rows' => [
                     ['Bagian', 'Kolom / topik', 'Petunjuk'],
                     ['MULAI', 'Urutan kerja', '1) Pastikan Struktur Organisasi sudah tersedia. 2) Isi sheet Pegawai OPD mulai baris 2. 3) Salin identitas jabatan dari sheet Referensi Jabatan. 4) Unggah dan periksa preview. 5) Terapkan setelah semua baris valid.'],
-                    ['MULAI', 'Tanda kolom', '* selalu wajib. ** wajib kecuali untuk pejabat tingkat kabupaten/Kepala Daerah. Kolom tanpa tanda boleh dikosongkan.'],
+                    ['MULAI', 'Tanda kolom', '* selalu wajib. ** wajib bersyarat: NIP wajib untuk PNS/PPPK; Kode OPD wajib kecuali untuk pejabat tingkat kabupaten/Kepala Daerah. Kolom tanpa tanda boleh dikosongkan.'],
                     ['AMAN', 'Cara kerja import', 'Unggah hanya membuat preview. Data disimpan dalam satu transaksi setelah tombol Terapkan Import ditekan. Import tidak menghapus pegawai atau riwayat yang tidak dicantumkan.'],
-                    ['PEGAWAI', 'NIP', 'Sangat disarankan untuk PNS/PPPK. Isi tepat 18 digit. Kolom telah diformat sebagai teks agar angka nol dan seluruh digit tetap utuh. Jangan memakai notasi ilmiah.'],
+                    ['PEGAWAI', 'NIP', 'Wajib untuk PNS/PPPK dan harus tepat 18 digit. Boleh kosong untuk Pejabat Negara/Non-ASN. Kolom telah diformat sebagai teks agar angka nol dan seluruh digit tetap utuh.'],
                     ['PEGAWAI', 'Jenis Pegawai', 'Pilih Pejabat Negara, PNS, PPPK, atau Non-ASN. Kosong dianggap PNS.'],
                     ['PEGAWAI', 'Status Pegawai', 'Pilih Aktif atau Nonaktif. Jika dikosongkan, data baru dianggap Aktif dan status data lama tetap dipertahankan.'],
                     ['PENEMPATAN', 'Identitas jabatan', 'Nama Jabatan + Kode OPD + Kode Unit harus sama persis dengan Referensi Jabatan. Kode Unit boleh kosong bila jabatan tidak terikat unit.'],

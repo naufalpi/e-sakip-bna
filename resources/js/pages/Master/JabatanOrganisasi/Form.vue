@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
+import OrganizationWorkspaceTabs from '@/components/OrganizationWorkspaceTabs.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import ArrowLeft from 'lucide-vue-next/dist/esm/icons/arrow-left.js';
 import BriefcaseBusiness from 'lucide-vue-next/dist/esm/icons/briefcase-business.js';
@@ -10,11 +11,23 @@ import { computed, watch } from 'vue';
 
 type Id = number | '';
 type Option = { id?: number; value?: string; label: string; opd_id?: number | null; level_jabatan?: string; rank?: number };
+type ReferenceOption = {
+    id: number;
+    label: string;
+    nama: string;
+    kode?: string | null;
+    jenis_jabatan: string;
+    jenjang?: string | null;
+    kelas_jabatan?: number | null;
+    verification_status: string;
+    status: string;
+};
 type JabatanForm = {
     opd_id: Id;
     opd_unit_id: Id;
     parent_id: Id;
     nama: string;
+    referensi_jabatan_id: Id;
     level_jabatan: string;
     eselon: string;
     urutan: number | string;
@@ -29,6 +42,7 @@ const props = defineProps<{
     parentOptions: Option[];
     levelOptions: Option[];
     eselonOptions: Option[];
+    referenceOptions: ReferenceOption[];
     scopeLocked: boolean;
     isOpdProposal: boolean;
 }>();
@@ -38,6 +52,7 @@ const form = useForm<JabatanForm>({
     opd_unit_id: props.item?.opd_unit_id ?? '',
     parent_id: props.item?.parent_id ?? '',
     nama: props.item?.nama ?? '',
+    referensi_jabatan_id: props.item?.referensi_jabatan_id ?? '',
     level_jabatan: props.item?.level_jabatan ?? 'jpt_pratama',
     eselon: props.item?.eselon ?? '',
     urutan: props.item?.urutan ?? 0,
@@ -53,6 +68,9 @@ const allowedParentLevels: Record<string, string[]> = {
 };
 
 const isKepalaDaerah = computed(() => form.level_jabatan === 'kepala_daerah');
+const isReferenceBased = computed(() => ['fungsional', 'pelaksana'].includes(form.level_jabatan));
+const filteredReferences = computed(() => props.referenceOptions.filter((option) => option.jenis_jabatan === form.level_jabatan));
+const selectedReference = computed(() => props.referenceOptions.find((option) => Number(option.id) === Number(form.referensi_jabatan_id)) ?? null);
 const filteredUnits = computed(() => props.unitOptions.filter((option) => Number(option.opd_id) === Number(form.opd_id)));
 const filteredParents = computed(() =>
     props.parentOptions.filter((option) => {
@@ -71,6 +89,18 @@ watch(
             form.parent_id = '';
             form.eselon = '';
         }
+        if (!['fungsional', 'pelaksana'].includes(level)) {
+            form.referensi_jabatan_id = '';
+        } else if (form.referensi_jabatan_id && !filteredReferences.value.some((option) => Number(option.id) === Number(form.referensi_jabatan_id))) {
+            form.referensi_jabatan_id = '';
+        }
+    },
+);
+
+watch(
+    () => form.referensi_jabatan_id,
+    () => {
+        if (selectedReference.value) form.nama = selectedReference.value.nama;
     },
 );
 
@@ -102,6 +132,7 @@ const submit = () => {
     <Head :title="mode === 'create' ? 'Tambah Jabatan Organisasi' : 'Edit Jabatan Organisasi'" />
 
     <form class="mx-auto flex w-full max-w-5xl flex-col gap-5 p-4 md:p-6" @submit.prevent="submit">
+        <OrganizationWorkspaceTabs active="positions" />
         <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="flex items-start gap-3">
                 <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-800 text-white shadow-sm dark:bg-blue-600">
@@ -125,10 +156,10 @@ const submit = () => {
             class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100"
         >
             <Info class="mt-0.5 size-4 shrink-0" />
-            <p>
-                Jabatan baru disimpan sebagai <strong>usulan OPD</strong>. Jabatan dapat dipakai untuk penempatan pegawai, lalu akan menjadi bagian
-                struktur resmi setelah diverifikasi Admin Kabupaten.
+            <p v-if="isReferenceBased">
+                Jabatan fungsional dan pelaksana dapat langsung ditempatkan dari referensi global yang sudah diverifikasi. Pilih unit kerja dan atasan jabatan langsungnya.
             </p>
+            <p v-else>Perubahan jabatan struktural disimpan sebagai <strong>usulan OPD</strong> dan baru menjadi struktur resmi setelah diverifikasi Admin Kabupaten.</p>
         </div>
 
         <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_290px]">
@@ -149,7 +180,7 @@ const submit = () => {
                         </select>
                         <InputError :message="form.errors.level_jabatan" />
                     </div>
-                    <div class="grid gap-2 md:col-span-2">
+                    <div v-if="!isReferenceBased" class="grid gap-2 md:col-span-2">
                         <label for="nama" class="text-sm font-medium">Nama jabatan <span class="text-red-600">*</span></label>
                         <input
                             id="nama"
@@ -158,6 +189,26 @@ const submit = () => {
                             placeholder="Contoh: Kepala Dinas Komunikasi dan Informatika"
                         />
                         <InputError :message="form.errors.nama" />
+                    </div>
+                    <div v-else class="grid gap-2 md:col-span-2">
+                        <label for="referensi_jabatan_id" class="text-sm font-medium">Referensi jabatan <span class="text-red-600">*</span></label>
+                        <select
+                            id="referensi_jabatan_id"
+                            v-model="form.referensi_jabatan_id"
+                            class="h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15"
+                        >
+                            <option value="">Pilih jabatan terverifikasi</option>
+                            <option v-for="option in filteredReferences" :key="option.id" :value="option.id">{{ option.label }}</option>
+                        </select>
+                        <InputError :message="form.errors.referensi_jabatan_id" />
+                        <p v-if="filteredReferences.length === 0" class="text-xs text-amber-700 dark:text-amber-300">
+                            Belum ada referensi {{ form.level_jabatan }} aktif yang terverifikasi. Hubungi Admin Kabupaten Bagian Organisasi.
+                        </p>
+                        <div v-else-if="selectedReference" class="flex flex-wrap gap-x-5 gap-y-1 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                            <span>Kode: <strong class="text-foreground">{{ selectedReference.kode || '-' }}</strong></span>
+                            <span>Jenjang: <strong class="text-foreground">{{ selectedReference.jenjang || '-' }}</strong></span>
+                            <span>Kelas: <strong class="text-foreground">{{ selectedReference.kelas_jabatan || '-' }}</strong></span>
+                        </div>
                     </div>
 
                     <template v-if="!isKepalaDaerah">
@@ -186,8 +237,9 @@ const submit = () => {
                                 <option v-for="option in filteredUnits" :key="option.id" :value="option.id">{{ option.label }}</option>
                             </select>
                             <InputError :message="form.errors.opd_unit_id" />
+                            <p class="text-xs text-muted-foreground">Disarankan diisi untuk memperjelas lokasi jabatan dan cakupan kerja pegawai.</p>
                         </div>
-                        <div class="grid gap-2">
+                        <div v-if="!isReferenceBased" class="grid gap-2">
                             <label for="eselon" class="text-sm font-medium"
                                 >Eselon <span class="font-normal text-muted-foreground">(metadata lama)</span></label
                             >
@@ -201,8 +253,12 @@ const submit = () => {
                             </select>
                             <InputError :message="form.errors.eselon" />
                         </div>
+                        <div v-else class="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
+                            <Info class="mt-0.5 size-3.5 shrink-0" />
+                            <span>Satu posisi fungsional atau pelaksana dapat memiliki lebih dari satu pegawai sesuai kebutuhan OPD.</span>
+                        </div>
                         <div class="grid gap-2 md:col-span-2">
-                            <label for="parent_id" class="text-sm font-medium">Atasan langsung <span class="text-red-600">*</span></label>
+                            <label for="parent_id" class="text-sm font-medium">Atasan jabatan langsung <span class="text-red-600">*</span></label>
                             <select
                                 id="parent_id"
                                 v-model="form.parent_id"

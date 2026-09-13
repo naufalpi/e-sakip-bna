@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
+import OrganizationWorkspaceTabs from '@/components/OrganizationWorkspaceTabs.vue';
 import { confirmAction, confirmDelete, promptTextArea } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import ArrowLeft from 'lucide-vue-next/dist/esm/icons/arrow-left.js';
@@ -48,6 +49,7 @@ type Item = {
     opd?: { nama: string; singkatan?: string | null } | null;
     opd_unit?: { kode: string; nama: string } | null;
     parent?: { id: number; nama: string } | null;
+    referensi_jabatan?: { kode?: string | null; nama: string; jenjang?: string | null; kelas_jabatan?: number | null } | null;
     current_pejabat?: Pejabat | null;
     children: Array<{ id: number; nama: string; level_label: string; status: string }>;
     riwayat_pejabat: Pejabat[];
@@ -206,6 +208,7 @@ const reject = async () => {
     <Head :title="item.nama" />
 
     <div class="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-6">
+        <OrganizationWorkspaceTabs active="positions" />
         <div class="flex flex-wrap items-center justify-between gap-3">
             <Link
                 :href="route('master.jabatan-organisasi.index')"
@@ -297,6 +300,8 @@ const reject = async () => {
                         <h1 class="mt-2 text-2xl font-semibold leading-tight tracking-tight md:text-3xl">{{ item.nama }}</h1>
                         <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                             <span v-if="item.eselon">{{ item.eselon.replace('_', '.').toUpperCase() }}</span
+                            ><span v-if="item.referensi_jabatan">Referensi {{ item.referensi_jabatan.kode || item.referensi_jabatan.nama }}</span
+                            ><span v-if="item.referensi_jabatan?.jenjang">Jenjang {{ item.referensi_jabatan.jenjang }}</span
                             ><span>Urutan {{ item.urutan }}</span>
                         </div>
                     </div>

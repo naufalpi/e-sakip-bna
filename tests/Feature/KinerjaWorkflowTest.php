@@ -151,11 +151,59 @@ class KinerjaWorkflowTest extends TestCase
             'jenis_penugasan' => 'definitif',
             'tanggal_mulai' => now()->subYear()->toDateString(),
         ]);
+        $unrelatedJob = JabatanOrganisasi::create([
+            'opd_id' => $otherOpd->id,
+            'nama' => 'Kepala Bidang OPD Lain',
+            'level_jabatan' => 'administrator',
+            'status' => 'active',
+        ]);
+        $unrelatedEmployee = $this->pegawai($otherOpd, 'Pegawai OPD Lain');
+        $unrelatedEmployee->penempatan()->create([
+            'jabatan_organisasi_id' => $unrelatedJob->id,
+            'nama_pejabat' => $unrelatedEmployee->nama,
+            'jenis_penugasan' => 'definitif',
+            'tanggal_mulai' => now()->subYear()->toDateString(),
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->get(route('perjanjian-kinerja.create'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Kinerja/PerjanjianKinerja/Form')
+                ->has('renstraOptions', 0)
+                ->has('dpaOptions', 0)
+                ->has('pegawaiOptions', 0)
+                ->has('placementOptions', 0));
+
+        $this->actingAs($adminOpd)
+            ->getJson(route('perjanjian-kinerja.form-options', [
+                'level_pk' => 'struktural',
+                'tipe_pk' => 'cascading',
+                'opd_id' => $opd->id,
+                'tahun' => $periode->tahun,
+            ]))
+            ->assertOk()
+            ->assertJsonFragment(['id' => $owner->id, 'label' => $owner->nama])
+            ->assertJsonFragment(['id' => $ownerPlacement->id, 'nama_jabatan' => $childJob->nama])
+            ->assertJsonMissing(['id' => $unrelatedEmployee->id, 'label' => $unrelatedEmployee->nama]);
+
+        $this->actingAs($adminOpd)
+            ->getJson(route('perjanjian-kinerja.form-options', [
+                'level_pk' => 'struktural',
+                'tipe_pk' => 'cascading',
+                'opd_id' => $otherOpd->id,
+                'tahun' => $periode->tahun,
+            ]))
+            ->assertForbidden();
 
         $controller = app(PerjanjianKinerjaController::class);
         $subjectOptions = new \ReflectionMethod($controller, 'subjectOptions');
-        $options = $subjectOptions->invoke($controller, $adminOpd);
+        $options = $subjectOptions->invoke($controller, $adminOpd, null, $opd->id, $periode->tahun, 'struktural');
         $this->assertContains($owner->id, collect($options['pegawaiOptions'])->pluck('id')->all());
+        $ownerPlacementOption = collect($options['placementOptions'])->firstWhere('id', $ownerPlacement->id);
+        $this->assertSame($childJob->nama, $ownerPlacementOption['nama_jabatan']);
+        $this->assertSame($childJob->nama, $ownerPlacementOption['label']);
+        $this->assertStringNotContainsString('TMT', $ownerPlacementOption['label']);
 
         $prepare = new \ReflectionMethod($controller, 'prepareSubjectData');
         $data = $prepare->invoke($controller, [
@@ -216,8 +264,20 @@ class KinerjaWorkflowTest extends TestCase
                 ->component('Kinerja/PerjanjianKinerja/Form')
                 ->where('item.pegawai_id', $owner->id)
                 ->where('item.atasan_pegawai_id', $supervisor->id)
-                ->where('pegawaiOptions.0.id', $owner->id)
-                ->where('pegawaiOptions.1.id', $supervisor->id));
+                ->has('pegawaiOptions', 0)
+                ->has('placementOptions', 0));
+
+        $this->actingAs($adminOpd)
+            ->getJson(route('perjanjian-kinerja.form-options', [
+                'level_pk' => 'individu',
+                'tipe_pk' => 'individual',
+                'opd_id' => $opd->id,
+                'tahun' => $periode->tahun,
+                'perjanjian_kinerja_id' => $pk->id,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('pegawaiOptions.0.id', $owner->id)
+            ->assertJsonPath('pegawaiOptions.1.id', $supervisor->id);
     }
 
     public function test_admin_opd_can_manage_only_own_perjanjian_kinerja(): void
@@ -293,15 +353,35 @@ class KinerjaWorkflowTest extends TestCase
         $this->seed();
 
         [$opd, , $periode, $adminOpd] = $this->basicActors();
+        [$pegawai, $atasan, $penempatan] = $this->individualPkSubject($opd, $periode->tahun, 'Workflow');
         $reviewer = User::factory()->create();
         $reviewer->roles()->sync([Role::where('name', 'admin_kabupaten_bagian_organisasi')->value('id')]);
 
         $pk = PerjanjianKinerja::create([
             'opd_id' => $opd->id,
+            'pegawai_id' => $pegawai->id,
+            'penempatan_pegawai_id' => $penempatan->id,
+            'atasan_pegawai_id' => $atasan->id,
             'periode_tahun_id' => $periode->id,
             'tahun' => $periode->tahun,
             'judul' => 'PK Workflow',
+            'tipe_pk' => 'individual',
+            'level_pk' => 'individu',
+            'sumber_data' => 'manual',
+            'nama_pegawai_snapshot' => $pegawai->nama,
+            'jabatan_snapshot' => $penempatan->jabatanOrganisasi->nama,
+            'unit_kerja_snapshot' => 'Bidang Workflow',
+            'nama_atasan_snapshot' => $atasan->nama,
+            'jabatan_atasan_snapshot' => $penempatan->jabatanOrganisasi->parent->nama,
             'status' => 'draft',
+        ]);
+        $pk->items()->create([
+            'sumber_item' => 'manual',
+            'jenis_item' => 'manual',
+            'sasaran' => 'Terlaksananya workflow PK',
+            'indikator' => 'Persentase workflow PK',
+            'target_text' => '100 Persen',
+            'urutan' => 1,
         ]);
 
         $this->actingAs($adminOpd)
@@ -1229,19 +1309,23 @@ class KinerjaWorkflowTest extends TestCase
         $this->seed();
 
         [$opd, , $periode, $adminOpd] = $this->basicActors();
+        [$pegawai, $atasan, $penempatan] = $this->individualPkSubject($opd, $periode->tahun, 'Kelengkapan');
         $pk = PerjanjianKinerja::create([
             'opd_id' => $opd->id,
+            'pegawai_id' => $pegawai->id,
+            'penempatan_pegawai_id' => $penempatan->id,
+            'atasan_pegawai_id' => $atasan->id,
             'periode_tahun_id' => $periode->id,
             'tahun' => $periode->tahun,
             'judul' => 'PK Manual Belum Lengkap',
             'tipe_pk' => 'individual',
             'level_pk' => 'individu',
             'sumber_data' => 'manual',
-            'nama_pegawai_snapshot' => 'Pemilik PK Manual',
-            'jabatan_snapshot' => 'Analis Kebijakan',
+            'nama_pegawai_snapshot' => $pegawai->nama,
+            'jabatan_snapshot' => $penempatan->jabatanOrganisasi->nama,
             'unit_kerja_snapshot' => 'Bidang Pengujian',
-            'nama_atasan_snapshot' => 'Atasan PK Manual',
-            'jabatan_atasan_snapshot' => 'Kepala Bidang Pengujian',
+            'nama_atasan_snapshot' => $atasan->nama,
+            'jabatan_atasan_snapshot' => $penempatan->jabatanOrganisasi->parent->nama,
             'status' => 'draft',
         ]);
 
@@ -1258,7 +1342,94 @@ class KinerjaWorkflowTest extends TestCase
             'target_text' => '12 Dokumen',
             'urutan' => 1,
         ]);
+        $programItem = $pk->items()->create([
+            'sumber_item' => 'snapshot',
+            'jenis_item' => 'program_opd',
+            'sasaran' => 'Meningkatnya kualitas program',
+            'indikator' => 'Persentase capaian program',
+            'urutan' => 2,
+        ]);
 
+        $this->actingAs($adminOpd)
+            ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), ['action' => 'submit'])
+            ->assertSessionHasErrors('action');
+        $this->assertSame('draft', $pk->fresh()->status);
+
+        $programItem->update(['target_text' => '100 Persen']);
+
+        $this->actingAs($adminOpd)
+            ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), ['action' => 'submit'])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+        $this->assertSame('submitted', $pk->fresh()->status);
+    }
+
+    public function test_pk_cannot_be_submitted_until_both_signatory_jobs_are_verified(): void
+    {
+        $this->seed();
+
+        [$opd, , $periode, $adminOpd] = $this->basicActors();
+        [$pegawai, $atasan, $penempatan] = $this->individualPkSubject($opd, $periode->tahun, 'Verifikasi Jabatan');
+        $ownerJob = $penempatan->jabatanOrganisasi;
+        $supervisorJob = $ownerJob->parent;
+        $ownerJob->update(['verification_status' => 'pending']);
+
+        $this->actingAs($adminOpd)
+            ->getJson(route('perjanjian-kinerja.form-options', [
+                'level_pk' => 'individu',
+                'tipe_pk' => 'individual',
+                'opd_id' => $opd->id,
+                'tahun' => $periode->tahun,
+            ]))
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $penempatan->id,
+                'label' => $ownerJob->nama.' · Menunggu verifikasi',
+                'verification_status' => 'pending',
+            ]);
+
+        $payload = [
+            'opd_id' => $opd->id,
+            'pegawai_id' => $pegawai->id,
+            'penempatan_pegawai_id' => $penempatan->id,
+            'atasan_pegawai_id' => $atasan->id,
+            'tipe_pk' => 'individual',
+            'level_pk' => 'individu',
+            'periode_tahun_id' => $periode->id,
+            'tahun' => $periode->tahun,
+            'judul' => 'PK Verifikasi Jabatan',
+            'unit_kerja_snapshot' => 'Bidang Verifikasi Jabatan',
+            'status' => 'draft',
+        ];
+
+        $this->actingAs($adminOpd)
+            ->post(route('perjanjian-kinerja.store'), $payload)
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $pk = PerjanjianKinerja::query()->where('pegawai_id', $pegawai->id)->firstOrFail();
+        $pk->items()->create([
+            'sumber_item' => 'manual',
+            'jenis_item' => 'manual',
+            'sasaran' => 'Terlaksananya validasi jabatan',
+            'indikator' => 'Persentase validasi jabatan',
+            'target_text' => '100 Persen',
+            'urutan' => 1,
+        ]);
+
+        $this->actingAs($adminOpd)
+            ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), ['action' => 'submit'])
+            ->assertSessionHasErrors('action');
+        $this->assertSame('draft', $pk->fresh()->status);
+
+        $ownerJob->update(['verification_status' => 'verified']);
+        $supervisorJob->update(['verification_status' => 'pending']);
+        $this->actingAs($adminOpd)
+            ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), ['action' => 'submit'])
+            ->assertSessionHasErrors('action');
+        $this->assertSame('draft', $pk->fresh()->status);
+
+        $supervisorJob->update(['verification_status' => 'verified']);
         $this->actingAs($adminOpd)
             ->post(route('workflow.transition', ['module' => 'perjanjian_kinerja', 'id' => $pk->id]), ['action' => 'submit'])
             ->assertRedirect()

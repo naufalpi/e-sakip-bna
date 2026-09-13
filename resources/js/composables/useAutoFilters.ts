@@ -1,7 +1,8 @@
-import { onBeforeUnmount, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 export function useAutoFilters<T extends object>(filters: T, submit: () => void, delay = 400) {
     const isFiltering = ref(false);
+    let isSyncing = false;
     let timer: ReturnType<typeof window.setTimeout> | null = null;
     let filteringTimer: ReturnType<typeof window.setTimeout> | null = null;
 
@@ -31,9 +32,23 @@ export function useAutoFilters<T extends object>(filters: T, submit: () => void,
         submit();
     };
 
+    const syncFilters = (values: Partial<T>) => {
+        cancelPendingSubmit();
+        isSyncing = true;
+        Object.assign(filters, values);
+
+        void nextTick(() => {
+            isSyncing = false;
+        });
+    };
+
     watch(
         () => ({ ...filters }),
         () => {
+            if (isSyncing) {
+                return;
+            }
+
             cancelPendingSubmit();
             timer = window.setTimeout(() => {
                 markFiltering();
@@ -51,5 +66,5 @@ export function useAutoFilters<T extends object>(filters: T, submit: () => void,
         }
     });
 
-    return { applyFiltersNow, cancelPendingSubmit, isFiltering };
+    return { applyFiltersNow, cancelPendingSubmit, isFiltering, syncFilters };
 }

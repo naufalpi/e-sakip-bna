@@ -172,8 +172,6 @@ const checklistRows = computed<ChecklistRow[]>(() =>
                 <Link
                     :href="route('dokumen.index')"
                     class="inline-flex h-9 items-center justify-center gap-2 rounded-md border bg-background px-3 text-sm font-medium hover:bg-muted"
-                    prefetch="hover"
-                    cache-for="2m"
                 >
                     Arsip Dokumen
                     <ArrowRight class="size-4" />
@@ -181,7 +179,6 @@ const checklistRows = computed<ChecklistRow[]>(() =>
                 <Link
                     :href="publicUrl"
                     class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800"
-                    prefetch="hover"
                 >
                     Lihat Publik
                     <Eye class="size-4" />

@@ -286,7 +286,7 @@ class MasterUmumTest extends TestCase
                 'nip_pimpinan' => '198001012010011001',
                 'status' => 'active',
             ])
-            ->assertRedirect(route('master.opd.index'));
+            ->assertRedirect(route('master.opd-units.index'));
 
         $this->assertDatabaseHas('opd_units', [
             'opd_id' => $opd->id,
@@ -1122,12 +1122,17 @@ class MasterUmumTest extends TestCase
                 ->has('opds.data.0.units', 1)
                 ->where('opds.data.0.units.0.kode', 'OWN')
                 ->where('totalUnits', 1)
-                ->where('can.manageUnits', true)
+                ->where('can.manageUnits', false)
             );
 
         $this->actingAs($adminOpd)
             ->get(route('master.opd-units.index'))
-            ->assertRedirect(route('master.opd.index'));
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Master/OpdUnit/Index')
+                ->has('items.data', 1)
+                ->where('items.data.0.id', $ownUnit->id)
+                ->where('can.manage', true));
 
         $this->actingAs($adminOpd)
             ->post(route('master.opd-units.store'), [
@@ -1136,7 +1141,7 @@ class MasterUmumTest extends TestCase
                 'nama' => 'Unit Baru',
                 'status' => 'active',
             ])
-            ->assertRedirect(route('master.opd.index'));
+            ->assertRedirect(route('master.opd-units.index'));
 
         $this->assertDatabaseHas('opd_units', [
             'opd_id' => $opd->id,
@@ -1155,7 +1160,11 @@ class MasterUmumTest extends TestCase
 
         $this->actingAs($adminOpd)
             ->get(route('master.opd-units.edit', $ownUnit))
-            ->assertRedirect(route('master.opd.index'));
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Master/OpdUnit/Form')
+                ->where('mode', 'edit')
+                ->where('item.id', $ownUnit->id));
 
         $this->actingAs($adminOpd)
             ->put(route('master.opd-units.update', $ownUnit), [
@@ -1164,7 +1173,7 @@ class MasterUmumTest extends TestCase
                 'nama' => 'Unit Sendiri Revisi',
                 'status' => 'active',
             ])
-            ->assertRedirect(route('master.opd.index'));
+            ->assertRedirect(route('master.opd-units.index'));
 
         $this->assertDatabaseHas('opd_units', [
             'id' => $ownUnit->id,

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ImportBatch;
 use App\Models\JabatanOrganisasi;
 use App\Models\Opd;
+use App\Models\ReferensiJabatan;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Imports\ImportTemplateService;
@@ -120,6 +121,47 @@ class JabatanOrganisasiImportTest extends TestCase
             ->assertSessionHasErrors('import_batch_id');
 
         $this->assertDatabaseMissing('jabatan_organisasi', ['nama' => 'Bupati Banjarnegara']);
+    }
+
+    public function test_structure_import_links_functional_position_to_verified_global_reference(): void
+    {
+        $this->seed();
+        $admin = $this->userWithRole('admin_kabupaten_bagian_organisasi');
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $reference = ReferensiJabatan::create([
+            'identity_key' => ReferensiJabatan::makeIdentityKey('fungsional', 'Pranata Komputer', 'Ahli Pertama'),
+            'kode' => 'JF-PRAKOM-AP',
+            'nama' => 'Pranata Komputer',
+            'jenis_jabatan' => 'fungsional',
+            'jenjang' => 'Ahli Pertama',
+            'verification_status' => 'verified',
+            'status' => 'active',
+        ]);
+        $jobs = [
+            ['nama_jabatan', 'kode_referensi_jabatan', 'level_jabatan', 'opd_kode', 'unit_kode', 'atasan_nama_jabatan', 'atasan_opd_kode', 'atasan_unit_kode', 'eselon', 'urutan', 'status'],
+            ['Bupati Banjarnegara', null, 'kepala_daerah', null, null, null, null, null, null, 1, 'active'],
+            ['Kepala OPD Import', null, 'jpt_pratama', $opd->kode, null, 'Bupati Banjarnegara', null, null, 'ii_b', 1, 'active'],
+            ['Pranata Komputer', $reference->kode, 'fungsional', $opd->kode, null, 'Kepala OPD Import', $opd->kode, null, null, 2, 'active'],
+        ];
+        $officials = [['nama_jabatan', 'opd_kode', 'unit_kode', 'nama_pejabat', 'nip', 'pangkat_golongan', 'jenis_penugasan', 'nomor_sk', 'tanggal_sk', 'tanggal_mulai', 'tanggal_selesai', 'akun_pengguna']];
+
+        $this->actingAs($admin)
+            ->post(route('master.jabatan-organisasi.import.store'), ['file' => $this->workbook($jobs, $officials)])
+            ->assertRedirect();
+
+        $batch = ImportBatch::query()->where('module', 'jabatan_organisasi')->latest()->firstOrFail();
+        $this->assertSame(3, $batch->rows()->where('status', 'valid')->count(), $batch->rows()->pluck('error_message')->filter()->implode(' | '));
+
+        $this->actingAs($admin)
+            ->post(route('master.jabatan-organisasi.import.apply', $batch))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('jabatan_organisasi', [
+            'opd_id' => $opd->id,
+            'nama' => 'Pranata Komputer',
+            'referensi_jabatan_id' => $reference->id,
+            'level_jabatan' => 'fungsional',
+        ]);
     }
 
     public function test_admin_opd_cannot_access_jabatan_import(): void

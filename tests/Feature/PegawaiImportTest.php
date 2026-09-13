@@ -10,8 +10,13 @@ use App\Models\RiwayatPejabatJabatan;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Imports\ImportTemplateService;
+use App\Services\Master\JabatanOrganisasiImportApplyService;
+use App\Services\Master\JabatanOrganisasiImportPreviewService;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -49,6 +54,7 @@ class PegawaiImportTest extends TestCase
         @unlink($path);
 
         $this->assertStringContainsString('Nama Pegawai *', $employeeSheet);
+        $this->assertStringContainsString('NIP **', $employeeSheet);
         $this->assertStringContainsString('dataValidations', $employeeSheet);
         $this->assertStringContainsString($job->nama, $jobReferences);
         $this->assertStringContainsString($opd->nama, $opdReferences);
@@ -67,6 +73,7 @@ class PegawaiImportTest extends TestCase
         $this->assertSame('previewed', $batch->status, $batch->error_message ?? '');
         $this->assertSame($opd->id, (int) data_get($batch->metadata, 'scope_opd_id'));
         $this->assertSame(1, $batch->rows()->where('status', 'valid')->count(), $batch->rows()->pluck('error_message')->filter()->implode(' | '));
+        $staleBatch = clone $batch;
 
         $this->actingAs($admin)
             ->post(route('master.pegawai.import.apply', $batch))
@@ -82,6 +89,13 @@ class PegawaiImportTest extends TestCase
             'jabatan_organisasi_id' => $job->id,
             'nip' => '200010042025041005',
         ]);
+
+        try {
+            app(JabatanOrganisasiImportApplyService::class)->apply($staleBatch, $admin, $opd->id);
+            $this->fail('Batch yang sudah diterapkan tidak boleh diproses kembali dari instance yang stale.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('sudah diproses', $exception->errors()['import_batch_id'][0]);
+        }
     }
 
     public function test_admin_opd_cannot_import_employee_from_another_opd(): void
@@ -135,6 +149,116 @@ class PegawaiImportTest extends TestCase
         $batch = ImportBatch::query()->where('module', 'pegawai')->latest()->firstOrFail();
         $this->assertSame(1, $batch->rows()->where('status', 'invalid')->count());
         $this->assertStringContainsString('notasi ilmiah', $batch->rows()->firstOrFail()->error_message);
+    }
+
+    public function test_employee_preview_requires_nip_for_pns_and_pppk_but_not_for_non_asn(): void
+    {
+        $this->seed();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $admin = $this->adminOpd($opd);
+        $job = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Pengelola Layanan Import',
+            'level_jabatan' => 'pelaksana',
+            'status' => 'active',
+            'verification_status' => 'verified',
+        ]);
+        $file = $this->employeeWorkbook($opd, [
+            $this->headers(),
+            ['PNS Tanpa NIP', null, 'PNS', 'Aktif', null, $job->nama, $opd->kode, null, 'Definitif', '2026-01-03', null, null, null, null],
+            ['PPPK Tanpa NIP', null, 'PPPK', 'Aktif', null, $job->nama, $opd->kode, null, 'Definitif', '2026-01-03', null, null, null, null],
+            ['Non ASN Tanpa NIP', null, 'Non-ASN', 'Aktif', null, $job->nama, $opd->kode, null, 'Definitif', '2026-01-03', null, null, null, null],
+        ]);
+
+        $this->actingAs($admin)->post(route('master.pegawai.import.store'), ['file' => $file])->assertRedirect();
+
+        $batch = ImportBatch::query()->where('module', 'pegawai')->latest()->firstOrFail();
+        $this->assertSame(2, $batch->rows()->where('status', 'invalid')->count());
+        $this->assertSame(1, $batch->rows()->where('status', 'valid')->count());
+        $this->assertStringContainsString('NIP wajib diisi', $batch->rows()->where('status', 'invalid')->firstOrFail()->error_message);
+    }
+
+    public function test_admin_opd_cannot_move_employee_from_another_opd_through_import(): void
+    {
+        $this->seed();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $otherOpd = Opd::query()->where('status', 'active')->whereKeyNot($opd->id)->firstOrFail();
+        $admin = $this->adminOpd($opd);
+        $job = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Analis Mutasi Import',
+            'level_jabatan' => 'fungsional',
+            'status' => 'active',
+            'verification_status' => 'verified',
+        ]);
+        Pegawai::create([
+            'opd_id' => $otherOpd->id,
+            'nama' => 'Pegawai OPD Lain',
+            'nip' => '198001012010011001',
+            'jenis_pegawai' => 'pns',
+            'status' => 'active',
+        ]);
+        $file = $this->employeeWorkbook($opd, [
+            $this->headers(),
+            ['Pegawai OPD Lain', '198001012010011001', 'PNS', 'Aktif', null, $job->nama, $opd->kode, null, 'Definitif', '2026-01-03', null, null, null, null],
+        ]);
+
+        $this->actingAs($admin)->post(route('master.pegawai.import.store'), ['file' => $file])->assertRedirect();
+
+        $batch = ImportBatch::query()->where('module', 'pegawai')->latest()->firstOrFail();
+        $this->assertSame(1, $batch->rows()->where('status', 'invalid')->count());
+        $this->assertStringContainsString('perangkat daerah lain', $batch->rows()->firstOrFail()->error_message);
+        $this->assertDatabaseHas('pegawai', ['nip' => '198001012010011001', 'opd_id' => $otherOpd->id]);
+    }
+
+    public function test_employee_preview_uses_bounded_reference_queries_for_many_rows(): void
+    {
+        $this->seed();
+        $opd = Opd::query()->where('status', 'active')->firstOrFail();
+        $admin = $this->adminOpd($opd);
+        $job = JabatanOrganisasi::create([
+            'opd_id' => $opd->id,
+            'nama' => 'Pranata Komputer Import Massal',
+            'level_jabatan' => 'fungsional',
+            'status' => 'active',
+            'verification_status' => 'verified',
+        ]);
+        $rows = [$this->headers()];
+        for ($index = 1; $index <= 25; $index++) {
+            $rows[] = [
+                "Pegawai Import {$index}",
+                sprintf('19900101%010d', $index),
+                'PNS',
+                'Aktif',
+                null,
+                $job->nama,
+                $opd->kode,
+                null,
+                'Definitif',
+                '2026-01-03',
+                null,
+                null,
+                null,
+                null,
+            ];
+        }
+        $file = $this->employeeWorkbook($opd, $rows);
+        $selectQueries = 0;
+        DB::listen(function (QueryExecuted $query) use (&$selectQueries): void {
+            if (str_starts_with(mb_strtolower(ltrim($query->sql)), 'select')) {
+                $selectQueries++;
+            }
+        });
+
+        $batch = app(JabatanOrganisasiImportPreviewService::class)->storePreview(
+            $file,
+            $admin,
+            JabatanOrganisasiImportPreviewService::MODE_EMPLOYEE,
+            $opd->id,
+        );
+
+        $this->assertSame(25, $batch->rows->where('status', 'valid')->count(), $batch->rows->pluck('error_message')->filter()->implode(' | '));
+        $this->assertLessThanOrEqual(20, $selectQueries, "Preview menjalankan {$selectQueries} query SELECT untuk 25 baris.");
     }
 
     public function test_employee_update_preserves_optional_identity_fields_when_cells_are_blank(): void

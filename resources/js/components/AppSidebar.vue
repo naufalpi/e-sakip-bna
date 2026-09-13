@@ -7,7 +7,6 @@ import SidebarHeader from '@/components/ui/sidebar/SidebarHeader.vue';
 import SidebarMenu from '@/components/ui/sidebar/SidebarMenu.vue';
 import SidebarMenuButton from '@/components/ui/sidebar/SidebarMenuButton.vue';
 import SidebarMenuItem from '@/components/ui/sidebar/SidebarMenuItem.vue';
-import { useNavigationPrefetch } from '@/composables/useNavigationPrefetch';
 import { usePageComponentPreload } from '@/composables/usePageComponentPreload';
 import { type NavGroup, type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
@@ -46,9 +45,7 @@ const hasRole = (role: string) => page.props.auth.user?.roles?.some((item) => it
 const visibleItems = (items: Array<NavItem | false>) => items.filter(Boolean) as NavItem[];
 const notificationUnreadCount = computed(() => page.props.notifications?.unread_count ?? 0);
 const notificationBadge = computed(() => (notificationUnreadCount.value > 99 ? '99+' : notificationUnreadCount.value || undefined));
-const canAccessRolePermission = computed(
-    () => hasAnyPermission(['roles.view', 'roles.manage', 'manage_roles']),
-);
+const canAccessRolePermission = computed(() => hasAnyPermission(['roles.view', 'roles.manage', 'manage_roles']));
 
 const navigationGroups = computed<NavGroup[]>(() =>
     [
@@ -106,20 +103,6 @@ const navigationGroups = computed<NavGroup[]>(() =>
                     href: '/master/kop-dokumen',
                     pageComponent: 'Master/KopDokumen/Index',
                     icon: FileBadge2,
-                },
-                hasPermission('jabatan_organisasi.view') &&
-                    !hasRole('admin_opd') && {
-                        title: 'Struktur Organisasi',
-                        href: '/master/jabatan-organisasi',
-                        pageComponent: 'Master/JabatanOrganisasi/Index',
-                        icon: BriefcaseBusiness,
-                    },
-                hasPermission('pegawai.view') && {
-                    title: hasRole('admin_opd') ? 'Jabatan & Pegawai' : 'Pegawai OPD',
-                    href: '/master/pegawai',
-                    pageComponent: 'Master/Pegawai/Index',
-                    activePrefixes: hasRole('admin_opd') ? ['/master/pegawai', '/master/jabatan-organisasi'] : undefined,
-                    icon: Users,
                 },
                 hasPermission('periode.view') && {
                     title: 'Periode Tahun',
@@ -269,6 +252,13 @@ const navigationGroups = computed<NavGroup[]>(() =>
         {
             label: 'Administrasi Sistem',
             items: visibleItems([
+                hasAnyPermission(['opd.view', 'jabatan_organisasi.view', 'pegawai.view']) && {
+                    title: 'Struktur Organisasi',
+                    href: '/master/opd-units',
+                    pageComponent: 'Master/OpdUnit/Index',
+                    activePrefixes: ['/master/opd-units', '/master/jabatan-organisasi', '/master/pegawai', '/master/referensi-jabatan'],
+                    icon: BriefcaseBusiness,
+                },
                 hasPermission('users.view') && {
                     title: 'Master User',
                     href: '/master/users',
@@ -304,14 +294,7 @@ const navigationGroups = computed<NavGroup[]>(() =>
     ].filter((group) => group.items.length > 0),
 );
 
-const navigationHrefs = computed(() => navigationGroups.value.flatMap((group) => group.items.map((item) => item.href)));
 const navigationPageComponents = computed(() => navigationGroups.value.flatMap((group) => group.items.map((item) => item.pageComponent)));
-useNavigationPrefetch(navigationHrefs, {
-    cacheFor: '5m',
-    initialDelayMs: 180,
-    staggerMs: 70,
-    freshMs: 270_000,
-});
 usePageComponentPreload(navigationPageComponents, {
     initialDelayMs: 80,
     staggerMs: 45,
@@ -324,7 +307,7 @@ usePageComponentPreload(navigationPageComponents, {
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child class="app-sidebar-brand">
-                        <Link :href="route('dashboard')" prefetch="hover" cache-for="5m">
+                        <Link :href="route('dashboard')">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>

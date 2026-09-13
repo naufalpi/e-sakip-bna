@@ -7,6 +7,7 @@ use App\Models\JabatanOrganisasi;
 use App\Models\Opd;
 use App\Models\OpdUnit;
 use App\Models\Pegawai;
+use App\Models\ReferensiJabatan;
 use App\Models\RiwayatPejabatJabatan;
 use App\Models\User;
 use App\Services\Imports\SpreadsheetImportReader;
@@ -20,6 +21,39 @@ use Throwable;
 class JabatanOrganisasiImportPreviewService
 {
     private const MAX_ROWS_PER_SHEET = 2000;
+
+    /** @var array<string, Opd> */
+    private array $activeOpdsByCode = [];
+
+    /** @var array<string, OpdUnit> */
+    private array $activeUnitsByLocation = [];
+
+    /** @var array<string, ReferensiJabatan> */
+    private array $jobReferencesByCode = [];
+
+    /** @var array<string, Collection<int, ReferensiJabatan>> */
+    private array $jobReferencesByTypeAndName = [];
+
+    /** @var array<string, Collection<int, JabatanOrganisasi>> */
+    private array $jobsByIdentity = [];
+
+    /** @var array<int, int|null> */
+    private array $jobParentIds = [];
+
+    /** @var array<string, Collection<int, User>> */
+    private array $activeUsersByLogin = [];
+
+    /** @var array<string, Pegawai> */
+    private array $employeesByNip = [];
+
+    /** @var array<int, Pegawai> */
+    private array $employeesByUserId = [];
+
+    /** @var array<string, Collection<int, Pegawai>> */
+    private array $employeesByOpdAndName = [];
+
+    /** @var array<int, Collection<int, RiwayatPejabatJabatan>> */
+    private array $historiesByJobId = [];
 
     public const MODE_COMBINED = 'combined';
 
@@ -207,6 +241,7 @@ class JabatanOrganisasiImportPreviewService
      */
     private function prepareRows(array $jobSheet, array $officialSheet, ?int $scopeOpdId = null): array
     {
+        $this->primeReferenceCaches();
         $jobRows = [];
 
         foreach ($jobSheet['rows'] as $index => $cells) {
@@ -257,6 +292,7 @@ class JabatanOrganisasiImportPreviewService
             ->groupBy(fn (array $row) => $row['prepared']['identity_key']);
 
         $this->markHierarchyCycles($jobRows, $resolvedJobKeys);
+        $this->primeHistoryCache($officialSheet, $resolvedJobKeys);
 
         $officialRows = [];
         $workbookRanges = [];
@@ -267,7 +303,7 @@ class JabatanOrganisasiImportPreviewService
             $row = $this->rowShell('pejabat', $index + 2, $cells, $mapped);
 
             try {
-                $prepared = $this->prepareOfficial($mapped, $resolvedJobKeys);
+                $prepared = $this->prepareOfficial($mapped, $resolvedJobKeys, $scopeOpdId);
                 $this->assertOpdScope($prepared['opd_id'] ?? null, $scopeOpdId);
                 $this->assertWorkbookPeriodAvailable($prepared, $workbookRanges, $index + 2);
                 $this->assertWorkbookEmployeeConsistent($prepared, $workbookEmployees, $index + 2);
@@ -301,6 +337,28 @@ class JabatanOrganisasiImportPreviewService
         $name = $this->limited($this->required($mapped, 'nama_jabatan', 'Nama jabatan'), 255, 'Nama jabatan');
         $level = $this->choice($this->required($mapped, 'level_jabatan', 'Level jabatan'), $this->levelChoices(), 'level jabatan');
 
+        $reference = null;
+        if (in_array($level, ['fungsional', 'pelaksana'], true)) {
+            $referenceCode = $this->nullable($mapped['kode_referensi_jabatan'] ?? null);
+            if ($referenceCode !== null) {
+                $reference = $this->jobReferencesByCode[$this->lookupKey($referenceCode)] ?? null;
+                if (! $reference || $reference->jenis_jabatan !== $level) {
+                    throw new RuntimeException("Kode referensi jabatan '{$referenceCode}' tidak ditemukan, tidak aktif, belum terverifikasi, atau jenisnya tidak sesuai.");
+                }
+            } else {
+                $matches = $this->jobReferencesByTypeAndName[$level.'|'.$this->lookupKey($name)] ?? collect();
+                if ($matches->count() > 1) {
+                    throw new RuntimeException('Nama referensi jabatan tidak unik. Isi Kode Referensi Jabatan dari sheet Referensi Jabatan Global.');
+                }
+                $reference = $matches->first();
+                if (! $reference) {
+                    throw new RuntimeException("Jabatan {$name} belum tersedia sebagai referensi global aktif dan terverifikasi.");
+                }
+            }
+
+            $name = $reference->nama;
+        }
+
         if ($level === 'kepala_daerah' && ($this->nullable($mapped['opd_kode'] ?? null) !== null || $this->nullable($mapped['unit_kode'] ?? null) !== null)) {
             throw new RuntimeException('Kepala Daerah tidak ditempatkan pada OPD atau unit organisasi.');
         }
@@ -310,6 +368,9 @@ class JabatanOrganisasiImportPreviewService
         $eselon = $this->nullable($mapped['eselon'] ?? null);
         if ($eselon !== null) {
             $eselon = $this->choice($eselon, $this->eselonChoices(), 'eselon');
+        }
+        if ($reference) {
+            $eselon = null;
         }
 
         $order = $this->nullable($mapped['urutan'] ?? null);
@@ -331,6 +392,7 @@ class JabatanOrganisasiImportPreviewService
             'existing_id' => $matches->first()?->id,
             'action' => $matches->isEmpty() ? 'create' : 'update',
             'nama' => $name,
+            'referensi_jabatan_id' => $reference?->id,
             'level_jabatan' => $level,
             'opd_id' => $opd?->id,
             'opd_label' => $opd ? "{$opd->kode} - {$opd->nama}" : 'Pemerintah Kabupaten',
@@ -413,7 +475,7 @@ class JabatanOrganisasiImportPreviewService
      * @param  Collection<string, Collection<int, array<string, mixed>>>  $jobKeys
      * @return array<string, mixed>
      */
-    private function prepareOfficial(array $mapped, $jobKeys): array
+    private function prepareOfficial(array $mapped, $jobKeys, ?int $scopeOpdId): array
     {
         $jobName = $this->limited($this->required($mapped, 'nama_jabatan', 'Nama jabatan'), 255, 'Nama jabatan');
         $opdCode = $this->nullable($mapped['opd_kode'] ?? null);
@@ -422,7 +484,6 @@ class JabatanOrganisasiImportPreviewService
         $workbookJob = ($jobKeys[$jobKey] ?? collect())->first();
         $existingJobs = $this->matchingJobs($jobName, $opd?->id, $unit?->id);
         $officialName = $this->limited($this->required($mapped, 'nama_pejabat', 'Nama pegawai'), 255, 'Nama pegawai');
-        $officialNip = $this->normalizeNip($mapped['nip'] ?? null);
 
         if ($existingJobs->count() > 1) {
             throw new RuntimeException('Jabatan pejabat tidak unik di sistem. Rapikan data ganda sebelum import.');
@@ -441,6 +502,18 @@ class JabatanOrganisasiImportPreviewService
             throw new RuntimeException("Jabatan '{$jobName}' berstatus nonaktif pada sheet Struktur Organisasi.");
         }
 
+        $jobId = $resolvedJob?->id;
+        $jobLevel = $resolvedJob?->level_jabatan ?? ($workbookJob['prepared']['level_jabatan'] ?? null);
+        $employeeType = $this->nullable($mapped['jenis_pegawai'] ?? null) ?? ($jobLevel === 'kepala_daerah' ? 'pejabat_negara' : 'pns');
+        $employeeType = $this->choice($employeeType, $this->employeeTypeChoices(), 'jenis pegawai');
+        $officialNip = $this->normalizeNip($mapped['nip'] ?? null);
+
+        if (in_array($employeeType, ['pns', 'pppk'], true) && $officialNip === null) {
+            throw new RuntimeException('NIP wajib diisi untuk pegawai berjenis PNS atau PPPK. Gunakan tepat 18 digit.');
+        }
+
+        $allowsMultiple = in_array($jobLevel, ['fungsional', 'pelaksana'], true);
+
         $start = $this->date($this->requiredAny($mapped, ['tmt_jabatan', 'tanggal_mulai'], 'TMT Jabatan'), 'TMT Jabatan');
         $endValue = $this->nullable($mapped['tanggal_selesai'] ?? null);
         $end = $endValue ? $this->date($endValue, 'Tanggal selesai') : null;
@@ -452,10 +525,7 @@ class JabatanOrganisasiImportPreviewService
         $account = null;
         if ($accountValue = $this->nullable($mapped['akun_pengguna'] ?? null)) {
             $accountValue = $this->limited($accountValue, 255, 'Akun pengguna');
-            $accounts = User::query()
-                ->where('status', 'active')
-                ->where(fn ($query) => $query->whereRaw('LOWER(username) = ?', [mb_strtolower($accountValue)])->orWhereRaw('LOWER(email) = ?', [mb_strtolower($accountValue)]))
-                ->get();
+            $accounts = $this->activeUsersByLogin[$this->lookupKey($accountValue)] ?? collect();
 
             if ($accounts->count() !== 1) {
                 throw new RuntimeException('Akun pengguna tidak ditemukan, tidak aktif, atau tidak unik.');
@@ -463,11 +533,8 @@ class JabatanOrganisasiImportPreviewService
             $account = $accounts->first();
         }
 
-        $jobId = $existingJobs->first()?->id;
-        $jobLevel = $existingJobs->first()?->level_jabatan ?? ($workbookJob['prepared']['level_jabatan'] ?? null);
-        $allowsMultiple = in_array($jobLevel, ['fungsional', 'pelaksana'], true);
-        $pegawaiByNip = $officialNip ? Pegawai::query()->where('nip', $officialNip)->first() : null;
-        $pegawaiByAccount = $account ? Pegawai::query()->where('user_id', $account->id)->first() : null;
+        $pegawaiByNip = $officialNip ? ($this->employeesByNip[$officialNip] ?? null) : null;
+        $pegawaiByAccount = $account ? ($this->employeesByUserId[$account->id] ?? null) : null;
 
         if ($pegawaiByNip && $pegawaiByAccount && $pegawaiByNip->id !== $pegawaiByAccount->id) {
             throw new RuntimeException('NIP dan akun pengguna terhubung ke dua data pegawai yang berbeda. Periksa kembali identitas pegawai.');
@@ -475,10 +542,7 @@ class JabatanOrganisasiImportPreviewService
 
         $pegawai = $pegawaiByNip ?: $pegawaiByAccount;
         if (! $pegawai && ! $officialNip && ! $account) {
-            $sameNames = Pegawai::query()
-                ->where('opd_id', $opd?->id)
-                ->whereRaw('LOWER(nama) = ?', [mb_strtolower($officialName)])
-                ->get();
+            $sameNames = $this->employeesByOpdAndName[$this->employeeNameKey($opd?->id, $officialName)] ?? collect();
 
             if ($sameNames->count() > 1) {
                 throw new RuntimeException('Nama pegawai tidak unik. Isi NIP atau akun pengguna agar data dapat dicocokkan dengan tepat.');
@@ -486,36 +550,48 @@ class JabatanOrganisasiImportPreviewService
             $pegawai = $sameNames->first();
         }
 
+        if ($scopeOpdId !== null && $pegawai?->opd_id !== null && (int) $pegawai->opd_id !== $scopeOpdId) {
+            throw new RuntimeException('NIP atau akun tersebut sudah terdaftar pada perangkat daerah lain. Hubungi Admin Kabupaten untuk memproses perpindahan pegawai.');
+        }
+
         $pegawaiId = $pegawai?->id;
         $existingHistory = null;
 
         if ($jobId) {
-            $existingHistory = RiwayatPejabatJabatan::query()
-                ->where('jabatan_organisasi_id', $jobId)
-                ->when($allowsMultiple, function ($query) use ($pegawaiId, $officialName, $officialNip) {
-                    $query->when($pegawaiId, fn ($query) => $query->where('pegawai_id', $pegawaiId))
-                        ->when(! $pegawaiId && $officialNip, fn ($query) => $query->where('nip', $officialNip))
-                        ->when(! $pegawaiId && ! $officialNip, fn ($query) => $query->whereRaw('LOWER(nama_pejabat) = ?', [mb_strtolower($officialName)]));
-                })
-                ->whereDate('tanggal_mulai', $start)
-                ->first();
+            $histories = $this->historiesByJobId[$jobId] ?? collect();
+            if ($allowsMultiple) {
+                $histories = $histories->filter(function (RiwayatPejabatJabatan $history) use ($pegawaiId, $officialName, $officialNip): bool {
+                    if ($pegawaiId) {
+                        return (int) $history->pegawai_id === (int) $pegawaiId;
+                    }
+
+                    if ($officialNip) {
+                        return $history->nip === $officialNip;
+                    }
+
+                    return $this->lookupKey($history->nama_pejabat) === $this->lookupKey($officialName);
+                });
+            }
+
+            $existingHistory = $histories->first(
+                fn (RiwayatPejabatJabatan $history): bool => $history->tanggal_mulai?->format('Y-m-d') === $start
+            );
 
             if ($existingHistory?->pegawai_id && $pegawaiId && $existingHistory->pegawai_id !== $pegawaiId) {
                 throw new RuntimeException('Riwayat pada jabatan dan TMT yang sama sudah terhubung ke pegawai lain. Periksa NIP atau TMT Jabatan.');
             }
             $pegawaiId ??= $existingHistory?->pegawai_id;
 
-            $overlap = RiwayatPejabatJabatan::query()
-                ->where('jabatan_organisasi_id', $jobId)
-                ->when($allowsMultiple, function ($query) use ($pegawaiId, $officialName, $officialNip) {
-                    $query->when($pegawaiId, fn ($query) => $query->where('pegawai_id', $pegawaiId))
-                        ->when(! $pegawaiId && $officialNip, fn ($query) => $query->where('nip', $officialNip))
-                        ->when(! $pegawaiId && ! $officialNip, fn ($query) => $query->whereRaw('LOWER(nama_pejabat) = ?', [mb_strtolower($officialName)]));
-                })
-                ->when($existingHistory, fn ($query) => $query->whereKeyNot($existingHistory->id))
-                ->whereDate('tanggal_mulai', '<=', $end ?? '9999-12-31')
-                ->where(fn ($query) => $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $start))
-                ->exists();
+            $overlap = $histories->contains(function (RiwayatPejabatJabatan $history) use ($end, $existingHistory, $start): bool {
+                if ($existingHistory && $history->is($existingHistory)) {
+                    return false;
+                }
+
+                $historyStart = $history->tanggal_mulai?->format('Y-m-d') ?? '0000-01-01';
+                $historyEnd = $history->tanggal_selesai?->format('Y-m-d') ?? '9999-12-31';
+
+                return $historyStart <= ($end ?? '9999-12-31') && $historyEnd >= $start;
+            });
 
             if ($overlap) {
                 throw new RuntimeException('Masa tugas bertumpang tindih dengan riwayat pejabat yang sudah ada.');
@@ -524,8 +600,6 @@ class JabatanOrganisasiImportPreviewService
 
         $assignment = $this->nullable($mapped['jenis_penugasan'] ?? null) ?? 'definitif';
         $assignment = $this->choice($assignment, $this->assignmentChoices(), 'jenis penugasan');
-        $employeeType = $this->nullable($mapped['jenis_pegawai'] ?? null) ?? ($jobLevel === 'kepala_daerah' ? 'pejabat_negara' : 'pns');
-        $employeeType = $this->choice($employeeType, $this->employeeTypeChoices(), 'jenis pegawai');
         $employeeStatus = $this->nullable($mapped['status_pegawai'] ?? null);
         if ($employeeStatus !== null) {
             $employeeStatus = $this->choice($employeeStatus, ['active' => 'active', 'aktif' => 'active', 'inactive' => 'inactive', 'nonaktif' => 'inactive'], 'status pegawai');
@@ -623,6 +697,120 @@ class JabatanOrganisasiImportPreviewService
         }
     }
 
+    private function primeReferenceCaches(): void
+    {
+        $this->activeOpdsByCode = [];
+        foreach (Opd::query()->where('status', 'active')->get(['id', 'kode', 'nama']) as $opd) {
+            $this->activeOpdsByCode[$this->lookupKey($opd->kode)] = $opd;
+        }
+
+        $this->activeUnitsByLocation = [];
+        foreach (OpdUnit::query()->where('status', 'active')->get(['id', 'opd_id', 'kode', 'nama']) as $unit) {
+            $this->activeUnitsByLocation[$unit->opd_id.'|'.$this->lookupKey($unit->kode)] = $unit;
+        }
+
+        $this->jobReferencesByCode = [];
+        $this->jobReferencesByTypeAndName = [];
+        foreach (ReferensiJabatan::query()
+            ->where('status', 'active')
+            ->where('verification_status', 'verified')
+            ->where(fn ($query) => $query->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', now()->toDateString()))
+            ->where(fn ($query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', now()->toDateString()))
+            ->get(['id', 'kode', 'nama', 'jenis_jabatan']) as $reference) {
+            if (filled($reference->kode)) {
+                $this->jobReferencesByCode[$this->lookupKey($reference->kode)] = $reference;
+            }
+            $key = $reference->jenis_jabatan.'|'.$this->lookupKey($reference->nama);
+            $this->jobReferencesByTypeAndName[$key] ??= collect();
+            $this->jobReferencesByTypeAndName[$key]->push($reference);
+        }
+
+        $this->jobsByIdentity = [];
+        $this->jobParentIds = [];
+        foreach (JabatanOrganisasi::query()->get(['id', 'opd_id', 'opd_unit_id', 'parent_id', 'nama', 'level_jabatan', 'status', 'verification_status']) as $job) {
+            $key = $this->identityKey($job->nama, $job->opd_id, $job->opd_unit_id);
+            $this->jobsByIdentity[$key] ??= collect();
+            $this->jobsByIdentity[$key]->push($job);
+            $this->jobParentIds[$job->id] = $job->parent_id;
+        }
+
+        $this->activeUsersByLogin = [];
+        foreach (User::query()->where('status', 'active')->get(['id', 'username', 'email']) as $user) {
+            foreach ([$user->username, $user->email] as $login) {
+                if (! filled($login)) {
+                    continue;
+                }
+
+                $key = $this->lookupKey($login);
+                $this->activeUsersByLogin[$key] ??= collect();
+                if (! $this->activeUsersByLogin[$key]->contains('id', $user->id)) {
+                    $this->activeUsersByLogin[$key]->push($user);
+                }
+            }
+        }
+
+        $this->employeesByNip = [];
+        $this->employeesByUserId = [];
+        $this->employeesByOpdAndName = [];
+        foreach (Pegawai::query()->get(['id', 'opd_id', 'opd_unit_id', 'user_id', 'nama', 'nip', 'pangkat_golongan', 'jenis_pegawai', 'status']) as $employee) {
+            if (filled($employee->nip)) {
+                $this->employeesByNip[$employee->nip] = $employee;
+            }
+            if ($employee->user_id) {
+                $this->employeesByUserId[$employee->user_id] = $employee;
+            }
+
+            $nameKey = $this->employeeNameKey($employee->opd_id, $employee->nama);
+            $this->employeesByOpdAndName[$nameKey] ??= collect();
+            $this->employeesByOpdAndName[$nameKey]->push($employee);
+        }
+
+        $this->historiesByJobId = [];
+    }
+
+    /**
+     * @param  array{columns: array<int, string>, rows: array<int, array<int, string|null>>}  $officialSheet
+     * @param  Collection<string, Collection<int, array<string, mixed>>>  $jobKeys
+     */
+    private function primeHistoryCache(array $officialSheet, $jobKeys): void
+    {
+        $jobIds = [];
+
+        foreach ($officialSheet['rows'] as $cells) {
+            $mapped = $this->reader->mapRow($cells, $officialSheet['columns']);
+            $jobName = $this->nullable($mapped['nama_jabatan'] ?? null);
+            if ($jobName === null) {
+                continue;
+            }
+
+            try {
+                $opdCode = $this->nullable($mapped['opd_kode'] ?? null);
+                [$opd, $unit] = $this->resolveLocation($opdCode, $mapped['unit_kode'] ?? null, $opdCode === null);
+                $jobKey = $this->identityKey($jobName, $opd?->id, $unit?->id);
+
+                foreach ($this->matchingJobs($jobName, $opd?->id, $unit?->id) as $job) {
+                    $jobIds[$job->id] = $job->id;
+                }
+
+                $workbookJob = ($jobKeys[$jobKey] ?? collect())->first();
+                if ($existingId = data_get($workbookJob, 'prepared.existing_id')) {
+                    $jobIds[$existingId] = $existingId;
+                }
+            } catch (Throwable) {
+                // Baris tetap akan menghasilkan pesan validasi lengkap saat diproses.
+            }
+        }
+
+        if ($jobIds === []) {
+            return;
+        }
+
+        foreach (RiwayatPejabatJabatan::query()->whereIn('jabatan_organisasi_id', array_values($jobIds))->get() as $history) {
+            $this->historiesByJobId[$history->jabatan_organisasi_id] ??= collect();
+            $this->historiesByJobId[$history->jabatan_organisasi_id]->push($history);
+        }
+    }
+
     /**
      * @param  array<int, array<string, mixed>>  $rows
      * @param  Collection<string, Collection<int, array<string, mixed>>>  $jobKeys
@@ -670,7 +858,7 @@ class JabatanOrganisasiImportPreviewService
                 }
 
                 $visitedIds[$databaseCursorId] = true;
-                $databaseCursorId = JabatanOrganisasi::query()->whereKey($databaseCursorId)->value('parent_id');
+                $databaseCursorId = $this->jobParentIds[(int) $databaseCursorId] ?? null;
             }
         }
         unset($row);
@@ -693,14 +881,14 @@ class JabatanOrganisasiImportPreviewService
             return [null, null];
         }
 
-        $opd = Opd::query()->where('status', 'active')->where('kode', $opdCode)->first();
+        $opd = $this->activeOpdsByCode[$this->lookupKey($opdCode)] ?? null;
         if (! $opd) {
             throw new RuntimeException("OPD dengan kode '{$opdCode}' tidak ditemukan atau tidak aktif.");
         }
 
         $unit = null;
         if ($unitCode !== null) {
-            $unit = OpdUnit::query()->where('status', 'active')->where('opd_id', $opd->id)->where('kode', $unitCode)->first();
+            $unit = $this->activeUnitsByLocation[$opd->id.'|'.$this->lookupKey($unitCode)] ?? null;
             if (! $unit) {
                 throw new RuntimeException("Unit '{$unitCode}' tidak ditemukan atau tidak aktif pada OPD {$opd->nama}.");
             }
@@ -711,11 +899,17 @@ class JabatanOrganisasiImportPreviewService
 
     private function matchingJobs(string $name, ?int $opdId, ?int $unitId)
     {
-        return JabatanOrganisasi::query()
-            ->whereRaw('LOWER(nama) = ?', [mb_strtolower(trim($name))])
-            ->when($opdId, fn ($query) => $query->where('opd_id', $opdId), fn ($query) => $query->whereNull('opd_id'))
-            ->when($unitId, fn ($query) => $query->where('opd_unit_id', $unitId), fn ($query) => $query->whereNull('opd_unit_id'))
-            ->get();
+        return $this->jobsByIdentity[$this->identityKey($name, $opdId, $unitId)] ?? collect();
+    }
+
+    private function lookupKey(mixed $value): string
+    {
+        return mb_strtolower(trim((string) $value));
+    }
+
+    private function employeeNameKey(?int $opdId, string $name): string
+    {
+        return ($opdId ?? 0).'|'.$this->lookupKey($name);
     }
 
     /** @param array<string, string|null> $mapped */

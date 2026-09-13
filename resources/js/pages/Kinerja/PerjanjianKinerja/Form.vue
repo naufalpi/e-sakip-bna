@@ -22,6 +22,9 @@ type PlacementOption = BasicOption & {
     opd_id?: number | null;
     level_jabatan?: string | null;
     parent_jabatan_id?: number | null;
+    nama_jabatan: string;
+    job_status?: 'active' | 'inactive' | null;
+    verification_status?: 'verified' | 'pending' | 'rejected' | null;
     unit_kerja?: string | null;
     tanggal_mulai?: string | null;
     tanggal_selesai?: string | null;
@@ -85,6 +88,14 @@ const form = useForm<FormData>({
     status: props.item?.status ?? 'draft',
     catatan: props.item?.catatan ?? '',
 });
+const renstraOptions = ref<RenstraOption[]>(props.renstraOptions ?? []);
+const rkpdOptions = ref<RkpdOption[]>(props.rkpdOptions ?? []);
+const dpaOptions = ref<DpaOption[]>(props.dpaOptions ?? []);
+const pegawaiOptions = ref<EmployeeOption[]>(props.pegawaiOptions ?? []);
+const placementOptions = ref<PlacementOption[]>(props.placementOptions ?? []);
+const formOptionsLoading = ref(false);
+const formOptionsLoadError = ref('');
+let formOptionsRequest = 0;
 
 const levels = computed(() => [
     ...(props.can.manage_bupati
@@ -128,9 +139,9 @@ const filteredScopeGroups = computed(() => {
         }))
         .filter((group) => group.items.length > 0);
 });
-const filteredRenstra = computed(() => props.renstraOptions.filter((option) => Number(option.opd_id) === Number(form.opd_id)));
+const filteredRenstra = computed(() => renstraOptions.value.filter((option) => Number(option.opd_id) === Number(form.opd_id)));
 const filteredDpa = computed(() =>
-    props.dpaOptions.filter(
+    dpaOptions.value.filter(
         (option) =>
             Number(option.opd_id) === Number(form.opd_id) && (!form.renstra_opd_id || Number(option.renstra_opd_id) === Number(form.renstra_opd_id)),
     ),
@@ -145,7 +156,7 @@ const placementIsAvailableForPkYear = (placement: PlacementOption) => {
     );
 };
 const employeeHasLevel = (employeeId: number, level: string, opdId?: number | string | null) =>
-    props.placementOptions.some(
+    placementOptions.value.some(
         (placement) =>
             Number(placement.pegawai_id) === employeeId &&
             placement.level_jabatan === level &&
@@ -160,7 +171,7 @@ const allowedPlacementLevels = computed(() => {
     return ['pengawas', 'fungsional', 'pelaksana'];
 });
 const employeeHasAllowedPlacement = (employeeId: number, opdId?: number | string | null) =>
-    props.placementOptions.some(
+    placementOptions.value.some(
         (placement) =>
             Number(placement.pegawai_id) === employeeId &&
             allowedPlacementLevels.value.includes(placement.level_jabatan ?? '') &&
@@ -168,16 +179,16 @@ const employeeHasAllowedPlacement = (employeeId: number, opdId?: number | string
             (form.level_pk === 'bupati' || opdId === undefined || Number(placement.opd_id) === Number(opdId)),
     );
 const filteredEmployees = computed(() => {
-    return props.pegawaiOptions.filter((employee) => employeeHasAllowedPlacement(employee.id, form.opd_id));
+    return pegawaiOptions.value.filter((employee) => employeeHasAllowedPlacement(employee.id, form.opd_id));
 });
 const employeeOptionsForSelect = computed(() => {
-    const selected = props.pegawaiOptions.find((employee) => Number(employee.id) === Number(form.pegawai_id));
+    const selected = pegawaiOptions.value.find((employee) => Number(employee.id) === Number(form.pegawai_id));
     if (!selected || filteredEmployees.value.some((employee) => Number(employee.id) === Number(selected.id))) return filteredEmployees.value;
 
     return [...filteredEmployees.value, selected];
 });
 const filteredPlacements = computed(() =>
-    props.placementOptions.filter((placement) => {
+    placementOptions.value.filter((placement) => {
         if (Number(placement.pegawai_id) !== Number(form.pegawai_id)) return false;
         if (!placementIsAvailableForPkYear(placement) && Number(placement.id) !== Number(form.penempatan_pegawai_id)) return false;
         if (!allowedPlacementLevels.value.includes(placement.level_jabatan ?? '')) return false;
@@ -186,27 +197,27 @@ const filteredPlacements = computed(() =>
         return true;
     }),
 );
-const selectedPlacement = computed(() => props.placementOptions.find((placement) => Number(placement.id) === Number(form.penempatan_pegawai_id)));
+const selectedPlacement = computed(() => placementOptions.value.find((placement) => Number(placement.id) === Number(form.penempatan_pegawai_id)));
 const selectedWorkUnit = computed(() => selectedPlacement.value?.unit_kerja || 'Unit kerja belum ditentukan');
-const selectedEmployee = computed(() => props.pegawaiOptions.find((employee) => Number(employee.id) === Number(form.pegawai_id)));
+const selectedEmployee = computed(() => pegawaiOptions.value.find((employee) => Number(employee.id) === Number(form.pegawai_id)));
 const availableSupervisors = computed(() => {
     if (form.level_pk === 'bupati') return [];
     const parentJabatanId = Number(selectedPlacement.value?.parent_jabatan_id || 0);
 
     if (!parentJabatanId) {
-        return form.level_pk === 'kepala_opd' ? props.pegawaiOptions.filter((employee) => employeeHasLevel(employee.id, 'kepala_daerah')) : [];
+        return form.level_pk === 'kepala_opd' ? pegawaiOptions.value.filter((employee) => employeeHasLevel(employee.id, 'kepala_daerah')) : [];
     }
 
     const supervisorIds = new Set(
-        props.placementOptions
+        placementOptions.value
             .filter((placement) => placementIsAvailableForPkYear(placement) && Number(placement.jabatan_organisasi_id) === parentJabatanId)
             .map((placement) => Number(placement.pegawai_id)),
     );
 
-    return props.pegawaiOptions.filter((employee) => supervisorIds.has(Number(employee.id)) && Number(employee.id) !== Number(form.pegawai_id));
+    return pegawaiOptions.value.filter((employee) => supervisorIds.has(Number(employee.id)) && Number(employee.id) !== Number(form.pegawai_id));
 });
 const supervisorOptionsForSelect = computed(() => {
-    const selected = props.pegawaiOptions.find((employee) => Number(employee.id) === Number(form.atasan_pegawai_id));
+    const selected = pegawaiOptions.value.find((employee) => Number(employee.id) === Number(form.atasan_pegawai_id));
     if (!selected || availableSupervisors.value.some((employee) => Number(employee.id) === Number(selected.id))) return availableSupervisors.value;
 
     return [...availableSupervisors.value, selected];
@@ -225,7 +236,7 @@ const currentStatusLabel = computed(
         })[form.status] ?? form.status,
 );
 const automaticTitle = computed(() => {
-    const placementName = selectedPlacement.value?.label.split(' · TMT ')[0]?.trim();
+    const placementName = selectedPlacement.value?.nama_jabatan?.trim();
     const employeeName = selectedEmployee.value?.label.split(' · NIP ')[0]?.trim();
     const subject = form.level_pk === 'bupati' ? 'Bupati Banjarnegara' : placementName || employeeName || selectedLevel.value?.label || 'Pegawai';
 
@@ -235,6 +246,78 @@ const automaticTitle = computed(() => {
 const selectOnlyOption = () => {
     if (filteredEmployees.value.length === 1) form.pegawai_id = filteredEmployees.value[0].id;
     if (availableSupervisors.value.length === 1) form.atasan_pegawai_id = availableSupervisors.value[0].id;
+};
+
+const loadFormOptions = async () => {
+    const requestId = ++formOptionsRequest;
+    formOptionsLoadError.value = '';
+    formOptionsLoading.value = false;
+
+    if (!form.level_pk || !form.tahun || (form.level_pk !== 'bupati' && !form.opd_id)) {
+        renstraOptions.value = [];
+        rkpdOptions.value = [];
+        dpaOptions.value = [];
+        pegawaiOptions.value = [];
+        placementOptions.value = [];
+        return;
+    }
+
+    renstraOptions.value = [];
+    rkpdOptions.value = [];
+    dpaOptions.value = [];
+    pegawaiOptions.value = [];
+    placementOptions.value = [];
+    formOptionsLoading.value = true;
+    const parameters: Record<string, number | string> = {
+        level_pk: form.level_pk,
+        tipe_pk: form.tipe_pk,
+        tahun: form.tahun,
+    };
+    if (form.opd_id) parameters.opd_id = form.opd_id;
+    if (props.item?.id) parameters.perjanjian_kinerja_id = props.item.id;
+
+    try {
+        const response = await fetch(route('perjanjian-kinerja.form-options', parameters), {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+        });
+        if (!response.ok) throw new Error('Tidak dapat memuat pilihan sumber, pegawai, dan jabatan.');
+
+        const payload = (await response.json()) as {
+            renstraOptions?: RenstraOption[];
+            rkpdOptions?: RkpdOption[];
+            dpaOptions?: DpaOption[];
+            pegawaiOptions?: EmployeeOption[];
+            placementOptions?: PlacementOption[];
+        };
+        if (requestId !== formOptionsRequest) return;
+
+        renstraOptions.value = payload.renstraOptions ?? [];
+        rkpdOptions.value = payload.rkpdOptions ?? [];
+        dpaOptions.value = payload.dpaOptions ?? [];
+        placementOptions.value = payload.placementOptions ?? [];
+        pegawaiOptions.value = payload.pegawaiOptions ?? [];
+
+        if (form.pegawai_id && !pegawaiOptions.value.some((option) => Number(option.id) === Number(form.pegawai_id))) form.pegawai_id = '';
+        if (form.penempatan_pegawai_id && !placementOptions.value.some((option) => Number(option.id) === Number(form.penempatan_pegawai_id))) {
+            form.penempatan_pegawai_id = '';
+        }
+        if (form.atasan_pegawai_id && !pegawaiOptions.value.some((option) => Number(option.id) === Number(form.atasan_pegawai_id))) {
+            form.atasan_pegawai_id = '';
+        }
+        if (form.renstra_opd_id && !renstraOptions.value.some((option) => Number(option.id) === Number(form.renstra_opd_id))) {
+            form.renstra_opd_id = '';
+        }
+        if (form.rkpd_id && !rkpdOptions.value.some((option) => Number(option.id) === Number(form.rkpd_id))) form.rkpd_id = '';
+        if (form.dpa_opd_id && !dpaOptions.value.some((option) => Number(option.id) === Number(form.dpa_opd_id))) form.dpa_opd_id = '';
+        selectOnlyOption();
+    } catch (error) {
+        if (requestId === formOptionsRequest) {
+            formOptionsLoadError.value = error instanceof Error ? error.message : 'Tidak dapat memuat pilihan formulir.';
+        }
+    } finally {
+        if (requestId === formOptionsRequest) formOptionsLoading.value = false;
+    }
 };
 
 watch(
@@ -290,7 +373,7 @@ watch(
 watch(
     () => form.rkpd_id,
     (id) => {
-        const source = props.rkpdOptions.find((option) => Number(option.id) === Number(id));
+        const source = rkpdOptions.value.find((option) => Number(option.id) === Number(id));
         if (!source) return;
         form.periode_tahun_id = source.periode_tahun_id;
         form.tahun = source.tahun;
@@ -299,7 +382,7 @@ watch(
 watch(
     () => form.dpa_opd_id,
     (id) => {
-        const source = props.dpaOptions.find((option) => Number(option.id) === Number(id));
+        const source = dpaOptions.value.find((option) => Number(option.id) === Number(id));
         if (!source) return;
         form.periode_tahun_id = source.periode_tahun_id;
         form.tahun = source.tahun;
@@ -323,6 +406,7 @@ watch(
         }
     },
 );
+watch([() => form.level_pk, () => form.tipe_pk, () => form.opd_id, () => form.tahun], loadFormOptions, { immediate: true });
 watch(
     () => form.renstra_opd_id,
     async (id, previous) => {
@@ -451,6 +535,23 @@ const submit = () => {
                 <h2 class="text-sm font-bold">Sumber dan Pemilik Dokumen</h2>
                 <p class="mt-0.5 text-xs text-muted-foreground">Data sumber hanya menampilkan dokumen resmi yang sudah disetujui atau dikunci.</p>
             </div>
+            <div
+                v-if="formOptionsLoading"
+                class="flex items-center gap-2 border-b bg-muted/15 px-5 py-3 text-xs text-muted-foreground"
+                aria-live="polite"
+            >
+                <LoaderCircle class="size-4 animate-spin" /> Menyiapkan pilihan sesuai OPD, jenis PK, dan tahun...
+            </div>
+            <div
+                v-else-if="formOptionsLoadError"
+                role="alert"
+                class="flex flex-col gap-3 border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-200 sm:flex-row sm:items-center sm:justify-between"
+            >
+                <span>{{ formOptionsLoadError }}</span>
+                <button type="button" class="min-h-10 rounded-lg border border-current px-3 text-xs font-bold" @click="loadFormOptions">
+                    Coba lagi
+                </button>
+            </div>
             <div class="grid gap-4 p-5 md:grid-cols-2">
                 <div v-if="form.level_pk !== 'bupati'" class="field">
                     <label for="opd_id">Perangkat Daerah</label
@@ -461,8 +562,8 @@ const submit = () => {
                 </div>
                 <div v-if="form.level_pk === 'bupati'" class="field md:col-span-2">
                     <label for="rkpd_id">RKPD sebagai sumber PK Bupati</label
-                    ><select id="rkpd_id" v-model="form.rkpd_id">
-                        <option value="">Pilih RKPD resmi aktif</option>
+                    ><select id="rkpd_id" v-model="form.rkpd_id" :disabled="formOptionsLoading || !!formOptionsLoadError">
+                        <option value="">{{ formOptionsLoading ? 'Memuat RKPD...' : 'Pilih RKPD resmi aktif' }}</option>
                         <option v-for="option in rkpdOptions" :key="option.id" :value="option.id">{{ option.label }}</option></select
                     ><InputError :message="form.errors.rkpd_id" />
                 </div>
@@ -472,33 +573,81 @@ const submit = () => {
                     :class="usesCascadingSelection ? 'md:col-span-2' : ''"
                 >
                     <label for="renstra_opd_id">Renstra OPD</label
-                    ><select id="renstra_opd_id" v-model="form.renstra_opd_id">
-                        <option value="">Pilih Renstra resmi aktif</option>
+                    ><select
+                        id="renstra_opd_id"
+                        v-model="form.renstra_opd_id"
+                        :disabled="formOptionsLoading || !!formOptionsLoadError || !form.opd_id"
+                    >
+                        <option value="">
+                            {{
+                                formOptionsLoading
+                                    ? 'Memuat Renstra...'
+                                    : form.opd_id
+                                      ? 'Pilih Renstra resmi aktif'
+                                      : 'Pilih perangkat daerah terlebih dahulu'
+                            }}
+                        </option>
                         <option v-for="option in filteredRenstra" :key="option.id" :value="option.id">{{ option.label }}</option></select
                     ><InputError :message="form.errors.renstra_opd_id" />
                 </div>
                 <div v-if="form.level_pk === 'kepala_opd'" class="field">
                     <label for="dpa_opd_id">DPA / DPPA sumber anggaran</label
-                    ><select id="dpa_opd_id" v-model="form.dpa_opd_id">
-                        <option value="">Pilih DPA/DPPA resmi</option>
+                    ><select id="dpa_opd_id" v-model="form.dpa_opd_id" :disabled="formOptionsLoading || !!formOptionsLoadError || !form.opd_id">
+                        <option value="">
+                            {{
+                                formOptionsLoading
+                                    ? 'Memuat DPA/DPPA...'
+                                    : form.opd_id
+                                      ? 'Pilih DPA/DPPA resmi'
+                                      : 'Pilih perangkat daerah terlebih dahulu'
+                            }}
+                        </option>
                         <option v-for="option in filteredDpa" :key="option.id" :value="option.id">{{ option.label }}</option></select
                     ><InputError :message="form.errors.dpa_opd_id" />
                 </div>
                 <div class="field">
                     <label for="pegawai_id">{{ form.level_pk === 'bupati' ? 'Bupati' : 'Pemilik PK' }}</label
-                    ><select id="pegawai_id" v-model="form.pegawai_id">
-                        <option value="">Pilih pegawai</option>
+                    ><select
+                        id="pegawai_id"
+                        v-model="form.pegawai_id"
+                        :disabled="formOptionsLoading || !!formOptionsLoadError || (form.level_pk !== 'bupati' && !form.opd_id)"
+                    >
+                        <option value="">
+                            {{
+                                formOptionsLoading
+                                    ? 'Memuat pegawai...'
+                                    : form.level_pk !== 'bupati' && !form.opd_id
+                                      ? 'Pilih perangkat daerah terlebih dahulu'
+                                      : 'Pilih pegawai'
+                            }}
+                        </option>
                         <option v-for="option in employeeOptionsForSelect" :key="option.id" :value="option.id">{{ option.label }}</option></select
                     ><InputError :message="form.errors.pegawai_id" />
                 </div>
                 <div class="field">
                     <label for="penempatan_pegawai_id">Jabatan penandatangan</label
-                    ><select id="penempatan_pegawai_id" v-model="form.penempatan_pegawai_id">
+                    ><select
+                        id="penempatan_pegawai_id"
+                        v-model="form.penempatan_pegawai_id"
+                        :disabled="formOptionsLoading || !!formOptionsLoadError || !form.pegawai_id"
+                    >
                         <option value="">
-                            {{ form.pegawai_id ? `Pilih jabatan pada tahun ${form.tahun}` : 'Pilih pemilik PK terlebih dahulu' }}
+                            {{ formOptionsLoading ? 'Memuat jabatan...' : form.pegawai_id ? 'Pilih jabatan' : 'Pilih pemilik PK terlebih dahulu' }}
                         </option>
                         <option v-for="option in filteredPlacements" :key="option.id" :value="option.id">{{ option.label }}</option></select
                     ><InputError :message="form.errors.penempatan_pegawai_id" />
+                    <small
+                        v-if="selectedPlacement?.job_status && selectedPlacement.job_status !== 'active'"
+                        class="field-hint text-amber-700 dark:text-amber-300"
+                    >
+                        Jabatan ini sudah tidak aktif. PK tetap dapat disimpan sebagai Draft, tetapi harus memakai jabatan aktif sebelum diajukan.
+                    </small>
+                    <small
+                        v-else-if="selectedPlacement?.verification_status && selectedPlacement.verification_status !== 'verified'"
+                        class="field-hint text-amber-700 dark:text-amber-300"
+                    >
+                        Jabatan ini belum terverifikasi oleh Bagian Organisasi. PK dapat disimpan sebagai Draft, tetapi belum dapat diajukan.
+                    </small>
                     <small v-if="form.pegawai_id && filteredPlacements.length === 0" class="field-hint text-amber-700">
                         Tidak ada riwayat jabatan pemilik PK yang berlaku pada tahun {{ form.tahun }}.
                     </small>
@@ -517,7 +666,11 @@ const submit = () => {
                 </div>
                 <div v-if="form.level_pk !== 'bupati'" class="field md:col-span-2">
                     <label for="atasan_pegawai_id">Pihak Kedua / Atasan</label
-                    ><select id="atasan_pegawai_id" v-model="form.atasan_pegawai_id">
+                    ><select
+                        id="atasan_pegawai_id"
+                        v-model="form.atasan_pegawai_id"
+                        :disabled="formOptionsLoading || !!formOptionsLoadError || !form.penempatan_pegawai_id"
+                    >
                         <option value="">
                             {{ form.penempatan_pegawai_id ? 'Pilih atasan langsung' : 'Pilih jabatan penandatangan terlebih dahulu' }}
                         </option>
@@ -654,7 +807,7 @@ const submit = () => {
             <Link :href="route('perjanjian-kinerja.index')" class="rounded-lg border px-4 py-2.5 text-sm font-semibold hover:bg-muted">Batal</Link
             ><button
                 type="submit"
-                :disabled="form.processing"
+                :disabled="form.processing || formOptionsLoading || !!formOptionsLoadError"
                 class="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-60"
             >
                 <Save class="size-4" />{{ form.processing ? 'Menyimpan...' : 'Simpan PK' }}

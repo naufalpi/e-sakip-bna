@@ -7,6 +7,7 @@ use App\Http\Requests\Master\StoreOpdUnitRequest;
 use App\Http\Requests\Master\UpdateOpdUnitRequest;
 use App\Models\Opd;
 use App\Models\OpdUnit;
+use App\Models\Pegawai;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -26,8 +27,15 @@ class OpdUnitController extends Controller
     {
         abort_unless($request->user()->hasPermission('opd.view'), 403);
 
-        $filters = $request->only(['search', 'status', 'opd_id', 'jenis_unit']);
         $user = $request->user();
+        $filters = [
+            'search' => trim((string) $request->input('search', '')),
+            'status' => in_array($request->input('status'), ['active', 'inactive'], true) ? $request->input('status') : '',
+            'opd_id' => ctype_digit((string) $request->input('opd_id')) ? (string) $request->input('opd_id') : '',
+            'jenis_unit' => in_array($request->input('jenis_unit'), collect($this->jenisOptions())->pluck('value')->all(), true)
+                ? $request->input('jenis_unit')
+                : '',
+        ];
 
         $items = OpdUnit::query()
             ->with(['opd:id,kode,nama,singkatan', 'parent:id,kode,nama'])
@@ -36,13 +44,22 @@ class OpdUnitController extends Controller
             ->when($this->shouldLimitToUserUnit($user), fn (Builder $query) => $query->whereKey($user->opd_unit_id))
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $query->where(function (Builder $query) use ($search) {
-                    $query->where('kode', 'ilike', "%{$search}%")
-                        ->orWhere('nama', 'ilike', "%{$search}%")
-                        ->orWhere('jenis_unit', 'ilike', "%{$search}%")
-                        ->orWhere('nama_pimpinan', 'ilike', "%{$search}%");
+                    $query->whereLike('kode', "%{$search}%")
+                        ->orWhereLike('nama', "%{$search}%")
+                        ->orWhereLike('jenis_unit', "%{$search}%")
+                        ->orWhereLike('nama_pimpinan', "%{$search}%")
+                        ->orWhereHas('opd', fn (Builder $query) => $query
+                            ->whereLike('nama', "%{$search}%")
+                            ->orWhereLike('singkatan', "%{$search}%"))
+                        ->orWhereHas('parent', fn (Builder $query) => $query
+                            ->whereLike('kode', "%{$search}%")
+                            ->orWhereLike('nama', "%{$search}%"));
                 });
             })
-            ->when(($filters['opd_id'] ?? null) && ! $this->shouldLimitToUserOpd($user), fn (Builder $query, string $opdId) => $query->where('opd_id', $opdId))
+            ->when(
+                $filters['opd_id'] !== '' && ! $this->shouldLimitToUserOpd($user),
+                fn (Builder $query) => $query->where('opd_id', $filters['opd_id'])
+            )
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($filters['jenis_unit'] ?? null, fn (Builder $query, string $jenis) => $query->where('jenis_unit', $jenis))
             ->orderBy('opd_id')
@@ -58,6 +75,7 @@ class OpdUnitController extends Controller
             'jenisOptions' => $this->jenisOptions(),
             'can' => [
                 'manage' => $this->canManageOpdUnits($user),
+                'opd_scoped' => $this->shouldLimitToUserOpd($user),
             ],
         ]);
     }
@@ -83,7 +101,7 @@ class OpdUnitController extends Controller
 
         OpdUnit::create($data);
 
-        return redirect()->route('master.opd.index')->with('success', 'Unit OPD berhasil ditambahkan.');
+        return redirect()->route('master.opd-units.index')->with('success', 'Unit kerja berhasil ditambahkan.');
     }
 
     public function edit(Request $request, OpdUnit $opdUnit): Response
@@ -107,9 +125,15 @@ class OpdUnitController extends Controller
         $this->assertAllowedOpd($request->user(), (int) $data['opd_id']);
         $this->assertParentValid($data['parent_id'] ?? null, (int) $data['opd_id'], $opdUnit);
 
+        if ((int) $data['opd_id'] !== (int) $opdUnit->opd_id && $this->unitIsUsed($opdUnit)) {
+            throw ValidationException::withMessages([
+                'opd_id' => 'Perangkat daerah tidak dapat diubah karena unit sudah digunakan. Buat unit baru pada OPD tujuan agar riwayat tetap konsisten.',
+            ]);
+        }
+
         $opdUnit->update($data);
 
-        return redirect()->route('master.opd.index')->with('success', 'Unit OPD berhasil diperbarui.');
+        return redirect()->route('master.opd-units.index')->with('success', 'Unit kerja berhasil diperbarui.');
     }
 
     public function destroy(Request $request, OpdUnit $opdUnit): RedirectResponse
@@ -117,9 +141,17 @@ class OpdUnitController extends Controller
         abort_unless($this->canManageOpdUnits($request->user()), 403);
         $this->abortUnlessAllowedOpd($request->user(), (int) $opdUnit->opd_id);
 
+        if ($opdUnit->children()->exists()) {
+            return back()->with('error', 'Unit belum dapat dihapus karena masih memiliki unit turunan. Pindahkan atau hapus unit turunannya terlebih dahulu.');
+        }
+
+        if ($this->unitIsUsed($opdUnit)) {
+            return back()->with('error', 'Unit belum dapat dihapus karena sudah digunakan oleh jabatan, pegawai, atau akun pengguna. Nonaktifkan unit agar riwayat tetap utuh.');
+        }
+
         $opdUnit->delete();
 
-        return redirect()->route('master.opd.index')->with('success', 'Unit OPD berhasil dihapus.');
+        return redirect()->route('master.opd-units.index')->with('success', 'Unit kerja berhasil dihapus.');
     }
 
     private function shouldLimitToUserOpd(User $user): bool
@@ -132,6 +164,13 @@ class OpdUnitController extends Controller
                 'admin_kabupaten_inspektorat',
                 'admin_kabupaten_dinkominfo',
             ]);
+    }
+
+    private function unitIsUsed(OpdUnit $unit): bool
+    {
+        return $unit->jabatanOrganisasi()->exists()
+            || Pegawai::query()->where('opd_unit_id', $unit->id)->exists()
+            || User::query()->where('opd_unit_id', $unit->id)->exists();
     }
 
     private function canManageOpdUnits(User $user): bool

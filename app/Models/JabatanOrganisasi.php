@@ -19,6 +19,7 @@ class JabatanOrganisasi extends Model
         'opd_id',
         'opd_unit_id',
         'parent_id',
+        'referensi_jabatan_id',
         'nama',
         'level_jabatan',
         'eselon',
@@ -111,6 +112,11 @@ class JabatanOrganisasi extends Model
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function referensiJabatan(): BelongsTo
+    {
+        return $this->belongsTo(ReferensiJabatan::class);
     }
 
     public function proposedBy(): BelongsTo

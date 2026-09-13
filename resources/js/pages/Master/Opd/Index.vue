@@ -11,7 +11,6 @@ import Layers3 from 'lucide-vue-next/dist/esm/icons/layers.js';
 import Plus from 'lucide-vue-next/dist/esm/icons/plus.js';
 import Search from 'lucide-vue-next/dist/esm/icons/search.js';
 import Trash2 from 'lucide-vue-next/dist/esm/icons/trash-2.js';
-import UserRound from 'lucide-vue-next/dist/esm/icons/user-round.js';
 import X from 'lucide-vue-next/dist/esm/icons/x.js';
 import { reactive, ref } from 'vue';
 
@@ -140,21 +139,6 @@ const openCreateUnit = (opd: Opd) => {
     unitForm.opd_id = opd.id;
 };
 
-const openEditUnit = (opd: Opd, unit: OpdUnit) => {
-    resetUnitForm();
-    expandedOpds[opd.id] = true;
-    activeUnitOpdId.value = opd.id;
-    editingUnitId.value = unit.id;
-    unitForm.opd_id = opd.id;
-    unitForm.parent_id = unit.parent_id ?? '';
-    unitForm.kode = unit.kode;
-    unitForm.nama = unit.nama;
-    unitForm.jenis_unit = unit.jenis_unit ?? '';
-    unitForm.nama_pimpinan = unit.nama_pimpinan ?? '';
-    unitForm.nip_pimpinan = unit.nip_pimpinan ?? '';
-    unitForm.status = unit.status;
-};
-
 const unitParentOptions = (opd: Opd) => opd.units.filter((unit) => unit.id !== editingUnitId.value);
 
 const jenisUnitLabel = (value?: string | null) => props.jenisUnitOptions.find((option) => option.value === value)?.label ?? value ?? '-';
@@ -181,18 +165,6 @@ const destroyOpd = async (opd: Opd) => {
     }
 };
 
-const destroyUnit = async (unit: OpdUnit) => {
-    if (await confirmDelete(`Hapus unit ${unit.kode} - ${unit.nama}?`)) {
-        router.delete(route('master.opd-units.destroy', unit.id), {
-            preserveScroll: true,
-            onSuccess: () => {
-                if (editingUnitId.value === unit.id) {
-                    resetUnitForm();
-                }
-            },
-        });
-    }
-};
 </script>
 
 <template>
@@ -269,9 +241,12 @@ const destroyUnit = async (unit: OpdUnit) => {
         </form>
 
         <section class="overflow-hidden rounded-xl border bg-card shadow-sm">
-            <div class="flex flex-col gap-1 border-b p-4">
-                <h2 class="text-base font-semibold text-foreground">Daftar OPD dan Unit</h2>
-                <p class="text-sm text-muted-foreground">Klik tombol unit untuk melihat atau mengelola unit pada OPD tersebut.</p>
+            <div class="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="text-base font-semibold text-foreground">Daftar OPD dan Unit</h2>
+                    <p class="mt-1 text-sm text-muted-foreground">Ringkasan unit ditampilkan di sini. Perubahan unit dilakukan melalui menu Struktur Organisasi.</p>
+                </div>
+                <Link :href="route('master.opd-units.index')" class="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border bg-background px-3 text-sm font-medium text-blue-800 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/30">Kelola Unit Kerja</Link>
             </div>
 
             <div class="divide-y">
@@ -358,15 +333,13 @@ const destroyUnit = async (unit: OpdUnit) => {
                                 </div>
 
                                 <div v-if="opd.units.length > 0" class="overflow-x-auto">
-                                    <table class="w-full min-w-[1040px] text-left text-sm">
+                                    <table class="w-full min-w-[720px] text-left text-sm">
                                         <thead class="border-b bg-muted/50 text-xs uppercase text-muted-foreground">
                                             <tr>
                                                 <th class="px-4 py-3">Unit</th>
                                                 <th class="px-4 py-3">Jenis</th>
                                                 <th class="px-4 py-3">Induk</th>
-                                                <th class="px-4 py-3">Pimpinan</th>
                                                 <th class="px-4 py-3">Status</th>
-                                                <th class="w-28 px-4 py-3 text-right">Aksi</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -381,15 +354,6 @@ const destroyUnit = async (unit: OpdUnit) => {
                                                     <span v-else>-</span>
                                                 </td>
                                                 <td class="px-4 py-3 align-top">
-                                                    <div class="flex items-start gap-2 text-muted-foreground">
-                                                        <UserRound class="mt-0.5 size-4 shrink-0" />
-                                                        <div>
-                                                            <div class="text-foreground">{{ unit.nama_pimpinan || '-' }}</div>
-                                                            <div class="text-xs">{{ unit.nip_pimpinan || '' }}</div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td class="px-4 py-3 align-top">
                                                     <span
                                                         class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
                                                         :class="
@@ -400,27 +364,6 @@ const destroyUnit = async (unit: OpdUnit) => {
                                                     >
                                                         {{ unit.status === 'active' ? 'Aktif' : 'Tidak aktif' }}
                                                     </span>
-                                                </td>
-                                                <td class="w-28 px-4 py-3 align-top text-right">
-                                                    <div v-if="can.manageUnits" class="inline-flex rounded-lg border bg-background shadow-sm">
-                                                        <button
-                                                            type="button"
-                                                            class="inline-flex size-10 items-center justify-center text-muted-foreground transition hover:bg-muted hover:text-[#00336C]"
-                                                            :aria-label="`Edit unit ${unit.nama}`"
-                                                            @click="openEditUnit(opd, unit)"
-                                                        >
-                                                            <Edit3 class="size-4" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            class="inline-flex size-10 items-center justify-center border-l text-red-600 transition hover:bg-red-50 dark:hover:bg-red-400/10"
-                                                            :aria-label="`Hapus unit ${unit.nama}`"
-                                                            @click="destroyUnit(unit)"
-                                                        >
-                                                            <Trash2 class="size-4" />
-                                                        </button>
-                                                    </div>
-                                                    <span v-else class="text-xs text-muted-foreground">Read-only</span>
                                                 </td>
                                             </tr>
                                         </tbody>

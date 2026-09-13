@@ -125,8 +125,6 @@ const statusClass = (status: string) =>
                 <Link
                     :href="route('dokumen-publik.index')"
                     class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800"
-                    prefetch="hover"
-                    cache-for="2m"
                 >
                     Buka Kelengkapan
                     <ArrowRight class="size-4" />

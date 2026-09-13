@@ -30,24 +30,32 @@ class JabatanOrganisasiImportApplyService
             throw ValidationException::withMessages(['import_batch_id' => 'Lingkup OPD batch import tidak sesuai dengan akun Anda. Upload ulang file dari menu Pegawai OPD.']);
         }
 
-        if ($batch->status !== 'previewed') {
-            throw ValidationException::withMessages(['import_batch_id' => 'Batch hanya dapat diterapkan setelah preview selesai.']);
-        }
+        DB::transaction(function () use ($batch, $user, $scopeOpdId, $supported): void {
+            $batch = ImportBatch::query()->whereKey($batch->getKey())->lockForUpdate()->firstOrFail();
 
-        $invalidRows = $batch->rows()->where('status', 'invalid')->count();
-        $validRows = $batch->rows()->where('status', 'valid')->count();
+            if (! in_array($batch->module.':'.$batch->import_type, $supported, true)) {
+                throw ValidationException::withMessages(['import_batch_id' => 'Batch import tidak sesuai dengan Struktur Organisasi atau Pegawai OPD.']);
+            }
 
-        if ($invalidRows > 0) {
-            throw ValidationException::withMessages(['import_batch_id' => 'Perbaiki seluruh baris tidak valid sebelum menerapkan import.']);
-        }
+            $batchScopeOpdId = data_get($batch->metadata, 'scope_opd_id');
+            if ($scopeOpdId !== null && (int) $batchScopeOpdId !== $scopeOpdId) {
+                throw ValidationException::withMessages(['import_batch_id' => 'Lingkup OPD batch import tidak sesuai dengan akun Anda. Upload ulang file dari menu Pegawai OPD.']);
+            }
 
-        if ($validRows === 0) {
-            throw ValidationException::withMessages(['import_batch_id' => 'Tidak ada data valid yang dapat diterapkan.']);
-        }
+            if ($batch->status !== 'previewed') {
+                throw ValidationException::withMessages(['import_batch_id' => 'Batch sudah diproses atau tidak lagi siap diterapkan. Upload ulang file bila ingin melakukan import baru.']);
+            }
 
-        DB::transaction(function () use ($batch, $user, $scopeOpdId): void {
+            $rows = $batch->rows()->orderBy('row_number')->lockForUpdate()->get();
+            if ($rows->contains('status', 'invalid')) {
+                throw ValidationException::withMessages(['import_batch_id' => 'Perbaiki seluruh baris tidak valid sebelum menerapkan import.']);
+            }
+            if (! $rows->contains('status', 'valid')) {
+                throw ValidationException::withMessages(['import_batch_id' => 'Tidak ada data valid yang dapat diterapkan.']);
+            }
+
             $batch->update(['status' => 'processing']);
-            $rows = $batch->rows()->where('status', 'valid')->orderBy('row_number')->lockForUpdate()->get();
+            $rows = $rows->where('status', 'valid');
             $jobRows = $rows->filter(fn (ImportBatchRow $row) => ($row->normalized_data['entity_type'] ?? null) === 'jabatan');
             $officialRows = $rows->filter(fn (ImportBatchRow $row) => ($row->normalized_data['entity_type'] ?? null) === 'pejabat');
             $jobsByKey = [];
@@ -66,6 +74,7 @@ class JabatanOrganisasiImportApplyService
                     'opd_id' => $prepared['opd_id'] ?? null,
                     'opd_unit_id' => $prepared['opd_unit_id'] ?? null,
                     'nama' => $prepared['nama'],
+                    'referensi_jabatan_id' => $prepared['referensi_jabatan_id'] ?? null,
                     'level_jabatan' => $prepared['level_jabatan'],
                     'eselon' => $prepared['eselon'] ?? null,
                     'urutan' => $prepared['urutan'] ?? 0,
@@ -129,7 +138,7 @@ class JabatanOrganisasiImportApplyService
                     throw ValidationException::withMessages(['import_batch_id' => "Riwayat pejabat pada baris {$row->raw_data['sheet_row']} berubah atau sudah dihapus. Upload ulang file."]);
                 }
 
-                $pegawai = $this->resolvePegawai($prepared, $job, $history?->pegawai);
+                $pegawai = $this->resolvePegawai($prepared, $job, $history?->pegawai, $scopeOpdId);
                 $overlap = RiwayatPejabatJabatan::query()
                     ->where('jabatan_organisasi_id', $job->id)
                     ->when($job->allowsMultipleHolders(), fn ($query) => $query->where('pegawai_id', $pegawai->id))
@@ -187,8 +196,14 @@ class JabatanOrganisasiImportApplyService
         return $batch->fresh(['uploadedBy:id,name', 'rows']);
     }
 
-    private function resolvePegawai(array $prepared, JabatanOrganisasi $job, ?Pegawai $historyEmployee = null): Pegawai
+    private function resolvePegawai(array $prepared, JabatanOrganisasi $job, ?Pegawai $historyEmployee = null, ?int $scopeOpdId = null): Pegawai
     {
+        if (in_array($prepared['jenis_pegawai'] ?? 'pns', ['pns', 'pppk'], true) && blank($prepared['nip'] ?? null)) {
+            throw ValidationException::withMessages([
+                'import_batch_id' => 'NIP wajib diisi untuk pegawai berjenis PNS atau PPPK. Upload ulang file menggunakan template terbaru.',
+            ]);
+        }
+
         $pegawai = isset($prepared['pegawai_existing_id'])
             ? Pegawai::query()->lockForUpdate()->find($prepared['pegawai_existing_id'])
             : $historyEmployee;
@@ -216,6 +231,12 @@ class JabatanOrganisasiImportApplyService
                 throw ValidationException::withMessages(['import_batch_id' => 'Nama pegawai tidak lagi unik. Upload ulang file dan isi NIP atau akun pengguna.']);
             }
             $pegawai = $sameNames->first();
+        }
+
+        if ($scopeOpdId !== null && $pegawai?->opd_id !== null && (int) $pegawai->opd_id !== $scopeOpdId) {
+            throw ValidationException::withMessages([
+                'import_batch_id' => 'Pegawai sudah terdaftar pada perangkat daerah lain. Hubungi Admin Kabupaten untuk memproses perpindahan pegawai.',
+            ]);
         }
 
         $payload = [

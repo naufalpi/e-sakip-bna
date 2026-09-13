@@ -20,7 +20,8 @@ class UpdateJabatanOrganisasiRequest extends FormRequest
             'opd_id' => ['nullable', 'integer', 'exists:opds,id'],
             'opd_unit_id' => ['nullable', 'integer', 'exists:opd_units,id'],
             'parent_id' => ['nullable', 'integer', 'exists:jabatan_organisasi,id'],
-            'nama' => ['required', 'string', 'max:255'],
+            'referensi_jabatan_id' => ['nullable', 'integer', 'exists:referensi_jabatan,id', 'required_if:level_jabatan,fungsional,pelaksana'],
+            'nama' => [Rule::requiredIf(! in_array($this->input('level_jabatan'), ['fungsional', 'pelaksana'], true)), 'nullable', 'string', 'max:255'],
             'level_jabatan' => ['required', Rule::in(array_keys(JabatanOrganisasi::levelLabels()))],
             'eselon' => ['nullable', Rule::in(collect(JabatanOrganisasi::eselonOptions())->pluck('value')->all())],
             'urutan' => ['required', 'integer', 'min:0', 'max:65535'],
@@ -34,6 +35,7 @@ class UpdateJabatanOrganisasiRequest extends FormRequest
             'opd_id' => 'perangkat daerah',
             'opd_unit_id' => 'unit organisasi',
             'parent_id' => 'atasan langsung',
+            'referensi_jabatan_id' => 'referensi jabatan',
             'level_jabatan' => 'level jabatan',
         ];
     }
