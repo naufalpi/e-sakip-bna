@@ -19,6 +19,7 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
     - pengujian khusus PK/Rencana Aksi: 13 test, 259 assertion lulus,
     - full suite sempat menghasilkan 289 test lulus dan 2 test RENJA gagal hanya karena test belum mengaktifkan feature flag; setup test sudah diperbaiki dan suite `RenjaAnnualTargetTest` kemudian lulus 3/3.
     - suite terarah Struktur Organisasi, referensi jabatan, unit kerja, Pegawai OPD, import, dan akses: 43 test lulus; tambahan regresi import RPJMD/RENSTRA: 6 test, 62 assertion lulus; ESLint, PHP Pint, route audit, dan build production Vite lulus.
+    - optimasi buka RENSTRA: suite `RenstraOpdTest` lulus 25 test/463 assertion, PHP Pint lulus, dan build production Vite lulus.
 
 ## Lokasi Project
 
@@ -194,6 +195,7 @@ Dokumen ini adalah ringkasan handoff agar pekerjaan bisa dilanjutkan di chat bar
 - Preview tabel dan export Excel menampilkan baris pengelompokan Sasaran Program, Sasaran Kegiatan, dan Sasaran Sub Kegiatan. Program/kegiatan bernama sama tidak digabung jika berada pada cabang sasaran berbeda; setiap cabang tetap ditampilkan sesuai urutan hierarkinya.
 - Preview tree Renstra sedang disembunyikan.
 - Halaman daftar RENSTRA memakai ukuran area konten yang sama dengan RENJA. Ringkasan header `RENSTRA Murni`, `RENSTRA Perubahan`, dan `Cascading Lengkap` dihitung dari seluruh hasil filter di database, bukan hanya baris pada halaman pagination yang sedang tampil.
+- Performa buka RENSTRA dioptimalkan tanpa cache respons halaman: rekap kelengkapan lima tahap digabung menjadi satu query `UNION ALL`, sedangkan kamus referensi form, master, satuan, dan workflow hanya dimuat pada halaman yang benar-benar memakainya. Ringkasan tetap membaca seluruh hasil filter dan halaman Kelola tetap memperoleh data lengkap.
 - Kelola RENSTRA memakai dua card utama di atas untuk `Tujuan OPD` dan `Sasaran Strategis OPD`, kemudian tiga card untuk Program, Kegiatan, dan Sub Kegiatan. Label `Sasaran Strategis OPD` hanya perubahan frontend; backend/tabel tetap memakai Sasaran OPD.
 - Ringkasan card memakai nama entitas langsung (`1 tujuan`, `7 program`, dan seterusnya), bukan teks generik `data utama`. Card Sub Kegiatan juga menampilkan jumlah indikator dan target.
 - Panel acuan perencanaan/RPJMD dan riwayat persetujuan tidak lagi memaksa pengguna melewati konten panjang sebelum Kelola RENSTRA; tampilan lama tetap disimpan sebagai cadangan UI.

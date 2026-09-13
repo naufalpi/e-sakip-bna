@@ -212,6 +212,8 @@ class RenstraOpdController extends Controller
         $this->authorize('view', $renstraOpd);
 
         $manage = $request->user()->can('update', $renstraOpd);
+        $isManagementPage = $activeSection !== null;
+        $loadManagementOptions = $manage && $isManagementPage;
 
         $renstraOpd->load([
             'opd:id,kode,nama,singkatan',
@@ -260,15 +262,19 @@ class RenstraOpdController extends Controller
             'renstra' => fn () => $this->serializeRenstra($renstraOpd),
             // Partial reloads after saving targets need only the current tree.
             // Closures keep unrelated reference queries out of those requests.
-            'rpjmdContext' => fn () => $this->rpjmdContext($renstraOpd),
-            'nodeOptions' => fn () => $manage ? $this->nodeOptions($renstraOpd) : [],
-            'rpjmdReferenceOptions' => fn () => $manage ? $this->rpjmdReferenceOptions($renstraOpd) : [],
-            'masterReferenceOptions' => fn () => $manage ? $this->masterReferenceOptions($renstraOpd) : [],
+            'rpjmdContext' => fn () => $isManagementPage
+                ? ['visi' => [], 'misi' => [], 'program_groups' => []]
+                : $this->rpjmdContext($renstraOpd),
+            // The overview only links to dedicated management pages. Loading these
+            // large dictionaries there added queries and payload that were never used.
+            'nodeOptions' => fn () => $loadManagementOptions ? $this->nodeOptions($renstraOpd) : [],
+            'rpjmdReferenceOptions' => fn () => $loadManagementOptions ? $this->rpjmdReferenceOptions($renstraOpd) : [],
+            'masterReferenceOptions' => fn () => $loadManagementOptions ? $this->masterReferenceOptions($renstraOpd) : [],
             // Periode tahun juga dipakai oleh tabel preview untuk membentuk
             // kolom target dan pagu. Data ini harus tetap tersedia bagi
             // reviewer/viewer meskipun mereka tidak memiliki hak mengedit.
             'periodeOptions' => fn () => $this->periodeOptions(),
-            'satuanOptions' => fn () => $manage ? $this->satuanOptions() : [],
+            'satuanOptions' => fn () => $loadManagementOptions ? $this->satuanOptions() : [],
             'can' => [
                 'manage' => $manage,
                 'createRevision' => $request->user()->can('createRevision', $renstraOpd),
@@ -278,7 +284,9 @@ class RenstraOpdController extends Controller
                 'lock' => $this->canLockWorkflow($request->user()),
                 'unlock' => $renstraOpd->is_active_version && $request->user()->isSuperAdmin(),
             ],
-            'workflow' => fn () => $workflowDataService->forModel($renstraOpd, 'renstra_opd'),
+            'workflow' => fn () => $isManagementPage
+                ? null
+                : $workflowDataService->forModel($renstraOpd, 'renstra_opd'),
             'activeSection' => $activeSection,
         ]);
     }

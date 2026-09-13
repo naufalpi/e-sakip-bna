@@ -125,7 +125,18 @@ class RenstraOpdTest extends TestCase
         $deletedIndicator->delete();
 
         $service = app(RenstraProgressSummaryService::class);
-        $progress = $service->summarize(collect([$renstra]))[$renstra->id];
+        DB::enableQueryLog();
+        try {
+            DB::flushQueryLog();
+            $progress = $service->summarize(collect([$renstra]))[$renstra->id];
+            $summaryQueries = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+
+        $this->assertCount(1, $summaryQueries);
+        $this->assertStringContainsString('union all', strtolower($summaryQueries[0]['query']));
         $this->assertSame(5, $progress['stages_filled']);
         $this->assertSame(5, $progress['indicators_total']);
         $this->assertSame(30, $progress['targets_total']);
@@ -350,7 +361,8 @@ class RenstraOpdTest extends TestCase
         try {
             DB::flushQueryLog();
             $full = $this->getJson(route('renstra-opd.show', $renstra), $headers)->assertOk();
-            $fullQueryCount = count(DB::getQueryLog());
+            $fullQueries = DB::getQueryLog();
+            $fullQueryCount = count($fullQueries);
             DB::flushQueryLog();
             $partial = $this->getJson(route('renstra-opd.show', $renstra), [...$headers,
                 'X-Inertia-Partial-Component' => 'RenstraOpd/Show',
@@ -363,10 +375,17 @@ class RenstraOpdTest extends TestCase
         }
 
         $this->assertSame($full->json('props.renstra'), $partial->json('props.renstra'));
+        $full->assertJsonPath('props.nodeOptions', [])
+            ->assertJsonPath('props.rpjmdReferenceOptions', [])
+            ->assertJsonPath('props.masterReferenceOptions', [])
+            ->assertJsonPath('props.satuanOptions', []);
         $partial->assertJsonMissingPath('props.masterReferenceOptions')
             ->assertJsonMissingPath('props.rpjmdReferenceOptions')
             ->assertJsonMissingPath('props.nodeOptions');
         $this->assertLessThan($fullQueryCount, count($partialQueries));
+        $this->assertFalse(collect($fullQueries)->contains(
+            fn (array $query): bool => str_contains($query['query'], 'from "sub_kegiatan_pemerintahan"'),
+        ), 'Ringkasan RENSTRA tidak boleh memuat seluruh master sub kegiatan.');
         $this->assertFalse(collect($partialQueries)->contains(
             fn (array $query): bool => str_contains($query['query'], 'from "sub_kegiatan_pemerintahan"'),
         ), 'Reload target tidak boleh memuat seluruh master sub kegiatan.');
@@ -501,7 +520,7 @@ class RenstraOpdTest extends TestCase
         $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
 
         $this->actingAs($user)
-            ->get(route('renstra-opd.show', $renstra))
+            ->get(route('renstra-opd.manage', ['renstra_opd' => $renstra, 'section' => 'sasaran']))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('RenstraOpd/Show')
@@ -578,7 +597,7 @@ class RenstraOpdTest extends TestCase
         $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
 
         $this->actingAs($user)
-            ->get(route('renstra-opd.show', $renstra))
+            ->get(route('renstra-opd.manage', ['renstra_opd' => $renstra, 'section' => 'program']))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('RenstraOpd/Show')
@@ -644,7 +663,7 @@ class RenstraOpdTest extends TestCase
         $user->roles()->sync([Role::where('name', 'super_admin')->value('id')]);
 
         $this->actingAs($user)
-            ->get(route('renstra-opd.show', $renstra))
+            ->get(route('renstra-opd.manage', ['renstra_opd' => $renstra, 'section' => 'program']))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('RenstraOpd/Show')
@@ -741,7 +760,7 @@ class RenstraOpdTest extends TestCase
         $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
 
         $this->actingAs($user)
-            ->get(route('renstra-opd.show', $renstra))
+            ->get(route('renstra-opd.manage', ['renstra_opd' => $renstra, 'section' => 'program']))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('RenstraOpd/Show')
@@ -839,7 +858,7 @@ class RenstraOpdTest extends TestCase
         $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
 
         $this->actingAs($user)
-            ->get(route('renstra-opd.show', $renstra))
+            ->get(route('renstra-opd.manage', ['renstra_opd' => $renstra, 'section' => 'program']))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('RenstraOpd/Show')
@@ -1391,7 +1410,7 @@ class RenstraOpdTest extends TestCase
         $this->assertSame(1, OpdSubKegiatan::whereHas('kegiatan.program', fn ($query) => $query->where('renstra_opd_id', $renstra->id))->count());
 
         $this->actingAs($user)
-            ->get(route('renstra-opd.show', $renstra))
+            ->get(route('renstra-opd.manage', ['renstra_opd' => $renstra, 'section' => 'program']))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('nodeOptions.program', fn ($options) => collect($options)->contains(function (array $option): bool {

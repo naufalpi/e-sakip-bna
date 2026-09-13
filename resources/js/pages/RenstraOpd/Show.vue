@@ -382,7 +382,7 @@ const props = defineProps<{
         cancelRevision?: boolean;
         withdraw?: boolean;
     };
-    workflow: Workflow;
+    workflow: Workflow | null;
     activeSection?: RenstraManagementSection | null;
 }>();
 
@@ -4634,7 +4634,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
             </button>
         </div>
 
-        <WorkflowHistoryTimeline v-if="activeWorkspaceTab === 'history'" :workflow="workflow" />
+        <WorkflowHistoryTimeline v-if="activeWorkspaceTab === 'history' && workflow" :workflow="workflow" />
 
         <section
             v-if="activeWorkspaceTab === 'reference'"

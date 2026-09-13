@@ -30,17 +30,22 @@ class RenstraProgressSummaryService
             'targets_filled' => 0,
         ]])->all();
 
-        foreach (['tujuan', 'sasaran', 'program', 'kegiatan', 'sub_kegiatan'] as $stage) {
-            foreach ($this->stageQuery($stage, $renstraIds)->get() as $row) {
-                $renstraId = (int) $row->renstra_id;
-                $nodeCount = (int) $row->node_count;
+        // Keep the stage-specific joins, but execute them in one database round-trip.
+        // This preserves the exact completeness rules while avoiding five sequential queries.
+        $summaryQuery = $this->stageQuery('tujuan', $renstraIds);
+        foreach (['sasaran', 'program', 'kegiatan', 'sub_kegiatan'] as $stage) {
+            $summaryQuery->unionAll($this->stageQuery($stage, $renstraIds));
+        }
 
-                $totals[$renstraId]['stages_filled'] += $nodeCount > 0 ? 1 : 0;
-                $totals[$renstraId]['indicator_parents_filled'] += (int) $row->indicator_parents_filled;
-                $totals[$renstraId]['indicator_parents_total'] += $nodeCount;
-                $totals[$renstraId]['indicators_total'] += (int) $row->indicators_total;
-                $totals[$renstraId]['targets_filled'] += (int) $row->targets_filled;
-            }
+        foreach ($summaryQuery->get() as $row) {
+            $renstraId = (int) $row->renstra_id;
+            $nodeCount = (int) $row->node_count;
+
+            $totals[$renstraId]['stages_filled'] += $nodeCount > 0 ? 1 : 0;
+            $totals[$renstraId]['indicator_parents_filled'] += (int) $row->indicator_parents_filled;
+            $totals[$renstraId]['indicator_parents_total'] += $nodeCount;
+            $totals[$renstraId]['indicators_total'] += (int) $row->indicators_total;
+            $totals[$renstraId]['targets_filled'] += (int) $row->targets_filled;
         }
 
         return $renstras->mapWithKeys(function (RenstraOpd $renstra) use ($totals): array {
