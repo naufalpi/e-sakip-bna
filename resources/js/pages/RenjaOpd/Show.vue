@@ -1645,9 +1645,15 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                                 {{ row.label || '-' }}
                             </td>
                             <td class="border border-slate-700 px-2 py-2">{{ cellValue(row.indikator) }}</td>
-                            <td class="border border-slate-700 px-2 py-2 text-center">{{ cellValue(row.targetAkhir) }}</td>
-                            <td class="border border-slate-700 px-2 py-2 text-center">{{ cellValue(row.realisasiLalu) }}</td>
-                            <td class="border border-slate-700 px-2 py-2 text-center">{{ cellValue(row.prakiraanBerjalan) }}</td>
+                            <td class="whitespace-pre-line border border-slate-700 px-2 py-2 text-center">
+                                {{ targetWithSatuan(row.targetAkhir, row.satuan) }}
+                            </td>
+                            <td class="whitespace-pre-line border border-slate-700 px-2 py-2 text-center">
+                                {{ targetWithSatuan(row.realisasiLalu, row.satuan) }}
+                            </td>
+                            <td class="whitespace-pre-line border border-slate-700 px-2 py-2 text-center">
+                                {{ targetWithSatuan(row.prakiraanBerjalan, row.satuan) }}
+                            </td>
                             <td class="whitespace-pre-line border border-slate-700 px-2 py-2 text-center">
                                 {{ targetWithSatuan(row.target, row.satuan) }}
                             </td>
@@ -1657,7 +1663,9 @@ const officialRowClass = (kind: OfficialPreviewRow['kind']) =>
                             <td class="border border-slate-700 px-2 py-2">{{ cellValue(row.prioritasNasional) }}</td>
                             <td class="border border-slate-700 px-2 py-2">{{ cellValue(row.prioritasDaerah) }}</td>
                             <td class="border border-slate-700 px-2 py-2">{{ cellValue(row.kelompokSasaran) }}</td>
-                            <td class="border border-slate-700 px-2 py-2 text-center">{{ cellValue(row.prakiraanMajuTarget) }}</td>
+                            <td class="whitespace-pre-line border border-slate-700 px-2 py-2 text-center">
+                                {{ targetWithSatuan(row.prakiraanMajuTarget, row.satuan) }}
+                            </td>
                             <td class="border border-slate-700 px-2 py-2 text-right font-semibold">{{ formatMoneyPlain(row.prakiraanMajuPagu) }}</td>
                             <td class="border border-slate-700 px-2 py-2">{{ cellValue(row.pdPenanggungJawab) }}</td>
                             <td v-if="can.manage" class="border border-slate-700 px-2 py-2 text-center">

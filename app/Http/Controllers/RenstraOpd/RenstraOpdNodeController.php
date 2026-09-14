@@ -112,6 +112,52 @@ class RenstraOpdNodeController extends Controller
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
+    public function deleteImpact(RenstraOpd $renstraOpd, string $type, int $id): JsonResponse
+    {
+        $this->authorize('update', $renstraOpd);
+
+        if (! in_array($type, ['tujuan', 'sasaran', 'program', 'kegiatan'], true)) {
+            abort(404);
+        }
+
+        // Also confirms that the requested root belongs to this RENSTRA.
+        $this->findNode($renstraOpd, $type, $id);
+
+        $sasaran = $type === 'tujuan'
+            ? SasaranOpd::query()->where('tujuan_opd_id', $id)->get(['id', 'sasaran'])
+            : collect();
+        $sasaranIds = $type === 'sasaran' ? collect([$id]) : $sasaran->pluck('id');
+
+        $programs = in_array($type, ['tujuan', 'sasaran'], true)
+            ? OpdProgram::query()->whereIn('sasaran_opd_id', $sasaranIds)->get(['id', 'nama'])
+            : collect();
+        $programIds = $type === 'program' ? collect([$id]) : $programs->pluck('id');
+
+        $kegiatan = in_array($type, ['tujuan', 'sasaran', 'program'], true)
+            ? OpdKegiatan::query()->whereIn('opd_program_id', $programIds)->get(['id', 'nama'])
+            : collect();
+        $kegiatanIds = $type === 'kegiatan' ? collect([$id]) : $kegiatan->pluck('id');
+
+        $subKegiatan = OpdSubKegiatan::query()
+            ->whereIn('opd_kegiatan_id', $kegiatanIds)
+            ->get(['id', 'nama']);
+        $anggaranCount = AnggaranSubKegiatanRenstra::query()
+            ->whereIn('opd_sub_kegiatan_id', $subKegiatan->pluck('id'))
+            ->count();
+
+        $items = [
+            ['label' => 'sasaran', 'count' => $type === 'tujuan' ? $sasaran->count() : 0, 'examples' => $sasaran->pluck('sasaran')->take(3)->values()->all()],
+            ['label' => 'program', 'count' => in_array($type, ['tujuan', 'sasaran'], true) ? $programs->count() : 0, 'examples' => $programs->pluck('nama')->take(3)->values()->all()],
+            ['label' => 'kegiatan', 'count' => in_array($type, ['tujuan', 'sasaran', 'program'], true) ? $kegiatan->count() : 0, 'examples' => $kegiatan->pluck('nama')->take(3)->values()->all()],
+            ['label' => 'sub kegiatan', 'count' => $subKegiatan->count(), 'examples' => $subKegiatan->pluck('nama')->take(3)->values()->all()],
+            ['label' => 'data pagu indikatif', 'count' => $anggaranCount],
+        ];
+
+        return response()
+            ->json(['items' => $items])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
     public function store(StoreRenstraOpdNodeRequest $request, RenstraOpd $renstraOpd): RedirectResponse
     {
         $this->authorize('update', $renstraOpd);

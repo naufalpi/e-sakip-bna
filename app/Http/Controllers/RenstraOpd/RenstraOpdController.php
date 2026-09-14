@@ -46,6 +46,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -215,51 +216,14 @@ class RenstraOpdController extends Controller
         $isManagementPage = $activeSection !== null;
         $loadManagementOptions = $manage && $isManagementPage;
 
-        $renstraOpd->load([
-            'opd:id,kode,nama,singkatan',
-            'rpjmd:id,judul,tahun_awal,tahun_akhir,status',
-            'periodeTahun:id,tahun,nama,status',
-            'tujuan.tujuanDaerah:id,kode,tujuan',
-            'tujuan.indikator.indikatorTujuanDaerah:id,kode,indikator',
-            'tujuan.indikator.satuanIndikator:id,nama,simbol',
-            'tujuan.indikator.opdPenanggungJawab:id,kode,nama,singkatan',
-            'tujuan.indikator.targets.periodeTahun:id,tahun,nama',
-            'tujuan.sasaran.sasaranDaerah:id,kode,sasaran',
-            'tujuan.sasaran.indikator.indikatorSasaranDaerah:id,kode,indikator',
-            'tujuan.sasaran.indikator.satuanIndikator:id,nama,simbol',
-            'tujuan.sasaran.indikator.opdPenanggungJawab:id,kode,nama,singkatan',
-            'tujuan.sasaran.indikator.targets.periodeTahun:id,tahun,nama',
-            'tujuan.sasaran.programs.programRpjmd:id,kode,nama,program_pemerintahan_id',
-            'tujuan.sasaran.programs.programRpjmd.programPemerintahan:id,kode,nama,bidang_urusan_id',
-            'tujuan.sasaran.programs.programRpjmd.programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
-            'tujuan.sasaran.programs.programRpjmd.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
-            'tujuan.sasaran.programs.programRpjmd.programPemerintahan.bidangUrusan.opdPengampu:id',
-            'tujuan.sasaran.programs.programRpjmd.programPemerintahanReferences:id,kode,nama,bidang_urusan_id',
-            'tujuan.sasaran.programs.programRpjmd.programPemerintahanReferences.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
-            'tujuan.sasaran.programs.programRpjmd.programPemerintahanReferences.bidangUrusan.urusanPemerintahan:id,kode,nama',
-            'tujuan.sasaran.programs.programRpjmd.programPemerintahanReferences.bidangUrusan.opdPengampu:id',
-            'tujuan.sasaran.programs.programPemerintahan:id,kode,nama,bidang_urusan_id',
-            'tujuan.sasaran.programs.programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama',
-            'tujuan.sasaran.programs.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama',
-            'tujuan.sasaran.programs.indikator.indikatorProgramRpjmd:id,kode,indikator',
-            'tujuan.sasaran.programs.indikator.satuanIndikator:id,nama,simbol',
-            'tujuan.sasaran.programs.indikator.opdPenanggungJawab:id,kode,nama,singkatan',
-            'tujuan.sasaran.programs.indikator.targets.periodeTahun:id,tahun,nama',
-            'tujuan.sasaran.programs.kegiatan.kegiatanPemerintahan:id,kode,nama,program_pemerintahan_id',
-            'tujuan.sasaran.programs.kegiatan.indikator.satuanIndikator:id,nama,simbol',
-            'tujuan.sasaran.programs.kegiatan.indikator.opdPenanggungJawab:id,kode,nama,singkatan',
-            'tujuan.sasaran.programs.kegiatan.indikator.targets.periodeTahun:id,tahun,nama',
-            'tujuan.sasaran.programs.kegiatan.subKegiatan.subKegiatanPemerintahan:id,kode,nama,kegiatan_pemerintahan_id',
-            'tujuan.sasaran.programs.kegiatan.subKegiatan.opdUnit:id,kode,nama,jenis_unit',
-            'tujuan.sasaran.programs.kegiatan.subKegiatan.anggaranTahunan.periodeTahun:id,tahun,nama',
-            'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.satuanIndikator:id,nama,simbol',
-            'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.opdPenanggungJawab:id,kode,nama,singkatan',
-            'tujuan.sasaran.programs.kegiatan.subKegiatan.indikator.targets.periodeTahun:id,tahun,nama',
-            'rpjmdPerubahanTerbaru:id,judul,jenis_versi,nomor_versi',
-        ]);
+        $renstraOpd->load($this->renstraRelations($activeSection));
 
         return Inertia::render('RenstraOpd/Show', [
-            'renstra' => fn () => $this->serializeRenstra($renstraOpd),
+            'renstra' => fn () => $this->serializeRenstra(
+                $renstraOpd,
+                $activeSection,
+                $isManagementPage ? $this->managementBudgetTotals($renstraOpd, $activeSection) : [],
+            ),
             // Partial reloads after saving targets need only the current tree.
             // Closures keep unrelated reference queries out of those requests.
             'rpjmdContext' => fn () => $isManagementPage
@@ -267,9 +231,9 @@ class RenstraOpdController extends Controller
                 : $this->rpjmdContext($renstraOpd),
             // The overview only links to dedicated management pages. Loading these
             // large dictionaries there added queries and payload that were never used.
-            'nodeOptions' => fn () => $loadManagementOptions ? $this->nodeOptions($renstraOpd) : [],
-            'rpjmdReferenceOptions' => fn () => $loadManagementOptions ? $this->rpjmdReferenceOptions($renstraOpd) : [],
-            'masterReferenceOptions' => fn () => $loadManagementOptions ? $this->masterReferenceOptions($renstraOpd) : [],
+            'nodeOptions' => fn () => $loadManagementOptions ? $this->nodeOptions($renstraOpd, $activeSection) : [],
+            'rpjmdReferenceOptions' => fn () => $loadManagementOptions ? $this->rpjmdReferenceOptions($renstraOpd, $activeSection) : [],
+            'masterReferenceOptions' => fn () => $loadManagementOptions ? $this->masterReferenceOptions($renstraOpd, $activeSection) : [],
             // Periode tahun juga dipakai oleh tabel preview untuk membentuk
             // kolom target dan pagu. Data ini harus tetap tersedia bagi
             // reviewer/viewer meskipun mereka tidak memiliki hak mengedit.
@@ -289,6 +253,158 @@ class RenstraOpdController extends Controller
                 : $workflowDataService->forModel($renstraOpd, 'renstra_opd'),
             'activeSection' => $activeSection,
         ]);
+    }
+
+    /**
+     * Load only the cascading depth and indicators used by the requested workspace.
+     * The regular overview still receives the complete tree for its preview table.
+     *
+     * @return array<int, string>
+     */
+    private function renstraRelations(?string $activeSection): array
+    {
+        $base = [
+            'opd:id,kode,nama,singkatan',
+            'rpjmd:id,judul,tahun_awal,tahun_akhir,status',
+            'periodeTahun:id,tahun,nama,status',
+            'rpjmdPerubahanTerbaru:id,judul,jenis_versi,nomor_versi',
+        ];
+
+        if ($activeSection === null) {
+            return [...$base, ...$this->completeRenstraRelations()];
+        }
+
+        $relations = match ($activeSection) {
+            'tujuan' => [
+                'tujuan.tujuanDaerah:id,kode,tujuan',
+                ...$this->indicatorRelations('tujuan.indikator', 'indikatorTujuanDaerah'),
+            ],
+            'sasaran' => [
+                'tujuan.sasaran.sasaranDaerah:id,kode,sasaran',
+                ...$this->indicatorRelations('tujuan.sasaran.indikator', 'indikatorSasaranDaerah'),
+            ],
+            'program' => [
+                ...$this->programReferenceRelations(),
+                ...$this->indicatorRelations('tujuan.sasaran.programs.indikator', 'indikatorProgramRpjmd'),
+            ],
+            'kegiatan' => [
+                ...$this->programReferenceRelations(),
+                'tujuan.sasaran.programs.kegiatan.kegiatanPemerintahan:id,kode,nama,program_pemerintahan_id',
+                ...$this->indicatorRelations('tujuan.sasaran.programs.kegiatan.indikator'),
+            ],
+            'sub-kegiatan' => [
+                ...$this->programReferenceRelations(),
+                'tujuan.sasaran.programs.kegiatan.kegiatanPemerintahan:id,kode,nama,program_pemerintahan_id',
+                'tujuan.sasaran.programs.kegiatan.subKegiatan.subKegiatanPemerintahan:id,kode,nama,kegiatan_pemerintahan_id',
+                'tujuan.sasaran.programs.kegiatan.subKegiatan.opdUnit:id,kode,nama,jenis_unit',
+                'tujuan.sasaran.programs.kegiatan.subKegiatan.anggaranTahunan.periodeTahun:id,tahun,nama',
+                ...$this->indicatorRelations('tujuan.sasaran.programs.kegiatan.subKegiatan.indikator'),
+            ],
+            default => [],
+        };
+
+        return [...$base, ...$relations];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function completeRenstraRelations(): array
+    {
+        return [
+            'tujuan.tujuanDaerah:id,kode,tujuan',
+            ...$this->indicatorRelations('tujuan.indikator', 'indikatorTujuanDaerah'),
+            'tujuan.sasaran.sasaranDaerah:id,kode,sasaran',
+            ...$this->indicatorRelations('tujuan.sasaran.indikator', 'indikatorSasaranDaerah'),
+            ...$this->programReferenceRelations(),
+            ...$this->indicatorRelations('tujuan.sasaran.programs.indikator', 'indikatorProgramRpjmd'),
+            'tujuan.sasaran.programs.kegiatan.kegiatanPemerintahan:id,kode,nama,program_pemerintahan_id',
+            ...$this->indicatorRelations('tujuan.sasaran.programs.kegiatan.indikator'),
+            'tujuan.sasaran.programs.kegiatan.subKegiatan.subKegiatanPemerintahan:id,kode,nama,kegiatan_pemerintahan_id',
+            'tujuan.sasaran.programs.kegiatan.subKegiatan.opdUnit:id,kode,nama,jenis_unit',
+            'tujuan.sasaran.programs.kegiatan.subKegiatan.anggaranTahunan.periodeTahun:id,tahun,nama',
+            ...$this->indicatorRelations('tujuan.sasaran.programs.kegiatan.subKegiatan.indikator'),
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function programReferenceRelations(): array
+    {
+        $prefix = 'tujuan.sasaran.programs';
+
+        return [
+            "{$prefix}.programRpjmd:id,kode,nama,program_pemerintahan_id",
+            "{$prefix}.programRpjmd.programPemerintahan:id,kode,nama,bidang_urusan_id",
+            "{$prefix}.programRpjmd.programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama",
+            "{$prefix}.programRpjmd.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama",
+            "{$prefix}.programRpjmd.programPemerintahan.bidangUrusan.opdPengampu:id",
+            "{$prefix}.programRpjmd.programPemerintahanReferences:id,kode,nama,bidang_urusan_id",
+            "{$prefix}.programRpjmd.programPemerintahanReferences.bidangUrusan:id,urusan_pemerintahan_id,kode,nama",
+            "{$prefix}.programRpjmd.programPemerintahanReferences.bidangUrusan.urusanPemerintahan:id,kode,nama",
+            "{$prefix}.programRpjmd.programPemerintahanReferences.bidangUrusan.opdPengampu:id",
+            "{$prefix}.programPemerintahan:id,kode,nama,bidang_urusan_id",
+            "{$prefix}.programPemerintahan.bidangUrusan:id,urusan_pemerintahan_id,kode,nama",
+            "{$prefix}.programPemerintahan.bidangUrusan.urusanPemerintahan:id,kode,nama",
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function indicatorRelations(string $prefix, ?string $linkedRelation = null): array
+    {
+        return array_values(array_filter([
+            $linkedRelation ? "{$prefix}.{$linkedRelation}:id,kode,indikator" : null,
+            "{$prefix}.satuanIndikator:id,nama,simbol",
+            "{$prefix}.opdPenanggungJawab:id,kode,nama,singkatan",
+            "{$prefix}.targets.periodeTahun:id,tahun,nama",
+        ]));
+    }
+
+    /**
+     * Aggregate the budget displayed by Program/Kegiatan without hydrating every
+     * descendant Sub Kegiatan and annual budget model into the request.
+     *
+     * @return array<int, float>
+     */
+    private function managementBudgetTotals(RenstraOpd $renstra, ?string $activeSection): array
+    {
+        $query = match ($activeSection) {
+            'program' => DB::table('opd_program as node')
+                ->leftJoin('opd_kegiatan as kegiatan', function ($join): void {
+                    $join->on('kegiatan.opd_program_id', '=', 'node.id')->whereNull('kegiatan.deleted_at');
+                })
+                ->leftJoin('opd_sub_kegiatan as sub_kegiatan', function ($join): void {
+                    $join->on('sub_kegiatan.opd_kegiatan_id', '=', 'kegiatan.id')->whereNull('sub_kegiatan.deleted_at');
+                })
+                ->leftJoin('anggaran_sub_kegiatan_renstra as anggaran', 'anggaran.opd_sub_kegiatan_id', '=', 'sub_kegiatan.id')
+                ->where('node.renstra_opd_id', $renstra->id)
+                ->whereNull('node.deleted_at'),
+            'kegiatan' => DB::table('opd_kegiatan as node')
+                ->join('opd_program as program', function ($join): void {
+                    $join->on('program.id', '=', 'node.opd_program_id')->whereNull('program.deleted_at');
+                })
+                ->leftJoin('opd_sub_kegiatan as sub_kegiatan', function ($join): void {
+                    $join->on('sub_kegiatan.opd_kegiatan_id', '=', 'node.id')->whereNull('sub_kegiatan.deleted_at');
+                })
+                ->leftJoin('anggaran_sub_kegiatan_renstra as anggaran', 'anggaran.opd_sub_kegiatan_id', '=', 'sub_kegiatan.id')
+                ->where('program.renstra_opd_id', $renstra->id)
+                ->whereNull('node.deleted_at'),
+            default => null,
+        };
+
+        if (! $query) {
+            return [];
+        }
+
+        return $query
+            ->groupBy('node.id')
+            ->selectRaw('node.id as node_id, COALESCE(SUM(anggaran.anggaran), 0) as total')
+            ->pluck('total', 'node_id')
+            ->map(fn ($total): float => (float) $total)
+            ->all();
     }
 
     public function exportPreview(
@@ -522,29 +638,36 @@ class RenstraOpdController extends Controller
     /**
      * @return array<string, array<int, array<string, mixed>>>
      */
-    private function nodeOptions(RenstraOpd $renstra): array
+    private function nodeOptions(RenstraOpd $renstra, string $activeSection): array
     {
+        $tujuan = $renstra->tujuan;
+        $sasaran = $tujuan->flatMap(fn (TujuanOpd $item) => $this->loadedRelation($item, 'sasaran'));
+        $programs = $sasaran->flatMap(fn (SasaranOpd $item) => $this->loadedRelation($item, 'programs'));
+        $kegiatan = $programs->flatMap(fn (OpdProgram $item) => $this->loadedRelation($item, 'kegiatan'));
+        $subKegiatan = $kegiatan->flatMap(fn (OpdKegiatan $item) => $this->loadedRelation($item, 'subKegiatan'));
+        $sasaranById = $sasaran->keyBy('id');
+        $programById = $programs->keyBy('id');
+
         return [
-            'tujuan' => TujuanOpd::query()->where('renstra_opd_id', $renstra->id)->orderBy('urutan')->get(['id', 'tujuan'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel(null, $item->tujuan)])->values()->all(),
-            'indikator_tujuan' => IndikatorTujuanOpd::query()->whereHas('tujuan', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'sasaran' => SasaranOpd::query()->whereHas('tujuan', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'sasaran'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all(),
-            'indikator_sasaran' => IndikatorSasaranOpd::query()->whereHas('sasaran.tujuan', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'program' => OpdProgram::query()
-                ->where('renstra_opd_id', $renstra->id)
-                ->with('sasaran:id,kode,sasaran')
-                ->orderBy(
-                    SasaranOpd::query()
-                        ->select('urutan')
-                        ->whereColumn('sasaran_opd.id', 'opd_program.sasaran_opd_id'),
-                )
-                ->orderBy('opd_program.urutan')
-                ->orderBy('opd_program.id')
-                ->get(['id', 'sasaran_opd_id', 'kode', 'nama', 'sasaran_program'])
-                ->map(function (OpdProgram $item): array {
+            'tujuan' => in_array($activeSection, ['tujuan', 'sasaran'], true)
+                ? $tujuan->map(fn (TujuanOpd $item) => ['id' => $item->id, 'label' => $this->nodeLabel(null, $item->tujuan)])->values()->all()
+                : [],
+            'indikator_tujuan' => $activeSection === 'tujuan'
+                ? $tujuan->flatMap(fn (TujuanOpd $item) => $this->loadedRelation($item, 'indikator'))->map(fn (IndikatorTujuanOpd $item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all()
+                : [],
+            'sasaran' => in_array($activeSection, ['sasaran', 'program'], true)
+                ? $sasaran->map(fn (SasaranOpd $item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all()
+                : [],
+            'indikator_sasaran' => $activeSection === 'sasaran'
+                ? $sasaran->flatMap(fn (SasaranOpd $item) => $this->loadedRelation($item, 'indikator'))->map(fn (IndikatorSasaranOpd $item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all()
+                : [],
+            'program' => in_array($activeSection, ['program', 'kegiatan'], true) ? $programs
+                ->map(function (OpdProgram $item) use ($sasaranById): array {
+                    $sasaran = $sasaranById->get($item->sasaran_opd_id);
                     $context = collect([
-                        $item->sasaran ? [
+                        $sasaran ? [
                             'label' => 'Sasaran OPD',
-                            'value' => $this->nodeLabel($item->sasaran->kode, $item->sasaran->sasaran),
+                            'value' => $this->nodeLabel($sasaran->kode, $sasaran->sasaran),
                             'tone' => 'opd',
                         ] : null,
                         filled($item->sasaran_program) ? [
@@ -562,18 +685,17 @@ class RenstraOpdController extends Controller
                     ];
                 })
                 ->values()
-                ->all(),
-            'indikator_program' => IndikatorOpdProgram::query()->whereHas('program', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'kegiatan' => OpdKegiatan::query()
-                ->whereHas('program', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))
-                ->with('program:id,nama,sasaran_program')
-                ->orderBy('urutan')
-                ->get(['id', 'opd_program_id', 'kode', 'nama', 'sasaran_kegiatan'])
-                ->map(function (OpdKegiatan $item): array {
+                ->all() : [],
+            'indikator_program' => $activeSection === 'program'
+                ? $programs->flatMap(fn (OpdProgram $item) => $this->loadedRelation($item, 'indikator'))->map(fn (IndikatorOpdProgram $item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all()
+                : [],
+            'kegiatan' => in_array($activeSection, ['kegiatan', 'sub-kegiatan'], true) ? $kegiatan
+                ->map(function (OpdKegiatan $item) use ($programById): array {
+                    $program = $programById->get($item->opd_program_id);
                     $context = collect([
-                        filled($item->program?->sasaran_program) ? [
+                        filled($program?->sasaran_program) ? [
                             'label' => 'Sasaran Program',
-                            'value' => $item->program->sasaran_program,
+                            'value' => $program->sasaran_program,
                             'tone' => 'program',
                         ] : null,
                         filled($item->sasaran_kegiatan) ? [
@@ -588,20 +710,24 @@ class RenstraOpdController extends Controller
                         'label' => $this->nodeLabel($item->kode, $item->nama),
                         'description' => $context->map(fn (array $item) => $item['label'].': '.$item['value'])->join(' • ') ?: null,
                         'context' => $context->all(),
-                        'group' => $item->program ? 'Program: '.$item->program->nama : null,
+                        'group' => $program ? 'Program: '.$program->nama : null,
                     ];
                 })
                 ->values()
-                ->all(),
-            'indikator_kegiatan' => IndikatorOpdKegiatan::query()->whereHas('kegiatan.program', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'sub_kegiatan' => OpdSubKegiatan::query()->whereHas('kegiatan.program', fn (Builder $query) => $query->where('renstra_opd_id', $renstra->id))->orderBy('urutan')->get(['id', 'kode', 'nama'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->nama)])->values()->all(),
+                ->all() : [],
+            'indikator_kegiatan' => $activeSection === 'kegiatan'
+                ? $kegiatan->flatMap(fn (OpdKegiatan $item) => $this->loadedRelation($item, 'indikator'))->map(fn (IndikatorOpdKegiatan $item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all()
+                : [],
+            'sub_kegiatan' => $activeSection === 'sub-kegiatan'
+                ? $subKegiatan->map(fn (OpdSubKegiatan $item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->nama)])->values()->all()
+                : [],
         ];
     }
 
     /**
      * @return array<string, array<int, array<string, mixed>>>
      */
-    private function rpjmdReferenceOptions(RenstraOpd $renstra): array
+    private function rpjmdReferenceOptions(RenstraOpd $renstra, string $activeSection): array
     {
         $programRpjmdQuery = fn () => ProgramRpjmd::query()
             ->forRpjmd($renstra->rpjmd_id)
@@ -609,11 +735,19 @@ class RenstraOpdController extends Controller
                 ->relevantForOpd((int) $renstra->opd_id));
 
         return [
-            'tujuan_daerah' => TujuanDaerah::query()->forRpjmd($renstra->rpjmd_id)->orderBy('urutan')->get(['id', 'kode', 'tujuan'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->tujuan)])->values()->all(),
-            'indikator_tujuan_daerah' => IndikatorTujuanDaerah::query()->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd($renstra->rpjmd_id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'sasaran_daerah' => SasaranDaerah::query()->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd($renstra->rpjmd_id))->orderBy('urutan')->get(['id', 'kode', 'sasaran'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all(),
-            'indikator_sasaran_daerah' => IndikatorSasaranDaerah::query()->whereHas('sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($renstra->rpjmd_id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all(),
-            'program_rpjmd' => $programRpjmdQuery()
+            'tujuan_daerah' => $activeSection === 'tujuan'
+                ? TujuanDaerah::query()->forRpjmd($renstra->rpjmd_id)->orderBy('urutan')->get(['id', 'kode', 'tujuan'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->tujuan)])->values()->all()
+                : [],
+            'indikator_tujuan_daerah' => $activeSection === 'tujuan'
+                ? IndikatorTujuanDaerah::query()->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd($renstra->rpjmd_id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all()
+                : [],
+            'sasaran_daerah' => $activeSection === 'sasaran'
+                ? SasaranDaerah::query()->whereHas('tujuan', fn (Builder $query) => $query->forRpjmd($renstra->rpjmd_id))->orderBy('urutan')->get(['id', 'kode', 'sasaran'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->sasaran)])->values()->all()
+                : [],
+            'indikator_sasaran_daerah' => $activeSection === 'sasaran'
+                ? IndikatorSasaranDaerah::query()->whereHas('sasaran.tujuan', fn (Builder $query) => $query->forRpjmd($renstra->rpjmd_id))->orderBy('urutan')->get(['id', 'kode', 'indikator'])->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])->values()->all()
+                : [],
+            'program_rpjmd' => $activeSection === 'program' ? $programRpjmdQuery()
                 ->with('programPemerintahan.bidangUrusan.opdPengampu:id')
                 ->with('programPemerintahanReferences.bidangUrusan.opdPengampu:id')
                 ->orderBy('urutan')
@@ -633,8 +767,8 @@ class RenstraOpdController extends Controller
                     ];
                 })
                 ->values()
-                ->all(),
-            'indikator_program_rpjmd' => IndikatorProgramRpjmd::query()
+                ->all() : [],
+            'indikator_program_rpjmd' => $activeSection === 'program' ? IndikatorProgramRpjmd::query()
                 ->whereHas('program', fn (Builder $query) => $query
                     ->forRpjmd($renstra->rpjmd_id)
                     ->when($this->shouldRestrictRpjmdProgramReferences($renstra), fn (Builder $query) => $query
@@ -643,7 +777,7 @@ class RenstraOpdController extends Controller
                 ->get(['id', 'kode', 'indikator'])
                 ->map(fn ($item) => ['id' => $item->id, 'label' => $this->nodeLabel($item->kode, $item->indikator)])
                 ->values()
-                ->all(),
+                ->all() : [],
         ];
     }
 
@@ -655,12 +789,35 @@ class RenstraOpdController extends Controller
     /**
      * @return array<string, array<int, array<string, mixed>>>
      */
-    private function masterReferenceOptions(RenstraOpd $renstra): array
+    private function masterReferenceOptions(RenstraOpd $renstra, string $activeSection): array
     {
-        $referencePeriodeTahunId = $this->referencePeriodeTahunIdForMasterOptions($renstra);
+        $referencePeriodeTahunId = in_array($activeSection, ['kegiatan', 'sub-kegiatan'], true)
+            ? $this->referencePeriodeTahunIdForMasterOptions($renstra)
+            : null;
+        $programMasterIds = collect();
+        $kegiatanMasterIds = collect();
+
+        if ($activeSection === 'kegiatan') {
+            $programs = $renstra->tujuan
+                ->flatMap(fn (TujuanOpd $tujuan) => $this->loadedRelation($tujuan, 'sasaran'))
+                ->flatMap(fn (SasaranOpd $sasaran) => $this->loadedRelation($sasaran, 'programs'));
+            $programMasterIds = $programs->contains(fn (OpdProgram $program): bool => blank($program->program_pemerintahan_id))
+                ? collect()
+                : $programs->pluck('program_pemerintahan_id')->filter()->unique()->values();
+        }
+
+        if ($activeSection === 'sub-kegiatan') {
+            $kegiatan = $renstra->tujuan
+                ->flatMap(fn (TujuanOpd $tujuan) => $this->loadedRelation($tujuan, 'sasaran'))
+                ->flatMap(fn (SasaranOpd $sasaran) => $this->loadedRelation($sasaran, 'programs'))
+                ->flatMap(fn (OpdProgram $program) => $this->loadedRelation($program, 'kegiatan'));
+            $kegiatanMasterIds = $kegiatan->contains(fn (OpdKegiatan $item): bool => blank($item->kegiatan_pemerintahan_id))
+                ? collect()
+                : $kegiatan->pluck('kegiatan_pemerintahan_id')->filter()->unique()->values();
+        }
 
         return [
-            'program_pemerintahan' => ProgramPemerintahan::query()
+            'program_pemerintahan' => $activeSection === 'program' ? ProgramPemerintahan::query()
                 ->with('bidangUrusan.urusanPemerintahan:id,kode,nama')
                 ->where('status', 'active')
                 ->orderBy('kode')
@@ -675,11 +832,12 @@ class RenstraOpdController extends Controller
                     'group' => $program->bidangUrusan?->urusanPemerintahan ? $this->nodeLabel($program->bidangUrusan->urusanPemerintahan->kode, $program->bidangUrusan->urusanPemerintahan->nama) : null,
                 ])
                 ->values()
-                ->all(),
-            'kegiatan_pemerintahan' => KegiatanPemerintahan::query()
+                ->all() : [],
+            'kegiatan_pemerintahan' => $activeSection === 'kegiatan' ? KegiatanPemerintahan::query()
                 ->with('programPemerintahan:id,kode,nama,bidang_urusan_id')
                 ->where('status', 'active')
                 ->when($referencePeriodeTahunId, fn (Builder $query, int $periodeId) => $query->where('periode_tahun_id', $periodeId))
+                ->when($programMasterIds->isNotEmpty(), fn (Builder $query) => $query->whereIn('program_pemerintahan_id', $programMasterIds))
                 ->orderBy('kode')
                 ->get(['id', 'periode_tahun_id', 'program_pemerintahan_id', 'kode', 'nama'])
                 ->map(fn (KegiatanPemerintahan $kegiatan) => [
@@ -693,11 +851,12 @@ class RenstraOpdController extends Controller
                     'group' => $kegiatan->programPemerintahan ? $this->nodeLabel($kegiatan->programPemerintahan->kode, $kegiatan->programPemerintahan->nama) : null,
                 ])
                 ->values()
-                ->all(),
-            'sub_kegiatan_pemerintahan' => SubKegiatanPemerintahan::query()
+                ->all() : [],
+            'sub_kegiatan_pemerintahan' => $activeSection === 'sub-kegiatan' ? SubKegiatanPemerintahan::query()
                 ->with(['satuanIndikator:id,nama,simbol', 'kegiatanPemerintahan.programPemerintahan:id,kode,nama,bidang_urusan_id'])
                 ->where('status', 'active')
                 ->when($referencePeriodeTahunId, fn (Builder $query, int $periodeId) => $query->where('periode_tahun_id', $periodeId))
+                ->when($kegiatanMasterIds->isNotEmpty(), fn (Builder $query) => $query->whereIn('kegiatan_pemerintahan_id', $kegiatanMasterIds))
                 ->orderBy('kode')
                 ->get([
                     'id',
@@ -727,8 +886,8 @@ class RenstraOpdController extends Controller
                     'group' => $subKegiatan->kegiatanPemerintahan?->programPemerintahan ? $this->nodeLabel($subKegiatan->kegiatanPemerintahan->programPemerintahan->kode, $subKegiatan->kegiatanPemerintahan->programPemerintahan->nama) : null,
                 ])
                 ->values()
-                ->all(),
-            'opd_units' => OpdUnit::query()
+                ->all() : [],
+            'opd_units' => $activeSection === 'sub-kegiatan' ? OpdUnit::query()
                 ->where('opd_id', $renstra->opd_id)
                 ->where('status', 'active')
                 ->orderBy('kode')
@@ -742,20 +901,10 @@ class RenstraOpdController extends Controller
                     'description' => $unit->jenis_unit,
                 ])
                 ->values()
-                ->all(),
-            'opds' => Opd::query()
-                ->where('status', 'active')
-                ->orderBy('nama')
-                ->get(['id', 'kode', 'nama', 'singkatan'])
-                ->map(fn (Opd $opd) => [
-                    'id' => $opd->id,
-                    'kode' => $opd->kode,
-                    'nama' => $opd->nama,
-                    'label' => $opd->singkatan ? "{$opd->singkatan} - {$opd->nama}" : $opd->nama,
-                    'description' => $opd->kode,
-                ])
-                ->values()
-                ->all(),
+                ->all() : [],
+            // Indicator forms use free-text PD/unit responsibility fields. This
+            // legacy list was not consumed by the page and could be very large.
+            'opds' => [],
         ];
     }
 
@@ -913,8 +1062,16 @@ class RenstraOpdController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function serializeRenstra(RenstraOpd $renstra): array
-    {
+    private function serializeRenstra(
+        RenstraOpd $renstra,
+        ?string $activeSection = null,
+        array $budgetTotals = [],
+    ): array {
+        $includeSasaran = $activeSection === null || $activeSection !== 'tujuan';
+        $includePrograms = $activeSection === null || in_array($activeSection, ['program', 'kegiatan', 'sub-kegiatan'], true);
+        $includeKegiatan = $activeSection === null || in_array($activeSection, ['kegiatan', 'sub-kegiatan'], true);
+        $includeSubKegiatan = $activeSection === null || $activeSection === 'sub-kegiatan';
+
         return [
             'id' => $renstra->id,
             'judul' => $renstra->judul,
@@ -961,96 +1118,118 @@ class RenstraOpdController extends Controller
                 'tujuan' => $tujuan->tujuan,
                 'linked' => filled($tujuan->tujuan_daerah_id),
                 'urutan' => $tujuan->urutan,
-                'tujuan_daerah' => $tujuan->tujuanDaerah ? [
+                'tujuan_daerah' => $tujuan->relationLoaded('tujuanDaerah') && $tujuan->tujuanDaerah ? [
                     'kode' => $tujuan->tujuanDaerah->kode,
                     'tujuan' => $tujuan->tujuanDaerah->tujuan,
                 ] : null,
-                'indikator' => $tujuan->indikator->map(fn (IndikatorTujuanOpd $indikator) => $this->serializeIndikator($indikator, 'indikatorTujuanDaerah')),
-                'sasaran' => $tujuan->sasaran->map(fn (SasaranOpd $sasaran) => [
-                    'id' => $sasaran->id,
-                    'sasaran_daerah_id' => $sasaran->sasaran_daerah_id,
-                    'kode' => $sasaran->kode,
-                    'sasaran' => $sasaran->sasaran,
-                    'linked' => filled($sasaran->sasaran_daerah_id),
-                    'urutan' => $sasaran->urutan,
-                    'sasaran_daerah' => $sasaran->sasaranDaerah ? [
-                        'kode' => $sasaran->sasaranDaerah->kode,
-                        'sasaran' => $sasaran->sasaranDaerah->sasaran,
-                    ] : null,
-                    'indikator' => $sasaran->indikator->map(fn (IndikatorSasaranOpd $indikator) => $this->serializeIndikator($indikator, 'indikatorSasaranDaerah')),
-                    'programs' => $sasaran->programs->map(function (OpdProgram $program) use ($renstra) {
-                        $programPemerintahan = $this->programPemerintahanForRenstraProgram($program, $renstra);
+                'indikator' => $this->loadedRelation($tujuan, 'indikator')->map(fn (IndikatorTujuanOpd $indikator) => $this->serializeIndikator($indikator, 'indikatorTujuanDaerah')),
+                'sasaran' => $includeSasaran
+                    ? $this->loadedRelation($tujuan, 'sasaran')->map(fn (SasaranOpd $sasaran) => [
+                        'id' => $sasaran->id,
+                        'sasaran_daerah_id' => $sasaran->sasaran_daerah_id,
+                        'kode' => $sasaran->kode,
+                        'sasaran' => $sasaran->sasaran,
+                        'linked' => filled($sasaran->sasaran_daerah_id),
+                        'urutan' => $sasaran->urutan,
+                        'sasaran_daerah' => $sasaran->relationLoaded('sasaranDaerah') && $sasaran->sasaranDaerah ? [
+                            'kode' => $sasaran->sasaranDaerah->kode,
+                            'sasaran' => $sasaran->sasaranDaerah->sasaran,
+                        ] : null,
+                        'indikator' => $this->loadedRelation($sasaran, 'indikator')->map(fn (IndikatorSasaranOpd $indikator) => $this->serializeIndikator($indikator, 'indikatorSasaranDaerah')),
+                        'programs' => $includePrograms
+                        ? $this->loadedRelation($sasaran, 'programs')->map(function (OpdProgram $program) use ($renstra, $activeSection, $budgetTotals, $includeKegiatan, $includeSubKegiatan) {
+                            $programPemerintahan = $this->programPemerintahanForRenstraProgram($program, $renstra);
 
-                        return [
-                            'id' => $program->id,
-                            'program_rpjmd_id' => $program->program_rpjmd_id,
-                            'program_pemerintahan_id' => $programPemerintahan?->id ?? $program->program_pemerintahan_id,
-                            'kode' => $program->kode,
-                            'nama' => $program->nama,
-                            'sasaran_program' => $program->sasaran_program,
-                            'pagu_indikatif' => $this->programBudgetTotal($program),
-                            'status' => $program->status,
-                            'linked' => filled($program->program_rpjmd_id),
-                            'urutan' => $program->urutan,
-                            'program_rpjmd' => $program->programRpjmd ? [
-                                'kode' => $program->programRpjmd->kode,
-                                'nama' => $program->programRpjmd->nama,
-                                'program_pemerintahan_id' => $programPemerintahan?->id ?? $program->programRpjmd->program_pemerintahan_id,
-                                'program_pemerintahan_ids' => $program->programRpjmd->programPemerintahanReferenceIds(),
-                                'program_pemerintahan' => $this->serializeProgramPemerintahan($programPemerintahan),
-                            ] : null,
-                            'program_pemerintahan' => $this->serializeProgramPemerintahan($programPemerintahan),
-                            'indikator' => $program->indikator->map(fn (IndikatorOpdProgram $indikator) => $this->serializeIndikator($indikator, 'indikatorProgramRpjmd')),
-                            'kegiatan' => $program->kegiatan->map(fn (OpdKegiatan $kegiatan) => [
-                                'id' => $kegiatan->id,
-                                'kegiatan_pemerintahan_id' => $kegiatan->kegiatan_pemerintahan_id,
-                                'kode' => $kegiatan->kode,
-                                'nama' => $kegiatan->nama,
-                                'sasaran_kegiatan' => $kegiatan->sasaran_kegiatan,
-                                'pagu_indikatif' => $this->kegiatanBudgetTotal($kegiatan),
-                                'urutan' => $kegiatan->urutan,
-                                'kegiatan_pemerintahan' => $kegiatan->kegiatanPemerintahan ? [
-                                    'kode' => $kegiatan->kegiatanPemerintahan->kode,
-                                    'nama' => $kegiatan->kegiatanPemerintahan->nama,
-                                    'program_pemerintahan_id' => $kegiatan->kegiatanPemerintahan->program_pemerintahan_id,
+                            return [
+                                'id' => $program->id,
+                                'program_rpjmd_id' => $program->program_rpjmd_id,
+                                'program_pemerintahan_id' => $programPemerintahan?->id ?? $program->program_pemerintahan_id,
+                                'kode' => $program->kode,
+                                'nama' => $program->nama,
+                                'sasaran_program' => $program->sasaran_program,
+                                'pagu_indikatif' => $activeSection === 'program'
+                                    ? ($budgetTotals[$program->id] ?? 0)
+                                    : ($activeSection === null || $activeSection === 'sub-kegiatan' ? $this->programBudgetTotal($program) : 0),
+                                'status' => $program->status,
+                                'linked' => filled($program->program_rpjmd_id),
+                                'urutan' => $program->urutan,
+                                'program_rpjmd' => $program->programRpjmd ? [
+                                    'kode' => $program->programRpjmd->kode,
+                                    'nama' => $program->programRpjmd->nama,
+                                    'program_pemerintahan_id' => $programPemerintahan?->id ?? $program->programRpjmd->program_pemerintahan_id,
+                                    'program_pemerintahan_ids' => $program->programRpjmd->programPemerintahanReferenceIds(),
+                                    'program_pemerintahan' => $this->serializeProgramPemerintahan($programPemerintahan),
                                 ] : null,
-                                'indikator' => $kegiatan->indikator->map(fn (IndikatorOpdKegiatan $indikator) => $this->serializeIndikator($indikator)),
-                                'sub_kegiatan' => $kegiatan->subKegiatan->map(fn (OpdSubKegiatan $subKegiatan) => [
-                                    'id' => $subKegiatan->id,
-                                    'sub_kegiatan_pemerintahan_id' => $subKegiatan->sub_kegiatan_pemerintahan_id,
-                                    'opd_unit_id' => $subKegiatan->opd_unit_id,
-                                    'kode' => $subKegiatan->kode,
-                                    'nama' => $subKegiatan->nama,
-                                    'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
-                                    'pagu_indikatif' => $this->subKegiatanBudgetTotal($subKegiatan),
-                                    'urutan' => $subKegiatan->urutan,
-                                    'anggaran' => $subKegiatan->anggaranTahunan->map(fn ($anggaran) => [
-                                        'id' => $anggaran->id,
-                                        'periode_tahun' => [
-                                            'id' => $anggaran->periodeTahun->id,
-                                            'tahun' => $anggaran->periodeTahun->tahun,
-                                            'nama' => $anggaran->periodeTahun->nama,
-                                        ],
-                                        'anggaran' => $anggaran->anggaran,
-                                    ]),
-                                    'sub_kegiatan_pemerintahan' => $subKegiatan->subKegiatanPemerintahan ? [
-                                        'kode' => $subKegiatan->subKegiatanPemerintahan->kode,
-                                        'nama' => $subKegiatan->subKegiatanPemerintahan->nama,
-                                        'kegiatan_pemerintahan_id' => $subKegiatan->subKegiatanPemerintahan->kegiatan_pemerintahan_id,
-                                    ] : null,
-                                    'opd_unit' => $subKegiatan->opdUnit ? [
-                                        'kode' => $subKegiatan->opdUnit->kode,
-                                        'nama' => $subKegiatan->opdUnit->nama,
-                                        'jenis_unit' => $subKegiatan->opdUnit->jenis_unit,
-                                    ] : null,
-                                    'indikator' => $subKegiatan->indikator->map(fn (IndikatorSubKegiatan $indikator) => $this->serializeIndikator($indikator)),
-                                ]),
-                            ]),
-                        ];
-                    }),
-                ]),
+                                'program_pemerintahan' => $this->serializeProgramPemerintahan($programPemerintahan),
+                                'indikator' => $this->loadedRelation($program, 'indikator')->map(fn (IndikatorOpdProgram $indikator) => $this->serializeIndikator($indikator, 'indikatorProgramRpjmd')),
+                                'kegiatan' => $includeKegiatan
+                                    ? $this->loadedRelation($program, 'kegiatan')->map(fn (OpdKegiatan $kegiatan) => [
+                                        'id' => $kegiatan->id,
+                                        'kegiatan_pemerintahan_id' => $kegiatan->kegiatan_pemerintahan_id,
+                                        'kode' => $kegiatan->kode,
+                                        'nama' => $kegiatan->nama,
+                                        'sasaran_kegiatan' => $kegiatan->sasaran_kegiatan,
+                                        'pagu_indikatif' => $activeSection === 'kegiatan'
+                                            ? ($budgetTotals[$kegiatan->id] ?? 0)
+                                            : ($activeSection === null || $activeSection === 'sub-kegiatan' ? $this->kegiatanBudgetTotal($kegiatan) : 0),
+                                        'urutan' => $kegiatan->urutan,
+                                        'kegiatan_pemerintahan' => $kegiatan->kegiatanPemerintahan ? [
+                                            'kode' => $kegiatan->kegiatanPemerintahan->kode,
+                                            'nama' => $kegiatan->kegiatanPemerintahan->nama,
+                                            'program_pemerintahan_id' => $kegiatan->kegiatanPemerintahan->program_pemerintahan_id,
+                                        ] : null,
+                                        'indikator' => $this->loadedRelation($kegiatan, 'indikator')->map(fn (IndikatorOpdKegiatan $indikator) => $this->serializeIndikator($indikator)),
+                                        'sub_kegiatan' => $includeSubKegiatan
+                                            ? $this->loadedRelation($kegiatan, 'subKegiatan')->map(fn (OpdSubKegiatan $subKegiatan) => [
+                                                'id' => $subKegiatan->id,
+                                                'sub_kegiatan_pemerintahan_id' => $subKegiatan->sub_kegiatan_pemerintahan_id,
+                                                'opd_unit_id' => $subKegiatan->opd_unit_id,
+                                                'kode' => $subKegiatan->kode,
+                                                'nama' => $subKegiatan->nama,
+                                                'sasaran_sub_kegiatan' => $subKegiatan->sasaran_sub_kegiatan,
+                                                'pagu_indikatif' => $this->subKegiatanBudgetTotal($subKegiatan),
+                                                'urutan' => $subKegiatan->urutan,
+                                                'anggaran' => $subKegiatan->anggaranTahunan->map(fn ($anggaran) => [
+                                                    'id' => $anggaran->id,
+                                                    'periode_tahun' => [
+                                                        'id' => $anggaran->periodeTahun->id,
+                                                        'tahun' => $anggaran->periodeTahun->tahun,
+                                                        'nama' => $anggaran->periodeTahun->nama,
+                                                    ],
+                                                    'anggaran' => $anggaran->anggaran,
+                                                ]),
+                                                'sub_kegiatan_pemerintahan' => $subKegiatan->subKegiatanPemerintahan ? [
+                                                    'kode' => $subKegiatan->subKegiatanPemerintahan->kode,
+                                                    'nama' => $subKegiatan->subKegiatanPemerintahan->nama,
+                                                    'kegiatan_pemerintahan_id' => $subKegiatan->subKegiatanPemerintahan->kegiatan_pemerintahan_id,
+                                                ] : null,
+                                                'opd_unit' => $subKegiatan->opdUnit ? [
+                                                    'kode' => $subKegiatan->opdUnit->kode,
+                                                    'nama' => $subKegiatan->opdUnit->nama,
+                                                    'jenis_unit' => $subKegiatan->opdUnit->jenis_unit,
+                                                ] : null,
+                                                'indikator' => $this->loadedRelation($subKegiatan, 'indikator')->map(fn (IndikatorSubKegiatan $indikator) => $this->serializeIndikator($indikator)),
+                                            ])
+                                            : collect(),
+                                    ])
+                                    : collect(),
+                            ];
+                        })
+                            : collect(),
+                    ])
+                    : collect(),
             ]),
         ];
+    }
+
+    /**
+     * Return an already eager-loaded relation without allowing accidental N+1 queries.
+     *
+     * @return Collection<int, Model>
+     */
+    private function loadedRelation(Model $model, string $relation): Collection
+    {
+        return $model->relationLoaded($relation) ? collect($model->getRelation($relation)) : collect();
     }
 
     private function programBudgetTotal(OpdProgram $program): float

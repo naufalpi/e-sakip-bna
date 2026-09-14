@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
 import RpjmdRichSelect from '@/components/RpjmdRichSelect.vue';
-import WorkflowActionButtons from '@/components/WorkflowActionButtons.vue';
-import WorkflowHistoryTimeline from '@/components/WorkflowHistoryTimeline.vue';
-import { confirmCascadingDelete, confirmDelete, type CascadingDeleteImpact, promptTextArea } from '@/lib/sweetAlert';
+import type { CascadingDeleteImpact } from '@/lib/sweetAlert';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     ArrowLeft,
@@ -16,7 +14,6 @@ import {
     FolderOpen,
     GitBranch,
     Layers3,
-    Link2,
     LoaderCircle,
     Network,
     Pencil,
@@ -28,7 +25,10 @@ import {
     Trash2,
     X,
 } from 'lucide-vue-next';
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onUnmounted, ref, watch } from 'vue';
+
+const WorkflowActionButtons = defineAsyncComponent(() => import('@/components/WorkflowActionButtons.vue'));
+const WorkflowHistoryTimeline = defineAsyncComponent(() => import('@/components/WorkflowHistoryTimeline.vue'));
 
 type Option = {
     id: number | string;
@@ -243,25 +243,6 @@ type RpjmdContext = {
         sasaran: { id: number; kode?: string | null; sasaran: string } | null;
         programs: Array<{ id: number; kode?: string | null; nama: string; rpjmd_kode?: string | null; rpjmd_nama?: string | null }>;
     }>;
-};
-type RenstraCascadingRow = {
-    key: string;
-    tujuan: string;
-    tujuan_rpjmd: string;
-    indikator_tujuan: string;
-    sasaran: string;
-    sasaran_rpjmd: string;
-    indikator_sasaran: string;
-    program: string;
-    program_rpjmd: string;
-    indikator_program: string;
-    kegiatan: string;
-    indikator_kegiatan: string;
-    sub_kegiatan: string;
-    indikator_sub_kegiatan: string;
-    target_tahunan: string;
-    pagu: string;
-    status_keterhubungan: string;
 };
 type RenstraOutputRowLevel =
     | 'tujuan'
@@ -494,6 +475,7 @@ const submitRevision = () => {
 };
 
 const cancelRevision = async () => {
+    const { promptTextArea } = await import('@/lib/sweetAlert');
     const reason = await promptTextArea({
         title: 'Batalkan Perubahan Renstra?',
         text: 'Renstra sebelumnya akan aktif kembali.',
@@ -517,7 +499,6 @@ const parentOptions = computed(() => (parentKey.value ? (props.nodeOptions[paren
 const parentLabel = computed(() => (parentKey.value ? (parentLabels[parentKey.value] ?? 'Data terkait') : 'Data terkait'));
 const needsParent = computed(() => Boolean(parentKey.value));
 const programMasterOptions = computed(() => props.masterReferenceOptions.program_pemerintahan ?? []);
-const opdUnitOptions = computed(() => props.masterReferenceOptions.opd_units ?? []);
 const satuanOptions = computed(() => props.satuanOptions);
 const withEmptyOption = (options: Option[], label = 'Tidak dipilih'): Option[] => [{ id: '', label }, ...options];
 const uniqueOptions = (options: Option[], keyResolver: (option: Option) => string): Option[] => {
@@ -545,7 +526,6 @@ const isTargetType = computed(() => targetNodeTypes.includes(form.type));
 const isBudgetType = computed(() => budgetNodeTypes.includes(form.type));
 const isTextNodeType = computed(() => textNodeTypes.includes(form.type));
 const isOrderableNodeType = computed(() => orderableNodeTypes.includes(form.type));
-const hasPaguIndikatif = computed(() => false);
 const usesMasterReference = computed(() => ['program', 'kegiatan', 'sub_kegiatan'].includes(form.type));
 const hasSelectedMasterReference = computed(() =>
     Boolean(form.program_pemerintahan_id || form.kegiatan_pemerintahan_id || form.sub_kegiatan_pemerintahan_id),
@@ -693,8 +673,6 @@ const sasaranNodeTypes: NodeType[] = ['sasaran', 'indikator_sasaran', 'target_sa
 const programNodeTypes: NodeType[] = ['program', 'indikator_program', 'target_program'];
 const kegiatanNodeTypes: NodeType[] = ['kegiatan', 'indikator_kegiatan', 'target_kegiatan'];
 const subKegiatanNodeTypes: NodeType[] = ['sub_kegiatan', 'indikator_sub_kegiatan', 'target_sub_kegiatan'];
-const directionNodeTypes: NodeType[] = [...tujuanNodeTypes, ...sasaranNodeTypes];
-const implementationNodeTypes: NodeType[] = [...programNodeTypes, ...kegiatanNodeTypes, ...subKegiatanNodeTypes];
 const tujuanActions: BulkAction[] = [
     { type: 'tujuan', label: 'Tujuan OPD', helper: 'Arah utama OPD' },
     { type: 'indikator_tujuan', label: 'Indikator Tujuan', helper: 'Ukuran tujuan' },
@@ -719,45 +697,9 @@ const subKegiatanActions: BulkAction[] = [
     { type: 'sub_kegiatan', label: 'Sub Kegiatan', helper: 'Turunan kegiatan' },
     { type: 'anggaran_sub_kegiatan', label: 'Pagu Indikatif', helper: 'Anggaran 5 tahunan' },
 ];
-const directionActions: BulkAction[] = [...tujuanActions, ...sasaranActions];
-const implementationActions: BulkAction[] = [...programActions, ...kegiatanActions, ...subKegiatanActions];
 const selectedTypeMeta = computed(() => typeMeta[form.type]);
-const typeSelectOptions = computed<Option[]>(() =>
-    typeOptions.map((option) => ({
-        id: option.value,
-        label: option.label,
-        description: typeMeta[option.value].primaryField,
-        group: ['tujuan', 'indikator_tujuan', 'target_tujuan', 'sasaran', 'indikator_sasaran', 'target_sasaran'].includes(option.value)
-            ? 'Arah Kinerja'
-            : 'Program dan Kegiatan',
-    })),
-);
 const parentSelectOptions = computed<Option[]>(() => parentOptions.value);
-const tujuanDaerahSelectOptions = computed(() => withEmptyOption(props.rpjmdReferenceOptions.tujuan_daerah ?? [], 'Tidak dihubungkan'));
-const indikatorTujuanDaerahSelectOptions = computed(() =>
-    withEmptyOption(props.rpjmdReferenceOptions.indikator_tujuan_daerah ?? [], 'Tidak dihubungkan'),
-);
-const sasaranDaerahSelectOptions = computed(() => withEmptyOption(props.rpjmdReferenceOptions.sasaran_daerah ?? [], 'Tidak dihubungkan'));
-const indikatorSasaranDaerahSelectOptions = computed(() =>
-    withEmptyOption(props.rpjmdReferenceOptions.indikator_sasaran_daerah ?? [], 'Tidak dihubungkan'),
-);
-const indikatorProgramRpjmdSelectOptions = computed(() =>
-    withEmptyOption(props.rpjmdReferenceOptions.indikator_program_rpjmd ?? [], 'Tidak dihubungkan'),
-);
 const formModeLabel = computed(() => (editingNode.value ? 'Edit data' : 'Tambah data'));
-const contentRequirementText = computed(() => {
-    if (isTextNodeType.value) {
-        return `${selectedTypeMeta.value.primaryField} wajib diisi.`;
-    }
-
-    if (isIndicatorType.value) {
-        return 'Isi indikator, satuan, cara ukur, PD penanggung jawab, dan sumber data bila ada.';
-    }
-
-    return ['target_program', 'target_kegiatan', 'target_sub_kegiatan'].includes(form.type)
-        ? 'Pilih periode, isi target kinerja, lalu isi target keuangan bila ada.'
-        : 'Pilih periode dan isi target angka atau target teks.';
-});
 const shownParentSelectorTypes: NodeType[] = ['sasaran', 'program', 'kegiatan', 'sub_kegiatan'];
 const showParentSelector = computed(() => shownParentSelectorTypes.includes(form.type));
 const parentContextTitle = computed(() => {
@@ -788,21 +730,14 @@ const parentContextRow = computed(() => {
     return bulkRows.value.find((row) => row.type === key && Number(row.id) === parentId) ?? null;
 });
 const rpjmdContextTujuanTexts = computed(() =>
-    [
-        ...new Set(
-            props.rpjmdContext.program_groups
-                .map((group) => plainNodeText(group.tujuan?.tujuan))
-                .filter((item) => item && item !== '-'),
-        ),
-    ].slice(0, 4),
+    [...new Set(props.rpjmdContext.program_groups.map((group) => plainNodeText(group.tujuan?.tujuan)).filter((item) => item && item !== '-'))].slice(
+        0,
+        4,
+    ),
 );
 const rpjmdContextSasaranTexts = computed(() =>
     [
-        ...new Set(
-            props.rpjmdContext.program_groups
-                .map((group) => plainNodeText(group.sasaran?.sasaran))
-                .filter((item) => item && item !== '-'),
-        ),
+        ...new Set(props.rpjmdContext.program_groups.map((group) => plainNodeText(group.sasaran?.sasaran)).filter((item) => item && item !== '-')),
     ].slice(0, 4),
 );
 const formContextDescription = computed(() => {
@@ -825,38 +760,13 @@ const formContextDescription = computed(() => {
     return selectedTypeMeta.value.helper;
 });
 const pdPenanggungJawabPlaceholder = computed(() =>
-    form.type === 'indikator_tujuan'
-        ? 'Contoh: Dinas Komunikasi dan Informatika'
-        : 'Contoh: Kepala Bidang Penyelenggaraan E-Government',
+    form.type === 'indikator_tujuan' ? 'Contoh: Dinas Komunikasi dan Informatika' : 'Contoh: Kepala Bidang Penyelenggaraan E-Government',
 );
 const sumberDataPlaceholder = computed(() =>
-    form.type === 'indikator_tujuan'
-        ? 'Contoh: Bidang Penyelenggaraan E-Government, Bidang IKP'
-        : 'Contoh: Bidang Penyelenggaraan E-Government',
+    form.type === 'indikator_tujuan' ? 'Contoh: Bidang Penyelenggaraan E-Government, Bidang IKP' : 'Contoh: Bidang Penyelenggaraan E-Government',
 );
-const onTypeSelected = (value: number | string | null | undefined) => {
-    if (typeof value !== 'string') {
-        return;
-    }
-
-    if (!typeOptionMap.value.has(value as NodeType)) {
-        return;
-    }
-
-    selectNodeType(value as NodeType);
-};
-
 const trimText = (value: string) => value.replace(/\s+/g, ' ').trim();
-const nodeText = (kode: string | null | undefined, text: string | null | undefined) => trimText(`${kode ? `${kode} - ` : ''}${text ?? ''}`) || '-';
 const plainNodeText = (text: string | null | undefined) => trimText(`${text ?? ''}`) || '-';
-const joinItems = (items: string[]) => items.filter((item) => item && item !== '-').join('; ') || '-';
-const indicatorSummary = (items: Indikator[]) => joinItems(items.map((item) => plainNodeText(item.indikator)));
-const targetSummary = (items: Indikator[]) =>
-    joinItems(
-        items.flatMap((item) =>
-            (item.targets ?? []).map((target) => `${target.periode_tahun.tahun}: ${target.target_text || target.target || '-'}`),
-        ),
-    );
 
 const toNumberOrNull = (value: number | string | null | undefined): number | null => {
     if (value === null || value === undefined || value === '') {
@@ -964,7 +874,6 @@ const selectedSubKegiatanMaster = computed(() =>
 );
 const selectedParentProgram = computed(() => (form.type === 'kegiatan' ? findProgram(form.parent_id) : null));
 const selectedParentKegiatan = computed(() => (form.type === 'sub_kegiatan' ? findKegiatan(form.parent_id) : null));
-const selectedParentSubKegiatan = computed(() => (form.type === 'anggaran_sub_kegiatan' ? findSubKegiatan(form.parent_id) : null));
 const selectedProgramMasterId = computed(
     () =>
         toNumberOrNull(form.program_pemerintahan_id) ??
@@ -1033,12 +942,8 @@ const usedSubKegiatanMasterLocations = computed(() => {
                 return;
             }
 
-            const kegiatan = bulkRows.value.find(
-                (row) => row.type === 'kegiatan' && Number(row.id) === Number(subKegiatan.parent_id),
-            );
-            const program = kegiatan
-                ? bulkRows.value.find((row) => row.type === 'program' && Number(row.id) === Number(kegiatan.parent_id))
-                : null;
+            const kegiatan = bulkRows.value.find((row) => row.type === 'kegiatan' && Number(row.id) === Number(subKegiatan.parent_id));
+            const program = kegiatan ? bulkRows.value.find((row) => row.type === 'program' && Number(row.id) === Number(kegiatan.parent_id)) : null;
             locations.set(masterId, {
                 program: program ? plainNodeText(program.uraian || program.parent_label) : null,
                 kegiatan: kegiatan ? plainNodeText(kegiatan.uraian || kegiatan.parent_label) : null,
@@ -1048,7 +953,6 @@ const usedSubKegiatanMasterLocations = computed(() => {
     return locations;
 });
 const programRpjmdSelectOptions = computed(() => withEmptyOption(props.rpjmdReferenceOptions.program_rpjmd ?? [], 'Tidak dihubungkan'));
-const programMasterSelectOptions = computed(() => withEmptyOption(programMasterOptions.value, 'Tidak memakai master'));
 const kegiatanMasterSelectOptions = computed(() => kegiatanMasterOptions.value);
 const subKegiatanMasterSelectOptions = computed(() =>
     subKegiatanMasterOptions.value.map((option) => {
@@ -1074,96 +978,11 @@ const subKegiatanMasterSelectOptions = computed(() =>
         };
     }),
 );
-const opdUnitSelectOptions = computed(() => withEmptyOption(opdUnitOptions.value, 'Tidak ditentukan'));
 const satuanSelectOptions = computed(() => withEmptyOption(props.satuanOptions, 'Pilih satuan'));
 const isRequiredMasterMissing = computed(
-    () =>
-        (form.type === 'kegiatan' && !form.kegiatan_pemerintahan_id) ||
-        (form.type === 'sub_kegiatan' && !form.sub_kegiatan_pemerintahan_id),
+    () => (form.type === 'kegiatan' && !form.kegiatan_pemerintahan_id) || (form.type === 'sub_kegiatan' && !form.sub_kegiatan_pemerintahan_id),
 );
 
-const renstraSummary = computed(() => {
-    const summary = {
-        tujuan: props.renstra.tujuan.length,
-        tujuan_terhubung: 0,
-        sasaran: 0,
-        sasaran_terhubung: 0,
-        program: 0,
-        program_terhubung: 0,
-        kegiatan: 0,
-        sub_kegiatan: 0,
-        indikator: 0,
-        indikator_terhubung: 0,
-        target_tahunan: 0,
-        target_keuangan: 0,
-    };
-
-    props.renstra.tujuan.forEach((tujuan) => {
-        if (tujuan.linked) {
-            summary.tujuan_terhubung += 1;
-        }
-        summary.indikator += tujuan.indikator.length;
-        summary.indikator_terhubung += tujuan.indikator.filter((indikator) => indikator.linked).length;
-        summary.target_tahunan += tujuan.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
-        summary.sasaran += tujuan.sasaran.length;
-
-        tujuan.sasaran.forEach((sasaran) => {
-            if (sasaran.linked) {
-                summary.sasaran_terhubung += 1;
-            }
-            summary.indikator += sasaran.indikator.length;
-            summary.indikator_terhubung += sasaran.indikator.filter((indikator) => indikator.linked).length;
-            summary.target_tahunan += sasaran.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
-            summary.program += sasaran.programs.length;
-
-            sasaran.programs.forEach((program) => {
-                if (program.linked) {
-                    summary.program_terhubung += 1;
-                }
-                summary.indikator += program.indikator.length;
-                summary.indikator_terhubung += program.indikator.filter((indikator) => indikator.linked).length;
-                summary.target_tahunan += program.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
-                summary.kegiatan += program.kegiatan.length;
-
-                program.kegiatan.forEach((kegiatan) => {
-                    summary.indikator += kegiatan.indikator.length;
-                    summary.target_tahunan += kegiatan.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
-                    summary.sub_kegiatan += kegiatan.sub_kegiatan.length;
-                    kegiatan.sub_kegiatan.forEach((subKegiatan) => {
-                        summary.indikator += subKegiatan.indikator.length;
-                        summary.target_tahunan += subKegiatan.indikator.reduce((total, indikator) => total + (indikator.targets?.length ?? 0), 0);
-                        summary.target_keuangan += Number(subKegiatan.pagu_indikatif ?? 0);
-                    });
-                });
-            });
-        });
-    });
-
-    return summary;
-});
-
-const totalCascadingNodes = computed(
-    () =>
-        renstraSummary.value.tujuan +
-        renstraSummary.value.sasaran +
-        renstraSummary.value.program +
-        renstraSummary.value.kegiatan +
-        renstraSummary.value.sub_kegiatan,
-);
-const coreCompleteness = computed(() => {
-    const checks = [
-        renstraSummary.value.tujuan > 0,
-        renstraSummary.value.sasaran > 0,
-        renstraSummary.value.program > 0,
-        renstraSummary.value.kegiatan > 0,
-        renstraSummary.value.sub_kegiatan > 0,
-        renstraSummary.value.indikator > 0,
-    ];
-    const done = checks.filter(Boolean).length;
-
-    return Math.round((done / checks.length) * 100);
-});
-const compactPreviewRows = computed(() => renstraCascadingRows.value.slice(0, 6));
 const mappedPeriodOptions = computed(() =>
     props.periodeOptions
         .map((option) => {
@@ -1183,13 +1002,10 @@ const baselineYear = computed(() => props.renstra.tahun_awal - 1);
 const baselinePeriod = computed(() => mappedPeriodOptions.value.find((option) => option.yearNumber === baselineYear.value) ?? null);
 const periodColumns = computed(() =>
     mappedPeriodOptions.value.filter(
-        (option) =>
-            Number(option.yearNumber) >= props.renstra.tahun_awal && Number(option.yearNumber) <= props.renstra.tahun_akhir + 1,
+        (option) => Number(option.yearNumber) >= props.renstra.tahun_awal && Number(option.yearNumber) <= props.renstra.tahun_akhir + 1,
     ),
 );
-const targetInputPeriods = computed(() =>
-    baselinePeriod.value ? [baselinePeriod.value, ...periodColumns.value] : periodColumns.value,
-);
+const targetInputPeriods = computed(() => (baselinePeriod.value ? [baselinePeriod.value, ...periodColumns.value] : periodColumns.value));
 const hasRpjmdContext = computed(() => props.rpjmdContext.visi.length > 0 || props.rpjmdContext.program_groups.length > 0);
 const rpjmdContextProgramCount = computed(() => props.rpjmdContext.program_groups.reduce((total, group) => total + group.programs.length, 0));
 const rpjmdContextMisiColumns = computed(() => {
@@ -1202,8 +1018,6 @@ const rpjmdProgramColumns = (programs: RpjmdContext['program_groups'][number]['p
 
     return [programs.slice(0, midpoint), programs.slice(midpoint)].filter((column) => column.length > 0);
 };
-const directionRows = computed(() => bulkRows.value.filter((row) => directionNodeTypes.includes(row.type)));
-const implementationRows = computed(() => bulkRows.value.filter((row) => implementationNodeTypes.includes(row.type)));
 const tujuanRows = computed(() => bulkRows.value.filter((row) => tujuanNodeTypes.includes(row.type)));
 const sasaranRows = computed(() => bulkRows.value.filter((row) => sasaranNodeTypes.includes(row.type)));
 const programRows = computed(() => bulkRows.value.filter((row) => programNodeTypes.includes(row.type)));
@@ -1287,13 +1101,9 @@ const activeManagementSection = computed<RenstraManagementSection | null>(() =>
 );
 const isDedicatedManagementPage = computed(() => activeManagementSection.value !== null);
 const activeBulkInputSections = computed(() =>
-    activeManagementSection.value
-        ? bulkInputSections.value.filter((section) => section.key === activeManagementSection.value)
-        : [],
+    activeManagementSection.value ? bulkInputSections.value.filter((section) => section.key === activeManagementSection.value) : [],
 );
-const activeManagementSectionTitle = computed(
-    () => activeBulkInputSections.value[0]?.title ?? 'RENSTRA OPD',
-);
+const activeManagementSectionTitle = computed(() => activeBulkInputSections.value[0]?.title ?? 'RENSTRA OPD');
 
 watch(
     activeManagementSection,
@@ -1377,152 +1187,6 @@ const bulkSectionSummary = (section: BulkInputSection): string => {
     return `${stats.primaryCount} ${primaryLabel}, ${stats.indicatorCount} indikator, ${stats.targetCount} target`;
 };
 
-const renstraCascadingRows = computed<RenstraCascadingRow[]>(() => {
-    const rows: RenstraCascadingRow[] = [];
-
-    props.renstra.tujuan.forEach((tujuan) => {
-        if (tujuan.sasaran.length === 0) {
-            rows.push(
-                emptyRenstraRow(`tujuan-${tujuan.id}`, {
-                    tujuan: plainNodeText(tujuan.tujuan),
-                    tujuan_rpjmd: tujuan.linked ? 'Terhubung' : 'Belum terhubung',
-                    indikator_tujuan: indicatorSummary(tujuan.indikator),
-                    target_tahunan: targetSummary(tujuan.indikator),
-                    status_keterhubungan: tujuan.linked ? 'Terhubung RPJMD' : 'Belum terhubung',
-                }),
-            );
-        }
-
-        tujuan.sasaran.forEach((sasaran) => {
-            if (sasaran.programs.length === 0) {
-                rows.push(
-                    emptyRenstraRow(`sasaran-${sasaran.id}`, {
-                        tujuan: plainNodeText(tujuan.tujuan),
-                        tujuan_rpjmd: tujuan.linked ? 'Terhubung' : 'Belum terhubung',
-                        indikator_tujuan: indicatorSummary(tujuan.indikator),
-                        sasaran: plainNodeText(sasaran.sasaran),
-                        sasaran_rpjmd: sasaran.linked ? 'Terhubung' : 'Belum terhubung',
-                        indikator_sasaran: indicatorSummary(sasaran.indikator),
-                        target_tahunan: joinItems([targetSummary(tujuan.indikator), targetSummary(sasaran.indikator)]),
-                        status_keterhubungan: sasaran.linked ? 'Terhubung RPJMD' : 'Belum terhubung',
-                    }),
-                );
-            }
-
-            sasaran.programs.forEach((program) => {
-                if (program.kegiatan.length === 0) {
-                    rows.push(
-                        emptyRenstraRow(`program-${program.id}`, {
-                            tujuan: plainNodeText(tujuan.tujuan),
-                            tujuan_rpjmd: tujuan.linked ? 'Terhubung' : 'Belum terhubung',
-                            indikator_tujuan: indicatorSummary(tujuan.indikator),
-                            sasaran: plainNodeText(sasaran.sasaran),
-                            sasaran_rpjmd: sasaran.linked ? 'Terhubung' : 'Belum terhubung',
-                            indikator_sasaran: indicatorSummary(sasaran.indikator),
-                            program: plainNodeText(program.nama),
-                            program_rpjmd: program.linked ? 'Terhubung' : 'Belum terhubung',
-                            indikator_program: indicatorSummary(program.indikator),
-                            target_tahunan: joinItems([
-                                targetSummary(tujuan.indikator),
-                                targetSummary(sasaran.indikator),
-                                targetSummary(program.indikator),
-                            ]),
-                            pagu: formatCurrency(program.pagu_indikatif),
-                            status_keterhubungan: program.linked ? 'Terhubung RPJMD' : 'Belum terhubung',
-                        }),
-                    );
-                }
-
-                program.kegiatan.forEach((kegiatan) => {
-                    if (kegiatan.sub_kegiatan.length === 0) {
-                        rows.push(
-                            emptyRenstraRow(`kegiatan-${kegiatan.id}`, {
-                                tujuan: plainNodeText(tujuan.tujuan),
-                                tujuan_rpjmd: tujuan.linked ? 'Terhubung' : 'Belum terhubung',
-                                indikator_tujuan: indicatorSummary(tujuan.indikator),
-                                sasaran: plainNodeText(sasaran.sasaran),
-                                sasaran_rpjmd: sasaran.linked ? 'Terhubung' : 'Belum terhubung',
-                                indikator_sasaran: indicatorSummary(sasaran.indikator),
-                                program: plainNodeText(program.nama),
-                                program_rpjmd: program.linked ? 'Terhubung' : 'Belum terhubung',
-                                indikator_program: indicatorSummary(program.indikator),
-                                kegiatan: plainNodeText(kegiatan.nama),
-                                indikator_kegiatan: indicatorSummary(kegiatan.indikator),
-                                target_tahunan: joinItems([
-                                    targetSummary(tujuan.indikator),
-                                    targetSummary(sasaran.indikator),
-                                    targetSummary(program.indikator),
-                                    targetSummary(kegiatan.indikator),
-                                ]),
-                                pagu: joinItems([formatCurrency(program.pagu_indikatif), formatCurrency(kegiatan.pagu_indikatif)]),
-                                status_keterhubungan: program.linked ? 'Terhubung RPJMD' : 'Belum terhubung',
-                            }),
-                        );
-                    }
-
-                    kegiatan.sub_kegiatan.forEach((subKegiatan) => {
-                        rows.push(
-                            emptyRenstraRow(`sub-${subKegiatan.id}`, {
-                                tujuan: plainNodeText(tujuan.tujuan),
-                                tujuan_rpjmd: tujuan.linked ? 'Terhubung' : 'Belum terhubung',
-                                indikator_tujuan: indicatorSummary(tujuan.indikator),
-                                sasaran: plainNodeText(sasaran.sasaran),
-                                sasaran_rpjmd: sasaran.linked ? 'Terhubung' : 'Belum terhubung',
-                                indikator_sasaran: indicatorSummary(sasaran.indikator),
-                                program: plainNodeText(program.nama),
-                                program_rpjmd: program.linked ? 'Terhubung' : 'Belum terhubung',
-                                indikator_program: indicatorSummary(program.indikator),
-                                kegiatan: plainNodeText(kegiatan.nama),
-                                indikator_kegiatan: indicatorSummary(kegiatan.indikator),
-                                sub_kegiatan: plainNodeText(subKegiatan.nama),
-                                indikator_sub_kegiatan: indicatorSummary(subKegiatan.indikator),
-                                target_tahunan: joinItems([
-                                    targetSummary(tujuan.indikator),
-                                    targetSummary(sasaran.indikator),
-                                    targetSummary(program.indikator),
-                                    targetSummary(kegiatan.indikator),
-                                    targetSummary(subKegiatan.indikator),
-                                ]),
-                                pagu: joinItems([
-                                    formatCurrency(program.pagu_indikatif),
-                                    formatCurrency(kegiatan.pagu_indikatif),
-                                    formatCurrency(subKegiatan.pagu_indikatif),
-                                ]),
-                                status_keterhubungan: program.linked ? 'Terhubung RPJMD' : 'Belum terhubung',
-                            }),
-                        );
-                    });
-                });
-            });
-        });
-    });
-
-    return rows;
-});
-
-function emptyRenstraRow(key: string, values: Partial<RenstraCascadingRow>): RenstraCascadingRow {
-    return {
-        key,
-        tujuan: '-',
-        tujuan_rpjmd: '-',
-        indikator_tujuan: '-',
-        sasaran: '-',
-        sasaran_rpjmd: '-',
-        indikator_sasaran: '-',
-        program: '-',
-        program_rpjmd: '-',
-        indikator_program: '-',
-        kegiatan: '-',
-        indikator_kegiatan: '-',
-        sub_kegiatan: '-',
-        indikator_sub_kegiatan: '-',
-        target_tahunan: '-',
-        pagu: '-',
-        status_keterhubungan: '-',
-        ...values,
-    };
-}
-
 const renstraOutputRows = computed<RenstraOutputRow[]>(() => {
     const rows: RenstraOutputRow[] = [];
 
@@ -1603,27 +1267,26 @@ const renstraOutputRows = computed<RenstraOutputRow[]>(() => {
                                     budgetResolver: (year) => kegiatanBudgetByYear(kegiatan, year),
                                 });
 
-                                groupBySasaran(
-                                    kegiatan.sub_kegiatan,
-                                    (subKegiatan) => subKegiatan.sasaran_sub_kegiatan,
-                                ).forEach((subKegiatanGroup) => {
-                                    appendRenstraGroupingRow(
-                                        rows,
-                                        'sasaran_sub_kegiatan',
-                                        `kegiatan-${kegiatan.id}-sasaran-sub-kegiatan-${subKegiatanGroup.key}`,
-                                        `Sasaran Sub Kegiatan: ${subKegiatanGroup.label}`,
-                                    );
+                                groupBySasaran(kegiatan.sub_kegiatan, (subKegiatan) => subKegiatan.sasaran_sub_kegiatan).forEach(
+                                    (subKegiatanGroup) => {
+                                        appendRenstraGroupingRow(
+                                            rows,
+                                            'sasaran_sub_kegiatan',
+                                            `kegiatan-${kegiatan.id}-sasaran-sub-kegiatan-${subKegiatanGroup.key}`,
+                                            `Sasaran Sub Kegiatan: ${subKegiatanGroup.label}`,
+                                        );
 
-                                    subKegiatanGroup.items.forEach((subKegiatan) => {
-                                        appendRenstraOutputRows(rows, {
-                                            level: 'sub_kegiatan',
-                                            keyPrefix: `sub-${subKegiatan.id}`,
-                                            label: renstraNodeName(subKegiatan.nama),
-                                            indicators: subKegiatan.indikator,
-                                            budgetResolver: (year) => subKegiatanBudgetByYear(subKegiatan, year),
+                                        subKegiatanGroup.items.forEach((subKegiatan) => {
+                                            appendRenstraOutputRows(rows, {
+                                                level: 'sub_kegiatan',
+                                                keyPrefix: `sub-${subKegiatan.id}`,
+                                                label: renstraNodeName(subKegiatan.nama),
+                                                indicators: subKegiatan.indikator,
+                                                budgetResolver: (year) => subKegiatanBudgetByYear(subKegiatan, year),
+                                            });
                                         });
-                                    });
-                                });
+                                    },
+                                );
                             });
                         });
                     });
@@ -1640,7 +1303,11 @@ function groupBySasaran<T>(items: T[], resolver: (item: T) => string | null | un
 
     items.forEach((item) => {
         const value = resolver(item)?.trim() || 'Belum dirumuskan';
-        const key = value.toLocaleLowerCase('id-ID').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'belum-dirumuskan';
+        const key =
+            value
+                .toLocaleLowerCase('id-ID')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-|-$/g, '') || 'belum-dirumuskan';
         const group = groups.get(key) ?? { key, label: value, items: [] };
 
         group.items.push(item);
@@ -1702,7 +1369,6 @@ function appendRenstraOutputRows(
 const programBidangUrusan = (program: Program): BidangUrusanRef | null =>
     program.program_pemerintahan?.bidang_urusan ?? program.program_rpjmd?.program_pemerintahan?.bidang_urusan ?? null;
 
-const renstraNodeLabel = (kode?: string | null, nama?: string | null) => joinItems([kode, nama]) || '-';
 const renstraNodeName = (nama?: string | null) => nama?.trim() || '-';
 
 const blankRenstraOutputValues = () =>
@@ -1769,8 +1435,7 @@ const numericPreviewValue = (value?: string | number | null) => {
     return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const formatPreviewPagu = (value: number) =>
-    value > 0 ? new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value) : '-';
+const formatPreviewPagu = (value: number) => (value > 0 ? new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value) : '-');
 
 const renstraOutputRowClass = (level: RenstraOutputRowLevel) =>
     ({
@@ -2258,11 +1923,7 @@ const selectNodeType = (type: NodeType, parentId: number | string = '') => {
         clearNodeForm();
         const resolvedParentId =
             parentId ||
-            (type === 'sasaran'
-                ? soleParentIdForType(type)
-                : shownParentSelectorTypes.includes(type)
-                  ? ''
-                  : defaultParentIdForType(type));
+            (type === 'sasaran' ? soleParentIdForType(type) : shownParentSelectorTypes.includes(type) ? '' : defaultParentIdForType(type));
         form.parent_id = resolvedParentId;
         form.urutan = nextOrderForType(type, resolvedParentId);
         applyImplicitReferences(type);
@@ -2525,8 +2186,6 @@ const isBulkTextRow = (row: BulkRow) => textNodeTypes.includes(row.type);
 const isBulkIndicatorRow = (row: BulkRow) => indicatorNodeTypes.includes(row.type);
 const isBulkTargetRow = (row: BulkRow) => targetNodeTypes.includes(row.type);
 const hasBulkSasaranLevel = (row: BulkRow) => ['program', 'kegiatan', 'sub_kegiatan'].includes(row.type);
-const hasBulkPaguIndikatif = (_row: BulkRow) => false;
-const hasBulkPaguTahunan = (_row: BulkRow) => false;
 const visibleBulkRows = (rows: BulkRow[]) => rows.filter((row) => !isBulkTargetRow(row));
 const targetTypeByIndicatorType: Partial<Record<NodeType, NodeType>> = {
     indikator_tujuan: 'target_tujuan',
@@ -2630,8 +2289,8 @@ const setIndicatorTargetPagu = (row: BulkRow, periodeId: number | string, value:
     targetRow.pagu = currencyTypingInputText(value);
     scheduleBulkAutosave(targetRow);
 };
-const showTargetFinance = (_row: BulkRow) => false;
-const targetButtonLabel = (_row: BulkRow) => 'Target';
+const showTargetFinance = () => false;
+const targetButtonLabel = () => 'Target';
 const targetBatchShowsFinance = computed(() => isBudgetType.value);
 const targetBatchTitle = computed(() => (isBudgetType.value ? 'Pagu Indikatif 5 Tahunan' : 'Baseline dan Target 5 Tahunan'));
 const targetBatchSubmitLabel = computed(() => (isBudgetType.value ? 'Simpan Anggaran' : 'Simpan Target'));
@@ -2837,7 +2496,9 @@ const bulkRowReadyToSave = (row: BulkRow) => {
         return Boolean(String(row.indikator || '').trim());
     }
 
-    return Boolean(row.periode_tahun_id && (String(row.target || '').trim() || String(row.target_text || '').trim() || String(row.pagu || '').trim()));
+    return Boolean(
+        row.periode_tahun_id && (String(row.target || '').trim() || String(row.target_text || '').trim() || String(row.pagu || '').trim()),
+    );
 };
 
 const bulkRequirementMessage = (row: BulkRow): string => {
@@ -2893,43 +2554,12 @@ const bulkStatusClass = (row: BulkRow) =>
         error: 'bg-red-100 text-red-800',
     })[row.saveState];
 
-const bulkRowReferenceLabel = (row: BulkRow): string => {
-    if (!row.reference_field) {
-        return '-';
-    }
-
-    return optionById(bulkReferenceOptions(row), row.reference_value)?.label ?? 'Belum dihubungkan';
-};
-
-const bulkRowMasterLabel = (row: BulkRow): string => {
-    if (!bulkMasterOptions(row).length) {
-        return '-';
-    }
-
-    return optionById(bulkMasterOptions(row), bulkMasterValue(row))?.label ?? 'Belum dipilih';
-};
-
 const bulkRowPrimaryText = (row: BulkRow): string => {
     if (isBulkIndicatorRow(row)) {
         return plainNodeText(row.indikator) || 'Indikator belum diisi';
     }
 
     return plainNodeText(row.uraian) || 'Data belum diisi';
-};
-
-const bulkRowSecondaryText = (row: BulkRow): string => {
-    if (isBulkIndicatorRow(row)) {
-        const satuan = optionById(satuanOptions.value, row.satuan_indikator_id)?.label ?? 'Satuan belum dipilih';
-        const tipe = row.tipe_perhitungan === 'kumulatif' ? 'Kumulatif' : 'Non-kumulatif';
-
-        return `${satuan} - ${tipe}`;
-    }
-
-    if (hasBulkSasaranLevel(row) && row.sasaran_level) {
-        return row.sasaran_level;
-    }
-
-    return typeMeta[row.type].primaryField;
 };
 
 const bulkTargetSummaries = (row: BulkRow) =>
@@ -2949,41 +2579,7 @@ const baselineTargetSummary = (row: BulkRow) => {
         target: targetValueForIndicator(row, baselinePeriod.value.id) || '-',
     };
 };
-const targetBatchPeriodLabel = (row: TargetBatchRow) =>
-    Number(row.year) === baselineYear.value ? `${row.year} - Baseline` : row.label;
-
-const bulkRowChildActions = (row: BulkRow): Array<{ type: NodeType; label: string }> => {
-    if (!row.id) {
-        return [];
-    }
-
-    const actions: Partial<Record<NodeType, Array<{ type: NodeType; label: string }>>> = {
-        tujuan: [
-            { type: 'indikator_tujuan', label: 'Indikator' },
-            { type: 'sasaran', label: 'Sasaran' },
-        ],
-        indikator_tujuan: [{ type: 'target_tujuan', label: 'Target' }],
-        sasaran: [
-            { type: 'indikator_sasaran', label: 'Indikator' },
-            { type: 'program', label: 'Program' },
-        ],
-        indikator_sasaran: [{ type: 'target_sasaran', label: 'Target' }],
-        program: [
-            { type: 'indikator_program', label: 'Indikator' },
-            { type: 'kegiatan', label: 'Kegiatan' },
-        ],
-        indikator_program: [{ type: 'target_program', label: 'Target' }],
-        kegiatan: [
-            { type: 'indikator_kegiatan', label: 'Indikator' },
-            { type: 'sub_kegiatan', label: 'Sub Kegiatan' },
-        ],
-        indikator_kegiatan: [{ type: 'target_kegiatan', label: 'Target' }],
-        sub_kegiatan: [{ type: 'anggaran_sub_kegiatan', label: 'Pagu Indikatif' }],
-        indikator_sub_kegiatan: [{ type: 'target_sub_kegiatan', label: 'Target' }],
-    };
-
-    return actions[row.type] ?? [];
-};
+const targetBatchPeriodLabel = (row: TargetBatchRow) => (Number(row.year) === baselineYear.value ? `${row.year} - Baseline` : row.label);
 
 const sortBulkRowsByOrder = (rows: BulkRow[]): BulkRow[] =>
     [...rows].sort((a, b) => {
@@ -3173,8 +2769,7 @@ const sasaranInfoClass = (sasaranId: number | null) => {
         : palettes[Math.abs(sasaranId) % palettes.length];
 };
 
-const sasaranProgramInfoClass =
-    'border-sky-200 bg-sky-50/80 text-sky-950 dark:border-sky-400/25 dark:bg-sky-400/10 dark:text-sky-100';
+const sasaranProgramInfoClass = 'border-sky-200 bg-sky-50/80 text-sky-950 dark:border-sky-400/25 dark:bg-sky-400/10 dark:text-sky-100';
 const sasaranKegiatanInfoClass =
     'border-orange-200 bg-orange-50/80 text-orange-950 dark:border-orange-400/25 dark:bg-orange-400/10 dark:text-orange-100';
 const sasaranBadgeBaseClass =
@@ -3182,9 +2777,7 @@ const sasaranBadgeBaseClass =
 
 const programSasaranFolders = computed<ProgramSasaranFolder[]>(() =>
     sortBulkRowsByOrder(sasaranRows.value.filter((row) => row.type === 'sasaran' && Boolean(row.id))).map((sasaranRow) => {
-        const programs = sortBulkRowsByOrder(
-            bulkChildren('program', sasaranRow.id).filter((row) => Boolean(row.id)),
-        ).map((programRow) => {
+        const programs = sortBulkRowsByOrder(bulkChildren('program', sasaranRow.id).filter((row) => Boolean(row.id))).map((programRow) => {
             const indicatorCount = bulkChildren('indikator_program', programRow.id).length;
 
             return {
@@ -3237,22 +2830,20 @@ const activeProgramFocus = computed(
 );
 
 const programFolderSources = computed<ProgramFolderSource[]>(() => {
-    const rowsById = new Map(
-        programRows.value
-            .filter((row) => row.type === 'program' && Boolean(row.id))
-            .map((row) => [Number(row.id), row]),
-    );
+    const rowsById = new Map(programRows.value.filter((row) => row.type === 'program' && Boolean(row.id)).map((row) => [Number(row.id), row]));
     const sources = programSasaranFolders.value.flatMap((sasaran) =>
         sasaran.programs.flatMap((program) => {
             const programRow = rowsById.get(program.programId);
 
             return programRow
-                ? [{
-                      programRow,
-                      sasaranId: sasaran.sasaranId,
-                      sasaranName: sasaran.sasaranName,
-                      sasaranProgram: valueText(programRow.sasaran_level).trim() || null,
-                  }]
+                ? [
+                      {
+                          programRow,
+                          sasaranId: sasaran.sasaranId,
+                          sasaranName: sasaran.sasaranName,
+                          sasaranProgram: valueText(programRow.sasaran_level).trim() || null,
+                      },
+                  ]
                 : [];
         }),
     );
@@ -3271,9 +2862,7 @@ const programFolderSources = computed<ProgramFolderSource[]>(() => {
 
 const kegiatanProgramFolders = computed<KegiatanProgramFolder[]>(() =>
     programFolderSources.value.map(({ programRow, sasaranId, sasaranName, sasaranProgram }) => {
-        const kegiatan = sortBulkRowsByOrder(
-            bulkChildren('kegiatan', programRow.id).filter((row) => Boolean(row.id)),
-        ).map((kegiatanRow) => {
+        const kegiatan = sortBulkRowsByOrder(bulkChildren('kegiatan', programRow.id).filter((row) => Boolean(row.id))).map((kegiatanRow) => {
             const indicatorCount = bulkChildren('indikator_kegiatan', kegiatanRow.id).length;
 
             return {
@@ -3366,14 +2955,9 @@ type SubKegiatanProgramFolder = {
 
 const subKegiatanProgramFolders = computed<SubKegiatanProgramFolder[]>(() =>
     programFolderSources.value.map(({ programRow, sasaranId, sasaranName, sasaranProgram }) => {
-        const kegiatan = sortBulkRowsByOrder(
-            bulkChildren('kegiatan', programRow.id).filter((row) => Boolean(row.id)),
-        ).map((kegiatanRow) => {
+        const kegiatan = sortBulkRowsByOrder(bulkChildren('kegiatan', programRow.id).filter((row) => Boolean(row.id))).map((kegiatanRow) => {
             const subRows = bulkChildren('sub_kegiatan', kegiatanRow.id);
-            const indicatorCount = subRows.reduce(
-                (total, subRow) => total + bulkChildren('indikator_sub_kegiatan', subRow.id).length,
-                0,
-            );
+            const indicatorCount = subRows.reduce((total, subRow) => total + bulkChildren('indikator_sub_kegiatan', subRow.id).length, 0);
 
             return {
                 key: `sub-kegiatan-folder-kegiatan-${kegiatanRow.id}`,
@@ -3447,9 +3031,7 @@ watch(
     (items) => {
         const programIds = items.flatMap((sasaran) => sasaran.programs.map((program) => program.programId));
 
-        expandedProgramSasaranIds.value = expandedProgramSasaranIds.value.filter((id) =>
-            items.some((sasaran) => sasaran.sasaranId === id),
-        );
+        expandedProgramSasaranIds.value = expandedProgramSasaranIds.value.filter((id) => items.some((sasaran) => sasaran.sasaranId === id));
 
         if (programIds.length === 0 || !programIds.includes(Number(selectedProgramFocusId.value))) {
             selectedProgramFocusId.value = null;
@@ -3463,9 +3045,7 @@ watch(
     (items) => {
         const kegiatanIds = items.flatMap((program) => program.kegiatan.map((kegiatan) => kegiatan.kegiatanId));
 
-        expandedKegiatanProgramIds.value = expandedKegiatanProgramIds.value.filter((id) =>
-            items.some((program) => program.programId === id),
-        );
+        expandedKegiatanProgramIds.value = expandedKegiatanProgramIds.value.filter((id) => items.some((program) => program.programId === id));
 
         if (kegiatanIds.length === 0 || !kegiatanIds.includes(Number(selectedKegiatanFocusId.value))) {
             selectedKegiatanFocusId.value = null;
@@ -3479,9 +3059,7 @@ watch(
     (items) => {
         const kegiatanIds = items.flatMap((program) => program.kegiatan.map((kegiatan) => kegiatan.kegiatanId));
 
-        expandedSubKegiatanProgramIds.value = expandedSubKegiatanProgramIds.value.filter((id) =>
-            items.some((program) => program.programId === id),
-        );
+        expandedSubKegiatanProgramIds.value = expandedSubKegiatanProgramIds.value.filter((id) => items.some((program) => program.programId === id));
 
         if (kegiatanIds.length === 0) {
             selectedSubKegiatanKegiatanId.value = null;
@@ -3665,6 +3243,7 @@ const focusUsedSubKegiatan = async (item: UsedSubKegiatan) => {
 };
 
 const removeUsedSubKegiatan = async (item: UsedSubKegiatan) => {
+    const { confirmDelete } = await import('@/lib/sweetAlert');
     const confirmed = await confirmDelete(
         `Hapus "${item.nama}" dari lokasi lama di RENSTRA ini? Indikator, target, dan pagunya tetap tersimpan sebagai riwayat dan akan dipulihkan saat sub kegiatan ditambahkan kembali.`,
     );
@@ -3691,9 +3270,6 @@ const focusedSubKegiatanRows = (section: BulkInputSection): BulkRow[] => {
 
     return sectionParentRows(section).filter((row) => Number(row.parent_id) === focus.kegiatanId);
 };
-
-const focusedSubKegiatanIndicatorCount = (section: BulkInputSection): number =>
-    focusedSubKegiatanRows(section).reduce((total, row) => total + sectionIndicatorRows(section, row).length, 0);
 
 const focusedSubKegiatanGroups = (section: BulkInputSection): BulkSectionGroup[] => {
     const focus = activeSubKegiatanFocus.value;
@@ -3838,14 +3414,6 @@ const bulkRowToNode = (row: BulkRow) => ({
     opd_unit_id: row.opd_unit_id,
 });
 
-const openBulkChildModal = (row: BulkRow, type: NodeType) => {
-    if (!row.id) {
-        return;
-    }
-
-    selectNodeType(type, row.id);
-};
-
 const editBulkRow = (row: BulkRow) => {
     if (!row.id) {
         selectNodeType(row.type, row.parent_id);
@@ -3864,23 +3432,6 @@ const deleteBulkRow = (row: BulkRow) => {
     if (row.id) {
         void destroyNode(row.type, Number(row.id), row.level.toLowerCase());
     }
-};
-
-const addBulkRow = (type: NodeType = 'tujuan') => {
-    bulkDraftCounter.value += 1;
-    const defaultParentId = type === 'sasaran' ? soleParentIdForType(type) : '';
-    const row = makeBulkRow({
-        key: `draft-${bulkDraftCounter.value}`,
-        id: null,
-        type,
-        level: typeOptionMap.value.get(type)?.label ?? 'Data Baru',
-        parent_id: defaultParentId,
-        isNew: true,
-        saveState: 'dirty',
-    });
-    row.error = bulkRequirementMessage(row);
-
-    bulkRows.value = [row, ...bulkRows.value];
 };
 
 const removeBulkDraft = (row: BulkRow) => {
@@ -4055,8 +3606,6 @@ const scheduleBulkAutosave = (row: BulkRow) => {
 const bulkRowsToSave = (rows: BulkRow[]) => rows.filter((row) => ['dirty', 'error'].includes(row.saveState));
 const hasBulkRowsToSave = (rows: BulkRow[]) => bulkRowsToSave(rows).length > 0;
 const isBulkRowsSaving = (rows: BulkRow[]) => rows.some((row) => row.saveState === 'saving');
-const canSaveBulkRow = (row: BulkRow) => row.saveState !== 'saving' && (row.isNew || ['dirty', 'error'].includes(row.saveState));
-
 const saveBulkRows = async (rows: BulkRow[]) => {
     for (const row of bulkRowsToSave(rows)) {
         await saveBulkRow(row);
@@ -4258,47 +3807,44 @@ const submitNode = () => {
     form.post(route('renstra-opd.nodes.store', props.renstra.id), options);
 };
 
-const rowsByParent = (type: NodeType, parentIds: number[]) =>
-    bulkRows.value.filter((row) => row.type === type && parentIds.includes(Number(row.parent_id)) && Boolean(row.id));
+const fetchCascadingDeleteImpact = async (
+    type: Extract<NodeType, 'tujuan' | 'sasaran' | 'program' | 'kegiatan'>,
+    id: number,
+): Promise<CascadingDeleteImpact[]> => {
+    const response = await fetch(route('renstra-opd.nodes.delete-impact', [props.renstra.id, type, id]), {
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        cache: 'no-store',
+    });
 
-const deleteImpactExamples = (rows: BulkRow[]) =>
-    rows
-        .slice(0, 3)
-        .map((row) => bulkRowPrimaryText(row))
-        .filter((label) => label !== '-' && label !== 'Data belum diisi');
+    if (!response.ok) {
+        throw new Error('Dampak penghapusan tidak dapat dimuat.');
+    }
 
-const cascadingDeleteImpact = (type: Extract<NodeType, 'tujuan' | 'sasaran' | 'program' | 'kegiatan'>, id: number): CascadingDeleteImpact[] => {
-    const tujuanIds = type === 'tujuan' ? [id] : [];
-    const sasaranRowsForDelete = type === 'tujuan' ? rowsByParent('sasaran', tujuanIds) : type === 'sasaran' ? bulkRows.value.filter((row) => row.type === 'sasaran' && Number(row.id) === id) : [];
-    const sasaranIds = sasaranRowsForDelete.map((row) => Number(row.id));
-    const programRowsForDelete = ['tujuan', 'sasaran'].includes(type)
-        ? rowsByParent('program', sasaranIds)
-        : type === 'program'
-          ? bulkRows.value.filter((row) => row.type === 'program' && Number(row.id) === id)
-          : [];
-    const programIds = programRowsForDelete.map((row) => Number(row.id));
-    const kegiatanRowsForDelete = ['tujuan', 'sasaran', 'program'].includes(type)
-        ? rowsByParent('kegiatan', programIds)
-        : type === 'kegiatan'
-          ? bulkRows.value.filter((row) => row.type === 'kegiatan' && Number(row.id) === id)
-          : [];
-    const kegiatanIds = kegiatanRowsForDelete.map((row) => Number(row.id));
-    const subKegiatanRowsForDelete = rowsByParent('sub_kegiatan', kegiatanIds);
-    const budgetRowsForDelete = rowsByParent('anggaran_sub_kegiatan', subKegiatanRowsForDelete.map((row) => Number(row.id)));
+    const payload = (await response.json()) as { items?: CascadingDeleteImpact[] };
 
-    return [
-        { label: 'sasaran', count: type === 'tujuan' ? sasaranRowsForDelete.length : 0, examples: deleteImpactExamples(sasaranRowsForDelete) },
-        { label: 'program', count: ['tujuan', 'sasaran'].includes(type) ? programRowsForDelete.length : 0, examples: deleteImpactExamples(programRowsForDelete) },
-        { label: 'kegiatan', count: ['tujuan', 'sasaran', 'program'].includes(type) ? kegiatanRowsForDelete.length : 0, examples: deleteImpactExamples(kegiatanRowsForDelete) },
-        { label: 'sub kegiatan', count: subKegiatanRowsForDelete.length, examples: deleteImpactExamples(subKegiatanRowsForDelete) },
-        { label: 'data pagu indikatif', count: budgetRowsForDelete.length },
-    ];
+    return Array.isArray(payload.items) ? payload.items : [];
 };
 
 const destroyNode = async (type: NodeType, id: number, label: string) => {
+    const { alertError, confirmCascadingDelete, confirmDelete } = await import('@/lib/sweetAlert');
     const needsCascadingConfirmation = ['tujuan', 'sasaran', 'program', 'kegiatan'].includes(type);
+    let deleteImpact: CascadingDeleteImpact[] = [];
+
+    if (needsCascadingConfirmation) {
+        try {
+            deleteImpact = await fetchCascadingDeleteImpact(type as Extract<NodeType, 'tujuan' | 'sasaran' | 'program' | 'kegiatan'>, id);
+        } catch {
+            await alertError('Dampak penghapusan belum dapat diperiksa', 'Silakan coba kembali. Data tidak dihapus demi menjaga keamanan cascading.');
+
+            return;
+        }
+    }
+
     const confirmed = needsCascadingConfirmation
-        ? await confirmCascadingDelete(label, cascadingDeleteImpact(type as Extract<NodeType, 'tujuan' | 'sasaran' | 'program' | 'kegiatan'>, id))
+        ? await confirmCascadingDelete(label, deleteImpact)
         : await confirmDelete(`Hapus ${label}? Data turunan juga dapat terpengaruh.`);
 
     if (confirmed) {
@@ -4334,17 +3880,6 @@ const isAwaitingApproval = computed(() => !props.renstra.is_active_version && ['
 
 const linkClass = (linked: boolean) => (linked ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800');
 const linkLabel = (linked: boolean) => (linked ? 'Terhubung RPJMD' : 'Belum terhubung');
-const formatCurrency = (value?: string | number | null) => {
-    if (value === null || value === undefined || value === '') {
-        return '-';
-    }
-
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(Number(value));
-};
 const normalizedCurrencyPayload = (value?: string | number | null) => {
     const raw = valueText(value).trim();
 
@@ -4404,433 +3939,444 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
     <Head :title="isDedicatedManagementPage ? `Kelola ${activeManagementSectionTitle} - RENSTRA OPD` : 'Cascading Renstra OPD'" />
     <div class="flex flex-col gap-4 p-4">
         <template v-if="!isDedicatedManagementPage">
-        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-                <div class="flex flex-wrap items-center gap-2">
-                    <h1 class="text-2xl font-semibold tracking-normal">{{ renstra.judul }}</h1>
-                    <span class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">
-                        {{ renstra.version_label }}
-                    </span>
-                    <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(renstra.status)">
-                        {{ statusLabel(renstra.status) }}
-                    </span>
-                    <span v-if="isAwaitingApproval" class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
-                        Menunggu disetujui
-                    </span>
+            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h1 class="text-2xl font-semibold tracking-normal">{{ renstra.judul }}</h1>
+                        <span class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">
+                            {{ renstra.version_label }}
+                        </span>
+                        <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(renstra.status)">
+                            {{ statusLabel(renstra.status) }}
+                        </span>
+                        <span v-if="isAwaitingApproval" class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
+                            Menunggu disetujui
+                        </span>
+                    </div>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                        {{ renstra.opd?.singkatan || renstra.opd?.nama || '-' }} - {{ renstra.tahun_awal }}-{{ renstra.tahun_akhir }}
+                    </p>
                 </div>
-                <p class="mt-1 text-sm text-muted-foreground">
-                    {{ renstra.opd?.singkatan || renstra.opd?.nama || '-' }} - {{ renstra.tahun_awal }}-{{ renstra.tahun_akhir }}
-                </p>
+                <div class="document-actions">
+                    <Link :href="route('renstra-opd.index')" class="document-action document-action--secondary">
+                        <ArrowLeft class="size-4" />
+                        Kembali
+                    </Link>
+                    <Link v-if="can.manage" :href="route('renstra-opd.edit', renstra.id)" class="document-action document-action--secondary">
+                        <Pencil class="size-4" />
+                        Edit
+                    </Link>
+                    <button v-if="can.createRevision" type="button" class="document-action document-action--primary" @click="openRevisionModal">
+                        <GitBranch class="size-4" />
+                        Buat Perubahan
+                    </button>
+                    <button
+                        v-if="renstra.jenis_versi === 'perubahan' && can.cancelRevision"
+                        type="button"
+                        class="document-action document-action--warning"
+                        @click="cancelRevision"
+                    >
+                        Batalkan Perubahan
+                    </button>
+                    <WorkflowActionButtons
+                        module="renstra_opd"
+                        :model-id="renstra.id"
+                        :status="renstra.status"
+                        :can-manage="can.manage"
+                        :can-review="can.review"
+                        :can-lock="can.lock"
+                        :can-unlock="can.unlock"
+                        :can-withdraw="can.withdraw"
+                        :show-verify="false"
+                        button-class="document-action document-action--workflow"
+                    />
+                </div>
             </div>
-            <div class="document-actions">
-                <Link :href="route('renstra-opd.index')" class="document-action document-action--secondary">
-                    <ArrowLeft class="size-4" />
-                    Kembali
-                </Link>
-                <Link
-                    v-if="can.manage"
-                    :href="route('renstra-opd.edit', renstra.id)"
-                    class="document-action document-action--secondary"
-                >
-                    <Pencil class="size-4" />
-                    Edit
-                </Link>
+
+            <div
+                v-if="renstra.perlu_penyesuaian_rpjmd"
+                class="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"
+            >
+                <div>
+                    <p class="font-semibold">Penyesuaian RPJMD diperlukan</p>
+                    <p class="mt-0.5 text-xs leading-5 text-amber-800">
+                        RPJMD {{ renstra.rpjmd_perubahan_terbaru?.version_label || 'Perubahan' }} telah disahkan. Buat Perubahan Renstra sebelum
+                        mengubah acuan dan cascading.
+                    </p>
+                </div>
                 <button
                     v-if="can.createRevision"
                     type="button"
-                    class="document-action document-action--primary"
+                    class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
                     @click="openRevisionModal"
                 >
                     <GitBranch class="size-4" />
                     Buat Perubahan
                 </button>
                 <button
-                    v-if="renstra.jenis_versi === 'perubahan' && can.cancelRevision"
+                    v-else-if="renstra.jenis_versi === 'perubahan' && can.cancelRevision"
                     type="button"
-                    class="document-action document-action--warning"
+                    class="inline-flex shrink-0 items-center justify-center rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
                     @click="cancelRevision"
                 >
                     Batalkan Perubahan
                 </button>
-                <WorkflowActionButtons
-                    module="renstra_opd"
-                    :model-id="renstra.id"
-                    :status="renstra.status"
-                    :can-manage="can.manage"
-                    :can-review="can.review"
-                    :can-lock="can.lock"
-                    :can-unlock="can.unlock"
-                    :can-withdraw="can.withdraw"
-                    :show-verify="false"
-                    button-class="document-action document-action--workflow"
-                />
             </div>
-        </div>
 
-        <div v-if="renstra.perlu_penyesuaian_rpjmd" class="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <p class="font-semibold">Penyesuaian RPJMD diperlukan</p>
-                <p class="mt-0.5 text-xs leading-5 text-amber-800">
-                    RPJMD {{ renstra.rpjmd_perubahan_terbaru?.version_label || 'Perubahan' }} telah disahkan. Buat Perubahan Renstra sebelum mengubah acuan dan cascading.
-                </p>
-            </div>
-            <button
-                v-if="can.createRevision"
-                type="button"
-                class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
-                @click="openRevisionModal"
-            >
-                <GitBranch class="size-4" />
-                Buat Perubahan
-            </button>
-            <button
-                v-else-if="renstra.jenis_versi === 'perubahan' && can.cancelRevision"
-                type="button"
-                class="inline-flex shrink-0 items-center justify-center rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
-                @click="cancelRevision"
-            >
-                Batalkan Perubahan
-            </button>
-        </div>
-
-        <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
-            <div>
-                <div class="text-xs uppercase text-muted-foreground">OPD</div>
-                <div class="mt-1 text-sm font-medium">{{ renstra.opd?.nama || '-' }}</div>
-            </div>
-            <div>
-                <div class="text-xs uppercase text-muted-foreground">RPJMD Terhubung</div>
-                <div class="mt-1 text-sm font-medium">{{ renstra.rpjmd ? `${renstra.rpjmd.tahun_awal}-${renstra.rpjmd.tahun_akhir}` : '-' }}</div>
-            </div>
-            <div>
-                <div class="text-xs uppercase text-muted-foreground">Periode</div>
-                <div class="mt-1 text-sm font-medium">{{ renstra.periode_tahun?.nama || '-' }}</div>
-            </div>
-        </section>
-
-        <nav
-            class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_8px_24px_-22px_rgba(15,23,42,0.5)]"
-            aria-label="Navigasi RENSTRA"
-        >
-            <div class="grid sm:grid-cols-3" role="tablist" aria-label="Bagian dokumen RENSTRA">
-                <button
-                    type="button"
-                    role="tab"
-                    class="group relative flex min-h-16 items-center gap-3 border-b px-4 py-3 text-left transition sm:border-b-0 sm:border-r"
-                    :class="
-                        activeWorkspaceTab === 'manage'
-                            ? 'bg-[#00336C] text-white'
-                            : 'bg-white text-slate-600 hover:bg-blue-50/60 hover:text-[#00336C]'
-                    "
-                    :aria-selected="activeWorkspaceTab === 'manage'"
-                    @click="activeWorkspaceTab = 'manage'"
-                >
-                    <span
-                        class="flex size-9 shrink-0 items-center justify-center rounded-lg border transition"
-                        :class="
-                            activeWorkspaceTab === 'manage'
-                                ? 'border-white/20 bg-white/10 text-white'
-                                : 'border-blue-100 bg-blue-50 text-[#00336C] group-hover:bg-white'
-                        "
-                    >
-                        <Table2 class="size-4.5" />
-                    </span>
-                    <span class="min-w-0">
-                        <span class="block text-sm font-semibold">{{ can.manage ? 'Kelola RENSTRA' : 'Preview RENSTRA' }}</span>
-                        <span class="mt-0.5 block text-xs" :class="activeWorkspaceTab === 'manage' ? 'text-blue-100' : 'text-slate-400'">
-                            {{ can.manage ? 'Tujuan hingga sub kegiatan' : 'Lihat tabel perencanaan' }}
-                        </span>
-                    </span>
-                </button>
-
-                <button
-                    type="button"
-                    role="tab"
-                    class="group relative flex min-h-16 items-center gap-3 border-b px-4 py-3 text-left transition sm:border-b-0 sm:border-r"
-                    :class="
-                        activeWorkspaceTab === 'reference'
-                            ? 'bg-[#00336C] text-white'
-                            : 'bg-white text-slate-600 hover:bg-blue-50/60 hover:text-[#00336C]'
-                    "
-                    :aria-selected="activeWorkspaceTab === 'reference'"
-                    @click="activeWorkspaceTab = 'reference'"
-                >
-                    <span
-                        class="flex size-9 shrink-0 items-center justify-center rounded-lg border transition"
-                        :class="
-                            activeWorkspaceTab === 'reference'
-                                ? 'border-white/20 bg-white/10 text-white'
-                                : 'border-blue-100 bg-blue-50 text-[#00336C] group-hover:bg-white'
-                        "
-                    >
-                        <Network class="size-4.5" />
-                    </span>
-                    <span class="min-w-0 flex-1">
-                        <span class="block text-sm font-semibold">Acuan Perencanaan</span>
-                        <span
-                            class="mt-0.5 block truncate text-xs"
-                            :class="activeWorkspaceTab === 'reference' ? 'text-blue-100' : 'text-slate-400'"
-                        >
-                            {{ renstra.rpjmd ? `RPJMD ${renstra.rpjmd.tahun_awal}-${renstra.rpjmd.tahun_akhir}` : 'Belum terhubung ke RPJMD' }}
-                        </span>
-                    </span>
-                </button>
-
-                <button
-                    type="button"
-                    role="tab"
-                    class="group relative flex min-h-16 items-center gap-3 px-4 py-3 text-left transition"
-                    :class="
-                        activeWorkspaceTab === 'history'
-                            ? 'bg-[#00336C] text-white'
-                            : 'bg-white text-slate-600 hover:bg-blue-50/60 hover:text-[#00336C]'
-                    "
-                    :aria-selected="activeWorkspaceTab === 'history'"
-                    @click="activeWorkspaceTab = 'history'"
-                >
-                    <span
-                        class="flex size-9 shrink-0 items-center justify-center rounded-lg border transition"
-                        :class="
-                            activeWorkspaceTab === 'history'
-                                ? 'border-white/20 bg-white/10 text-white'
-                                : 'border-blue-100 bg-blue-50 text-[#00336C] group-hover:bg-white'
-                        "
-                    >
-                        <ClipboardList class="size-4.5" />
-                    </span>
-                    <span class="min-w-0 flex-1">
-                        <span class="flex items-center justify-between gap-2">
-                            <span class="text-sm font-semibold">Riwayat Persetujuan</span>
-                            <span
-                                class="inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums"
-                                :class="activeWorkspaceTab === 'history' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500'"
-                            >
-                                {{ workflow?.histories?.length || 0 }}
-                            </span>
-                        </span>
-                        <span class="mt-0.5 block text-xs" :class="activeWorkspaceTab === 'history' ? 'text-blue-100' : 'text-slate-400'">
-                            Status, catatan, dan keputusan
-                        </span>
-                    </span>
-                </button>
-            </div>
-        </nav>
-
-        <div
-            v-if="activeWorkspaceTab !== 'history' && ['revision', 'rejected'].includes(renstra.status)"
-            class="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"
-        >
-            <div>
-                <p class="font-semibold">Dokumen memerlukan perbaikan</p>
-                <p class="mt-0.5 text-xs leading-5 text-amber-800">Periksa catatan pemeriksa sebelum melanjutkan pengelolaan data.</p>
-            </div>
-            <button
-                type="button"
-                class="inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 sm:self-auto"
-                @click="activeWorkspaceTab = 'history'"
-            >
-                <ClipboardList class="size-4" />
-                Lihat catatan
-            </button>
-        </div>
-
-        <WorkflowHistoryTimeline v-if="activeWorkspaceTab === 'history' && workflow" :workflow="workflow" />
-
-        <section
-            v-if="activeWorkspaceTab === 'reference'"
-            class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_12px_36px_-28px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-900"
-        >
-            <header
-                class="relative flex min-h-[4.75rem] items-center justify-between gap-4 bg-[linear-gradient(110deg,#f7fbff_0%,#ffffff_48%,#f8fafc_100%)] px-4 py-3.5 sm:px-5 dark:bg-none dark:bg-slate-900"
-            >
-                <span class="absolute inset-x-0 top-0 h-0.5 bg-[linear-gradient(90deg,#00336C_0%,#2583d8_42%,transparent_88%)]" />
-
-                <div class="flex min-w-0 items-center gap-3.5">
-                    <span
-                        class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#00336C] text-white shadow-[0_8px_18px_-10px_rgba(0,51,108,0.9)]"
-                    >
-                        <Network class="size-5" />
-                    </span>
-                    <div class="min-w-0">
-                        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Acuan Perencanaan</p>
-                        <div class="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                            <h2 class="text-base font-bold tracking-[-0.01em] text-slate-950 dark:text-white">RPJMD Kabupaten</h2>
-                            <span class="text-xs font-semibold tabular-nums text-[#00336C] dark:text-blue-300">
-                                {{ renstra.rpjmd ? `${renstra.rpjmd.tahun_awal}—${renstra.rpjmd.tahun_akhir}` : 'Belum terhubung' }}
-                            </span>
-                        </div>
-                    </div>
+            <section class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
+                <div>
+                    <div class="text-xs uppercase text-muted-foreground">OPD</div>
+                    <div class="mt-1 text-sm font-medium">{{ renstra.opd?.nama || '-' }}</div>
                 </div>
+                <div>
+                    <div class="text-xs uppercase text-muted-foreground">RPJMD Terhubung</div>
+                    <div class="mt-1 text-sm font-medium">{{ renstra.rpjmd ? `${renstra.rpjmd.tahun_awal}-${renstra.rpjmd.tahun_akhir}` : '-' }}</div>
+                </div>
+                <div>
+                    <div class="text-xs uppercase text-muted-foreground">Periode</div>
+                    <div class="mt-1 text-sm font-medium">{{ renstra.periode_tahun?.nama || '-' }}</div>
+                </div>
+            </section>
 
-                <div class="flex shrink-0 items-center gap-3 sm:gap-4">
-                    <dl class="hidden items-center divide-x divide-slate-200 sm:flex dark:divide-slate-700">
-                        <div class="pr-4 text-right">
-                            <dt class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Sasaran</dt>
-                            <dd class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">
-                                {{ rpjmdContext.program_groups.length }}
-                            </dd>
-                        </div>
-                        <div class="pl-4 text-right">
-                            <dt class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Program</dt>
-                            <dd class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">{{ rpjmdContextProgramCount }}</dd>
-                        </div>
-                    </dl>
+            <nav
+                class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_8px_24px_-22px_rgba(15,23,42,0.5)]"
+                aria-label="Navigasi RENSTRA"
+            >
+                <div class="grid sm:grid-cols-3" role="tablist" aria-label="Bagian dokumen RENSTRA">
                     <button
                         type="button"
-                        class="inline-flex size-11 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white/85 text-slate-500 shadow-sm transition duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-[#00336C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/30 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:bg-slate-700 dark:hover:text-blue-300"
-                        :aria-label="isRpjmdContextExpanded ? 'Sembunyikan acuan RPJMD' : 'Tampilkan acuan RPJMD'"
-                        :title="isRpjmdContextExpanded ? 'Sembunyikan acuan RPJMD' : 'Tampilkan acuan RPJMD'"
-                        :aria-expanded="isRpjmdContextExpanded"
-                        aria-controls="rpjmd-reference-detail"
-                        @click="isRpjmdContextExpanded = !isRpjmdContextExpanded"
+                        role="tab"
+                        class="group relative flex min-h-16 items-center gap-3 border-b px-4 py-3 text-left transition sm:border-b-0 sm:border-r"
+                        :class="
+                            activeWorkspaceTab === 'manage'
+                                ? 'bg-[#00336C] text-white'
+                                : 'bg-white text-slate-600 hover:bg-blue-50/60 hover:text-[#00336C]'
+                        "
+                        :aria-selected="activeWorkspaceTab === 'manage'"
+                        @click="activeWorkspaceTab = 'manage'"
                     >
-                        <ChevronDown
-                            class="size-5 transition-transform duration-200 motion-reduce:transition-none"
-                            :class="{ 'rotate-180': isRpjmdContextExpanded }"
-                        />
+                        <span
+                            class="flex size-9 shrink-0 items-center justify-center rounded-lg border transition"
+                            :class="
+                                activeWorkspaceTab === 'manage'
+                                    ? 'border-white/20 bg-white/10 text-white'
+                                    : 'border-blue-100 bg-blue-50 text-[#00336C] group-hover:bg-white'
+                            "
+                        >
+                            <Table2 class="size-4.5" />
+                        </span>
+                        <span class="min-w-0">
+                            <span class="block text-sm font-semibold">{{ can.manage ? 'Kelola RENSTRA' : 'Preview RENSTRA' }}</span>
+                            <span class="mt-0.5 block text-xs" :class="activeWorkspaceTab === 'manage' ? 'text-blue-100' : 'text-slate-400'">
+                                {{ can.manage ? 'Tujuan hingga sub kegiatan' : 'Lihat tabel perencanaan' }}
+                            </span>
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        role="tab"
+                        class="group relative flex min-h-16 items-center gap-3 border-b px-4 py-3 text-left transition sm:border-b-0 sm:border-r"
+                        :class="
+                            activeWorkspaceTab === 'reference'
+                                ? 'bg-[#00336C] text-white'
+                                : 'bg-white text-slate-600 hover:bg-blue-50/60 hover:text-[#00336C]'
+                        "
+                        :aria-selected="activeWorkspaceTab === 'reference'"
+                        @click="activeWorkspaceTab = 'reference'"
+                    >
+                        <span
+                            class="flex size-9 shrink-0 items-center justify-center rounded-lg border transition"
+                            :class="
+                                activeWorkspaceTab === 'reference'
+                                    ? 'border-white/20 bg-white/10 text-white'
+                                    : 'border-blue-100 bg-blue-50 text-[#00336C] group-hover:bg-white'
+                            "
+                        >
+                            <Network class="size-4.5" />
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm font-semibold">Acuan Perencanaan</span>
+                            <span
+                                class="mt-0.5 block truncate text-xs"
+                                :class="activeWorkspaceTab === 'reference' ? 'text-blue-100' : 'text-slate-400'"
+                            >
+                                {{ renstra.rpjmd ? `RPJMD ${renstra.rpjmd.tahun_awal}-${renstra.rpjmd.tahun_akhir}` : 'Belum terhubung ke RPJMD' }}
+                            </span>
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        role="tab"
+                        class="group relative flex min-h-16 items-center gap-3 px-4 py-3 text-left transition"
+                        :class="
+                            activeWorkspaceTab === 'history'
+                                ? 'bg-[#00336C] text-white'
+                                : 'bg-white text-slate-600 hover:bg-blue-50/60 hover:text-[#00336C]'
+                        "
+                        :aria-selected="activeWorkspaceTab === 'history'"
+                        @click="activeWorkspaceTab = 'history'"
+                    >
+                        <span
+                            class="flex size-9 shrink-0 items-center justify-center rounded-lg border transition"
+                            :class="
+                                activeWorkspaceTab === 'history'
+                                    ? 'border-white/20 bg-white/10 text-white'
+                                    : 'border-blue-100 bg-blue-50 text-[#00336C] group-hover:bg-white'
+                            "
+                        >
+                            <ClipboardList class="size-4.5" />
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="flex items-center justify-between gap-2">
+                                <span class="text-sm font-semibold">Riwayat Persetujuan</span>
+                                <span
+                                    class="inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums"
+                                    :class="activeWorkspaceTab === 'history' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500'"
+                                >
+                                    {{ workflow?.histories?.length || 0 }}
+                                </span>
+                            </span>
+                            <span class="mt-0.5 block text-xs" :class="activeWorkspaceTab === 'history' ? 'text-blue-100' : 'text-slate-400'">
+                                Status, catatan, dan keputusan
+                            </span>
+                        </span>
                     </button>
                 </div>
-            </header>
+            </nav>
 
-            <Transition
-                enter-active-class="transition-opacity duration-200 motion-reduce:transition-none"
-                enter-from-class="opacity-0"
-                leave-active-class="transition-opacity duration-150 motion-reduce:transition-none"
-                leave-to-class="opacity-0"
+            <div
+                v-if="activeWorkspaceTab !== 'history' && ['revision', 'rejected'].includes(renstra.status)"
+                class="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"
             >
-                <div v-if="isRpjmdContextExpanded" id="rpjmd-reference-detail" class="border-t border-slate-200/80 dark:border-slate-700">
-                    <div v-if="hasRpjmdContext">
-                        <div class="grid lg:grid-cols-[minmax(0,0.76fr)_minmax(0,1.24fr)]">
-                            <section
-                                class="min-w-0 border-b border-slate-200/80 bg-slate-50/65 px-4 py-4 sm:px-5 lg:border-b-0 lg:border-r dark:border-slate-700 dark:bg-slate-800/45"
-                            >
-                                <div class="flex items-center gap-2">
-                                    <span class="font-mono text-[10px] font-bold text-blue-500 dark:text-blue-300">01</span>
-                                    <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Visi Kabupaten</p>
-                                </div>
-                                <div class="mt-3 max-w-2xl">
-                                    <p
-                                        v-for="visi in rpjmdContext.visi"
-                                        :key="visi.id"
-                                        class="text-[15px] font-semibold leading-6 tracking-[-0.005em] text-slate-900 dark:text-slate-100"
-                                    >
-                                        {{ visi.visi }}
-                                    </p>
-                                    <p v-if="rpjmdContext.visi.length === 0" class="text-sm text-slate-500 dark:text-slate-400">Visi belum diisi.</p>
-                                </div>
-                            </section>
+                <div>
+                    <p class="font-semibold">Dokumen memerlukan perbaikan</p>
+                    <p class="mt-0.5 text-xs leading-5 text-amber-800">Periksa catatan pemeriksa sebelum melanjutkan pengelolaan data.</p>
+                </div>
+                <button
+                    type="button"
+                    class="inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 sm:self-auto"
+                    @click="activeWorkspaceTab = 'history'"
+                >
+                    <ClipboardList class="size-4" />
+                    Lihat catatan
+                </button>
+            </div>
 
-                            <section class="min-w-0 px-4 py-4 sm:px-5">
-                                <div class="flex items-center justify-between gap-3">
-                                    <div class="flex items-center gap-2">
-                                        <span class="font-mono text-[10px] font-bold text-blue-500 dark:text-blue-300">02</span>
-                                        <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Misi Kabupaten</p>
-                                    </div>
-                                    <span class="text-[10px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">
-                                        {{ rpjmdContext.misi.length }} misi
-                                    </span>
-                                </div>
-                                <div v-if="rpjmdContextMisiColumns.length" class="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
-                                    <ol
-                                        v-for="(column, columnIndex) in rpjmdContextMisiColumns"
-                                        :key="`rpjmd-misi-column-${columnIndex}`"
-                                        class="space-y-2"
-                                        :class="columnIndex > 0 ? 'sm:border-l sm:border-slate-200 sm:pl-6 dark:sm:border-slate-700' : ''"
-                                    >
-                                        <li
-                                            v-for="misi in column"
-                                            :key="misi.id"
-                                            class="grid min-w-0 grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-2 text-xs leading-5 text-slate-600 dark:text-slate-300"
-                                        >
-                                            <span class="font-mono font-bold tabular-nums text-[#00336C] dark:text-blue-300">
-                                                {{ misi.kode || misi.urutan }}
-                                            </span>
-                                            <span>{{ misi.misi }}</span>
-                                        </li>
-                                    </ol>
-                                </div>
-                                <p v-else class="mt-3 text-sm text-slate-500 dark:text-slate-400">Misi belum diisi.</p>
-                            </section>
-                        </div>
+            <WorkflowHistoryTimeline v-if="activeWorkspaceTab === 'history' && workflow" :workflow="workflow" />
 
-                        <section class="border-t border-slate-200/80 px-4 py-5 sm:px-5 dark:border-slate-700">
-                            <div class="flex items-end justify-between gap-4">
-                                <div>
-                                    <div class="flex items-center gap-2">
-                                        <span class="font-mono text-[10px] font-bold text-blue-500 dark:text-blue-300">03</span>
-                                        <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                                            Cascading Sasaran &amp; Program
-                                        </p>
-                                    </div>
-                                    <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                                        Program RPJMD yang relevan sebagai acuan penyusunan RENSTRA OPD.
-                                    </p>
-                                </div>
-                                <span class="hidden text-xs font-semibold tabular-nums text-slate-400 sm:inline dark:text-slate-500">
-                                    {{ rpjmdContextProgramCount }} program
+            <section
+                v-if="activeWorkspaceTab === 'reference'"
+                class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_12px_36px_-28px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-900"
+            >
+                <header
+                    class="relative flex min-h-[4.75rem] items-center justify-between gap-4 bg-[linear-gradient(110deg,#f7fbff_0%,#ffffff_48%,#f8fafc_100%)] px-4 py-3.5 dark:bg-slate-900 dark:bg-none sm:px-5"
+                >
+                    <span class="absolute inset-x-0 top-0 h-0.5 bg-[linear-gradient(90deg,#00336C_0%,#2583d8_42%,transparent_88%)]" />
+
+                    <div class="flex min-w-0 items-center gap-3.5">
+                        <span
+                            class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#00336C] text-white shadow-[0_8px_18px_-10px_rgba(0,51,108,0.9)]"
+                        >
+                            <Network class="size-5" />
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Acuan Perencanaan</p>
+                            <div class="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                <h2 class="text-base font-bold tracking-[-0.01em] text-slate-950 dark:text-white">RPJMD Kabupaten</h2>
+                                <span class="text-xs font-semibold tabular-nums text-[#00336C] dark:text-blue-300">
+                                    {{ renstra.rpjmd ? `${renstra.rpjmd.tahun_awal}—${renstra.rpjmd.tahun_akhir}` : 'Belum terhubung' }}
                                 </span>
                             </div>
+                        </div>
+                    </div>
 
-                            <div class="mt-4 divide-y divide-slate-200/80 border-y border-slate-200/80 dark:divide-slate-700 dark:border-slate-700">
-                                <article
-                                    v-for="group in rpjmdContext.program_groups"
-                                    :key="`rpjmd-context-${group.sasaran?.id || group.programs[0]?.id}`"
-                                    class="grid min-w-0 py-4 lg:grid-cols-[minmax(17rem,0.72fr)_minmax(0,1.28fr)]"
+                    <div class="flex shrink-0 items-center gap-3 sm:gap-4">
+                        <dl class="hidden items-center divide-x divide-slate-200 dark:divide-slate-700 sm:flex">
+                            <div class="pr-4 text-right">
+                                <dt class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Sasaran</dt>
+                                <dd class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">
+                                    {{ rpjmdContext.program_groups.length }}
+                                </dd>
+                            </div>
+                            <div class="pl-4 text-right">
+                                <dt class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Program</dt>
+                                <dd class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">
+                                    {{ rpjmdContextProgramCount }}
+                                </dd>
+                            </div>
+                        </dl>
+                        <button
+                            type="button"
+                            class="inline-flex size-11 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white/85 text-slate-500 shadow-sm transition duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-[#00336C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/30 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:bg-slate-700 dark:hover:text-blue-300"
+                            :aria-label="isRpjmdContextExpanded ? 'Sembunyikan acuan RPJMD' : 'Tampilkan acuan RPJMD'"
+                            :title="isRpjmdContextExpanded ? 'Sembunyikan acuan RPJMD' : 'Tampilkan acuan RPJMD'"
+                            :aria-expanded="isRpjmdContextExpanded"
+                            aria-controls="rpjmd-reference-detail"
+                            @click="isRpjmdContextExpanded = !isRpjmdContextExpanded"
+                        >
+                            <ChevronDown
+                                class="size-5 transition-transform duration-200 motion-reduce:transition-none"
+                                :class="{ 'rotate-180': isRpjmdContextExpanded }"
+                            />
+                        </button>
+                    </div>
+                </header>
+
+                <Transition
+                    enter-active-class="transition-opacity duration-200 motion-reduce:transition-none"
+                    enter-from-class="opacity-0"
+                    leave-active-class="transition-opacity duration-150 motion-reduce:transition-none"
+                    leave-to-class="opacity-0"
+                >
+                    <div v-if="isRpjmdContextExpanded" id="rpjmd-reference-detail" class="border-t border-slate-200/80 dark:border-slate-700">
+                        <div v-if="hasRpjmdContext">
+                            <div class="grid lg:grid-cols-[minmax(0,0.76fr)_minmax(0,1.24fr)]">
+                                <section
+                                    class="min-w-0 border-b border-slate-200/80 bg-slate-50/65 px-4 py-4 dark:border-slate-700 dark:bg-slate-800/45 sm:px-5 lg:border-b-0 lg:border-r"
                                 >
-                                    <div class="min-w-0 pb-4 lg:border-r lg:border-slate-200 lg:pb-0 lg:pr-6 dark:lg:border-slate-700">
-                                        <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Sasaran RPJMD</p>
-                                        <div class="mt-2 flex items-start gap-2.5">
-                                            <span
-                                                v-if="group.sasaran?.kode"
-                                                class="mt-0.5 shrink-0 font-mono text-xs font-bold text-[#00336C] dark:text-blue-300"
-                                            >
-                                                {{ group.sasaran.kode }}
-                                            </span>
-                                            <p class="text-sm font-semibold leading-6 text-slate-900 dark:text-slate-100">
-                                                {{ group.sasaran?.sasaran || '-' }}
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-mono text-[10px] font-bold text-blue-500 dark:text-blue-300">01</span>
+                                        <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                                            Visi Kabupaten
+                                        </p>
+                                    </div>
+                                    <div class="mt-3 max-w-2xl">
+                                        <p
+                                            v-for="visi in rpjmdContext.visi"
+                                            :key="visi.id"
+                                            class="text-[15px] font-semibold leading-6 tracking-[-0.005em] text-slate-900 dark:text-slate-100"
+                                        >
+                                            {{ visi.visi }}
+                                        </p>
+                                        <p v-if="rpjmdContext.visi.length === 0" class="text-sm text-slate-500 dark:text-slate-400">
+                                            Visi belum diisi.
+                                        </p>
+                                    </div>
+                                </section>
+
+                                <section class="min-w-0 px-4 py-4 sm:px-5">
+                                    <div class="flex items-center justify-between gap-3">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-mono text-[10px] font-bold text-blue-500 dark:text-blue-300">02</span>
+                                            <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                                                Misi Kabupaten
                                             </p>
                                         </div>
+                                        <span class="text-[10px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">
+                                            {{ rpjmdContext.misi.length }} misi
+                                        </span>
                                     </div>
-
-                                    <div class="min-w-0 border-t border-slate-100 pt-4 lg:border-t-0 lg:pl-6 lg:pt-0 dark:border-slate-800">
-                                        <div class="flex items-center justify-between gap-3">
-                                            <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Program pendukung</p>
-                                            <span class="text-[10px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">
-                                                {{ group.programs.length }} program
-                                            </span>
-                                        </div>
-                                        <div class="mt-2.5 grid gap-x-7 gap-y-0 sm:grid-cols-2">
-                                            <ol
-                                                v-for="(column, columnIndex) in rpjmdProgramColumns(group.programs)"
-                                                :key="`rpjmd-program-column-${group.sasaran?.id || group.programs[0]?.id}-${columnIndex}`"
-                                                :class="columnIndex > 0 ? 'sm:border-l sm:border-slate-100 sm:pl-7 dark:sm:border-slate-800' : ''"
+                                    <div v-if="rpjmdContextMisiColumns.length" class="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                                        <ol
+                                            v-for="(column, columnIndex) in rpjmdContextMisiColumns"
+                                            :key="`rpjmd-misi-column-${columnIndex}`"
+                                            class="space-y-2"
+                                            :class="columnIndex > 0 ? 'sm:border-l sm:border-slate-200 sm:pl-6 dark:sm:border-slate-700' : ''"
+                                        >
+                                            <li
+                                                v-for="misi in column"
+                                                :key="misi.id"
+                                                class="grid min-w-0 grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-2 text-xs leading-5 text-slate-600 dark:text-slate-300"
                                             >
-                                                <li
-                                                    v-for="program in column"
-                                                    :key="program.id"
-                                                    class="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-2 border-b border-slate-100 py-2 first:pt-0 dark:border-slate-800"
-                                                >
-                                                    <span class="font-mono text-xs font-semibold tabular-nums text-[#00336C] dark:text-blue-300">
-                                                        {{ program.kode || '—' }}
-                                                    </span>
-                                                    <span class="text-xs font-medium leading-5 text-slate-700 dark:text-slate-300">{{ program.nama }}</span>
-                                                </li>
-                                            </ol>
-                                        </div>
+                                                <span class="font-mono font-bold tabular-nums text-[#00336C] dark:text-blue-300">
+                                                    {{ misi.kode || misi.urutan }}
+                                                </span>
+                                                <span>{{ misi.misi }}</span>
+                                            </li>
+                                        </ol>
                                     </div>
-                                </article>
+                                    <p v-else class="mt-3 text-sm text-slate-500 dark:text-slate-400">Misi belum diisi.</p>
+                                </section>
                             </div>
-                            <div v-if="rpjmdContext.program_groups.length === 0" class="py-4 text-sm text-slate-500 dark:text-slate-400">
-                                Belum ada program RPJMD yang relevan dengan OPD ini.
-                            </div>
-                        </section>
+
+                            <section class="border-t border-slate-200/80 px-4 py-5 dark:border-slate-700 sm:px-5">
+                                <div class="flex items-end justify-between gap-4">
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-mono text-[10px] font-bold text-blue-500 dark:text-blue-300">03</span>
+                                            <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                                                Cascading Sasaran &amp; Program
+                                            </p>
+                                        </div>
+                                        <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                                            Program RPJMD yang relevan sebagai acuan penyusunan RENSTRA OPD.
+                                        </p>
+                                    </div>
+                                    <span class="hidden text-xs font-semibold tabular-nums text-slate-400 dark:text-slate-500 sm:inline">
+                                        {{ rpjmdContextProgramCount }} program
+                                    </span>
+                                </div>
+
+                                <div
+                                    class="mt-4 divide-y divide-slate-200/80 border-y border-slate-200/80 dark:divide-slate-700 dark:border-slate-700"
+                                >
+                                    <article
+                                        v-for="group in rpjmdContext.program_groups"
+                                        :key="`rpjmd-context-${group.sasaran?.id || group.programs[0]?.id}`"
+                                        class="grid min-w-0 py-4 lg:grid-cols-[minmax(17rem,0.72fr)_minmax(0,1.28fr)]"
+                                    >
+                                        <div class="min-w-0 pb-4 lg:border-r lg:border-slate-200 lg:pb-0 lg:pr-6 dark:lg:border-slate-700">
+                                            <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                                                Sasaran RPJMD
+                                            </p>
+                                            <div class="mt-2 flex items-start gap-2.5">
+                                                <span
+                                                    v-if="group.sasaran?.kode"
+                                                    class="mt-0.5 shrink-0 font-mono text-xs font-bold text-[#00336C] dark:text-blue-300"
+                                                >
+                                                    {{ group.sasaran.kode }}
+                                                </span>
+                                                <p class="text-sm font-semibold leading-6 text-slate-900 dark:text-slate-100">
+                                                    {{ group.sasaran?.sasaran || '-' }}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div class="min-w-0 border-t border-slate-100 pt-4 dark:border-slate-800 lg:border-t-0 lg:pl-6 lg:pt-0">
+                                            <div class="flex items-center justify-between gap-3">
+                                                <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                                                    Program pendukung
+                                                </p>
+                                                <span class="text-[10px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">
+                                                    {{ group.programs.length }} program
+                                                </span>
+                                            </div>
+                                            <div class="mt-2.5 grid gap-x-7 gap-y-0 sm:grid-cols-2">
+                                                <ol
+                                                    v-for="(column, columnIndex) in rpjmdProgramColumns(group.programs)"
+                                                    :key="`rpjmd-program-column-${group.sasaran?.id || group.programs[0]?.id}-${columnIndex}`"
+                                                    :class="columnIndex > 0 ? 'sm:border-l sm:border-slate-100 sm:pl-7 dark:sm:border-slate-800' : ''"
+                                                >
+                                                    <li
+                                                        v-for="program in column"
+                                                        :key="program.id"
+                                                        class="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-2 border-b border-slate-100 py-2 first:pt-0 dark:border-slate-800"
+                                                    >
+                                                        <span class="font-mono text-xs font-semibold tabular-nums text-[#00336C] dark:text-blue-300">
+                                                            {{ program.kode || '—' }}
+                                                        </span>
+                                                        <span class="text-xs font-medium leading-5 text-slate-700 dark:text-slate-300">{{
+                                                            program.nama
+                                                        }}</span>
+                                                    </li>
+                                                </ol>
+                                            </div>
+                                        </div>
+                                    </article>
+                                </div>
+                                <div v-if="rpjmdContext.program_groups.length === 0" class="py-4 text-sm text-slate-500 dark:text-slate-400">
+                                    Belum ada program RPJMD yang relevan dengan OPD ini.
+                                </div>
+                            </section>
+                        </div>
+                        <div v-else class="border-t border-slate-200 p-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                            Renstra belum terhubung ke struktur RPJMD.
+                        </div>
                     </div>
-                    <div v-else class="border-t border-slate-200 p-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                        Renstra belum terhubung ke struktur RPJMD.
-                    </div>
-                </div>
-            </Transition>
-        </section>
+                </Transition>
+            </section>
         </template>
 
         <section
@@ -4920,6 +4466,8 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         v-for="section in strategicInputSections"
                         :key="`manage-${section.key}`"
                         :href="route('renstra-opd.manage', { renstra_opd: renstra.id, section: section.key })"
+                        prefetch="hover"
+                        cache-for="5s"
                         class="group relative flex min-h-44 overflow-hidden rounded-2xl border p-5 shadow-[0_6px_22px_rgba(15,23,42,0.05)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(15,23,42,0.09)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/25"
                         :class="
                             section.key === 'tujuan'
@@ -4971,16 +4519,15 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         v-for="section in operationalInputSections"
                         :key="`manage-${section.key}`"
                         :href="route('renstra-opd.manage', { renstra_opd: renstra.id, section: section.key })"
+                        prefetch="hover"
+                        cache-for="5s"
                         class="group flex min-h-40 flex-col justify-between rounded-xl border border-blue-100 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#00336C]/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00336C]/30"
                     >
                         <div class="flex items-start justify-between gap-4">
                             <div class="min-w-0">
                                 <div class="flex flex-wrap items-center gap-2">
                                     <h3 class="text-base font-semibold text-slate-950">{{ section.title }}</h3>
-                                    <span
-                                        class="rounded-full border px-2.5 py-1 text-xs font-semibold"
-                                        :class="bulkSectionStatus(section).className"
-                                    >
+                                    <span class="rounded-full border px-2.5 py-1 text-xs font-semibold" :class="bulkSectionStatus(section).className">
                                         {{ bulkSectionStatus(section).label }}
                                     </span>
                                 </div>
@@ -5020,10 +4567,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                             <span class="min-w-0">
                                 <span class="flex flex-wrap items-center gap-2">
                                     <span class="text-base font-semibold text-slate-950">{{ section.title }}</span>
-                                    <span
-                                        class="rounded-full border px-2.5 py-1 text-xs font-semibold"
-                                        :class="bulkSectionStatus(section).className"
-                                    >
+                                    <span class="rounded-full border px-2.5 py-1 text-xs font-semibold" :class="bulkSectionStatus(section).className">
                                         {{ bulkSectionStatus(section).label }}
                                     </span>
                                 </span>
@@ -5042,10 +4586,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h3 class="text-lg font-semibold text-slate-950">{{ section.title }}</h3>
-                                <span
-                                    class="rounded-full border px-2.5 py-1 text-xs font-semibold"
-                                    :class="bulkSectionStatus(section).className"
-                                >
+                                <span class="rounded-full border px-2.5 py-1 text-xs font-semibold" :class="bulkSectionStatus(section).className">
                                     {{ bulkSectionStatus(section).label }}
                                 </span>
                             </div>
@@ -5061,31 +4602,31 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                     </div>
 
                     <div v-show="isDedicatedManagementPage || isBulkSectionExpanded(section.key)" class="border-t border-blue-50">
-                        <div class="flex flex-col gap-3 border-b border-blue-50 bg-slate-50/70 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div class="text-sm font-medium text-slate-700">
-                                Kelola {{ section.title }}
-                            </div>
+                        <div
+                            class="flex flex-col gap-3 border-b border-blue-50 bg-slate-50/70 px-5 py-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                            <div class="text-sm font-medium text-slate-700">Kelola {{ section.title }}</div>
                             <div class="flex flex-wrap gap-2 sm:justify-end">
-                            <button
-                                v-if="hasBulkRowsToSave(section.rows)"
-                                type="button"
-                                class="inline-flex min-h-9 items-center gap-2 rounded-md bg-[#00336C] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0a4485] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
-                                :disabled="!hasBulkRowsToSave(section.rows) || isBulkRowsSaving(section.rows)"
-                                @click="saveBulkRows(section.rows)"
-                            >
-                                <Save class="size-3.5" />
-                                Simpan Data
-                            </button>
-                            <button
-                                v-if="section.key !== 'sub-kegiatan'"
-                                type="button"
-                                class="inline-flex min-h-10 items-center gap-2 rounded-md border text-xs font-semibold transition"
-                                :class="sectionPrimaryButtonClass()"
-                                @click="selectNodeType(section.primaryType)"
-                            >
-                                <Plus class="size-3.5" />
-                                {{ section.primaryLabel }}
-                            </button>
+                                <button
+                                    v-if="hasBulkRowsToSave(section.rows)"
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center gap-2 rounded-md bg-[#00336C] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0a4485] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
+                                    :disabled="!hasBulkRowsToSave(section.rows) || isBulkRowsSaving(section.rows)"
+                                    @click="saveBulkRows(section.rows)"
+                                >
+                                    <Save class="size-3.5" />
+                                    Simpan Data
+                                </button>
+                                <button
+                                    v-if="section.key !== 'sub-kegiatan'"
+                                    type="button"
+                                    class="inline-flex min-h-10 items-center gap-2 rounded-md border text-xs font-semibold transition"
+                                    :class="sectionPrimaryButtonClass()"
+                                    @click="selectNodeType(section.primaryType)"
+                                >
+                                    <Plus class="size-3.5" />
+                                    {{ section.primaryLabel }}
+                                </button>
                             </div>
                         </div>
 
@@ -5154,7 +4695,10 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                 />
                                             </button>
 
-                                            <div v-if="isProgramSasaranOpen(sasaran.sasaranId)" class="border-t border-blue-100 bg-slate-50/60 px-4 py-3">
+                                            <div
+                                                v-if="isProgramSasaranOpen(sasaran.sasaranId)"
+                                                class="border-t border-blue-100 bg-slate-50/60 px-4 py-3"
+                                            >
                                                 <div v-if="sasaran.programs.length > 0" class="ml-6 border-l border-blue-200 pl-5 sm:ml-11">
                                                     <button
                                                         v-for="(item, itemIndex) in sasaran.programs"
@@ -5195,13 +4739,22 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                                 ]"
                                                             >
                                                                 <GitBranch class="size-3 shrink-0 opacity-70" />
-                                                                <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Program</span>
+                                                                <span
+                                                                    class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65"
+                                                                    >Sasaran Program</span
+                                                                >
                                                                 <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
-                                                                <span class="min-w-0 truncate font-semibold" :title="item.sasaranProgram">{{ item.sasaranProgram }}</span>
+                                                                <span class="min-w-0 truncate font-semibold" :title="item.sasaranProgram">{{
+                                                                    item.sasaranProgram
+                                                                }}</span>
                                                             </span>
                                                             <span
                                                                 class="mt-1 block text-[11px] font-semibold"
-                                                                :class="activeProgramFocus?.programId === item.programId ? 'text-blue-100' : 'text-slate-500'"
+                                                                :class="
+                                                                    activeProgramFocus?.programId === item.programId
+                                                                        ? 'text-blue-100'
+                                                                        : 'text-slate-500'
+                                                                "
                                                             >
                                                                 {{ item.indicatorCount }} indikator
                                                             </span>
@@ -5280,27 +4833,29 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                     <span class="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
                                                         {{ program.programName }}
                                                     </span>
-                                                    <span
-                                                        v-if="program.sasaranName || program.sasaranProgram"
-                                                        class="mt-2 flex flex-wrap gap-2"
-                                                    >
+                                                    <span v-if="program.sasaranName || program.sasaranProgram" class="mt-2 flex flex-wrap gap-2">
                                                         <span
                                                             v-if="program.sasaranName"
                                                             :class="[sasaranBadgeBaseClass, sasaranInfoClass(program.sasaranId)]"
                                                         >
                                                             <GitBranch class="size-3 shrink-0 opacity-70" />
-                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Strategis OPD</span>
+                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65"
+                                                                >Sasaran Strategis OPD</span
+                                                            >
                                                             <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
-                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranName">{{ program.sasaranName }}</span>
+                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranName">{{
+                                                                program.sasaranName
+                                                            }}</span>
                                                         </span>
-                                                        <span
-                                                            v-if="program.sasaranProgram"
-                                                            :class="[sasaranBadgeBaseClass, sasaranProgramInfoClass]"
-                                                        >
+                                                        <span v-if="program.sasaranProgram" :class="[sasaranBadgeBaseClass, sasaranProgramInfoClass]">
                                                             <GitBranch class="size-3 shrink-0 opacity-70" />
-                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Program</span>
+                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65"
+                                                                >Sasaran Program</span
+                                                            >
                                                             <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
-                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranProgram">{{ program.sasaranProgram }}</span>
+                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranProgram">{{
+                                                                program.sasaranProgram
+                                                            }}</span>
                                                         </span>
                                                     </span>
                                                     <span class="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
@@ -5315,7 +4870,10 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                 />
                                             </button>
 
-                                            <div v-if="isKegiatanProgramOpen(program.programId)" class="border-t border-blue-100 bg-slate-50/60 px-4 py-3">
+                                            <div
+                                                v-if="isKegiatanProgramOpen(program.programId)"
+                                                class="border-t border-blue-100 bg-slate-50/60 px-4 py-3"
+                                            >
                                                 <div v-if="program.kegiatan.length > 0" class="ml-6 border-l border-blue-200 pl-5 sm:ml-11">
                                                     <button
                                                         v-for="(item, itemIndex) in program.kegiatan"
@@ -5356,13 +4914,22 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                                 ]"
                                                             >
                                                                 <GitBranch class="size-3 shrink-0 opacity-70" />
-                                                                <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Kegiatan</span>
+                                                                <span
+                                                                    class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65"
+                                                                    >Sasaran Kegiatan</span
+                                                                >
                                                                 <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
-                                                                <span class="min-w-0 truncate font-semibold" :title="item.sasaranKegiatan">{{ item.sasaranKegiatan }}</span>
+                                                                <span class="min-w-0 truncate font-semibold" :title="item.sasaranKegiatan">{{
+                                                                    item.sasaranKegiatan
+                                                                }}</span>
                                                             </span>
                                                             <span
                                                                 class="mt-1 block text-[11px] font-semibold"
-                                                                :class="activeKegiatanFocus?.kegiatanId === item.kegiatanId ? 'text-blue-100' : 'text-slate-500'"
+                                                                :class="
+                                                                    activeKegiatanFocus?.kegiatanId === item.kegiatanId
+                                                                        ? 'text-blue-100'
+                                                                        : 'text-slate-500'
+                                                                "
                                                             >
                                                                 {{ item.indicatorCount }} indikator
                                                             </span>
@@ -5447,27 +5014,29 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                     <span class="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
                                                         {{ program.programName }}
                                                     </span>
-                                                    <span
-                                                        v-if="program.sasaranName || program.sasaranProgram"
-                                                        class="mt-2 flex flex-wrap gap-2"
-                                                    >
+                                                    <span v-if="program.sasaranName || program.sasaranProgram" class="mt-2 flex flex-wrap gap-2">
                                                         <span
                                                             v-if="program.sasaranName"
                                                             :class="[sasaranBadgeBaseClass, sasaranInfoClass(program.sasaranId)]"
                                                         >
                                                             <GitBranch class="size-3 shrink-0 opacity-70" />
-                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Strategis OPD</span>
+                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65"
+                                                                >Sasaran Strategis OPD</span
+                                                            >
                                                             <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
-                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranName">{{ program.sasaranName }}</span>
+                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranName">{{
+                                                                program.sasaranName
+                                                            }}</span>
                                                         </span>
-                                                        <span
-                                                            v-if="program.sasaranProgram"
-                                                            :class="[sasaranBadgeBaseClass, sasaranProgramInfoClass]"
-                                                        >
+                                                        <span v-if="program.sasaranProgram" :class="[sasaranBadgeBaseClass, sasaranProgramInfoClass]">
                                                             <GitBranch class="size-3 shrink-0 opacity-70" />
-                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Program</span>
+                                                            <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65"
+                                                                >Sasaran Program</span
+                                                            >
                                                             <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
-                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranProgram">{{ program.sasaranProgram }}</span>
+                                                            <span class="min-w-0 truncate font-semibold" :title="program.sasaranProgram">{{
+                                                                program.sasaranProgram
+                                                            }}</span>
                                                         </span>
                                                     </span>
                                                     <span class="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-500">
@@ -5484,7 +5053,10 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                 />
                                             </button>
 
-                                            <div v-if="isSubKegiatanProgramOpen(program.programId)" class="border-t border-blue-100 bg-slate-50/60 px-4 py-3">
+                                            <div
+                                                v-if="isSubKegiatanProgramOpen(program.programId)"
+                                                class="border-t border-blue-100 bg-slate-50/60 px-4 py-3"
+                                            >
                                                 <div v-if="program.kegiatan.length > 0" class="ml-6 border-l border-blue-200 pl-5 sm:ml-11">
                                                     <button
                                                         v-for="(item, itemIndex) in program.kegiatan"
@@ -5525,9 +5097,14 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                                 ]"
                                                             >
                                                                 <GitBranch class="size-3 shrink-0 opacity-70" />
-                                                                <span class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65">Sasaran Kegiatan</span>
+                                                                <span
+                                                                    class="shrink-0 text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-65"
+                                                                    >Sasaran Kegiatan</span
+                                                                >
                                                                 <span class="size-0.5 shrink-0 rounded-full bg-current opacity-40" />
-                                                                <span class="min-w-0 truncate font-semibold" :title="item.sasaranKegiatan">{{ item.sasaranKegiatan }}</span>
+                                                                <span class="min-w-0 truncate font-semibold" :title="item.sasaranKegiatan">{{
+                                                                    item.sasaranKegiatan
+                                                                }}</span>
                                                             </span>
                                                             <span
                                                                 class="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold"
@@ -5575,7 +5152,10 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                         <h3 class="mt-1 line-clamp-2 text-base font-semibold leading-6 text-slate-950">
                                             {{ activeSubKegiatanFocus.kegiatanName }}
                                         </h3>
-                                        <p v-if="activeSubKegiatanFocus.sasaranKegiatan" class="mt-1 text-xs font-semibold leading-5 text-fuchsia-700">
+                                        <p
+                                            v-if="activeSubKegiatanFocus.sasaranKegiatan"
+                                            class="mt-1 text-xs font-semibold leading-5 text-fuchsia-700"
+                                        >
                                             Sasaran Kegiatan: {{ activeSubKegiatanFocus.sasaranKegiatan }}
                                         </p>
                                     </div>
@@ -5619,10 +5199,7 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 >
                                     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                         <div class="min-w-0">
-                                            <div
-                                                v-if="sectionGroupProgramLabel(section, group)"
-                                                class="mb-2 border-b border-cyan-100 pb-2"
-                                            >
+                                            <div v-if="sectionGroupProgramLabel(section, group)" class="mb-2 border-b border-cyan-100 pb-2">
                                                 <p class="text-[11px] font-semibold uppercase tracking-wide text-[#00336C]/70">Program</p>
                                                 <p class="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-slate-950">
                                                     {{ sectionGroupProgramLabel(section, group) }}
@@ -5655,230 +5232,258 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                             : '',
                                     ]"
                                 >
-                            <div
-                                class="grid gap-3 border-b bg-gradient-to-r p-4 lg:grid-cols-[4rem_minmax(0,1fr)_auto] lg:items-start"
-                                :class="sectionHeaderTintClass(section)"
-                            >
-                                <div class="flex items-center gap-2 lg:justify-center">
-                                    <span
-                                        class="flex size-10 items-center justify-center rounded-full text-sm font-bold shadow-sm ring-1 ring-white/70"
-                                        :class="sectionIndexBadgeClass(section)"
+                                    <div
+                                        class="grid gap-3 border-b bg-gradient-to-r p-4 lg:grid-cols-[4rem_minmax(0,1fr)_auto] lg:items-start"
+                                        :class="sectionHeaderTintClass(section)"
                                     >
-                                        {{ parentIndex + 1 }}
-                                    </span>
-                                </div>
-                                <div class="min-w-0">
-                                    <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]">{{ section.primaryLabel }}</p>
-                                    <h3 class="mt-1 whitespace-pre-line text-base font-semibold leading-6 text-slate-950">
-                                        {{ bulkRowPrimaryText(parentRow) }}
-                                    </h3>
-                                    <p
-                                        v-if="section.key !== 'sub-kegiatan' && parentRowSubtext(parentRow)"
-                                        class="mt-2 max-w-4xl text-sm leading-6 text-slate-600"
-                                    >
-                                        {{ parentRowSubtext(parentRow) }}
-                                    </p>
-                                    <p v-if="parentRow.error" class="mt-2 text-xs font-medium text-red-600">{{ parentRow.error }}</p>
-                                </div>
-                                <div class="flex flex-wrap gap-2 lg:justify-end">
-                                    <button
-                                        v-if="hasBulkRowsToSave(bulkRowsForSingleSave(parentRow))"
-                                        type="button"
-                                        class="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-[#00336C] px-3 text-xs font-semibold text-white transition hover:bg-[#0a4485] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
-                                        :disabled="isBulkRowsSaving(bulkRowsForSingleSave(parentRow))"
-                                        @click="saveBulkRows(bulkRowsForSingleSave(parentRow))"
-                                    >
-                                        <Save class="size-3.5" />
-                                        Simpan
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-blue-100 bg-white px-3 text-xs font-semibold text-[#00336C] transition hover:border-[#00336C]/40 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white"
-                                        :disabled="!parentRowCanAddIndicator(parentRow)"
-                                        @click="section.key === 'sub-kegiatan' ? openSubKegiatanBudgetModal(parentRow) : openBulkIndicatorModal(section, parentRow)"
-                                    >
-                                        <Plus class="size-3.5" />
-                                        {{ section.key === 'sub-kegiatan' ? 'Pagu Indikatif' : section.indicatorLabel }}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                                        @click="editBulkRow(parentRow)"
-                                    >
-                                        <Pencil class="size-3.5" />
-                                        Edit
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-red-100 bg-white px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50"
-                                        @click="deleteBulkRow(parentRow)"
-                                    >
-                                        <Trash2 class="size-3.5" />
-                                        Hapus
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="border-t border-blue-100 bg-white p-4 sm:p-5">
-                                <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <div>
-                                        <h4 class="text-sm font-semibold text-slate-950">{{ section.indicatorLabel }}</h4>
-                                        <p class="text-xs text-slate-500">Indikator, satuan, dan target 5 tahunan.</p>
-                                    </div>
-                                    <span class="w-fit rounded-full border border-blue-100 bg-white px-3 py-1 text-xs font-semibold text-[#00336C]">
-                                        {{ sectionIndicatorRows(section, parentRow).length }} indikator
-                                    </span>
-                                </div>
-
-                                <div class="overflow-x-auto rounded-xl border border-blue-100 bg-white shadow-inner shadow-blue-950/5">
-                                    <table class="w-full min-w-[1120px] table-fixed text-left text-sm">
-                                        <colgroup>
-                                            <col style="width: 56px" />
-                                            <col />
-                                            <col style="width: 112px" />
-                                            <col v-if="baselinePeriod" style="width: 76px" />
-                                            <col
-                                                v-for="period in periodColumns"
-                                                :key="`indicator-target-col-${section.key}-${parentRow.key}-${period.id}`"
-                                                style="width: 72px"
-                                            />
-                                            <col style="width: 120px" />
-                                        </colgroup>
-                                        <thead class="border-b bg-blue-50 text-xs uppercase text-[#00336C]">
-                                            <tr>
-                                                <th rowspan="2" class="border-b border-r border-blue-100 px-3 py-3 text-center">No</th>
-                                                <th rowspan="2" class="border-b border-r border-blue-100 px-3 py-3">Indikator</th>
-                                                <th rowspan="2" class="border-b border-r border-blue-100 px-3 py-3 text-center">Satuan</th>
-                                                <th v-if="baselinePeriod" class="border-b border-r border-amber-100 bg-amber-50/70 px-2 py-3 text-center">
-                                                    Baseline
-                                                </th>
-                                                <th :colspan="periodColumns.length" class="border-b border-r border-blue-100 px-2 py-3 text-center">
-                                                    Target
-                                                </th>
-                                                <th
-                                                    rowspan="2"
-                                                    class="sticky right-0 z-20 border-b border-l border-blue-100 bg-blue-50 px-2 py-3 text-center shadow-[-10px_0_18px_rgba(15,23,42,0.08)]"
-                                                >
-                                                    Aksi
-                                                </th>
-                                            </tr>
-                                            <tr>
-                                                <th v-if="baselinePeriod" class="border-r border-amber-100 bg-amber-50/70 px-2 py-3 text-center">
-                                                    {{ baselinePeriod.year }}
-                                                </th>
-                                                <th
-                                                    v-for="period in periodColumns"
-                                                    :key="`indicator-target-head-${section.key}-${parentRow.key}-${period.id}`"
-                                                    class="border-r border-blue-100 px-2 py-3 text-center last:border-r-0"
-                                                >
-                                                    {{ period.year }}
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr
-                                                v-for="(indicatorRow, indicatorIndex) in sectionIndicatorRows(section, parentRow)"
-                                                :key="`indicator-${section.key}-${indicatorRow.key}`"
-                                                class="border-b align-top last:border-0 hover:bg-blue-50/30"
+                                        <div class="flex items-center gap-2 lg:justify-center">
+                                            <span
+                                                class="flex size-10 items-center justify-center rounded-full text-sm font-bold shadow-sm ring-1 ring-white/70"
+                                                :class="sectionIndexBadgeClass(section)"
                                             >
-                                                <td class="border-r border-blue-50 px-3 py-4 text-center">
-                                                    <span class="text-sm font-semibold text-slate-900">{{ indicatorIndex + 1 }}</span>
-                                                </td>
-                                                <td class="border-r border-blue-50 px-3 py-4">
-                                                    <p class="whitespace-pre-line font-semibold leading-6 text-slate-950">
-                                                        {{ bulkRowPrimaryText(indicatorRow) }}
-                                                    </p>
-                                                    <p v-if="indicatorRow.definisi_operasional" class="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">
-                                                        DO: {{ indicatorRow.definisi_operasional }}
-                                                    </p>
-                                                    <div class="mt-3 flex flex-wrap gap-1.5">
-                                                        <span
-                                                            v-if="indicatorRow.tipe_perhitungan"
-                                                            class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600"
+                                                {{ parentIndex + 1 }}
+                                            </span>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]">{{ section.primaryLabel }}</p>
+                                            <h3 class="mt-1 whitespace-pre-line text-base font-semibold leading-6 text-slate-950">
+                                                {{ bulkRowPrimaryText(parentRow) }}
+                                            </h3>
+                                            <p
+                                                v-if="section.key !== 'sub-kegiatan' && parentRowSubtext(parentRow)"
+                                                class="mt-2 max-w-4xl text-sm leading-6 text-slate-600"
+                                            >
+                                                {{ parentRowSubtext(parentRow) }}
+                                            </p>
+                                            <p v-if="parentRow.error" class="mt-2 text-xs font-medium text-red-600">{{ parentRow.error }}</p>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2 lg:justify-end">
+                                            <button
+                                                v-if="hasBulkRowsToSave(bulkRowsForSingleSave(parentRow))"
+                                                type="button"
+                                                class="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-[#00336C] px-3 text-xs font-semibold text-white transition hover:bg-[#0a4485] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+                                                :disabled="isBulkRowsSaving(bulkRowsForSingleSave(parentRow))"
+                                                @click="saveBulkRows(bulkRowsForSingleSave(parentRow))"
+                                            >
+                                                <Save class="size-3.5" />
+                                                Simpan
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-blue-100 bg-white px-3 text-xs font-semibold text-[#00336C] transition hover:border-[#00336C]/40 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white"
+                                                :disabled="!parentRowCanAddIndicator(parentRow)"
+                                                @click="
+                                                    section.key === 'sub-kegiatan'
+                                                        ? openSubKegiatanBudgetModal(parentRow)
+                                                        : openBulkIndicatorModal(section, parentRow)
+                                                "
+                                            >
+                                                <Plus class="size-3.5" />
+                                                {{ section.key === 'sub-kegiatan' ? 'Pagu Indikatif' : section.indicatorLabel }}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                                                @click="editBulkRow(parentRow)"
+                                            >
+                                                <Pencil class="size-3.5" />
+                                                Edit
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-red-100 bg-white px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+                                                @click="deleteBulkRow(parentRow)"
+                                            >
+                                                <Trash2 class="size-3.5" />
+                                                Hapus
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="border-t border-blue-100 bg-white p-4 sm:p-5">
+                                        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <h4 class="text-sm font-semibold text-slate-950">{{ section.indicatorLabel }}</h4>
+                                                <p class="text-xs text-slate-500">Indikator, satuan, dan target 5 tahunan.</p>
+                                            </div>
+                                            <span
+                                                class="w-fit rounded-full border border-blue-100 bg-white px-3 py-1 text-xs font-semibold text-[#00336C]"
+                                            >
+                                                {{ sectionIndicatorRows(section, parentRow).length }} indikator
+                                            </span>
+                                        </div>
+
+                                        <div class="overflow-x-auto rounded-xl border border-blue-100 bg-white shadow-inner shadow-blue-950/5">
+                                            <table class="w-full min-w-[1120px] table-fixed text-left text-sm">
+                                                <colgroup>
+                                                    <col style="width: 56px" />
+                                                    <col />
+                                                    <col style="width: 112px" />
+                                                    <col v-if="baselinePeriod" style="width: 76px" />
+                                                    <col
+                                                        v-for="period in periodColumns"
+                                                        :key="`indicator-target-col-${section.key}-${parentRow.key}-${period.id}`"
+                                                        style="width: 72px"
+                                                    />
+                                                    <col style="width: 120px" />
+                                                </colgroup>
+                                                <thead class="border-b bg-blue-50 text-xs uppercase text-[#00336C]">
+                                                    <tr>
+                                                        <th rowspan="2" class="border-b border-r border-blue-100 px-3 py-3 text-center">No</th>
+                                                        <th rowspan="2" class="border-b border-r border-blue-100 px-3 py-3">Indikator</th>
+                                                        <th rowspan="2" class="border-b border-r border-blue-100 px-3 py-3 text-center">Satuan</th>
+                                                        <th
+                                                            v-if="baselinePeriod"
+                                                            class="border-b border-r border-amber-100 bg-amber-50/70 px-2 py-3 text-center"
                                                         >
-                                                            {{ indicatorRow.tipe_perhitungan === 'kumulatif' ? 'Kumulatif' : 'Non-kumulatif' }}
-                                                        </span>
-                                                        <span
-                                                            v-if="indicatorRow.sumber_data"
-                                                            class="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-[#00336C]"
+                                                            Baseline
+                                                        </th>
+                                                        <th
+                                                            :colspan="periodColumns.length"
+                                                            class="border-b border-r border-blue-100 px-2 py-3 text-center"
                                                         >
-                                                            {{ indicatorRow.sumber_data }}
-                                                        </span>
-                                                    </div>
-                                                    <p v-if="indicatorRow.error" class="mt-2 text-xs font-medium text-red-600">{{ indicatorRow.error }}</p>
-                                                </td>
-                                                <td class="border-r border-blue-50 px-3 py-4 text-center">
-                                                    <span class="font-semibold text-slate-900">
-                                                        {{ optionById(satuanOptions, indicatorRow.satuan_indikator_id)?.label ?? '-' }}
-                                                    </span>
-                                                </td>
-                                                <td
-                                                    v-if="baselinePeriod"
-                                                    class="border-r border-amber-100 bg-amber-50/30 px-2 py-4 text-center text-sm font-semibold tabular-nums"
-                                                    :class="baselineTargetSummary(indicatorRow)?.target !== '-' ? 'text-slate-950' : 'text-slate-400'"
-                                                >
-                                                    {{ baselineTargetSummary(indicatorRow)?.target ?? '-' }}
-                                                </td>
-                                                <td
-                                                    v-for="target in bulkTargetSummaries(indicatorRow)"
-                                                    :key="`target-summary-${indicatorRow.key}-${target.id}`"
-                                                    class="border-r border-blue-50 px-2 py-4 text-center text-sm font-semibold tabular-nums"
-                                                    :class="target.target !== '-' ? 'text-slate-950' : 'text-slate-400'"
-                                                >
-                                                    {{ target.target }}
-                                                </td>
-                                                <td class="sticky right-0 border-l border-blue-50 bg-white px-2 py-4 shadow-[-10px_0_18px_rgba(15,23,42,0.06)]">
-                                                    <div class="grid justify-items-stretch gap-1.5">
-                                                        <button
-                                                            v-if="hasBulkRowsToSave(bulkRowsForSingleSave(indicatorRow))"
-                                                            type="button"
-                                                            class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md bg-[#00336C] px-2 text-xs font-semibold text-white transition hover:bg-[#0a4485] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
-                                                            :disabled="isBulkRowsSaving(bulkRowsForSingleSave(indicatorRow))"
-                                                            @click="saveBulkRows(bulkRowsForSingleSave(indicatorRow))"
+                                                            Target
+                                                        </th>
+                                                        <th
+                                                            rowspan="2"
+                                                            class="sticky right-0 z-20 border-b border-l border-blue-100 bg-blue-50 px-2 py-3 text-center shadow-[-10px_0_18px_rgba(15,23,42,0.08)]"
                                                         >
-                                                            <Save class="size-3.5" />
-                                                            Simpan
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-blue-100 bg-white px-2 text-xs font-semibold text-[#00336C] transition hover:border-[#00336C]/40 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white"
-                                                            :disabled="!indicatorRow.id"
-                                                            @click="openBulkTargetModal(indicatorRow)"
+                                                            Aksi
+                                                        </th>
+                                                    </tr>
+                                                    <tr>
+                                                        <th
+                                                            v-if="baselinePeriod"
+                                                            class="border-r border-amber-100 bg-amber-50/70 px-2 py-3 text-center"
                                                         >
-                                                            <Plus class="size-3.5" />
-                                                            {{ targetButtonLabel(indicatorRow) }}
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-blue-100 bg-white px-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                                                            @click="editBulkRow(indicatorRow)"
+                                                            {{ baselinePeriod.year }}
+                                                        </th>
+                                                        <th
+                                                            v-for="period in periodColumns"
+                                                            :key="`indicator-target-head-${section.key}-${parentRow.key}-${period.id}`"
+                                                            class="border-r border-blue-100 px-2 py-3 text-center last:border-r-0"
                                                         >
-                                                            <Pencil class="size-3.5" />
-                                                            Edit
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-red-100 bg-white px-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
-                                                            @click="deleteBulkRow(indicatorRow)"
+                                                            {{ period.year }}
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr
+                                                        v-for="(indicatorRow, indicatorIndex) in sectionIndicatorRows(section, parentRow)"
+                                                        :key="`indicator-${section.key}-${indicatorRow.key}`"
+                                                        class="border-b align-top last:border-0 hover:bg-blue-50/30"
+                                                    >
+                                                        <td class="border-r border-blue-50 px-3 py-4 text-center">
+                                                            <span class="text-sm font-semibold text-slate-900">{{ indicatorIndex + 1 }}</span>
+                                                        </td>
+                                                        <td class="border-r border-blue-50 px-3 py-4">
+                                                            <p class="whitespace-pre-line font-semibold leading-6 text-slate-950">
+                                                                {{ bulkRowPrimaryText(indicatorRow) }}
+                                                            </p>
+                                                            <p
+                                                                v-if="indicatorRow.definisi_operasional"
+                                                                class="mt-2 line-clamp-2 text-xs leading-5 text-slate-600"
+                                                            >
+                                                                DO: {{ indicatorRow.definisi_operasional }}
+                                                            </p>
+                                                            <div class="mt-3 flex flex-wrap gap-1.5">
+                                                                <span
+                                                                    v-if="indicatorRow.tipe_perhitungan"
+                                                                    class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600"
+                                                                >
+                                                                    {{
+                                                                        indicatorRow.tipe_perhitungan === 'kumulatif' ? 'Kumulatif' : 'Non-kumulatif'
+                                                                    }}
+                                                                </span>
+                                                                <span
+                                                                    v-if="indicatorRow.sumber_data"
+                                                                    class="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-[#00336C]"
+                                                                >
+                                                                    {{ indicatorRow.sumber_data }}
+                                                                </span>
+                                                            </div>
+                                                            <p v-if="indicatorRow.error" class="mt-2 text-xs font-medium text-red-600">
+                                                                {{ indicatorRow.error }}
+                                                            </p>
+                                                        </td>
+                                                        <td class="border-r border-blue-50 px-3 py-4 text-center">
+                                                            <span class="font-semibold text-slate-900">
+                                                                {{ optionById(satuanOptions, indicatorRow.satuan_indikator_id)?.label ?? '-' }}
+                                                            </span>
+                                                        </td>
+                                                        <td
+                                                            v-if="baselinePeriod"
+                                                            class="border-r border-amber-100 bg-amber-50/30 px-2 py-4 text-center text-sm font-semibold tabular-nums"
+                                                            :class="
+                                                                baselineTargetSummary(indicatorRow)?.target !== '-'
+                                                                    ? 'text-slate-950'
+                                                                    : 'text-slate-400'
+                                                            "
                                                         >
-                                                            <Trash2 class="size-3.5" />
-                                                            Hapus
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            <tr v-if="sectionIndicatorRows(section, parentRow).length === 0">
-                                                <td
-                                                    :colspan="periodColumns.length + 4 + (baselinePeriod ? 1 : 0)"
-                                                    class="px-3 py-6 text-center text-sm text-slate-500"
-                                                >
-                                                    Belum ada indikator untuk {{ bulkRowPrimaryText(parentRow) }}.
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                                                            {{ baselineTargetSummary(indicatorRow)?.target ?? '-' }}
+                                                        </td>
+                                                        <td
+                                                            v-for="target in bulkTargetSummaries(indicatorRow)"
+                                                            :key="`target-summary-${indicatorRow.key}-${target.id}`"
+                                                            class="border-r border-blue-50 px-2 py-4 text-center text-sm font-semibold tabular-nums"
+                                                            :class="target.target !== '-' ? 'text-slate-950' : 'text-slate-400'"
+                                                        >
+                                                            {{ target.target }}
+                                                        </td>
+                                                        <td
+                                                            class="sticky right-0 border-l border-blue-50 bg-white px-2 py-4 shadow-[-10px_0_18px_rgba(15,23,42,0.06)]"
+                                                        >
+                                                            <div class="grid justify-items-stretch gap-1.5">
+                                                                <button
+                                                                    v-if="hasBulkRowsToSave(bulkRowsForSingleSave(indicatorRow))"
+                                                                    type="button"
+                                                                    class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md bg-[#00336C] px-2 text-xs font-semibold text-white transition hover:bg-[#0a4485] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+                                                                    :disabled="isBulkRowsSaving(bulkRowsForSingleSave(indicatorRow))"
+                                                                    @click="saveBulkRows(bulkRowsForSingleSave(indicatorRow))"
+                                                                >
+                                                                    <Save class="size-3.5" />
+                                                                    Simpan
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-blue-100 bg-white px-2 text-xs font-semibold text-[#00336C] transition hover:border-[#00336C]/40 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white"
+                                                                    :disabled="!indicatorRow.id"
+                                                                    @click="openBulkTargetModal(indicatorRow)"
+                                                                >
+                                                                    <Plus class="size-3.5" />
+                                                                    {{ targetButtonLabel(indicatorRow) }}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-blue-100 bg-white px-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                                                                    @click="editBulkRow(indicatorRow)"
+                                                                >
+                                                                    <Pencil class="size-3.5" />
+                                                                    Edit
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-red-100 bg-white px-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+                                                                    @click="deleteBulkRow(indicatorRow)"
+                                                                >
+                                                                    <Trash2 class="size-3.5" />
+                                                                    Hapus
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    <tr v-if="sectionIndicatorRows(section, parentRow).length === 0">
+                                                        <td
+                                                            :colspan="periodColumns.length + 4 + (baselinePeriod ? 1 : 0)"
+                                                            class="px-3 py-6 text-center text-sm text-slate-500"
+                                                        >
+                                                            Belum ada indikator untuk {{ bulkRowPrimaryText(parentRow) }}.
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </article>
                                 <div
                                     v-if="section.key === 'sub-kegiatan' && group.rows.length === 0"
@@ -5891,286 +5496,286 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                             </div>
 
                             <div v-if="false" class="hidden">
-                        <table class="w-full min-w-[2900px] border-separate border-spacing-0 text-left text-sm">
-                            <thead class="sticky top-0 z-10 border-b bg-blue-50 text-xs uppercase text-[#00336C] backdrop-blur">
-                                <tr>
-                                    <th
-                                        rowspan="2"
-                                        class="sticky left-0 z-20 min-w-20 border-b border-r border-blue-100 bg-blue-50 px-3 py-3 text-center shadow-[8px_0_16px_rgba(15,23,42,0.06)]"
-                                    >
-                                        No
-                                    </th>
-                                    <th colspan="7" class="border-b border-blue-100 px-3 py-3 text-center">Data Utama</th>
-                                    <th colspan="7" class="border-b border-blue-100 px-3 py-3 text-center">Indikator Kinerja</th>
-                                    <th :colspan="periodColumns.length + 1" class="border-b border-blue-100 px-3 py-3 text-center">
-                                        Target 5 Tahunan
-                                    </th>
-                                    <th
-                                        rowspan="2"
-                                        class="min-w-36 border-b border-blue-100 px-3 py-3 text-center"
-                                    >
-                                        Aksi
-                                    </th>
-                                </tr>
-                                <tr>
-                                    <th class="min-w-52 border-b border-blue-100 px-3 py-3">Jenis Data</th>
-                                    <th class="min-w-28 border-b border-blue-100 px-3 py-3">Urutan</th>
-                                    <th class="min-w-72 border-b border-blue-100 px-3 py-3">Induk</th>
-                                    <th class="min-w-64 border-b border-blue-100 px-3 py-3">Referensi RPJMD</th>
-                                    <th class="min-w-80 border-b border-blue-100 px-3 py-3">Master Resmi</th>
-                                    <th class="min-w-72 border-b border-blue-100 px-3 py-3">Sasaran Level</th>
-                                    <th class="min-w-80 border-b border-blue-100 px-3 py-3">Uraian/Nama</th>
-                                    <th class="min-w-80 border-b border-blue-100 px-3 py-3">Indikator</th>
-                                    <th class="min-w-80 border-b border-blue-100 px-3 py-3">Definisi Operasional</th>
-                                    <th class="min-w-44 border-b border-blue-100 px-3 py-3">Satuan</th>
-                                    <th class="min-w-48 border-b border-blue-100 px-3 py-3">Tipe Perhitungan</th>
-                                    <th class="min-w-72 border-b border-blue-100 px-3 py-3">Formulasi Pengukuran</th>
-                                    <th class="min-w-72 border-b border-blue-100 px-3 py-3">PD Penanggung Jawab</th>
-                                    <th class="min-w-52 border-b border-blue-100 px-3 py-3">Sumber Data</th>
-                                    <th
-                                        v-for="period in periodColumns"
-                                        :key="`bulk-period-head-${section.key}-${period.id}`"
-                                        class="min-w-40 border-b border-blue-100 px-3 py-3 text-center"
-                                    >
-                                        {{ period.year }}
-                                    </th>
-                                    <th class="min-w-56 border-b border-blue-100 px-3 py-3">Keuangan</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr
-                                    v-for="(row, rowIndex) in visibleBulkRows(section.rows)"
-                                    :key="`${section.key}-${row.key}`"
-                                    class="border-b align-top last:border-0 hover:bg-blue-50/30"
-                                >
-                                    <td
-                                        class="sticky left-0 z-10 border-b border-r bg-card px-3 py-3 text-center shadow-[8px_0_16px_rgba(15,23,42,0.05)]"
-                                    >
-                                        <div class="grid justify-items-center gap-1">
-                                            <span class="text-sm font-semibold text-slate-900">{{ rowIndex + 1 }}</span>
-                                            <span
-                                                v-if="row.saveState !== 'idle'"
-                                                class="inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                                                :class="bulkStatusClass(row)"
+                                <table class="w-full min-w-[2900px] border-separate border-spacing-0 text-left text-sm">
+                                    <thead class="sticky top-0 z-10 border-b bg-blue-50 text-xs uppercase text-[#00336C] backdrop-blur">
+                                        <tr>
+                                            <th
+                                                rowspan="2"
+                                                class="sticky left-0 z-20 min-w-20 border-b border-r border-blue-100 bg-blue-50 px-3 py-3 text-center shadow-[8px_0_16px_rgba(15,23,42,0.06)]"
                                             >
-                                                {{ bulkStatusLabel(row) }}
-                                            </span>
-                                            <p v-if="row.error" class="max-w-32 text-[11px] leading-4 text-red-700">{{ row.error }}</p>
-                                        </div>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-if="row.isNew"
-                                            v-model="row.type"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-[#00336C]"
-                                            @change="onBulkTypeChanged(row)"
-                                        >
-                                            <option v-for="action in section.actions" :key="action.type" :value="action.type">
-                                                {{ action.label }}
-                                            </option>
-                                        </select>
-                                        <div v-else>
-                                            <div class="font-semibold text-slate-900">{{ row.level }}</div>
-                                            <div class="mt-1 text-xs text-muted-foreground">{{ typeMeta[row.type].primaryField }}</div>
-                                        </div>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.urutan"
-                                            :disabled="!isBulkTextRow(row) && !isBulkIndicatorRow(row)"
-                                            type="number"
-                                            min="1"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <p class="mb-2 text-xs leading-5 text-slate-600">{{ row.parent_label }}</p>
-                                        <select
-                                            v-if="bulkParentOptions(row).length"
-                                            v-model="row.parent_id"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C]"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="">Pilih induk</option>
-                                            <option v-for="option in bulkParentOptions(row)" :key="option.id" :value="option.id">
-                                                {{ option.label }}
-                                            </option>
-                                        </select>
-                                        <span v-else class="text-xs text-muted-foreground">Tidak perlu induk</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-if="bulkReferenceOptions(row).length"
-                                            v-model="row.reference_value"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C]"
-                                            @change="onBulkReferenceChanged(row)"
-                                        >
-                                            <option value="">Tidak dihubungkan</option>
-                                            <option v-for="option in bulkReferenceOptions(row)" :key="option.id" :value="option.id">
-                                                {{ option.label }}
-                                            </option>
-                                        </select>
-                                        <span v-else class="text-xs text-muted-foreground">-</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <RpjmdRichSelect
-                                            v-if="bulkMasterOptions(row).length"
-                                            :model-value="bulkMasterValue(row)"
-                                            :options="bulkMasterOptions(row)"
-                                            placeholder="Pilih master"
-                                            empty-text="Master belum tersedia"
-                                            @update:model-value="setBulkMasterValue(row, $event)"
-                                        />
-                                        <span v-else class="text-xs text-muted-foreground">-</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <textarea
-                                            v-model="row.sasaran_level"
-                                            :disabled="!hasBulkSasaranLevel(row)"
-                                            rows="3"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
-                                            :placeholder="bulkSasaranLabel(row)"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <textarea
-                                            v-if="isBulkTextRow(row)"
-                                            v-model="row.uraian"
-                                            rows="2"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C]"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                        <span v-else class="text-xs text-muted-foreground">-</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <textarea
-                                            v-model="row.indikator"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            rows="3"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <textarea
-                                            v-model="row.definisi_operasional"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            rows="3"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-model="row.satuan_indikator_id"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="">Pilih satuan</option>
-                                            <option v-for="option in satuanOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                                        </select>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <select
-                                            v-model="row.tipe_perhitungan"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
-                                            @change="scheduleBulkAutosave(row)"
-                                        >
-                                            <option value="non_kumulatif">Non-kumulatif</option>
-                                            <option value="kumulatif">Kumulatif</option>
-                                        </select>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <textarea
-                                            v-model="row.formulasi_pengukuran"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            rows="3"
-                                            class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-if="isBulkIndicatorRow(row)"
-                                            v-model="row.pd_penanggung_jawab"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C]"
-                                            placeholder="Ketik PD"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                        <span v-else class="text-xs text-muted-foreground">-</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <input
-                                            v-model="row.sumber_data"
-                                            :disabled="!isBulkIndicatorRow(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
-                                            @input="scheduleBulkAutosave(row)"
-                                        />
-                                    </td>
-                                    <td
-                                        v-for="period in periodColumns"
-                                        :key="`target-cell-${section.key}-${row.key}-${period.id}`"
-                                        class="px-2 py-3"
-                                    >
-                                        <input
-                                            v-if="isBulkIndicatorRow(row)"
-                                            :value="targetValueForIndicator(row, period.id)"
-                                            :disabled="!canEditTargetColumns(row)"
-                                            class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
-                                            :placeholder="canEditTargetColumns(row) ? '-' : 'Simpan dulu'"
-                                            @input="setIndicatorTargetValue(row, period.id, inputEventValue($event))"
-                                        />
-                                        <span v-else class="text-xs text-muted-foreground">-</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <div v-if="showTargetFinance(row)" class="grid gap-2">
-                                            <label
+                                                No
+                                            </th>
+                                            <th colspan="7" class="border-b border-blue-100 px-3 py-3 text-center">Data Utama</th>
+                                            <th colspan="7" class="border-b border-blue-100 px-3 py-3 text-center">Indikator Kinerja</th>
+                                            <th :colspan="periodColumns.length + 1" class="border-b border-blue-100 px-3 py-3 text-center">
+                                                Target 5 Tahunan
+                                            </th>
+                                            <th rowspan="2" class="min-w-36 border-b border-blue-100 px-3 py-3 text-center">Aksi</th>
+                                        </tr>
+                                        <tr>
+                                            <th class="min-w-52 border-b border-blue-100 px-3 py-3">Jenis Data</th>
+                                            <th class="min-w-28 border-b border-blue-100 px-3 py-3">Urutan</th>
+                                            <th class="min-w-72 border-b border-blue-100 px-3 py-3">Induk</th>
+                                            <th class="min-w-64 border-b border-blue-100 px-3 py-3">Referensi RPJMD</th>
+                                            <th class="min-w-80 border-b border-blue-100 px-3 py-3">Master Resmi</th>
+                                            <th class="min-w-72 border-b border-blue-100 px-3 py-3">Sasaran Level</th>
+                                            <th class="min-w-80 border-b border-blue-100 px-3 py-3">Uraian/Nama</th>
+                                            <th class="min-w-80 border-b border-blue-100 px-3 py-3">Indikator</th>
+                                            <th class="min-w-80 border-b border-blue-100 px-3 py-3">Definisi Operasional</th>
+                                            <th class="min-w-44 border-b border-blue-100 px-3 py-3">Satuan</th>
+                                            <th class="min-w-48 border-b border-blue-100 px-3 py-3">Tipe Perhitungan</th>
+                                            <th class="min-w-72 border-b border-blue-100 px-3 py-3">Formulasi Pengukuran</th>
+                                            <th class="min-w-72 border-b border-blue-100 px-3 py-3">PD Penanggung Jawab</th>
+                                            <th class="min-w-52 border-b border-blue-100 px-3 py-3">Sumber Data</th>
+                                            <th
                                                 v-for="period in periodColumns"
-                                                :key="`pagu-cell-${section.key}-${row.key}-${period.id}`"
-                                                class="grid gap-1 text-[11px] font-semibold text-slate-500"
+                                                :key="`bulk-period-head-${section.key}-${period.id}`"
+                                                class="min-w-40 border-b border-blue-100 px-3 py-3 text-center"
                                             >
-                                                <span>{{ period.year }}</span>
+                                                {{ period.year }}
+                                            </th>
+                                            <th class="min-w-56 border-b border-blue-100 px-3 py-3">Keuangan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr
+                                            v-for="(row, rowIndex) in visibleBulkRows(section.rows)"
+                                            :key="`${section.key}-${row.key}`"
+                                            class="border-b align-top last:border-0 hover:bg-blue-50/30"
+                                        >
+                                            <td
+                                                class="sticky left-0 z-10 border-b border-r bg-card px-3 py-3 text-center shadow-[8px_0_16px_rgba(15,23,42,0.05)]"
+                                            >
+                                                <div class="grid justify-items-center gap-1">
+                                                    <span class="text-sm font-semibold text-slate-900">{{ rowIndex + 1 }}</span>
+                                                    <span
+                                                        v-if="row.saveState !== 'idle'"
+                                                        class="inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                                                        :class="bulkStatusClass(row)"
+                                                    >
+                                                        {{ bulkStatusLabel(row) }}
+                                                    </span>
+                                                    <p v-if="row.error" class="max-w-32 text-[11px] leading-4 text-red-700">{{ row.error }}</p>
+                                                </div>
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <select
+                                                    v-if="row.isNew"
+                                                    v-model="row.type"
+                                                    class="min-h-10 w-full rounded-md border bg-background px-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-[#00336C]"
+                                                    @change="onBulkTypeChanged(row)"
+                                                >
+                                                    <option v-for="action in section.actions" :key="action.type" :value="action.type">
+                                                        {{ action.label }}
+                                                    </option>
+                                                </select>
+                                                <div v-else>
+                                                    <div class="font-semibold text-slate-900">{{ row.level }}</div>
+                                                    <div class="mt-1 text-xs text-muted-foreground">{{ typeMeta[row.type].primaryField }}</div>
+                                                </div>
+                                            </td>
+                                            <td class="px-3 py-3">
                                                 <input
-                                                    :value="targetPaguForIndicator(row, period.id)"
-                                                    :disabled="!canEditTargetColumns(row)"
-                                                    type="text"
-                                                    inputmode="numeric"
-                                                    class="min-h-9 rounded-md border bg-background px-2 text-xs font-normal text-slate-900 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
-                                                    @input="setIndicatorTargetPagu(row, period.id, inputEventValue($event))"
+                                                    v-model="row.urutan"
+                                                    :disabled="!isBulkTextRow(row) && !isBulkIndicatorRow(row)"
+                                                    type="number"
+                                                    min="1"
+                                                    class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                                    @input="scheduleBulkAutosave(row)"
                                                 />
-                                            </label>
-                                        </div>
-                                        <span v-else class="text-xs text-muted-foreground">-</span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <div class="inline-flex overflow-hidden rounded-md border border-blue-100 bg-white shadow-sm">
-                                            <button
-                                                type="button"
-                                                class="inline-flex min-h-9 items-center gap-2 px-3 text-xs font-semibold text-[#00336C] transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white"
-                                                :disabled="!hasBulkRowsToSave(bulkRowsForSingleSave(row)) || isBulkRowsSaving(bulkRowsForSingleSave(row))"
-                                                @click="saveBulkRows(bulkRowsForSingleSave(row))"
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <p class="mb-2 text-xs leading-5 text-slate-600">{{ row.parent_label }}</p>
+                                                <select
+                                                    v-if="bulkParentOptions(row).length"
+                                                    v-model="row.parent_id"
+                                                    class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C]"
+                                                    @change="scheduleBulkAutosave(row)"
+                                                >
+                                                    <option value="">Pilih induk</option>
+                                                    <option v-for="option in bulkParentOptions(row)" :key="option.id" :value="option.id">
+                                                        {{ option.label }}
+                                                    </option>
+                                                </select>
+                                                <span v-else class="text-xs text-muted-foreground">Tidak perlu induk</span>
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <select
+                                                    v-if="bulkReferenceOptions(row).length"
+                                                    v-model="row.reference_value"
+                                                    class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C]"
+                                                    @change="onBulkReferenceChanged(row)"
+                                                >
+                                                    <option value="">Tidak dihubungkan</option>
+                                                    <option v-for="option in bulkReferenceOptions(row)" :key="option.id" :value="option.id">
+                                                        {{ option.label }}
+                                                    </option>
+                                                </select>
+                                                <span v-else class="text-xs text-muted-foreground">-</span>
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <RpjmdRichSelect
+                                                    v-if="bulkMasterOptions(row).length"
+                                                    :model-value="bulkMasterValue(row)"
+                                                    :options="bulkMasterOptions(row)"
+                                                    placeholder="Pilih master"
+                                                    empty-text="Master belum tersedia"
+                                                    @update:model-value="setBulkMasterValue(row, $event)"
+                                                />
+                                                <span v-else class="text-xs text-muted-foreground">-</span>
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <textarea
+                                                    v-model="row.sasaran_level"
+                                                    :disabled="!hasBulkSasaranLevel(row)"
+                                                    rows="3"
+                                                    class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                                    :placeholder="bulkSasaranLabel(row)"
+                                                    @input="scheduleBulkAutosave(row)"
+                                                />
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <textarea
+                                                    v-if="isBulkTextRow(row)"
+                                                    v-model="row.uraian"
+                                                    rows="2"
+                                                    class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C]"
+                                                    @input="scheduleBulkAutosave(row)"
+                                                />
+                                                <span v-else class="text-xs text-muted-foreground">-</span>
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <textarea
+                                                    v-model="row.indikator"
+                                                    :disabled="!isBulkIndicatorRow(row)"
+                                                    rows="3"
+                                                    class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                                    @input="scheduleBulkAutosave(row)"
+                                                />
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <textarea
+                                                    v-model="row.definisi_operasional"
+                                                    :disabled="!isBulkIndicatorRow(row)"
+                                                    rows="3"
+                                                    class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                                    @input="scheduleBulkAutosave(row)"
+                                                />
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <select
+                                                    v-model="row.satuan_indikator_id"
+                                                    :disabled="!isBulkIndicatorRow(row)"
+                                                    class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                                    @change="scheduleBulkAutosave(row)"
+                                                >
+                                                    <option value="">Pilih satuan</option>
+                                                    <option v-for="option in satuanOptions" :key="option.id" :value="option.id">
+                                                        {{ option.label }}
+                                                    </option>
+                                                </select>
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <select
+                                                    v-model="row.tipe_perhitungan"
+                                                    :disabled="!isBulkIndicatorRow(row)"
+                                                    class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                                    @change="scheduleBulkAutosave(row)"
+                                                >
+                                                    <option value="non_kumulatif">Non-kumulatif</option>
+                                                    <option value="kumulatif">Kumulatif</option>
+                                                </select>
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <textarea
+                                                    v-model="row.formulasi_pengukuran"
+                                                    :disabled="!isBulkIndicatorRow(row)"
+                                                    rows="3"
+                                                    class="w-full rounded-md border bg-background px-2 py-2 text-xs leading-5 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                                    @input="scheduleBulkAutosave(row)"
+                                                />
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <input
+                                                    v-if="isBulkIndicatorRow(row)"
+                                                    v-model="row.pd_penanggung_jawab"
+                                                    class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C]"
+                                                    placeholder="Ketik PD"
+                                                    @input="scheduleBulkAutosave(row)"
+                                                />
+                                                <span v-else class="text-xs text-muted-foreground">-</span>
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <input
+                                                    v-model="row.sumber_data"
+                                                    :disabled="!isBulkIndicatorRow(row)"
+                                                    class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                                    @input="scheduleBulkAutosave(row)"
+                                                />
+                                            </td>
+                                            <td
+                                                v-for="period in periodColumns"
+                                                :key="`target-cell-${section.key}-${row.key}-${period.id}`"
+                                                class="px-2 py-3"
                                             >
-                                                <Save class="size-3.5" />
-                                                Simpan
-                                            </button>
-                                            <button
-                                                v-if="row.isNew"
-                                                type="button"
-                                                class="inline-flex min-h-9 items-center justify-center border-l border-blue-100 px-3 text-red-600 transition hover:bg-red-50"
-                                                @click="removeBulkDraft(row)"
-                                                aria-label="Hapus baris"
-                                            >
-                                                <Trash2 class="size-3.5" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                                                <input
+                                                    v-if="isBulkIndicatorRow(row)"
+                                                    :value="targetValueForIndicator(row, period.id)"
+                                                    :disabled="!canEditTargetColumns(row)"
+                                                    class="min-h-10 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                                    :placeholder="canEditTargetColumns(row) ? '-' : 'Simpan dulu'"
+                                                    @input="setIndicatorTargetValue(row, period.id, inputEventValue($event))"
+                                                />
+                                                <span v-else class="text-xs text-muted-foreground">-</span>
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <div v-if="showTargetFinance(row)" class="grid gap-2">
+                                                    <label
+                                                        v-for="period in periodColumns"
+                                                        :key="`pagu-cell-${section.key}-${row.key}-${period.id}`"
+                                                        class="grid gap-1 text-[11px] font-semibold text-slate-500"
+                                                    >
+                                                        <span>{{ period.year }}</span>
+                                                        <input
+                                                            :value="targetPaguForIndicator(row, period.id)"
+                                                            :disabled="!canEditTargetColumns(row)"
+                                                            type="text"
+                                                            inputmode="numeric"
+                                                            class="min-h-9 rounded-md border bg-background px-2 text-xs font-normal text-slate-900 outline-none focus:ring-2 focus:ring-[#00336C] disabled:bg-slate-100 disabled:text-slate-400"
+                                                            @input="setIndicatorTargetPagu(row, period.id, inputEventValue($event))"
+                                                        />
+                                                    </label>
+                                                </div>
+                                                <span v-else class="text-xs text-muted-foreground">-</span>
+                                            </td>
+                                            <td class="px-3 py-3">
+                                                <div class="inline-flex overflow-hidden rounded-md border border-blue-100 bg-white shadow-sm">
+                                                    <button
+                                                        type="button"
+                                                        class="inline-flex min-h-9 items-center gap-2 px-3 text-xs font-semibold text-[#00336C] transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white"
+                                                        :disabled="
+                                                            !hasBulkRowsToSave(bulkRowsForSingleSave(row)) ||
+                                                            isBulkRowsSaving(bulkRowsForSingleSave(row))
+                                                        "
+                                                        @click="saveBulkRows(bulkRowsForSingleSave(row))"
+                                                    >
+                                                        <Save class="size-3.5" />
+                                                        Simpan
+                                                    </button>
+                                                    <button
+                                                        v-if="row.isNew"
+                                                        type="button"
+                                                        class="inline-flex min-h-9 items-center justify-center border-l border-blue-100 px-3 text-red-600 transition hover:bg-red-50"
+                                                        @click="removeBulkDraft(row)"
+                                                        aria-label="Hapus baris"
+                                                    >
+                                                        <Trash2 class="size-3.5" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -6185,7 +5790,9 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                         </span>
                         <div>
                             <h2 class="text-base font-semibold">Preview Tabel Renstra OPD</h2>
-                            <p class="text-sm text-muted-foreground">Hierarki lengkap sampai sasaran program, sasaran kegiatan, dan sasaran sub kegiatan.</p>
+                            <p class="text-sm text-muted-foreground">
+                                Hierarki lengkap sampai sasaran program, sasaran kegiatan, dan sasaran sub kegiatan.
+                            </p>
                         </div>
                     </div>
                     <a
@@ -6197,20 +5804,19 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                     </a>
                 </div>
                 <div
-                    class="w-full overflow-x-auto overscroll-x-contain pb-6 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:bg-clip-padding [&::-webkit-scrollbar-track]:bg-slate-100"
+                    class="w-full overflow-x-auto overscroll-x-contain pb-6 [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:bg-clip-padding [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar]:h-2"
                 >
                     <table class="w-max min-w-[1820px] border-collapse text-left text-[13px] leading-5">
                         <thead class="text-xs uppercase text-slate-950">
                             <tr class="bg-white">
                                 <th rowspan="3" class="w-[290px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
-                                    TUJUAN / SASARAN OPD / BIDANG URUSAN / SASARAN PROGRAM / PROGRAM / SASARAN KEGIATAN / KEGIATAN / SASARAN SUB KEGIATAN / SUB KEGIATAN
+                                    TUJUAN / SASARAN OPD / BIDANG URUSAN / SASARAN PROGRAM / PROGRAM / SASARAN KEGIATAN / KEGIATAN / SASARAN SUB
+                                    KEGIATAN / SUB KEGIATAN
                                 </th>
                                 <th rowspan="3" class="w-[260px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
                                     INDIKATOR OUTCOME / OUTPUT
                                 </th>
-                                <th rowspan="3" class="w-[120px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
-                                    SATUAN
-                                </th>
+                                <th rowspan="3" class="w-[120px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">SATUAN</th>
                                 <th rowspan="3" class="w-[110px] border border-slate-900 px-3 py-3 text-center align-middle font-bold">
                                     BASE LINE {{ baselineYear }}
                                 </th>
@@ -6253,7 +5859,10 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                 </template>
                             </tr>
                             <tr v-if="renstraOutputRows.length === 0">
-                                <td :colspan="4 + periodColumns.length * 2" class="border border-slate-900 px-4 py-10 text-center text-muted-foreground">
+                                <td
+                                    :colspan="4 + periodColumns.length * 2"
+                                    class="border border-slate-900 px-4 py-10 text-center text-muted-foreground"
+                                >
                                     Belum ada data Renstra OPD.
                                 </td>
                             </tr>
@@ -6680,7 +6289,9 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                                                     >
                                                         <div class="flex items-start justify-between gap-3">
                                                             <div>
-                                                                <div class="text-xs font-semibold uppercase text-muted-foreground">Indikator Kegiatan</div>
+                                                                <div class="text-xs font-semibold uppercase text-muted-foreground">
+                                                                    Indikator Kegiatan
+                                                                </div>
                                                                 <div class="mt-1">
                                                                     {{ indikator.indikator }}
                                                                 </div>
@@ -6859,557 +6470,606 @@ const targetDisplay = (target: Target) => normalizedTargetText(target.target_tex
                     ref="formPanel"
                     class="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-slate-950/45 p-3 backdrop-blur-sm sm:p-5"
                 >
-                <div :class="['w-full space-y-4', isTargetType || isBudgetType ? 'max-w-4xl' : 'max-w-3xl']">
-                    <section
-                        v-if="isNodeModalOpen"
-                        class="flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-2xl border border-blue-100 bg-card shadow-2xl shadow-slate-950/15"
-                    >
-                        <div class="shrink-0 border-b bg-card p-4">
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div class="flex min-w-0 items-center gap-3">
-                                    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#00336C]">
-                                        <ClipboardList class="size-5" />
-                                    </span>
-                                    <div class="min-w-0">
-                                        <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ formModeLabel }}</p>
-                                        <h2 class="text-base font-semibold text-foreground">Input Renstra OPD</h2>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="rounded-full border bg-background px-3 py-1 text-xs font-semibold text-foreground">
-                                        {{ selectedTypeMeta.stage }}
-                                    </span>
-                                    <button
-                                        v-if="editingNode"
-                                        type="button"
-                                        class="inline-flex min-h-9 items-center rounded-md border bg-background px-3 text-xs font-medium transition hover:bg-muted"
-                                        @click="resetNodeForm"
-                                    >
-                                        Batal edit
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="inline-flex size-9 items-center justify-center rounded-md border bg-background text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-                                        aria-label="Tutup form"
-                                        @click="closeNodeModal"
-                                    >
-                                        <X class="size-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <form
-                            :class="[
-                                'overflow-y-auto p-4 sm:p-5',
-                                isTargetType || isBudgetType ? 'flex flex-col gap-4' : 'grid grid-cols-1 gap-4',
-                            ]"
-                            @submit.prevent="submitNode"
+                    <div :class="['w-full space-y-4', isTargetType || isBudgetType ? 'max-w-4xl' : 'max-w-3xl']">
+                        <section
+                            v-if="isNodeModalOpen"
+                            class="flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-2xl border border-blue-100 bg-card shadow-2xl shadow-slate-950/15"
                         >
-                            <div class="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
-                                <div class="flex items-start gap-3">
-                                    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#00336C] shadow-sm">
-                                        <Layers3 class="size-5" />
-                                    </span>
-                                    <div class="min-w-0">
-                                        <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]">{{ selectedTypeLabel }}</p>
-                                        <h3 class="mt-1 text-sm font-semibold text-slate-950">{{ parentContextTitle }}</h3>
-                                        <p class="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700">{{ formContextDescription }}</p>
-
-                                        <div v-if="form.type === 'tujuan'" class="mt-3 grid gap-2 md:grid-cols-2">
-                                            <div class="rounded-lg border border-blue-100 bg-white p-3">
-                                                <p class="text-xs font-semibold uppercase text-slate-500">Tujuan Kabupaten</p>
-                                                <p class="mt-1 text-sm font-semibold leading-6 text-slate-900">
-                                                    {{ rpjmdContextTujuanTexts.join('; ') || 'Belum ada tujuan kabupaten terkait.' }}
-                                                </p>
-                                            </div>
-                                            <div class="rounded-lg border border-blue-100 bg-white p-3">
-                                                <p class="text-xs font-semibold uppercase text-slate-500">Sasaran Kabupaten</p>
-                                                <p class="mt-1 text-sm font-semibold leading-6 text-slate-900">
-                                                    {{ rpjmdContextSasaranTexts.join('; ') || 'Belum ada sasaran kabupaten terkait.' }}
-                                                </p>
-                                            </div>
+                            <div class="shrink-0 border-b bg-card p-4">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#00336C]">
+                                            <ClipboardList class="size-5" />
+                                        </span>
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ formModeLabel }}</p>
+                                            <h2 class="text-base font-semibold text-foreground">Input Renstra OPD</h2>
                                         </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="rounded-full border bg-background px-3 py-1 text-xs font-semibold text-foreground">
+                                            {{ selectedTypeMeta.stage }}
+                                        </span>
+                                        <button
+                                            v-if="editingNode"
+                                            type="button"
+                                            class="inline-flex min-h-9 items-center rounded-md border bg-background px-3 text-xs font-medium transition hover:bg-muted"
+                                            @click="resetNodeForm"
+                                        >
+                                            Batal edit
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex size-9 items-center justify-center rounded-md border bg-background text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                                            aria-label="Tutup form"
+                                            @click="closeNodeModal"
+                                        >
+                                            <X class="size-4" />
+                                        </button>
                                     </div>
                                 </div>
                             </div>
 
-                            <div v-if="showParentSelector" class="grid gap-2 rounded-xl border bg-background p-3">
-                                <label class="text-sm font-semibold text-foreground" for="parent_id">
-                                    {{
-                                        form.type === 'sasaran'
-                                            ? 'Tujuan OPD'
-                                            : form.type === 'program'
-                                            ? 'Sasaran'
-                                            : form.type === 'kegiatan'
-                                              ? 'Program'
-                                              : 'Kegiatan'
-                                    }}
-                                    <span class="text-red-600">*</span>
-                                </label>
-                                <RpjmdRichSelect
-                                    id="parent_id"
-                                    v-model="form.parent_id"
-                                    :options="parentSelectOptions"
-                                    :placeholder="
-                                        form.type === 'sasaran'
-                                            ? 'Pilih tujuan OPD'
-                                            : form.type === 'program'
-                                            ? 'Pilih sasaran'
-                                            : form.type === 'kegiatan'
-                                              ? 'Pilih program'
-                                              : 'Pilih kegiatan'
-                                    "
-                                    :empty-text="`${parentLabel} belum tersedia`"
-                                />
-                                <InputError :message="form.errors.parent_id" />
-                            </div>
-
-                            <div v-if="form.type === 'program'" class="grid gap-3 rounded-xl border bg-muted/20 p-3">
-                                <div class="grid gap-2">
-                                    <label class="text-sm font-medium" for="program_rpjmd_id">Pilih Program</label>
-                                    <RpjmdRichSelect
-                                        id="program_rpjmd_id"
-                                        v-model="form.program_rpjmd_id"
-                                        :options="programRpjmdSelectOptions"
-                                        placement="bottom"
-                                        placeholder="Pilih program"
-                                        empty-text="Program RPJMD belum tersedia"
-                                    />
-                                    <p class="text-xs leading-5 text-muted-foreground">Program berasal dari RPJMD yang terhubung dengan Renstra ini.</p>
-                                </div>
-                                <div class="rounded-lg border bg-white px-3 py-2 text-sm text-slate-700">
-                                    <span class="text-xs font-semibold uppercase text-slate-500">Program OPD</span>
-                                    <p class="mt-1 font-semibold text-slate-950">
-                                        {{ selectedProgramRpjmd?.nama || selectedProgramRpjmd?.label || 'Terisi otomatis setelah program dipilih.' }}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div v-if="form.type === 'kegiatan'" class="grid gap-2 rounded-xl border bg-muted/20 p-3">
-                                <label class="text-sm font-medium" for="kegiatan_pemerintahan_id">Pilih Kegiatan</label>
-                                <RpjmdRichSelect
-                                    id="kegiatan_pemerintahan_id"
-                                    v-model="form.kegiatan_pemerintahan_id"
-                                    :options="kegiatanMasterSelectOptions"
-                                    :disabled="needsParent && !form.parent_id"
-                                    placeholder="Pilih kegiatan"
-                                    empty-text="Kegiatan belum tersedia"
-                                />
-                                <InputError :message="form.errors.kegiatan_pemerintahan_id" />
-                                <div v-if="selectedKegiatanMaster" class="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-sm">
-                                    <span class="text-xs font-semibold uppercase text-slate-500">Kegiatan OPD</span>
-                                    <p class="mt-1 font-semibold leading-6 text-slate-950">
-                                        {{ selectedKegiatanMaster.nama || selectedKegiatanMaster.label }}
-                                    </p>
-                                </div>
-                                <p v-else class="text-xs leading-5 text-slate-500">
-                                    Kegiatan wajib dipilih dari master. Jika belum tersedia, hubungi admin kabupaten.
-                                </p>
-                            </div>
-
-                            <div
-                                v-if="form.type === 'sub_kegiatan'"
-                                class="grid gap-3 rounded-2xl border-2 border-blue-300 bg-gradient-to-br from-blue-50 via-white to-sky-50/70 p-4 shadow-sm ring-4 ring-blue-50"
+                            <form
+                                :class="[
+                                    'overflow-y-auto p-4 sm:p-5',
+                                    isTargetType || isBudgetType ? 'flex flex-col gap-4' : 'grid grid-cols-1 gap-4',
+                                ]"
+                                @submit.prevent="submitNode"
                             >
-                                <div class="flex items-start gap-3">
-                                    <span
-                                        class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm"
-                                        aria-hidden="true"
-                                    >
-                                        <Target class="size-4.5" />
-                                    </span>
-                                    <div>
-                                        <label class="block text-base font-bold text-slate-950" for="sub_kegiatan_pemerintahan_id">
-                                            Pilih Sub Kegiatan yang akan ditambahkan <span class="text-red-500">*</span>
-                                        </label>
-                                        <p class="mt-0.5 text-xs leading-5 text-slate-600">
-                                            Klik kolom di bawah, lalu cari berdasarkan kode atau nama sub kegiatan.
-                                        </p>
-                                    </div>
-                                </div>
-                                <RpjmdRichSelect
-                                    id="sub_kegiatan_pemerintahan_id"
-                                    v-model="form.sub_kegiatan_pemerintahan_id"
-                                    :options="subKegiatanMasterSelectOptions"
-                                    :disabled="(needsParent && !form.parent_id) || isRefreshingSubKegiatanUsage"
-                                    placement="bottom"
-                                    :placeholder="isRefreshingSubKegiatanUsage ? 'Memeriksa ketersediaan...' : 'Pilih sub kegiatan'"
-                                    empty-text="Sub kegiatan belum tersedia"
-                                    class="rounded-xl bg-white shadow-sm"
-                                />
-                                <p
-                                    v-if="isRefreshingSubKegiatanUsage"
-                                    class="inline-flex items-center gap-2 text-xs font-medium text-blue-700"
-                                    role="status"
-                                >
-                                    <LoaderCircle class="size-3.5 animate-spin" aria-hidden="true" />
-                                    Memeriksa penggunaan sub kegiatan terbaru.
-                                </p>
-                                <div
-                                    v-if="subKegiatanUsageError"
-                                    class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium leading-5 text-red-700"
-                                    role="alert"
-                                >
-                                    {{ subKegiatanUsageError }}
-                                </div>
-                                <div v-if="relevantUsedSubKegiatan.length" class="overflow-hidden rounded-xl border border-slate-200 bg-white/80">
-                                    <button
-                                        type="button"
-                                        class="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition hover:bg-slate-50"
-                                        :aria-expanded="isUsedSubKegiatanExpanded"
-                                        @click="isUsedSubKegiatanExpanded = !isUsedSubKegiatanExpanded"
-                                    >
-                                        <span class="min-w-0">
-                                            <span class="block text-xs font-semibold text-slate-700">
-                                                {{ relevantUsedSubKegiatan.length }} sub kegiatan lain sudah terpasang dalam RENSTRA
-                                            </span>
-                                            <span class="mt-0.5 block text-[11px] leading-4 text-slate-500">
-                                                Informasi tambahan—tidak perlu dibuka jika sub kegiatan yang dicari masih tersedia.
-                                            </span>
+                                <div class="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                                    <div class="flex items-start gap-3">
+                                        <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#00336C] shadow-sm">
+                                            <Layers3 class="size-5" />
                                         </span>
-                                        <span class="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-blue-700">
-                                            {{ isUsedSubKegiatanExpanded ? 'Tutup' : 'Tinjau' }}
-                                            <ChevronDown
-                                                class="size-4 transition-transform"
-                                                :class="isUsedSubKegiatanExpanded ? 'rotate-180' : ''"
-                                            />
-                                        </span>
-                                    </button>
-                                    <div
-                                        v-if="isUsedSubKegiatanExpanded"
-                                        class="border-t border-slate-200 bg-amber-50/40 px-3 py-2 text-xs leading-5 text-amber-900"
-                                    >
-                                        Gunakan daftar ini hanya untuk memeriksa lokasi lama atau melepas sub kegiatan yang ingin dipindahkan.
-                                    </div>
-                                    <div
-                                        v-if="isUsedSubKegiatanExpanded"
-                                        class="max-h-44 divide-y divide-slate-200 overflow-y-auto border-t border-slate-200"
-                                    >
-                                        <div v-for="item in relevantUsedSubKegiatan" :key="item.opd_sub_kegiatan_id" class="grid gap-2 px-3 py-3">
-                                            <div class="min-w-0">
-                                                <p class="text-sm font-semibold leading-5 text-slate-950">
-                                                    <span v-if="item.kode" class="text-blue-700">{{ item.kode }} · </span>{{ item.nama }}
-                                                </p>
-                                                <p class="mt-1 text-xs leading-5 text-slate-600">
-                                                    {{ item.program || 'Program tidak tersedia' }}
-                                                    <span class="mx-1 text-slate-300">/</span>
-                                                    {{ item.kegiatan || 'Kegiatan tidak tersedia' }}
-                                                </p>
-                                                <p v-if="item.sasaran_kegiatan" class="mt-1 text-xs leading-5 text-slate-500">
-                                                    Sasaran Kegiatan: {{ item.sasaran_kegiatan }}
-                                                </p>
-                                            </div>
-                                            <div class="flex flex-wrap gap-2">
-                                                <button
-                                                    type="button"
-                                                    class="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800"
-                                                    @click="focusUsedSubKegiatan(item)"
-                                                >
-                                                    <Eye class="size-3.5" />
-                                                    Lihat lokasi
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    class="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-50"
-                                                    @click="removeUsedSubKegiatan(item)"
-                                                >
-                                                    <Trash2 class="size-3.5" />
-                                                    Hapus dari RENSTRA
-                                                </button>
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-semibold uppercase tracking-wide text-[#00336C]">{{ selectedTypeLabel }}</p>
+                                            <h3 class="mt-1 text-sm font-semibold text-slate-950">{{ parentContextTitle }}</h3>
+                                            <p class="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700">{{ formContextDescription }}</p>
+
+                                            <div v-if="form.type === 'tujuan'" class="mt-3 grid gap-2 md:grid-cols-2">
+                                                <div class="rounded-lg border border-blue-100 bg-white p-3">
+                                                    <p class="text-xs font-semibold uppercase text-slate-500">Tujuan Kabupaten</p>
+                                                    <p class="mt-1 text-sm font-semibold leading-6 text-slate-900">
+                                                        {{ rpjmdContextTujuanTexts.join('; ') || 'Belum ada tujuan kabupaten terkait.' }}
+                                                    </p>
+                                                </div>
+                                                <div class="rounded-lg border border-blue-100 bg-white p-3">
+                                                    <p class="text-xs font-semibold uppercase text-slate-500">Sasaran Kabupaten</p>
+                                                    <p class="mt-1 text-sm font-semibold leading-6 text-slate-900">
+                                                        {{ rpjmdContextSasaranTexts.join('; ') || 'Belum ada sasaran kabupaten terkait.' }}
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                <InputError :message="form.errors.sub_kegiatan_pemerintahan_id" />
-                                <div v-if="selectedSubKegiatanMaster" class="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-3 text-sm">
-                                    <div>
-                                        <span class="text-xs font-semibold uppercase text-slate-500">Sub Kegiatan OPD</span>
-                                        <p class="mt-1 font-semibold leading-6 text-slate-950">
-                                            {{ selectedSubKegiatanMaster.nama || selectedSubKegiatanMaster.label }}
+
+                                <div v-if="showParentSelector" class="grid gap-2 rounded-xl border bg-background p-3">
+                                    <label class="text-sm font-semibold text-foreground" for="parent_id">
+                                        {{
+                                            form.type === 'sasaran'
+                                                ? 'Tujuan OPD'
+                                                : form.type === 'program'
+                                                  ? 'Sasaran'
+                                                  : form.type === 'kegiatan'
+                                                    ? 'Program'
+                                                    : 'Kegiatan'
+                                        }}
+                                        <span class="text-red-600">*</span>
+                                    </label>
+                                    <RpjmdRichSelect
+                                        id="parent_id"
+                                        v-model="form.parent_id"
+                                        :options="parentSelectOptions"
+                                        :placeholder="
+                                            form.type === 'sasaran'
+                                                ? 'Pilih tujuan OPD'
+                                                : form.type === 'program'
+                                                  ? 'Pilih sasaran'
+                                                  : form.type === 'kegiatan'
+                                                    ? 'Pilih program'
+                                                    : 'Pilih kegiatan'
+                                        "
+                                        :empty-text="`${parentLabel} belum tersedia`"
+                                    />
+                                    <InputError :message="form.errors.parent_id" />
+                                </div>
+
+                                <div v-if="form.type === 'program'" class="grid gap-3 rounded-xl border bg-muted/20 p-3">
+                                    <div class="grid gap-2">
+                                        <label class="text-sm font-medium" for="program_rpjmd_id">Pilih Program</label>
+                                        <RpjmdRichSelect
+                                            id="program_rpjmd_id"
+                                            v-model="form.program_rpjmd_id"
+                                            :options="programRpjmdSelectOptions"
+                                            placement="bottom"
+                                            placeholder="Pilih program"
+                                            empty-text="Program RPJMD belum tersedia"
+                                        />
+                                        <p class="text-xs leading-5 text-muted-foreground">
+                                            Program berasal dari RPJMD yang terhubung dengan Renstra ini.
+                                        </p>
+                                    </div>
+                                    <div class="rounded-lg border bg-white px-3 py-2 text-sm text-slate-700">
+                                        <span class="text-xs font-semibold uppercase text-slate-500">Program OPD</span>
+                                        <p class="mt-1 font-semibold text-slate-950">
+                                            {{
+                                                selectedProgramRpjmd?.nama ||
+                                                selectedProgramRpjmd?.label ||
+                                                'Terisi otomatis setelah program dipilih.'
+                                            }}
                                         </p>
                                     </div>
                                 </div>
-                                <p v-else class="text-xs leading-5 text-slate-500">
-                                    Sub kegiatan wajib dipilih dari master. Jika belum tersedia, hubungi admin kabupaten.
-                                </p>
-                            </div>
 
-                            <div v-if="isTextNodeType && !['program', 'kegiatan', 'sub_kegiatan'].includes(form.type)" class="grid gap-2">
-                                <label class="text-sm font-medium" for="uraian">{{ selectedTypeLabel }}</label>
-                                <textarea
-                                    id="uraian"
-                                    v-model="form.uraian"
-                                    rows="4"
-                                    :readonly="usesMasterReference && hasSelectedMasterReference"
-                                    class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none read-only:bg-muted read-only:text-muted-foreground focus:ring-2 focus:ring-primary"
-                                />
-                                <InputError :message="form.errors.uraian" />
-                            </div>
-
-                            <div v-if="['program', 'kegiatan', 'sub_kegiatan'].includes(form.type)" class="grid gap-2">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <label class="text-sm font-semibold text-slate-800" for="sasaran_level">
-                                        {{
-                                            form.type === 'program'
-                                                ? 'Sasaran Program'
-                                                : form.type === 'kegiatan'
-                                                  ? 'Sasaran Kegiatan'
-                                                  : 'Sasaran Sub Kegiatan'
-                                        }}
-                                    </label>
-                                    <span
-                                        v-if="form.type === 'sub_kegiatan'"
-                                        class="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700"
-                                    >
-                                        Khusus RENSTRA
-                                    </span>
+                                <div v-if="form.type === 'kegiatan'" class="grid gap-2 rounded-xl border bg-muted/20 p-3">
+                                    <label class="text-sm font-medium" for="kegiatan_pemerintahan_id">Pilih Kegiatan</label>
+                                    <RpjmdRichSelect
+                                        id="kegiatan_pemerintahan_id"
+                                        v-model="form.kegiatan_pemerintahan_id"
+                                        :options="kegiatanMasterSelectOptions"
+                                        :disabled="needsParent && !form.parent_id"
+                                        placeholder="Pilih kegiatan"
+                                        empty-text="Kegiatan belum tersedia"
+                                    />
+                                    <InputError :message="form.errors.kegiatan_pemerintahan_id" />
+                                    <div v-if="selectedKegiatanMaster" class="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-sm">
+                                        <span class="text-xs font-semibold uppercase text-slate-500">Kegiatan OPD</span>
+                                        <p class="mt-1 font-semibold leading-6 text-slate-950">
+                                            {{ selectedKegiatanMaster.nama || selectedKegiatanMaster.label }}
+                                        </p>
+                                    </div>
+                                    <p v-else class="text-xs leading-5 text-slate-500">
+                                        Kegiatan wajib dipilih dari master. Jika belum tersedia, hubungi admin kabupaten.
+                                    </p>
                                 </div>
-                                <textarea
-                                    id="sasaran_level"
-                                    v-model="form.sasaran_level"
-                                    rows="3"
-                                    :disabled="form.type === 'sub_kegiatan' && !hasSelectedMasterReference"
-                                    :placeholder="
-                                        form.type === 'sub_kegiatan'
-                                            ? 'Pilih sub kegiatan terlebih dahulu.'
-                                            : 'Tuliskan sasaran yang ingin dicapai.'
-                                    "
-                                    class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                                />
-                                <p v-if="form.type === 'sub_kegiatan'" class="text-xs leading-5 text-slate-500">
-                                    Terisi otomatis dari master. Perubahan di sini hanya berlaku untuk RENSTRA ini dan tidak mengubah data master.
-                                </p>
-                                <InputError :message="form.errors.sasaran_level" />
-                            </div>
 
-                            <div v-if="isIndicatorType" class="grid gap-2">
-                                <label class="text-sm font-medium" for="indikator">Indikator</label>
-                                <textarea
-                                    id="indikator"
-                                    v-model="form.indikator"
-                                    rows="4"
-                                    class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-primary"
-                                    placeholder="Tuliskan indikator yang terukur."
-                                />
-                                <InputError :message="form.errors.indikator" />
-                            </div>
-
-                            <div v-if="isOrderableNodeType" class="grid max-w-40 gap-2">
-                                <label class="text-sm font-medium" for="urutan">Urutan</label>
-                                <input
-                                    id="urutan"
-                                    v-model="form.urutan"
-                                    type="number"
-                                    min="1"
-                                    class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-                                />
-                                <InputError :message="form.errors.urutan" />
-                            </div>
-
-                            <div v-if="isIndicatorType" class="grid gap-2">
-                                <label class="text-sm font-medium" for="definisi_operasional">Definisi Operasional</label>
-                                <textarea
-                                    id="definisi_operasional"
-                                    v-model="form.definisi_operasional"
-                                    rows="3"
-                                    class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-primary"
-                                />
-                                <InputError :message="form.errors.definisi_operasional" />
-                            </div>
-
-                            <div v-if="isIndicatorType" class="grid gap-2">
-                                <label class="text-sm font-medium" for="satuan_indikator_id">Satuan Indikator</label>
-                                <RpjmdRichSelect
-                                    id="satuan_indikator_id"
-                                    v-model="form.satuan_indikator_id"
-                                    :options="satuanSelectOptions"
-                                    placeholder="Pilih satuan"
-                                    empty-text="Satuan belum tersedia"
-                                />
-                            </div>
-
-                            <div v-if="isIndicatorType" class="grid gap-2">
-                                <label class="text-sm font-medium" for="tipe_perhitungan">Tipe Perhitungan</label>
-                                <select
-                                    id="tipe_perhitungan"
-                                    v-model="form.tipe_perhitungan"
-                                    class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                                <div
+                                    v-if="form.type === 'sub_kegiatan'"
+                                    class="grid gap-3 rounded-2xl border-2 border-blue-300 bg-gradient-to-br from-blue-50 via-white to-sky-50/70 p-4 shadow-sm ring-4 ring-blue-50"
                                 >
-                                    <option value="non_kumulatif">Non-kumulatif</option>
-                                    <option value="kumulatif">Kumulatif</option>
-                                </select>
-                                <InputError :message="form.errors.tipe_perhitungan" />
-                            </div>
-
-                            <div v-if="isIndicatorType" class="grid gap-2">
-                                <label class="text-sm font-medium" for="formulasi_pengukuran">Formulasi Pengukuran</label>
-                                <textarea
-                                    id="formulasi_pengukuran"
-                                    v-model="form.formulasi_pengukuran"
-                                    rows="3"
-                                    class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-primary"
-                                />
-                                <InputError :message="form.errors.formulasi_pengukuran" />
-                            </div>
-
-                            <div v-if="isIndicatorType" class="grid gap-2">
-                                <label class="text-sm font-medium" for="pd_penanggung_jawab">PD Penanggung Jawab</label>
-                                <input
-                                    id="pd_penanggung_jawab"
-                                    v-model="form.pd_penanggung_jawab"
-                                    class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-                                    :placeholder="pdPenanggungJawabPlaceholder"
-                                />
-                                <InputError :message="form.errors.pd_penanggung_jawab" />
-                            </div>
-
-                            <div v-if="isIndicatorType" class="grid gap-2">
-                                <label class="text-sm font-medium" for="sumber_data">Sumber Data</label>
-                                <input
-                                    id="sumber_data"
-                                    v-model="form.sumber_data"
-                                    class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-                                    :placeholder="sumberDataPlaceholder"
-                                />
-                            </div>
-
-                            <div v-if="isTargetType || isBudgetType" class="grid gap-3">
-                                <div class="rounded-xl border bg-white shadow-sm">
-                                    <div class="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3">
+                                    <div class="flex items-start gap-3">
+                                        <span
+                                            class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm"
+                                            aria-hidden="true"
+                                        >
+                                            <Target class="size-4.5" />
+                                        </span>
                                         <div>
-                                            <p class="text-sm font-semibold text-slate-900">{{ targetBatchTitle }}</p>
-                                            <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                                                {{
-                                                    isBudgetType
-                                                        ? targetBatchSubKegiatan?.nama || 'Sub kegiatan belum tersedia.'
-                                                        : targetBatchIndicatorRow?.indikator || 'Indikator belum tersedia.'
-                                                }}
+                                            <label class="block text-base font-bold text-slate-950" for="sub_kegiatan_pemerintahan_id">
+                                                Pilih Sub Kegiatan yang akan ditambahkan <span class="text-red-500">*</span>
+                                            </label>
+                                            <p class="mt-0.5 text-xs leading-5 text-slate-600">
+                                                Klik kolom di bawah, lalu cari berdasarkan kode atau nama sub kegiatan.
                                             </p>
                                         </div>
-                                        <span class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-[#00336C]">
-                                            {{ targetBatchRows.length }} periode
+                                    </div>
+                                    <RpjmdRichSelect
+                                        id="sub_kegiatan_pemerintahan_id"
+                                        v-model="form.sub_kegiatan_pemerintahan_id"
+                                        :options="subKegiatanMasterSelectOptions"
+                                        :disabled="(needsParent && !form.parent_id) || isRefreshingSubKegiatanUsage"
+                                        placement="bottom"
+                                        :placeholder="isRefreshingSubKegiatanUsage ? 'Memeriksa ketersediaan...' : 'Pilih sub kegiatan'"
+                                        empty-text="Sub kegiatan belum tersedia"
+                                        class="rounded-xl bg-white shadow-sm"
+                                    />
+                                    <p
+                                        v-if="isRefreshingSubKegiatanUsage"
+                                        class="inline-flex items-center gap-2 text-xs font-medium text-blue-700"
+                                        role="status"
+                                    >
+                                        <LoaderCircle class="size-3.5 animate-spin" aria-hidden="true" />
+                                        Memeriksa penggunaan sub kegiatan terbaru.
+                                    </p>
+                                    <div
+                                        v-if="subKegiatanUsageError"
+                                        class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium leading-5 text-red-700"
+                                        role="alert"
+                                    >
+                                        {{ subKegiatanUsageError }}
+                                    </div>
+                                    <div v-if="relevantUsedSubKegiatan.length" class="overflow-hidden rounded-xl border border-slate-200 bg-white/80">
+                                        <button
+                                            type="button"
+                                            class="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition hover:bg-slate-50"
+                                            :aria-expanded="isUsedSubKegiatanExpanded"
+                                            @click="isUsedSubKegiatanExpanded = !isUsedSubKegiatanExpanded"
+                                        >
+                                            <span class="min-w-0">
+                                                <span class="block text-xs font-semibold text-slate-700">
+                                                    {{ relevantUsedSubKegiatan.length }} sub kegiatan lain sudah terpasang dalam RENSTRA
+                                                </span>
+                                                <span class="mt-0.5 block text-[11px] leading-4 text-slate-500">
+                                                    Informasi tambahan—tidak perlu dibuka jika sub kegiatan yang dicari masih tersedia.
+                                                </span>
+                                            </span>
+                                            <span class="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-blue-700">
+                                                {{ isUsedSubKegiatanExpanded ? 'Tutup' : 'Tinjau' }}
+                                                <ChevronDown
+                                                    class="size-4 transition-transform"
+                                                    :class="isUsedSubKegiatanExpanded ? 'rotate-180' : ''"
+                                                />
+                                            </span>
+                                        </button>
+                                        <div
+                                            v-if="isUsedSubKegiatanExpanded"
+                                            class="border-t border-slate-200 bg-amber-50/40 px-3 py-2 text-xs leading-5 text-amber-900"
+                                        >
+                                            Gunakan daftar ini hanya untuk memeriksa lokasi lama atau melepas sub kegiatan yang ingin dipindahkan.
+                                        </div>
+                                        <div
+                                            v-if="isUsedSubKegiatanExpanded"
+                                            class="max-h-44 divide-y divide-slate-200 overflow-y-auto border-t border-slate-200"
+                                        >
+                                            <div v-for="item in relevantUsedSubKegiatan" :key="item.opd_sub_kegiatan_id" class="grid gap-2 px-3 py-3">
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-semibold leading-5 text-slate-950">
+                                                        <span v-if="item.kode" class="text-blue-700">{{ item.kode }} · </span>{{ item.nama }}
+                                                    </p>
+                                                    <p class="mt-1 text-xs leading-5 text-slate-600">
+                                                        {{ item.program || 'Program tidak tersedia' }}
+                                                        <span class="mx-1 text-slate-300">/</span>
+                                                        {{ item.kegiatan || 'Kegiatan tidak tersedia' }}
+                                                    </p>
+                                                    <p v-if="item.sasaran_kegiatan" class="mt-1 text-xs leading-5 text-slate-500">
+                                                        Sasaran Kegiatan: {{ item.sasaran_kegiatan }}
+                                                    </p>
+                                                </div>
+                                                <div class="flex flex-wrap gap-2">
+                                                    <button
+                                                        type="button"
+                                                        class="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800"
+                                                        @click="focusUsedSubKegiatan(item)"
+                                                    >
+                                                        <Eye class="size-3.5" />
+                                                        Lihat lokasi
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        class="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-50"
+                                                        @click="removeUsedSubKegiatan(item)"
+                                                    >
+                                                        <Trash2 class="size-3.5" />
+                                                        Hapus dari RENSTRA
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <InputError :message="form.errors.sub_kegiatan_pemerintahan_id" />
+                                    <div v-if="selectedSubKegiatanMaster" class="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-3 text-sm">
+                                        <div>
+                                            <span class="text-xs font-semibold uppercase text-slate-500">Sub Kegiatan OPD</span>
+                                            <p class="mt-1 font-semibold leading-6 text-slate-950">
+                                                {{ selectedSubKegiatanMaster.nama || selectedSubKegiatanMaster.label }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <p v-else class="text-xs leading-5 text-slate-500">
+                                        Sub kegiatan wajib dipilih dari master. Jika belum tersedia, hubungi admin kabupaten.
+                                    </p>
+                                </div>
+
+                                <div v-if="isTextNodeType && !['program', 'kegiatan', 'sub_kegiatan'].includes(form.type)" class="grid gap-2">
+                                    <label class="text-sm font-medium" for="uraian">{{ selectedTypeLabel }}</label>
+                                    <textarea
+                                        id="uraian"
+                                        v-model="form.uraian"
+                                        rows="4"
+                                        :readonly="usesMasterReference && hasSelectedMasterReference"
+                                        class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none read-only:bg-muted read-only:text-muted-foreground focus:ring-2 focus:ring-primary"
+                                    />
+                                    <InputError :message="form.errors.uraian" />
+                                </div>
+
+                                <div v-if="['program', 'kegiatan', 'sub_kegiatan'].includes(form.type)" class="grid gap-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <label class="text-sm font-semibold text-slate-800" for="sasaran_level">
+                                            {{
+                                                form.type === 'program'
+                                                    ? 'Sasaran Program'
+                                                    : form.type === 'kegiatan'
+                                                      ? 'Sasaran Kegiatan'
+                                                      : 'Sasaran Sub Kegiatan'
+                                            }}
+                                        </label>
+                                        <span
+                                            v-if="form.type === 'sub_kegiatan'"
+                                            class="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700"
+                                        >
+                                            Khusus RENSTRA
                                         </span>
                                     </div>
-                                    <div class="overflow-x-auto">
-                                        <table class="min-w-[760px] w-full text-left text-sm">
-                                            <thead class="bg-slate-50 text-xs uppercase text-slate-600">
-                                                <tr>
-                                                    <th class="w-20 px-4 py-3">No</th>
-                                                    <th class="min-w-52 px-4 py-3">Periode</th>
-                                                    <th v-if="!isBudgetType" class="min-w-72 px-4 py-3">Target</th>
-                                                    <th v-if="targetBatchShowsFinance" class="min-w-60 px-4 py-3">Anggaran</th>
-                                                    <th class="w-28 px-4 py-3">Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody class="divide-y">
-                                                <tr v-for="(targetRow, index) in targetBatchRows" :key="targetRow.key" class="align-top">
-                                                    <td class="px-4 py-3 font-semibold text-slate-900">{{ index + 1 }}</td>
-                                                    <td class="px-4 py-3">
-                                                        <span class="inline-flex min-h-10 items-center rounded-lg border bg-slate-50 px-3 font-semibold text-slate-700">
-                                                            {{ targetBatchPeriodLabel(targetRow) }}
-                                                        </span>
-                                                    </td>
-                                                    <td v-if="!isBudgetType" class="px-4 py-3">
-                                                        <input
-                                                            v-model="targetRow.target"
-                                                            class="min-h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:border-[#00336C] focus:ring-2 focus:ring-[#00336C]/15"
-                                                            placeholder="Contoh: 100 dokumen, 90%, atau <= 15"
-                                                            @input="onTargetBatchInput(targetRow)"
-                                                        />
-                                                    </td>
-                                                    <td v-if="targetBatchShowsFinance" class="px-4 py-3">
-                                                        <input
-                                                            v-model="targetRow.pagu"
-                                                            inputmode="numeric"
-                                                            class="min-h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:border-[#00336C] focus:ring-2 focus:ring-[#00336C]/15"
-                                                            placeholder="0"
-                                                            @input="onTargetBatchPaguInput(targetRow)"
-                                                        />
-                                                    </td>
-                                                    <td class="px-4 py-3">
-                                                        <span
-                                                            class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                                                            :class="
-                                                                targetRow.saveState === 'saved'
-                                                                    ? 'bg-emerald-50 text-emerald-700'
-                                                                    : targetRow.saveState === 'saving'
-                                                                      ? 'bg-blue-50 text-[#00336C]'
-                                                                      : targetRow.saveState === 'error'
-                                                                        ? 'bg-red-50 text-red-700'
-                                                                        : 'bg-slate-100 text-slate-600'
-                                                            "
-                                                        >
-                                                            {{
-                                                                targetRow.saveState === 'saved'
-                                                                    ? 'Tersimpan'
-                                                                    : targetRow.saveState === 'saving'
-                                                                      ? 'Menyimpan'
-                                                                      : targetRow.saveState === 'error'
-                                                                        ? 'Gagal'
-                                                                        : 'Siap'
-                                                            }}
-                                                        </span>
-                                                        <p v-if="targetRow.error" class="mt-1 text-xs text-red-600">{{ targetRow.error }}</p>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
+                                    <textarea
+                                        id="sasaran_level"
+                                        v-model="form.sasaran_level"
+                                        rows="3"
+                                        :disabled="form.type === 'sub_kegiatan' && !hasSelectedMasterReference"
+                                        :placeholder="
+                                            form.type === 'sub_kegiatan'
+                                                ? 'Pilih sub kegiatan terlebih dahulu.'
+                                                : 'Tuliskan sasaran yang ingin dicapai.'
+                                        "
+                                        class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                                    />
+                                    <p v-if="form.type === 'sub_kegiatan'" class="text-xs leading-5 text-slate-500">
+                                        Terisi otomatis dari master. Perubahan di sini hanya berlaku untuk RENSTRA ini dan tidak mengubah data master.
+                                    </p>
+                                    <InputError :message="form.errors.sasaran_level" />
+                                </div>
+
+                                <div v-if="isIndicatorType" class="grid gap-2">
+                                    <label class="text-sm font-medium" for="indikator">Indikator</label>
+                                    <textarea
+                                        id="indikator"
+                                        v-model="form.indikator"
+                                        rows="4"
+                                        class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-primary"
+                                        placeholder="Tuliskan indikator yang terukur."
+                                    />
+                                    <InputError :message="form.errors.indikator" />
+                                </div>
+
+                                <div v-if="isOrderableNodeType" class="grid max-w-40 gap-2">
+                                    <label class="text-sm font-medium" for="urutan">Urutan</label>
+                                    <input
+                                        id="urutan"
+                                        v-model="form.urutan"
+                                        type="number"
+                                        min="1"
+                                        class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                                    />
+                                    <InputError :message="form.errors.urutan" />
+                                </div>
+
+                                <div v-if="isIndicatorType" class="grid gap-2">
+                                    <label class="text-sm font-medium" for="definisi_operasional">Definisi Operasional</label>
+                                    <textarea
+                                        id="definisi_operasional"
+                                        v-model="form.definisi_operasional"
+                                        rows="3"
+                                        class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-primary"
+                                    />
+                                    <InputError :message="form.errors.definisi_operasional" />
+                                </div>
+
+                                <div v-if="isIndicatorType" class="grid gap-2">
+                                    <label class="text-sm font-medium" for="satuan_indikator_id">Satuan Indikator</label>
+                                    <RpjmdRichSelect
+                                        id="satuan_indikator_id"
+                                        v-model="form.satuan_indikator_id"
+                                        :options="satuanSelectOptions"
+                                        placeholder="Pilih satuan"
+                                        empty-text="Satuan belum tersedia"
+                                    />
+                                </div>
+
+                                <div v-if="isIndicatorType" class="grid gap-2">
+                                    <label class="text-sm font-medium" for="tipe_perhitungan">Tipe Perhitungan</label>
+                                    <select
+                                        id="tipe_perhitungan"
+                                        v-model="form.tipe_perhitungan"
+                                        class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                                    >
+                                        <option value="non_kumulatif">Non-kumulatif</option>
+                                        <option value="kumulatif">Kumulatif</option>
+                                    </select>
+                                    <InputError :message="form.errors.tipe_perhitungan" />
+                                </div>
+
+                                <div v-if="isIndicatorType" class="grid gap-2">
+                                    <label class="text-sm font-medium" for="formulasi_pengukuran">Formulasi Pengukuran</label>
+                                    <textarea
+                                        id="formulasi_pengukuran"
+                                        v-model="form.formulasi_pengukuran"
+                                        rows="3"
+                                        class="rounded-md border bg-background px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-primary"
+                                    />
+                                    <InputError :message="form.errors.formulasi_pengukuran" />
+                                </div>
+
+                                <div v-if="isIndicatorType" class="grid gap-2">
+                                    <label class="text-sm font-medium" for="pd_penanggung_jawab">PD Penanggung Jawab</label>
+                                    <input
+                                        id="pd_penanggung_jawab"
+                                        v-model="form.pd_penanggung_jawab"
+                                        class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                                        :placeholder="pdPenanggungJawabPlaceholder"
+                                    />
+                                    <InputError :message="form.errors.pd_penanggung_jawab" />
+                                </div>
+
+                                <div v-if="isIndicatorType" class="grid gap-2">
+                                    <label class="text-sm font-medium" for="sumber_data">Sumber Data</label>
+                                    <input
+                                        id="sumber_data"
+                                        v-model="form.sumber_data"
+                                        class="min-h-11 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                                        :placeholder="sumberDataPlaceholder"
+                                    />
+                                </div>
+
+                                <div v-if="isTargetType || isBudgetType" class="grid gap-3">
+                                    <div class="rounded-xl border bg-white shadow-sm">
+                                        <div class="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3">
+                                            <div>
+                                                <p class="text-sm font-semibold text-slate-900">{{ targetBatchTitle }}</p>
+                                                <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                                                    {{
+                                                        isBudgetType
+                                                            ? targetBatchSubKegiatan?.nama || 'Sub kegiatan belum tersedia.'
+                                                            : targetBatchIndicatorRow?.indikator || 'Indikator belum tersedia.'
+                                                    }}
+                                                </p>
+                                            </div>
+                                            <span
+                                                class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-[#00336C]"
+                                            >
+                                                {{ targetBatchRows.length }} periode
+                                            </span>
+                                        </div>
+                                        <div class="overflow-x-auto">
+                                            <table class="w-full min-w-[760px] text-left text-sm">
+                                                <thead class="bg-slate-50 text-xs uppercase text-slate-600">
+                                                    <tr>
+                                                        <th class="w-20 px-4 py-3">No</th>
+                                                        <th class="min-w-52 px-4 py-3">Periode</th>
+                                                        <th v-if="!isBudgetType" class="min-w-72 px-4 py-3">Target</th>
+                                                        <th v-if="targetBatchShowsFinance" class="min-w-60 px-4 py-3">Anggaran</th>
+                                                        <th class="w-28 px-4 py-3">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y">
+                                                    <tr v-for="(targetRow, index) in targetBatchRows" :key="targetRow.key" class="align-top">
+                                                        <td class="px-4 py-3 font-semibold text-slate-900">{{ index + 1 }}</td>
+                                                        <td class="px-4 py-3">
+                                                            <span
+                                                                class="inline-flex min-h-10 items-center rounded-lg border bg-slate-50 px-3 font-semibold text-slate-700"
+                                                            >
+                                                                {{ targetBatchPeriodLabel(targetRow) }}
+                                                            </span>
+                                                        </td>
+                                                        <td v-if="!isBudgetType" class="px-4 py-3">
+                                                            <input
+                                                                v-model="targetRow.target"
+                                                                class="min-h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:border-[#00336C] focus:ring-2 focus:ring-[#00336C]/15"
+                                                                placeholder="Contoh: 100 dokumen, 90%, atau <= 15"
+                                                                @input="onTargetBatchInput(targetRow)"
+                                                            />
+                                                        </td>
+                                                        <td v-if="targetBatchShowsFinance" class="px-4 py-3">
+                                                            <input
+                                                                v-model="targetRow.pagu"
+                                                                inputmode="numeric"
+                                                                class="min-h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:border-[#00336C] focus:ring-2 focus:ring-[#00336C]/15"
+                                                                placeholder="0"
+                                                                @input="onTargetBatchPaguInput(targetRow)"
+                                                            />
+                                                        </td>
+                                                        <td class="px-4 py-3">
+                                                            <span
+                                                                class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                                                                :class="
+                                                                    targetRow.saveState === 'saved'
+                                                                        ? 'bg-emerald-50 text-emerald-700'
+                                                                        : targetRow.saveState === 'saving'
+                                                                          ? 'bg-blue-50 text-[#00336C]'
+                                                                          : targetRow.saveState === 'error'
+                                                                            ? 'bg-red-50 text-red-700'
+                                                                            : 'bg-slate-100 text-slate-600'
+                                                                "
+                                                            >
+                                                                {{
+                                                                    targetRow.saveState === 'saved'
+                                                                        ? 'Tersimpan'
+                                                                        : targetRow.saveState === 'saving'
+                                                                          ? 'Menyimpan'
+                                                                          : targetRow.saveState === 'error'
+                                                                            ? 'Gagal'
+                                                                            : 'Siap'
+                                                                }}
+                                                            </span>
+                                                            <p v-if="targetRow.error" class="mt-1 text-xs text-red-600">{{ targetRow.error }}</p>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div class="mt-2 flex w-full items-center justify-end border-t border-slate-200 bg-card pt-4">
-                                <button
-                                    type="submit"
-                                    :disabled="form.processing || isTargetBatchSaving || isRequiredMasterMissing"
-                                    class="inline-flex min-h-11 min-w-40 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/10 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    <Save class="size-4" />
-                                    {{ isTargetType || isBudgetType ? targetBatchSubmitLabel : editingNode ? 'Perbarui Data' : 'Simpan Data' }}
-                                </button>
-                            </div>
-                        </form>
-                    </section>
-
-                </div>
+                                <div class="mt-2 flex w-full items-center justify-end border-t border-slate-200 bg-card pt-4">
+                                    <button
+                                        type="submit"
+                                        :disabled="form.processing || isTargetBatchSaving || isRequiredMasterMissing"
+                                        class="inline-flex min-h-11 min-w-40 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/10 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        <Save class="size-4" />
+                                        {{ isTargetType || isBudgetType ? targetBatchSubmitLabel : editingNode ? 'Perbarui Data' : 'Simpan Data' }}
+                                    </button>
+                                </div>
+                            </form>
+                        </section>
+                    </div>
                 </aside>
             </Teleport>
         </div>
     </div>
 
     <Teleport to="body">
-        <div v-if="revisionModalOpen" class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/45 p-4" @click.self="revisionModalOpen = false">
+        <div
+            v-if="revisionModalOpen"
+            class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/45 p-4"
+            @click.self="revisionModalOpen = false"
+        >
             <form class="w-full max-w-xl rounded-xl bg-white shadow-2xl" @submit.prevent="submitRevision">
                 <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
                     <div>
                         <p class="text-sm font-semibold text-slate-900">Buat Versi Perubahan Renstra</p>
-                        <p class="mt-1 text-sm text-slate-500">Cascading dari {{ renstra.version_label }} akan disalin ke dokumen baru berstatus Draft.</p>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Cascading dari {{ renstra.version_label }} akan disalin ke dokumen baru berstatus Draft.
+                        </p>
                     </div>
-                    <button type="button" class="rounded-md p-2 text-slate-500 hover:bg-slate-100" aria-label="Tutup" @click="revisionModalOpen = false">&times;</button>
+                    <button
+                        type="button"
+                        class="rounded-md p-2 text-slate-500 hover:bg-slate-100"
+                        aria-label="Tutup"
+                        @click="revisionModalOpen = false"
+                    >
+                        &times;
+                    </button>
                 </div>
                 <div class="space-y-4 px-6 py-5">
                     <div>
                         <label for="renstra-revision-reason" class="text-sm font-medium text-slate-800">Alasan Perubahan</label>
-                        <textarea id="renstra-revision-reason" v-model="revisionForm.alasan_perubahan" rows="4" class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" placeholder="Jelaskan alasan perubahan dokumen" />
+                        <textarea
+                            id="renstra-revision-reason"
+                            v-model="revisionForm.alasan_perubahan"
+                            rows="4"
+                            class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                            placeholder="Jelaskan alasan perubahan dokumen"
+                        />
                         <InputError :message="revisionForm.errors.alasan_perubahan" class="mt-1" />
                     </div>
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div>
                             <label for="renstra-revision-basis" class="text-sm font-medium text-slate-800">Dasar Perubahan</label>
-                            <input id="renstra-revision-basis" v-model="revisionForm.dasar_perubahan" type="text" class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" placeholder="Contoh: Perkada Perubahan" />
+                            <input
+                                id="renstra-revision-basis"
+                                v-model="revisionForm.dasar_perubahan"
+                                type="text"
+                                class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                                placeholder="Contoh: Perkada Perubahan"
+                            />
                             <InputError :message="revisionForm.errors.dasar_perubahan" class="mt-1" />
                         </div>
                         <div>
                             <label for="renstra-revision-date" class="text-sm font-medium text-slate-800">Tanggal Berlaku</label>
-                            <input id="renstra-revision-date" v-model="revisionForm.tanggal_berlaku" type="date" class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+                            <input
+                                id="renstra-revision-date"
+                                v-model="revisionForm.tanggal_berlaku"
+                                type="date"
+                                class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                            />
                             <InputError :message="revisionForm.errors.tanggal_berlaku" class="mt-1" />
                         </div>
                     </div>
                 </div>
                 <div class="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
-                    <button type="button" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" @click="revisionModalOpen = false">Batal</button>
-                    <button type="submit" :disabled="revisionForm.processing" class="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
+                    <button
+                        type="button"
+                        class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                        @click="revisionModalOpen = false"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="submit"
+                        :disabled="revisionForm.processing"
+                        class="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
                         <GitBranch class="size-4" />
                         Buat Perubahan
                     </button>

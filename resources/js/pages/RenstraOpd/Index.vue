@@ -582,6 +582,8 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                                 <div class="inline-flex gap-2">
                                     <Link
                                         :href="route('renstra-opd.show', renstra.id)"
+                                        prefetch="hover"
+                                        cache-for="5s"
                                         class="inline-flex h-9 items-center gap-2 rounded-md bg-[#00336C] px-3 text-xs font-semibold text-white hover:bg-[#0a4485]"
                                     >
                                         Buka
@@ -679,6 +681,8 @@ const indicatorCoverageLabel = (renstra: RenstraRow) => {
                     <div class="mt-4 flex flex-wrap gap-2">
                         <Link
                             :href="route('renstra-opd.show', renstra.id)"
+                            prefetch="hover"
+                            cache-for="5s"
                             class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md bg-[#00336C] px-3 text-sm font-semibold text-white"
                         >
                             Buka

@@ -38,6 +38,7 @@ use App\Models\TujuanOpd;
 use App\Models\User;
 use App\Services\Perencanaan\RenjaProgramScopeService;
 use App\Services\Renstra\RenstraProgressSummaryService;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -389,6 +390,92 @@ class RenstraOpdTest extends TestCase
         $this->assertFalse(collect($partialQueries)->contains(
             fn (array $query): bool => str_contains($query['query'], 'from "sub_kegiatan_pemerintahan"'),
         ), 'Reload target tidak boleh memuat seluruh master sub kegiatan.');
+    }
+
+    public function test_manage_tujuan_only_loads_its_active_cascading_section(): void
+    {
+        $this->seed();
+        $opd = Opd::create(['kode' => '1.00.95', 'nama' => 'Dinas Uji Kelola Cepat', 'status' => 'active']);
+        $rpjmd = Rpjmd::create(['judul' => 'RPJMD Kelola Cepat', 'tahun_awal' => 2026, 'tahun_akhir' => 2030, 'status' => 'approved']);
+        $renstra = RenstraOpd::create([
+            'opd_id' => $opd->id,
+            'rpjmd_id' => $rpjmd->id,
+            'judul' => 'RENSTRA Kelola Cepat',
+            'tahun_awal' => 2026,
+            'tahun_akhir' => 2030,
+            'status' => 'draft',
+        ]);
+        $tujuan = $renstra->tujuan()->create(['tujuan' => 'Tujuan aktif']);
+        $tujuan->indikator()->create(['indikator' => 'Indikator tujuan aktif']);
+        $sasaran = $tujuan->sasaran()->create(['sasaran' => 'Sasaran yang tidak perlu dimuat']);
+        $program = $sasaran->programs()->create(['renstra_opd_id' => $renstra->id, 'nama' => 'Program yang tidak perlu dimuat']);
+        $kegiatan = $program->kegiatan()->create(['nama' => 'Kegiatan yang tidak perlu dimuat']);
+        $subKegiatan = $kegiatan->subKegiatan()->create(['nama' => 'Sub kegiatan yang tidak perlu dimuat']);
+        $subKegiatan->anggaranTahunan()->create([
+            'periode_tahun_id' => PeriodeTahun::query()->where('tahun', 2026)->value('id'),
+            'anggaran' => 1250000,
+        ]);
+
+        $user = User::factory()->create(['opd_id' => $opd->id]);
+        $user->roles()->sync([Role::where('name', 'admin_opd')->value('id')]);
+
+        DB::enableQueryLog();
+        try {
+            DB::flushQueryLog();
+            $response = $this->actingAs($user)
+                ->get(route('renstra-opd.manage', ['renstra_opd' => $renstra, 'section' => 'tujuan']))
+                ->assertOk();
+            $queries = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+
+        $response->assertInertia(fn (Assert $page) => $page
+            ->has('renstra.tujuan', 1)
+            ->has('renstra.tujuan.0.indikator', 1)
+            ->where('renstra.tujuan.0.sasaran', [])
+            ->where('nodeOptions.sasaran', [])
+            ->where('rpjmdReferenceOptions.program_rpjmd', [])
+            ->where('masterReferenceOptions.sub_kegiatan_pemerintahan', []));
+        $this->assertFalse(collect($queries)->contains(
+            fn (array $query): bool => str_contains($query['query'], 'from "indikator_sasaran_opd"')
+                || str_contains($query['query'], 'from "sub_kegiatan_pemerintahan"'),
+        ), 'Kelola Tujuan tidak boleh membaca indikator Sasaran atau master Sub Kegiatan.');
+
+        $this->actingAs($user)
+            ->getJson(route('renstra-opd.nodes.delete-impact', [$renstra, 'tujuan', $tujuan->id]))
+            ->assertOk()
+            ->assertJsonPath('items.0.count', 1)
+            ->assertJsonPath('items.1.count', 1)
+            ->assertJsonPath('items.2.count', 1)
+            ->assertJsonPath('items.3.count', 1)
+            ->assertJsonPath('items.4.count', 1);
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.manage', ['renstra_opd' => $renstra, 'section' => 'program']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('renstra.tujuan.0.sasaran.0.programs.0.pagu_indikatif', 1250000)
+                ->where('renstra.tujuan.0.sasaran.0.programs.0.kegiatan', []));
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.manage', ['renstra_opd' => $renstra, 'section' => 'kegiatan']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('renstra.tujuan.0.sasaran.0.programs.0.kegiatan.0.pagu_indikatif', 1250000)
+                ->where('renstra.tujuan.0.sasaran.0.programs.0.kegiatan.0.sub_kegiatan', []));
+
+        Model::preventLazyLoading();
+        try {
+            foreach (['tujuan', 'sasaran', 'program', 'kegiatan', 'sub-kegiatan'] as $section) {
+                $this->actingAs($user)
+                    ->get(route('renstra-opd.manage', ['renstra_opd' => $renstra, 'section' => $section]))
+                    ->assertOk();
+            }
+        } finally {
+            Model::preventLazyLoading(false);
+        }
     }
 
     public function test_kabupaten_viewer_receives_period_columns_for_renstra_preview(): void
@@ -1418,7 +1505,12 @@ class RenstraOpdTest extends TestCase
 
                     return str_contains((string) ($option['description'] ?? ''), 'Sasaran Program: Sasaran program cabang kedua')
                         && $context->pluck('label')->values()->all() === ['Sasaran OPD', 'Sasaran Program'];
-                }))
+                })));
+
+        $this->actingAs($user)
+            ->get(route('renstra-opd.manage', ['renstra_opd' => $renstra, 'section' => 'sub-kegiatan']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
                 ->where('nodeOptions.kegiatan', fn ($options) => collect($options)->contains(function (array $option): bool {
                     $context = collect($option['context'] ?? []);
 

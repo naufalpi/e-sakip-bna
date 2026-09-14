@@ -6,8 +6,6 @@ import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
 import SystemAnnouncementBar from '@/components/SystemAnnouncementBar.vue';
 import { useInertiaNavigationIndicator } from '@/composables/useInertiaNavigationIndicator';
 import type { BreadcrumbItemType } from '@/types';
-import { usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
 
 interface Props {
     breadcrumbs?: BreadcrumbItemType[];
@@ -17,8 +15,6 @@ withDefaults(defineProps<Props>(), {
     breadcrumbs: () => [],
 });
 
-const page = usePage();
-const pageTransitionKey = computed(() => `${page.component}:${page.url.split('?')[0]}`);
 const { isNavigating } = useInertiaNavigationIndicator();
 </script>
 
@@ -32,11 +28,9 @@ const { isNavigating } = useInertiaNavigationIndicator();
                 <span />
             </div>
             <div class="admin-page-stage relative flex min-w-0 flex-none flex-col">
-                <Transition name="page-drop" appear>
-                    <div :key="pageTransitionKey" class="min-w-0">
-                        <slot />
-                    </div>
-                </Transition>
+                <div class="admin-page-content min-w-0">
+                    <slot />
+                </div>
             </div>
         </AppContent>
     </AppShell>
